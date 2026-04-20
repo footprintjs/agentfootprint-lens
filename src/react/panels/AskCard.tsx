@@ -9,8 +9,8 @@
  * context belongs here; the tool summary moves to the end-of-run
  * footer (see <RunSummary />).
  */
-import type { Stage } from "../adapters/deriveStages";
-import type { AgentTimeline } from "../adapters/types";
+import type { Stage } from "../../core/deriveStages";
+import type { AgentTimeline } from "../../core/types";
 import { useLensTheme } from "../theme/useLensTheme";
 
 export interface AskCardProps {

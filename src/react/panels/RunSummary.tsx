@@ -12,7 +12,7 @@
  *   • Wall time — total elapsed across all turns
  */
 import { useState } from "react";
-import type { AgentTimeline } from "../adapters/types";
+import type { AgentTimeline } from "../../core/types";
 import { useLensTheme } from "../theme/useLensTheme";
 
 export interface RunSummaryProps {

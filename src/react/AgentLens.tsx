@@ -24,19 +24,19 @@
  * ─────────────────────────────────────────────────────────────────────────
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { fromAgentSnapshot } from "./adapters/fromAgentSnapshot";
+import { fromAgentSnapshot } from "../core/fromAgentSnapshot";
 import type {
   AgentToolInvocation,
   AgentTimeline,
   LensSkill,
-} from "./adapters/types";
+} from "../core/types";
 import { MessagesPanel } from "./panels/MessagesPanel";
 import { SkillsPanel } from "./panels/SkillsPanel";
 import { StageFlow } from "./panels/StageFlow";
 import { TimeTravel } from "./panels/TimeTravel";
 import { AskCard } from "./panels/AskCard";
 import { RunSummary } from "./panels/RunSummary";
-import { deriveStages, type Stage } from "./adapters/deriveStages";
+import { deriveStages, type Stage } from "../core/deriveStages";
 import { useLensTheme } from "./theme/useLensTheme";
 
 export interface AgentLensProps {

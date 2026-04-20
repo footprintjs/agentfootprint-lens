@@ -21,8 +21,8 @@ import type {
   AgentTimeline,
   AgentToolInvocation,
   AgentTurn,
-} from "../adapters/types";
-import type { Stage, StageMutations } from "../adapters/deriveStages";
+} from "../../core/types";
+import type { Stage, StageMutations } from "../../core/deriveStages";
 import { useLensTheme } from "../theme/useLensTheme";
 
 export interface MessagesPanelProps {

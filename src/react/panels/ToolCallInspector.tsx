@@ -7,7 +7,7 @@
  * the tool's underlying footprintjs flowchart via explainable-ui is a
  * phase-2 item (requires surfacing per-tool sub-snapshots).
  */
-import type { AgentToolInvocation, AgentTimeline } from "../adapters/types";
+import type { AgentToolInvocation, AgentTimeline } from "../../core/types";
 import { useLensTheme } from "../theme/useLensTheme";
 
 export interface ToolCallInspectorProps {

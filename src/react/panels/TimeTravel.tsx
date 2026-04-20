@@ -8,7 +8,7 @@
  * whole ecosystem should have one shape for "show me what it looked
  * like at step N" so users carry the muscle memory between tools.
  */
-import type { Stage } from "../adapters/deriveStages";
+import type { Stage } from "../../core/deriveStages";
 import { useLensTheme } from "../theme/useLensTheme";
 
 export interface TimeTravelProps {

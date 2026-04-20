@@ -5,7 +5,7 @@
  * v0.1 is display-only with the selection callback; parent app owns the
  * scroll behavior.
  */
-import type { AgentTimeline } from "../adapters/types";
+import type { AgentTimeline } from "../../core/types";
 import { useLensTheme } from "../theme/useLensTheme";
 
 export interface IterationStripProps {

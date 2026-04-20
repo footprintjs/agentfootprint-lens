@@ -19,8 +19,8 @@
  * updates incrementally during the run, not only after it completes.
  */
 import { useCallback, useMemo, useRef, useState } from "react";
-import { LiveTimelineBuilder } from "./LiveTimelineBuilder";
-import type { AgentTimeline } from "./types";
+import { LiveTimelineBuilder } from "../../core/LiveTimelineBuilder";
+import type { AgentTimeline } from "../../core/types";
 
 export interface UseLiveTimelineResult {
   readonly timeline: AgentTimeline;

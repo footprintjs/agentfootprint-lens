@@ -14,7 +14,7 @@
  * layout grid. Close via backdrop click or the X button.
  */
 import { useState } from "react";
-import type { LensSkill } from "../adapters/types";
+import type { LensSkill } from "../../core/types";
 import { useLensTheme } from "../theme/useLensTheme";
 
 export interface SkillsPanelProps {

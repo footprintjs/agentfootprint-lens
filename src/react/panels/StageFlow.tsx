@@ -34,7 +34,7 @@ import {
   getSmoothStepPath,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
-import type { Stage, StageNodeId } from "../adapters/deriveStages";
+import type { Stage, StageNodeId } from "../../core/deriveStages";
 import { useLensTheme } from "../theme/useLensTheme";
 
 export interface StageFlowProps {
