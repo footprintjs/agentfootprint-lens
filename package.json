@@ -1,0 +1,64 @@
+{
+  "name": "agentfootprint-lens",
+  "version": "0.1.0",
+  "description": "See through your agent's decisions. React components for debugging agentfootprint runs — messages, prompts, tool calls, decision scope, cost.",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "agentfootprint",
+    "footprintjs",
+    "agent",
+    "llm",
+    "observability",
+    "debugger",
+    "explainable-ai",
+    "react",
+    "time-travel"
+  ],
+  "author": "Sanjay Krishna Anbalagan",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/footprintjs/agentfootprint-lens.git"
+  },
+  "homepage": "https://github.com/footprintjs/agentfootprint-lens#readme",
+  "bugs": {
+    "url": "https://github.com/footprintjs/agentfootprint-lens/issues"
+  },
+  "peerDependencies": {
+    "footprint-explainable-ui": "^0.18.0",
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "footprint-explainable-ui": "^0.18.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tsup": "^8.0.0",
+    "typescript": "~5.4.5",
+    "vitest": "^4.1.4"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  }
+}
