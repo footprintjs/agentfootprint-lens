@@ -124,6 +124,16 @@ export function AgentLens({
         fontFamily: t.fontSans,
       }}
     >
+      {/* One-off stylesheet for the selected-iter pulse. Inline-style can't
+          target a data attribute, and this rule is stable (doesn't depend
+          on tokens — `currentColor` picks up whatever text color the
+          active theme resolves). */}
+      <style>{`
+        [data-iter-selected="true"] {
+          outline-color: currentColor !important;
+          background: color-mix(in srgb, currentColor 8%, transparent);
+        }
+      `}</style>
       <div style={{ gridArea: "strip" }}>
         <IterationStrip
           timeline={timeline}
@@ -135,6 +145,7 @@ export function AgentLens({
         <MessagesPanel
           timeline={timeline}
           onToolCallClick={handleToolClick}
+          selectedIterKey={selectedIterKey}
           {...(derivedSystemPrompt && { systemPrompt: derivedSystemPrompt })}
         />
       </div>

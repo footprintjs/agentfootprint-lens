@@ -14,7 +14,7 @@
  * by wrapping their app in `<FootprintTheme tokens={coolLight|coolDark}>`
  * — no Lens-specific theme API to learn.
  */
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   AgentIteration,
   AgentMessage,
@@ -33,16 +33,44 @@ export interface MessagesPanelProps {
   readonly onToolCallClick?: (invocation: AgentToolInvocation) => void;
   /** Optional system-prompt text to render in the collapsible preamble. */
   readonly systemPrompt?: string;
+  /**
+   * The currently-selected iteration key in the parent shell, format
+   * `"<turnIndex>.<iterIndex>"` (e.g. `"0.3"` for turn 1, iter 3).
+   * When this changes, the panel scrolls the matching iteration block
+   * into view and flashes a highlight for 1.2s so the user sees the
+   * jump. No-op when undefined.
+   */
+  readonly selectedIterKey?: string | null;
 }
 
 export function MessagesPanel({
   timeline,
   onToolCallClick,
   systemPrompt,
+  selectedIterKey,
 }: MessagesPanelProps) {
   const t = useLensTheme();
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  // Scroll + highlight when selectedIterKey changes. The highlight is a
+  // CSS class toggled on the target block; we pulse it via a one-shot
+  // timer rather than CSS animation so it behaves the same in both
+  // themes and survives re-renders mid-pulse.
+  useEffect(() => {
+    if (!selectedIterKey || !scrollRef.current) return;
+    const target = scrollRef.current.querySelector<HTMLDivElement>(
+      `[data-iter-key="${CSS.escape(selectedIterKey)}"]`,
+    );
+    if (!target) return;
+    target.scrollIntoView({ block: "start", behavior: "smooth" });
+    target.setAttribute("data-iter-selected", "true");
+    const h = window.setTimeout(() => target.removeAttribute("data-iter-selected"), 1200);
+    return () => window.clearTimeout(h);
+  }, [selectedIterKey]);
+
   return (
     <div
+      ref={scrollRef}
       data-fp-lens="messages-panel"
       style={{
         display: "flex",
@@ -127,7 +155,12 @@ function TurnBlock({
       <TurnHeader turn={turn} />
       <UserBubble text={turn.userPrompt} />
       {turn.iterations.map((iter) => (
-        <IterationBlock key={iter.index} iter={iter} onToolCallClick={onToolCallClick} />
+        <IterationBlock
+          key={iter.index}
+          iter={iter}
+          turnIndex={turn.index}
+          onToolCallClick={onToolCallClick}
+        />
       ))}
       {turn.finalContent && turn.iterations.length > 0 && (
         <div style={{ fontSize: 11, color: t.textSubtle, textAlign: "center" }}>
@@ -184,14 +217,35 @@ function UserBubble({ text }: { text: string }) {
 
 function IterationBlock({
   iter,
+  turnIndex,
   onToolCallClick,
 }: {
   iter: AgentIteration;
+  turnIndex: number;
   onToolCallClick?: (inv: AgentToolInvocation) => void;
 }) {
   const t = useLensTheme();
+  const key = `${turnIndex}.${iter.index}`;
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+    <div
+      data-iter-key={key}
+      data-turn-index={turnIndex}
+      data-iter-index={iter.index}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+        // When the parent adds data-iter-selected (via IterationStrip
+        // click), pulse a soft ring using the accent color. Subtle so
+        // the chat itself stays readable.
+        padding: 8,
+        margin: -8,
+        borderRadius: t.radius,
+        outline: "2px solid transparent",
+        outlineOffset: 2,
+        transition: "outline-color 180ms ease, background 180ms ease",
+      }}
+    >
       <IterationBadge iter={iter} />
       {iter.assistantContent && (
         <div
