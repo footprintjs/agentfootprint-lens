@@ -53,6 +53,14 @@ export interface AgentIteration {
   readonly matchedInstructions?: readonly string[];
   /** Tool names visible to the LLM on this iteration. */
   readonly visibleTools: readonly string[];
+  /**
+   * Number of messages in the conversation at the moment `llm_start`
+   * fired. `timeline.messages.slice(0, messagesSentCount)` yields
+   * exactly what the LLM saw on this iteration (minus system prompt +
+   * tool list — those come from a future richer llm_start event).
+   * Enables the "What Neo saw" expander in MessagesPanel.
+   */
+  readonly messagesSentCount: number;
 }
 
 /** One `.run()` call. Multi-turn conversations stack these. */

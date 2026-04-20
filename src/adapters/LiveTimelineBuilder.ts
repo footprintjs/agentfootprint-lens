@@ -88,6 +88,7 @@ interface MutableIteration {
   matchedInstructions?: string[];
   visibleTools: string[];
   startMs: number;
+  messagesSentCount: number;
 }
 
 interface MutableTool {
@@ -183,6 +184,9 @@ export class LiveTimelineBuilder {
       decisionAtStart: {},
       visibleTools: [],
       startMs: Date.now(),
+      // Freeze the message count here so "What Neo saw" can reproduce
+      // the context window at this exact iteration later.
+      messagesSentCount: this.messages.length,
     };
     this.currentTurn.iterations.push(this.currentIter);
   }

@@ -47,12 +47,12 @@ export function ToolCallInspector({
           background: t.bgElev,
         }}
       >
-        Tool calls · {timeline.tools.length}
+        Every tool Neo called · {timeline.tools.length}
       </div>
       <div style={{ overflow: "auto", flex: 1 }}>
         {timeline.tools.length === 0 && (
           <div style={{ padding: 14, color: t.textSubtle, fontSize: 12 }}>
-            No tool calls yet.
+            Neo hasn't called any tools yet.
           </div>
         )}
         {timeline.tools.map((tc) => {

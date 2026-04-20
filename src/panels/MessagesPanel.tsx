@@ -1,18 +1,18 @@
 /**
- * MessagesPanel — the primary Lens surface. Chat-shaped view of an agent
- * run with turn boundaries, iteration markers, and expandable tool calls.
+ * MessagesPanel — the primary Lens surface. Chat-shaped, story-mode view
+ * of an agent run with human-friendly narration for each step.
  *
- * Data comes from `fromAgentSnapshot(runtimeSnapshot).turns`. Each turn
- * is:
- *   • one user message
- *   • one or more assistant iterations (each may request N tool calls)
- *   • tool role bubbles bound to their assistant parent
- *   • final assistant bubble
+ * Each assistant iteration is one of five conceptual steps:
+ *   1. "Neo is looking up available skills"    (list_skills)
+ *   2. "Neo activated the {id} skill"          (read_skill)
+ *   3. "Neo called {tool} to get data"         (any other tool)
+ *   4. "Neo gathered data from N sources"      (parallel tool calls)
+ *   5. "Neo is ready to answer"                (final — no tool calls)
  *
- * Theme is read via `useLensTheme()` which maps FootprintTheme tokens
- * into Lens's semantic palette. Consumers get free light/dark support
- * by wrapping their app in `<FootprintTheme tokens={coolLight|coolDark}>`
- * — no Lens-specific theme API to learn.
+ * Each iteration has a "Show what Neo saw" expander that reveals the
+ * exact messages that were in context when the LLM made this decision.
+ * Tools + system prompt will follow when agentfootprint emits a richer
+ * llm_start event; for now we show the message slice.
  */
 import { useEffect, useRef, useState } from "react";
 import type {
@@ -26,20 +26,8 @@ import { useLensTheme } from "../theme/useLensTheme";
 
 export interface MessagesPanelProps {
   readonly timeline: AgentTimeline;
-  /**
-   * Called when the user clicks a tool-call card. Host app surfaces it
-   * in the Tool Call Inspector. When omitted, clicking is a no-op.
-   */
   readonly onToolCallClick?: (invocation: AgentToolInvocation) => void;
-  /** Optional system-prompt text to render in the collapsible preamble. */
   readonly systemPrompt?: string;
-  /**
-   * The currently-selected iteration key in the parent shell, format
-   * `"<turnIndex>.<iterIndex>"` (e.g. `"0.3"` for turn 1, iter 3).
-   * When this changes, the panel scrolls the matching iteration block
-   * into view and flashes a highlight for 1.2s so the user sees the
-   * jump. No-op when undefined.
-   */
   readonly selectedIterKey?: string | null;
 }
 
@@ -52,10 +40,6 @@ export function MessagesPanel({
   const t = useLensTheme();
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  // Scroll + highlight when selectedIterKey changes. The highlight is a
-  // CSS class toggled on the target block; we pulse it via a one-shot
-  // timer rather than CSS animation so it behaves the same in both
-  // themes and survives re-renders mid-pulse.
   useEffect(() => {
     if (!selectedIterKey || !scrollRef.current) return;
     const target = scrollRef.current.querySelector<HTMLDivElement>(
@@ -88,7 +72,12 @@ export function MessagesPanel({
     >
       {systemPrompt && <SystemBubble text={systemPrompt} />}
       {timeline.turns.map((turn) => (
-        <TurnBlock key={turn.index} turn={turn} onToolCallClick={onToolCallClick} />
+        <TurnBlock
+          key={turn.index}
+          turn={turn}
+          allMessages={timeline.messages}
+          onToolCallClick={onToolCallClick}
+        />
       ))}
     </div>
   );
@@ -123,7 +112,7 @@ function SystemBubble({ text }: { text: string }) {
           font: "inherit",
         }}
       >
-        <strong>SYSTEM</strong> {open ? "▾" : "▸"} {open ? "" : preview}
+        <strong>How Neo is configured</strong> {open ? "▾" : "▸"} {open ? "" : preview}
       </button>
       {open && (
         <pre
@@ -144,9 +133,11 @@ function SystemBubble({ text }: { text: string }) {
 
 function TurnBlock({
   turn,
+  allMessages,
   onToolCallClick,
 }: {
   turn: AgentTurn;
+  allMessages: readonly AgentMessage[];
   onToolCallClick?: (inv: AgentToolInvocation) => void;
 }) {
   const t = useLensTheme();
@@ -154,18 +145,21 @@ function TurnBlock({
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <TurnHeader turn={turn} />
       <UserBubble text={turn.userPrompt} />
-      {turn.iterations.map((iter) => (
+      {turn.iterations.map((iter, i) => (
         <IterationBlock
           key={iter.index}
           iter={iter}
+          iterPositionInTurn={i + 1}
           turnIndex={turn.index}
+          allMessages={allMessages}
           onToolCallClick={onToolCallClick}
         />
       ))}
       {turn.finalContent && turn.iterations.length > 0 && (
         <div style={{ fontSize: 11, color: t.textSubtle, textAlign: "center" }}>
-          turn {turn.index + 1} final · {turn.iterations.length} iter · {turn.totalInputTokens}→
-          {turn.totalOutputTokens} tok · {(turn.totalDurationMs / 1000).toFixed(1)}s
+          Answer compiled · {turn.iterations.length} step
+          {turn.iterations.length === 1 ? "" : "s"} · {turn.totalInputTokens}→
+          {turn.totalOutputTokens} tokens · {(turn.totalDurationMs / 1000).toFixed(1)}s
         </div>
       )}
     </div>
@@ -188,7 +182,7 @@ function TurnHeader({ turn }: { turn: AgentTurn }) {
       }}
     >
       <div style={{ flex: 1, height: 1, background: t.border }} />
-      <span>Turn {turn.index + 1}</span>
+      <span>Your question {turn.index + 1}</span>
       <div style={{ flex: 1, height: 1, background: t.border }} />
     </div>
   );
@@ -215,17 +209,49 @@ function UserBubble({ text }: { text: string }) {
   );
 }
 
+/**
+ * Human-friendly narration for each iteration. Looks at what the LLM
+ * actually did (list_skills, read_skill, other tools, or final) and
+ * renders a sentence instead of a technical label.
+ */
+function iterationHeadline(iter: AgentIteration): string {
+  if (iter.toolCalls.length === 0) {
+    return "Neo is ready to answer";
+  }
+  if (iter.toolCalls.length === 1) {
+    const tc = iter.toolCalls[0];
+    if (tc.name === "list_skills") return "Neo is looking up available skills";
+    if (tc.name === "read_skill") {
+      const id = (tc.arguments?.id as string | undefined) ?? "?";
+      return `Neo activated the “${id}” skill`;
+    }
+    return `Neo called ${tc.name} to get data`;
+  }
+  // parallel tool calls — summarize
+  const names = iter.toolCalls.map((tc) => tc.name);
+  if (names.length <= 3) return `Neo called ${names.join(", ")} in parallel`;
+  return `Neo gathered data from ${names.length} sources in parallel`;
+}
+
 function IterationBlock({
   iter,
+  iterPositionInTurn,
   turnIndex,
+  allMessages,
   onToolCallClick,
 }: {
   iter: AgentIteration;
+  iterPositionInTurn: number;
   turnIndex: number;
+  allMessages: readonly AgentMessage[];
   onToolCallClick?: (inv: AgentToolInvocation) => void;
 }) {
   const t = useLensTheme();
+  const [showContext, setShowContext] = useState(false);
   const key = `${turnIndex}.${iter.index}`;
+  const headline = iterationHeadline(iter);
+  const contextMessages = allMessages.slice(0, iter.messagesSentCount);
+
   return (
     <div
       data-iter-key={key}
@@ -235,9 +261,6 @@ function IterationBlock({
         display: "flex",
         flexDirection: "column",
         gap: 6,
-        // When the parent adds data-iter-selected (via IterationStrip
-        // click), pulse a soft ring using the accent color. Subtle so
-        // the chat itself stays readable.
         padding: 8,
         margin: -8,
         borderRadius: t.radius,
@@ -246,7 +269,52 @@ function IterationBlock({
         transition: "outline-color 180ms ease, background 180ms ease",
       }}
     >
-      <IterationBadge iter={iter} />
+      {/* Headline + step metadata (readable sentence on left, subtle
+          tech details on right). */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          gap: 8,
+          fontSize: 13,
+          color: t.textMuted,
+        }}
+      >
+        <span style={{ color: t.accent, fontWeight: 600 }}>
+          Step {iterPositionInTurn}:
+        </span>
+        <span style={{ color: t.text }}>{headline}</span>
+        <span style={{ flex: 1 }} />
+        <span
+          style={{
+            fontSize: 10,
+            color: t.textSubtle,
+            fontFamily: t.fontMono,
+          }}
+        >
+          {iter.inputTokens !== undefined &&
+            `${iter.inputTokens}→${iter.outputTokens ?? "?"} tok · `}
+          {iter.durationMs !== undefined && `${(iter.durationMs / 1000).toFixed(2)}s`}
+        </span>
+        <button
+          onClick={() => setShowContext((v) => !v)}
+          title="See exactly what Neo saw when deciding this step"
+          style={{
+            fontSize: 11,
+            color: t.textMuted,
+            background: "transparent",
+            border: `1px solid ${t.border}`,
+            borderRadius: 4,
+            padding: "2px 8px",
+            cursor: "pointer",
+            fontWeight: 400,
+            width: "auto",
+          }}
+        >
+          {showContext ? "Hide" : "Show"} what Neo saw
+        </button>
+      </div>
+
       {iter.assistantContent && (
         <div
           style={{
@@ -268,33 +336,118 @@ function IterationBlock({
           ))}
         </div>
       )}
+      {showContext && (
+        <ContextDrawer
+          messagesSentCount={iter.messagesSentCount}
+          contextMessages={contextMessages}
+          iter={iter}
+        />
+      )}
     </div>
   );
 }
 
-function IterationBadge({ iter }: { iter: AgentIteration }) {
+function ContextDrawer({
+  messagesSentCount,
+  contextMessages,
+  iter,
+}: {
+  messagesSentCount: number;
+  contextMessages: readonly AgentMessage[];
+  iter: AgentIteration;
+}) {
   const t = useLensTheme();
-  const bits: string[] = [`iter ${iter.index}`];
-  if (iter.model) bits.push(iter.model);
-  if (iter.inputTokens !== undefined)
-    bits.push(`${iter.inputTokens}→${iter.outputTokens ?? "?"} tok`);
-  if (iter.durationMs !== undefined) bits.push(`${(iter.durationMs / 1000).toFixed(2)}s`);
-  if (iter.stopReason) bits.push(iter.stopReason);
   return (
     <div
       style={{
-        alignSelf: "flex-start",
-        fontSize: 10,
-        color: t.textSubtle,
-        textTransform: "uppercase",
-        letterSpacing: "0.08em",
-        fontWeight: 600,
-        fontFamily: t.fontMono,
+        border: `1px dashed ${t.border}`,
+        borderRadius: t.radius,
+        padding: "10px 12px",
+        background: t.bg,
+        fontSize: 12,
+        color: t.textMuted,
       }}
     >
-      {bits.join(" · ")}
+      <div
+        style={{
+          fontSize: 10,
+          color: t.textSubtle,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          fontWeight: 600,
+          marginBottom: 8,
+        }}
+      >
+        What Neo saw before this step
+      </div>
+      <div style={{ color: t.text, marginBottom: 8 }}>
+        <strong>{messagesSentCount}</strong> message{messagesSentCount === 1 ? "" : "s"} in
+        context{iter.model ? ` · sent to ${iter.model}` : ""}
+        {iter.inputTokens !== undefined && ` · ${iter.inputTokens} input tokens`}
+      </div>
+      {contextMessages.length === 0 ? (
+        <div style={{ color: t.textSubtle, fontStyle: "italic" }}>
+          Just the system configuration — this is the first call of the conversation.
+        </div>
+      ) : (
+        <ol style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+          {contextMessages.map((m, i) => (
+            <li key={i} style={{ fontSize: 12 }}>
+              <span
+                style={{
+                  display: "inline-block",
+                  padding: "1px 6px",
+                  borderRadius: 3,
+                  background:
+                    m.role === "user"
+                      ? `color-mix(in srgb, ${t.accent} 20%, transparent)`
+                      : m.role === "assistant"
+                        ? t.bgElev
+                        : m.role === "tool"
+                          ? `color-mix(in srgb, ${t.success} 18%, transparent)`
+                          : t.bgElev,
+                  color:
+                    m.role === "user"
+                      ? t.accent
+                      : m.role === "tool"
+                        ? t.success
+                        : t.text,
+                  fontFamily: t.fontMono,
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  marginRight: 6,
+                }}
+              >
+                {m.role}
+              </span>
+              <span style={{ color: t.textMuted }}>
+                {summarizeMessage(m)}
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+      <div
+        style={{
+          marginTop: 10,
+          fontSize: 11,
+          color: t.textSubtle,
+          fontStyle: "italic",
+        }}
+      >
+        Plus the system configuration (see top of conversation) and the tools Neo had access to.
+      </div>
     </div>
   );
+}
+
+function summarizeMessage(m: AgentMessage): string {
+  if (m.role === "tool") {
+    return `tool result (${m.content.length.toLocaleString()} chars)`;
+  }
+  const t = m.content.replace(/\s+/g, " ").trim();
+  return t.length > 120 ? t.slice(0, 120) + "…" : t;
 }
 
 function ToolCallCard({
@@ -308,6 +461,7 @@ function ToolCallCard({
   const [open, setOpen] = useState(false);
   const preview = shortArgs(invocation.arguments);
   const errored = invocation.error === true;
+  const friendlyVerb = toolVerb(invocation);
   return (
     <div
       style={{
@@ -330,40 +484,47 @@ function ToolCallCard({
           alignItems: "center",
           gap: 10,
           fontSize: 12,
-          fontFamily: t.fontMono,
         }}
       >
-        <span style={{ color: errored ? t.error : t.accent, fontWeight: 600 }}>
+        <span style={{ color: t.textMuted, fontFamily: t.fontSans }}>
+          {friendlyVerb}
+        </span>
+        <span style={{ color: errored ? t.error : t.accent, fontWeight: 600, fontFamily: t.fontMono }}>
           {invocation.name}
         </span>
-        <span style={{ color: t.textMuted }}>({preview})</span>
-        <span style={{ flex: 1 }} />
-        {invocation.decisionUpdate && Object.keys(invocation.decisionUpdate).length > 0 && (
-          <span
-            style={{
-              fontSize: 10,
-              padding: "1px 6px",
-              borderRadius: 3,
-              background: `color-mix(in srgb, ${t.warning} 20%, transparent)`,
-              color: t.warning,
-              fontFamily: t.fontSans,
-              fontWeight: 600,
-              textTransform: "uppercase",
-            }}
-          >
-            decisionUpdate
+        {preview && (
+          <span style={{ color: t.textMuted, fontFamily: t.fontMono }}>
+            ({preview})
           </span>
         )}
+        <span style={{ flex: 1 }} />
+        {invocation.decisionUpdate &&
+          Object.keys(invocation.decisionUpdate).length > 0 && (
+            <span
+              style={{
+                fontSize: 10,
+                padding: "1px 6px",
+                borderRadius: 3,
+                background: `color-mix(in srgb, ${t.warning} 20%, transparent)`,
+                color: t.warning,
+                fontWeight: 600,
+                textTransform: "uppercase",
+              }}
+              title="This tool changed what skill is active"
+            >
+              skill change
+            </span>
+          )}
         <span style={{ color: t.textSubtle }}>{open ? "▾" : "▸"}</span>
       </div>
       {open && (
         <div style={{ padding: "8px 12px", borderTop: `1px solid ${t.border}` }}>
-          <Label t={t}>args</Label>
+          <Label t={t}>What Neo asked for</Label>
           <JsonBlock value={invocation.arguments} />
           {invocation.result && (
             <>
               <Label t={t} style={{ marginTop: 10 }}>
-                result
+                What the tool returned
               </Label>
               <pre
                 style={{
@@ -387,7 +548,7 @@ function ToolCallCard({
             Object.keys(invocation.decisionUpdate).length > 0 && (
               <>
                 <Label t={t} style={{ marginTop: 10 }}>
-                  decisionUpdate
+                  What changed in Neo's state
                 </Label>
                 <JsonBlock value={invocation.decisionUpdate} />
               </>
@@ -396,6 +557,12 @@ function ToolCallCard({
       )}
     </div>
   );
+}
+
+function toolVerb(inv: AgentToolInvocation): string {
+  if (inv.name === "list_skills") return "Asked for";
+  if (inv.name === "read_skill") return "Activated";
+  return "Called";
 }
 
 function Label({
@@ -456,11 +623,3 @@ function shortArgs(args: Record<string, unknown>): string {
 }
 
 export { ToolCallCard };
-
-function _assertUnused(_: AgentMessage) {
-  // Exported type is referenced from ./index.ts; keeping the import
-  // for bundler tree-shaking consistency without introducing a new
-  // linter warning on a "used-elsewhere" type import.
-  void _;
-}
-_assertUnused;

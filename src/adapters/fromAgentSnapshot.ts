@@ -291,8 +291,14 @@ function assembleTurns(
         turnIndex: currentTurn!.index,
       }));
 
+      // For the post-process fallback path we can't know the precise
+      // messages-at-iter-start, so approximate it as "all messages
+      // currently accumulated in this turn before this iter" — close
+      // enough for imported traces where we don't have emit timing.
+      const msgsBefore = messages.indexOf(msg);
       const iteration: AgentIteration = {
         index: iterIndex,
+        messagesSentCount: msgsBefore >= 0 ? msgsBefore : 0,
         ...(call?.model && { model: call.model }),
         ...(call?.inputTokens !== undefined && { inputTokens: call.inputTokens }),
         ...(call?.outputTokens !== undefined && { outputTokens: call.outputTokens }),

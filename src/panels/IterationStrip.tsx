@@ -17,14 +17,14 @@ export interface IterationStripProps {
 export function IterationStrip({ timeline, selectedKey, onSelect }: IterationStripProps) {
   const t = useLensTheme();
   const chips = timeline.turns.flatMap((turn) =>
-    turn.iterations.map((iter) => ({
+    turn.iterations.map((iter, stepIdx) => ({
       key: `${turn.index}.${iter.index}`,
       turn: turn.index + 1,
-      iter: iter.index,
-      label: chipLabel(iter),
-      tools: iter.toolCalls.length,
+      step: stepIdx + 1,
+      label: stepHeadline(iter),
       durationMs: iter.durationMs ?? 0,
       stopReason: iter.stopReason,
+      toolCount: iter.toolCalls.length,
     })),
   );
 
@@ -45,7 +45,11 @@ export function IterationStrip({ timeline, selectedKey, onSelect }: IterationStr
       )}
       {chips.map((c) => {
         const active = c.key === selectedKey;
-        const isFinal = c.stopReason === "stop" || c.stopReason === "end_turn";
+        const isFinal = c.toolCount === 0;
+        const secs =
+          c.durationMs >= 1000
+            ? `${(c.durationMs / 1000).toFixed(1)}s`
+            : `${Math.round(c.durationMs)}ms`;
         return (
           <button
             key={c.key}
@@ -55,18 +59,23 @@ export function IterationStrip({ timeline, selectedKey, onSelect }: IterationStr
               color: active ? "#fff" : t.textMuted,
               border: `1px solid ${active ? t.accent : t.border}`,
               borderRadius: 4,
-              padding: "4px 8px",
+              padding: "4px 10px",
               fontSize: 11,
-              fontFamily: "ui-monospace, monospace",
+              fontFamily: t.fontSans,
               cursor: "pointer",
               whiteSpace: "nowrap",
               flexShrink: 0,
+              maxWidth: 280,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
             }}
-            title={`turn ${c.turn} · iter ${c.iter} · ${c.tools} tool call${
-              c.tools === 1 ? "" : "s"
-            }${c.stopReason ? ` · ${c.stopReason}` : ""}`}
+            title={`Question ${c.turn} · Step ${c.step} · ${secs}${
+              c.stopReason ? ` · stop: ${c.stopReason}` : ""
+            }`}
           >
-            t{c.turn}.i{c.iter} · {c.label} {isFinal ? "✓" : ""}
+            <span style={{ fontWeight: 600 }}>Step {c.step}</span>
+            <span style={{ opacity: 0.85 }}> · {c.label}</span>
+            {isFinal && <span style={{ marginLeft: 6 }}>✓</span>}
           </button>
         );
       })}
@@ -74,9 +83,21 @@ export function IterationStrip({ timeline, selectedKey, onSelect }: IterationStr
   );
 }
 
-function chipLabel(iter: { toolCalls: readonly unknown[]; durationMs?: number }): string {
-  const d = iter.durationMs ?? 0;
-  const secs = d >= 1000 ? `${(d / 1000).toFixed(1)}s` : `${Math.round(d)}ms`;
-  const toolBit = iter.toolCalls.length > 0 ? `${iter.toolCalls.length}t` : "final";
-  return `${secs} · ${toolBit}`;
+function stepHeadline(iter: {
+  toolCalls: readonly { name: string; arguments: Record<string, unknown> }[];
+}): string {
+  if (iter.toolCalls.length === 0) return "Ready to answer";
+  if (iter.toolCalls.length === 1) {
+    const tc = iter.toolCalls[0];
+    if (tc.name === "list_skills") return "Looking up skills";
+    if (tc.name === "read_skill") {
+      const id = tc.arguments?.id as string | undefined;
+      return id ? `Activated ${id}` : "Activating skill";
+    }
+    return `Called ${tc.name}`;
+  }
+  if (iter.toolCalls.length <= 3) {
+    return `Called ${iter.toolCalls.map((tc) => tc.name).join(", ")}`;
+  }
+  return `Called ${iter.toolCalls.length} tools in parallel`;
 }
