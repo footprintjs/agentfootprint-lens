@@ -75,6 +75,27 @@ export interface AgentTurn {
   readonly totalDurationMs: number;
 }
 
+/**
+ * A skill as it reaches Lens. Consumers pass these in from their
+ * SkillRegistry (or wherever they build skills). Only `id` is
+ * required — everything else is best-effort, and extra fields pass
+ * through via the index signature so the raw-JSON view is useful for
+ * debugging even when skills carry custom metadata.
+ */
+export interface LensSkill {
+  readonly id: string;
+  readonly title?: string;
+  readonly description?: string;
+  readonly version?: string;
+  readonly scope?: readonly string[];
+  /** Tool ids surfaced by this skill (if it uses autoActivate-style gating). */
+  readonly tools?: readonly string[];
+  /** Markdown body — the text delivered to the LLM on read_skill. */
+  readonly body?: string;
+  /** Everything else on the skill object passes through for raw-JSON view. */
+  readonly [key: string]: unknown;
+}
+
 /** The full picture: every turn stitched together. */
 export interface AgentTimeline {
   readonly turns: readonly AgentTurn[];

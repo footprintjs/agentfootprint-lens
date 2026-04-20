@@ -16,6 +16,18 @@ export { IterationStrip } from "./panels/IterationStrip";
 export type { IterationStripProps } from "./panels/IterationStrip";
 export { ToolCallInspector } from "./panels/ToolCallInspector";
 export type { ToolCallInspectorProps } from "./panels/ToolCallInspector";
+export { SkillsPanel } from "./panels/SkillsPanel";
+export type { SkillsPanelProps } from "./panels/SkillsPanel";
+export { StageFlow } from "./panels/StageFlow";
+export type { StageFlowProps } from "./panels/StageFlow";
+export { TimeTravel } from "./panels/TimeTravel";
+export type { TimeTravelProps } from "./panels/TimeTravel";
+export { AskCard } from "./panels/AskCard";
+export type { AskCardProps } from "./panels/AskCard";
+export { RunSummary } from "./panels/RunSummary";
+export type { RunSummaryProps } from "./panels/RunSummary";
+export { deriveStages } from "./adapters/deriveStages";
+export type { Stage, StageNodeId, StagePrimitive } from "./adapters/deriveStages";
 
 // Primary path: collect during traversal via the builder/hook. This is
 // the footprintjs-idiomatic approach — ingest emit events as they fire,
@@ -38,6 +50,7 @@ export type {
   AgentMessage,
   AgentToolInvocation,
   AgentToolCallStub,
+  LensSkill,
 } from "./adapters/types";
 
 // Theme — the resolved palette the panels render against.

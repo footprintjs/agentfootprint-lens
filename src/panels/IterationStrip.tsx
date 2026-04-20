@@ -94,10 +94,13 @@ function stepHeadline(iter: {
       const id = tc.arguments?.id as string | undefined;
       return id ? `Activated ${id}` : "Activating skill";
     }
-    return `Called ${tc.name}`;
+    if (tc.name === "ask_human" || tc.name === "ask_user") {
+      return "Asked user";
+    }
+    return `Called tool (${tc.name})`;
   }
   if (iter.toolCalls.length <= 3) {
-    return `Called ${iter.toolCalls.map((tc) => tc.name).join(", ")}`;
+    return `Called ${iter.toolCalls.length} tools (${iter.toolCalls.map((tc) => tc.name).join(", ")})`;
   }
   return `Called ${iter.toolCalls.length} tools in parallel`;
 }

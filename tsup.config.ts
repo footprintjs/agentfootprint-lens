@@ -8,7 +8,7 @@ export default defineConfig({
   // Peer deps must NOT be bundled — consumers provide them. This also ensures
   // FootprintTheme context from footprint-explainable-ui is the same module
   // instance in both packages so theme tokens propagate transparently.
-  external: ["react", "react-dom", "footprint-explainable-ui"],
+  external: ["react", "react-dom", "footprint-explainable-ui", "@xyflow/react"],
   esbuildOptions(options) {
     options.jsx = "automatic";
   },
