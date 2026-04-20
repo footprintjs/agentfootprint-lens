@@ -17,9 +17,20 @@ export type { IterationStripProps } from "./panels/IterationStrip";
 export { ToolCallInspector } from "./panels/ToolCallInspector";
 export type { ToolCallInspectorProps } from "./panels/ToolCallInspector";
 
-// Adapter — for consumers who want to transform snapshots upstream (e.g.
-// memoize across renders or feed multiple Lens instances from one run).
+// Primary path: collect during traversal via the builder/hook. This is
+// the footprintjs-idiomatic approach — ingest emit events as they fire,
+// build the AgentTimeline incrementally, live-update the UI mid-run.
+export { LiveTimelineBuilder } from "./adapters/LiveTimelineBuilder";
+export { useLiveTimeline } from "./adapters/useLiveTimeline";
+export type { UseLiveTimelineResult } from "./adapters/useLiveTimeline";
+
+// Fallback path: parse a completed snapshot (e.g. an imported trace, or
+// a run that finished before Lens was wired up). Still useful — but the
+// live path is preferred for in-app debugging because it respects the
+// "no post-process" principle (every field is written once, when its
+// source event fires during traversal).
 export { fromAgentSnapshot } from "./adapters/fromAgentSnapshot";
+
 export type {
   AgentTimeline,
   AgentTurn,
