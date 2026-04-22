@@ -40,6 +40,15 @@ export interface UseLiveTimelineResult {
    *  the recorder consumes. */
   readonly ingest: (event: unknown) => void;
   /**
+   * Re-render trigger WITHOUT feeding events into the recorder. Use
+   * this in dual-attach setups where the recorder receives events
+   * directly via `runner.attachRecorder(lens.recorder)` AND you also
+   * subscribe to `runner.observe()` purely to drive React re-renders.
+   * Without this, calling `ingest()` from the observe callback would
+   * double-feed events (once via attach, once via translated ingest).
+   */
+  readonly sync: () => void;
+  /**
    * Set the user message for the next turn. Synthesizes a
    * `agentfootprint.agent.turn_start` emit — keeps backward compat
    * with consumers that called `startTurn()` before invoking
@@ -106,8 +115,8 @@ export function useLiveTimeline(): UseLiveTimelineResult {
   }, [recorder, sync]);
 
   return useMemo(
-    () => ({ timeline, ingest, startTurn, setSystemPrompt, reset, recorder }),
-    [timeline, ingest, startTurn, setSystemPrompt, reset, recorder],
+    () => ({ timeline, ingest, sync, startTurn, setSystemPrompt, reset, recorder }),
+    [timeline, ingest, sync, startTurn, setSystemPrompt, reset, recorder],
   );
 }
 
