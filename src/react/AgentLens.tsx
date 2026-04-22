@@ -166,13 +166,18 @@ export function AgentLens({
       ? (timeline.rawSnapshot.sharedState.systemPrompt as string)
       : undefined);
 
-  // Resolution order: explicit prop → agent's name from the snapshot
-  // (set via `Agent.create({ name })`) → "Agent" fallback. The snapshot
-  // path means apps that don't pass `appName` to <Lens> still get a
-  // sensible per-sample label, and we never fall back to a hardcoded
-  // "Neo" that bleeds across samples.
+  // Resolution order:
+  //   1. Explicit `agentName` prop (consumer override).
+  //   2. `timeline.agent.name` — the canonical source from agentfootprint
+  //      1.20+. Set via `agentTimeline({ name })` to match
+  //      `Agent.create({ name })`. This is THE source of truth.
+  //   3. `runtimeSnapshot.agentName` / `.name` — legacy fallback for
+  //      snapshot-import paths that don't go through agentTimeline().
+  //   4. "Agent" — final fallback. Renders "Agent · Agent" rather than
+  //      crashing on undefined.
   const derivedAgentName =
     agentName ??
+    timeline.agent?.name ??
     (typeof timeline.rawSnapshot?.agentName === "string"
       ? (timeline.rawSnapshot.agentName as string)
       : typeof timeline.rawSnapshot?.name === "string"
@@ -400,6 +405,7 @@ export function AgentLens({
               onEdgeClick={handleEdgeClick}
               activeSkillId={derivedActiveSkill}
               timeline={timeline}
+              agentName={derivedAgentName}
             />
           </div>
           <div

@@ -49,7 +49,19 @@ export function fromAgentSnapshot(runtime: AnySnapshot): AgentTimeline {
   const turns = assembleTurns(messages, llmCalls, toolExecs, instructionEvals, toolResolves);
   const allTools = turns.flatMap((t) => t.iterations.flatMap((i) => i.toolCalls));
 
+  // Snapshot-import path: derive the agent identity from snapshot
+  // metadata when available, defaulting to a sensible label otherwise.
+  // Live recorder paths populate this from `agentTimeline({ name })`
+  // directly; this fallback covers replay/import scenarios.
+  const agentName =
+    (typeof runtime?.agentName === "string" && runtime.agentName) ||
+    (typeof runtime?.name === "string" && runtime.name) ||
+    "Agent";
+  const agentId =
+    (typeof runtime?.agentId === "string" && runtime.agentId) || "snapshot-import";
+
   return {
+    agent: { id: agentId, name: agentName },
     turns,
     messages,
     tools: allTools,

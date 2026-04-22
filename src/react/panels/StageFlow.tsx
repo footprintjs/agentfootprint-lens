@@ -63,6 +63,14 @@ export interface StageFlowProps {
    * summary on the right).
    */
   readonly timeline?: AgentTimeline;
+  /**
+   * Display name for the agent — labels the dotted "Agent" container
+   * that wraps LLM + Tool + Skill + satellites. Defaults to "Agent"
+   * when omitted; consumers using `<Lens for={runner} appName="Neo" />`
+   * see "Agent · Neo" on the wrapper. Multi-agent (next phase) renders
+   * one container per name.
+   */
+  readonly agentName?: string;
 }
 
 // Node positions — deliberately fixed, not layout-auto. The graph is
@@ -107,6 +115,33 @@ const CONTEXT_NODE_POSITION = { x: 325, y: 120 };
 // the slots. Tool count changes mid-run (skill activations add tools
 // via `autoActivate`), so this satellite re-renders per iteration.
 const TOOLS_NODE_POSITION = { x: -150, y: 120 };
+
+/**
+ * Agent-container bounding box. The dotted "Agent · <name>" wrapper
+ * encompasses LLM + Tool + Skill + Tools-list satellite + Context
+ * satellite — everything that is logically PART OF the agent.
+ *
+ *   • USER stays OUTSIDE — the human is not part of the agent.
+ *   • Layout is fixed (matching the static NODE_POSITIONS above), so
+ *     the box is a single constant + padding instead of a runtime
+ *     bounding-box computation. Multi-agent (next phase) replaces this
+ *     constant with per-agent boxes derived from agent metadata.
+ *
+ * Math (matching NODE_POSITIONS + node widths):
+ *   x_min = TOOLS_NODE_POSITION.x (-150) — leftmost (tools satellite)
+ *   x_max = CONTEXT_NODE_POSITION.x (325) + 200 (context width)  = 525
+ *   y_min = NODE_POSITIONS.agent.y (120) - 36 (header room)       = 84
+ *   y_max = NODE_POSITIONS.skill.y (360) + 70 (skill node height) = 430
+ *
+ * Padding (16px each side) gives the wrapper breathing room without
+ * crowding the User node above.
+ */
+const AGENT_CONTAINER_BOX = {
+  x: -166,
+  y: 84,
+  width: 707,
+  height: 362,
+} as const;
 
 /**
  * Route every (from, to) pair to specific handles so edges don't
@@ -157,16 +192,30 @@ function pickHandles(
   return { sourceHandle: "r-out", targetHandle: "l-in" };
 }
 
+// Display labels — center node is "LLM" (the API call). The "Agent"
+// label moved to the dotted CONTAINER that wraps LLM + Tool + Skill +
+// satellites, because conceptually:
+//
+//   Agent = LLM + Tools + the iteration loop + context engineering
+//
+// Conflating "Agent" with the LLM node taught newcomers the wrong
+// mental model (Agent ≡ LLM). Splitting them visually — LLM is one
+// inner node, Agent is the dotted boundary — surfaces the correct
+// definition matching how Anthropic + LangChain + every modern agent
+// framework documents it.
+//
+// The internal node ID stays `agent` so existing routing/handle-pick
+// code keeps working unchanged. Only the displayed string changed.
 const NODE_LABELS: Record<StageNodeId, string> = {
   user: "User",
-  agent: "Agent",
+  agent: "LLM",
   tool: "Tool",
   skill: "Skill",
 };
 
 const NODE_SUBLABELS: Record<StageNodeId, string> = {
   user: "You",
-  agent: "The LLM",
+  agent: "The API call",
   tool: "Data source / action",
   // "Adds context + tools" is what the user actually observes when a
   // skill activates — the skill body lands in System Prompt and its
@@ -182,6 +231,7 @@ export function StageFlow({
   height = 460,
   activeSkillId,
   timeline,
+  agentName = "Agent",
 }: StageFlowProps) {
   const t = useLensTheme();
   const focus =
@@ -378,6 +428,27 @@ export function StageFlow({
   }, [activeInjectionsBySlot]);
 
   const nodes = useMemo<Node[]>(() => {
+    // Container node — rendered FIRST so it sits at the back. Covers
+    // LLM + Tool + Skill + satellites; User stays outside (the human
+    // is not part of the agent). The label "Agent · <name>" makes the
+    // unit explicit so newcomers stop confusing "Agent" with "the LLM".
+    const containerNode: Node = {
+      id: "agent-container",
+      type: "agent-container",
+      position: { x: AGENT_CONTAINER_BOX.x, y: AGENT_CONTAINER_BOX.y },
+      data: {
+        agentName,
+        width: AGENT_CONTAINER_BOX.width,
+        height: AGENT_CONTAINER_BOX.height,
+      },
+      draggable: false,
+      selectable: false,
+      // ReactFlow renders nodes in array order; the first node is at
+      // the back. zIndex on the wrapper div is also lowered for safety
+      // in case ReactFlow's render order differs across versions.
+      zIndex: -1,
+    };
+
     const base = (Object.keys(NODE_POSITIONS) as StageNodeId[])
       .filter((id) => {
         // Hide SKILL node when never touched to keep the graph clean
@@ -446,11 +517,14 @@ export function StageFlow({
         draggable: false,
       } as Node);
     }
-    return base;
+    // Container goes FIRST in the array so it renders behind everything
+    // else — both via array order and the zIndex: -1 belt-and-suspenders.
+    return [containerNode, ...base];
   }, [
     activeNodes,
     touched,
     activeStage,
+    agentName,
     activeSkillId,
     activeInjectionsBySlot,
     activeLedger,
@@ -461,7 +535,12 @@ export function StageFlow({
   // Memoize nodeTypes + edgeTypes so React Flow doesn't warn about
   // changing types on every render.
   const nodeTypes = useMemo(
-    () => ({ lens: LensNode, context: ContextNode, "tools-list": ToolsListNode }),
+    () => ({
+      lens: LensNode,
+      context: ContextNode,
+      "tools-list": ToolsListNode,
+      "agent-container": AgentContainerNode,
+    }),
     [],
   );
   const edgeTypes = useMemo(() => ({ labelled: LensEdge(onEdgeClick) }), [onEdgeClick]);
@@ -833,6 +912,86 @@ function LensNode({ data }: NodeProps) {
  * with a per-source label so users can map "INSTRUCTIONS · 1 instr"
  * back to the dotted slot row inside the Agent.
  *
+/**
+ * AgentContainerNode — the dotted boundary that visually answers
+ * "where does the Agent end?" Wraps LLM + Tool + Skill + Tools-list
+ * satellite + Context satellite. User stays outside (the human is not
+ * part of the agent).
+ *
+ * Why a container at all:
+ *
+ *   Pre-this-change, the center node was labeled "Agent" and newcomers
+ *   read it as "Agent ≡ the LLM box" — the wrong mental model. Real
+ *   definition (Anthropic, LangChain, every modern agent framework):
+ *
+ *      Agent = LLM + Tools + iteration loop + context engineering
+ *
+ *   Renaming the inner node to "LLM" + adding this dotted container
+ *   labeled "Agent · <name>" externalizes the unit. Now the visual
+ *   matches the definition: the LLM is one node inside an Agent box.
+ *
+ *   Multi-agent (next phase) renders N of these containers, each
+ *   wrapping its own LLM/Tool/Skill group.
+ *
+ * Implementation notes:
+ *
+ *   • zIndex: -1 + first-in-array makes ReactFlow render this BEHIND
+ *     everything else.
+ *   • selectable: false so click-through hits the inner nodes.
+ *   • Sized via constants in `AGENT_CONTAINER_BOX` matching the static
+ *     NODE_POSITIONS layout. Multi-agent will compute boxes per-agent
+ *     instead of using a single constant.
+ */
+function AgentContainerNode({ data }: NodeProps) {
+  const t = useLensTheme();
+  const d = data as { agentName: string; width: number; height: number };
+  return (
+    <div
+      // Reserve space in the ReactFlow layout. The visible dotted
+      // wrapper is rendered as an inner div so the legend label can
+      // overlap the top border (fieldset-style).
+      style={{
+        position: "relative",
+        width: d.width,
+        height: d.height,
+        pointerEvents: "none",
+      }}
+    >
+      <div
+        style={{
+          position: "absolute",
+          inset: 0,
+          borderRadius: 14,
+          border: `1.5px dashed ${t.border}`,
+          background: `color-mix(in srgb, ${t.accent} 3%, transparent)`,
+        }}
+      />
+      <div
+        // "Fieldset legend" — the agent name sits ON the top border so
+        // the eye reads "Agent · <name>" as the unit's title without
+        // crowding the inner nodes.
+        style={{
+          position: "absolute",
+          top: -10,
+          left: 16,
+          padding: "1px 10px",
+          background: t.bg,
+          color: t.textMuted,
+          fontFamily: t.fontSans,
+          fontSize: 10,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Agent · <span style={{ color: t.text, fontFamily: t.fontMono }}>{d.agentName}</span>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Hidden when there are no injections — runs without any context
  * engineering keep the original 4-node layout.
  */
