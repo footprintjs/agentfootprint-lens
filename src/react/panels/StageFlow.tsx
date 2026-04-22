@@ -83,19 +83,22 @@ export interface StageFlowProps {
 // steps.
 // Vertical layout — top-to-bottom is the conversation flow.
 //
-// Spacing logic (heights are approximate — actual node height depends
-// on whether the Agent has a skill chip + ports row visible):
-//   user (y=20, ~70 tall)  → ends ~y=90
-//   agent (y=120, ~210 tall) → ends ~y=330  (50px gap above)
-//   tool (y=360, ~70 tall) → ends ~y=430   (30px gap above)
-// Tighter than the original (y=160 / y=380 / 220px gaps) so the bounding
-// box is more compact and `fitView` gives the satellites + flow nodes
-// a balanced read instead of the User column being lonely on the left.
-const NODE_POSITIONS: Record<StageNodeId, { x: number; y: number }> = {
+// Spacing logic — actual rendered heights (depends on whether the
+// Agent's skill chip + ports row are visible; ~170-200px when expanded):
+//   user  (y=20,  ~70 tall)  → ends ~y=90.   30px gap before agent.
+//   agent (y=120, ~170 tall) → ends ~y=290.  20px gap before tool.
+//   tool  (y=310, ~70 tall)  → starts at 310.
+//
+// SKILL node intentionally absent from this layout. Skill activation
+// is already surfaced in the Context-engineered satellite as a SKILL
+// chip — rendering a separate Skill node duplicates that signal and
+// adds visual noise. (Kept in `StageNodeId` for back-compat with
+// deriveStages, which still emits `alsoLights: "skill"` events that
+// StageFlow now ignores at the render layer.)
+const NODE_POSITIONS: Record<Exclude<StageNodeId, "skill">, { x: number; y: number }> = {
   user: { x: 100, y: 20 },
   agent: { x: 100, y: 120 },
-  tool: { x: 100, y: 360 },
-  skill: { x: 320, y: 360 },
+  tool: { x: 100, y: 310 },
 };
 
 // Context-engineering satellite — sits 5px to the right of the Agent
@@ -116,32 +119,89 @@ const CONTEXT_NODE_POSITION = { x: 325, y: 120 };
 // via `autoActivate`), so this satellite re-renders per iteration.
 const TOOLS_NODE_POSITION = { x: -150, y: 120 };
 
-/**
- * Agent-container bounding box. The dotted "Agent · <name>" wrapper
- * encompasses LLM + Tool + Skill + Tools-list satellite + Context
- * satellite — everything that is logically PART OF the agent.
- *
- *   • USER stays OUTSIDE — the human is not part of the agent.
- *   • Layout is fixed (matching the static NODE_POSITIONS above), so
- *     the box is a single constant + padding instead of a runtime
- *     bounding-box computation. Multi-agent (next phase) replaces this
- *     constant with per-agent boxes derived from agent metadata.
- *
- * Math (matching NODE_POSITIONS + node widths):
- *   x_min = TOOLS_NODE_POSITION.x (-150) — leftmost (tools satellite)
- *   x_max = CONTEXT_NODE_POSITION.x (325) + 200 (context width)  = 525
- *   y_min = NODE_POSITIONS.agent.y (120) - 36 (header room)       = 84
- *   y_max = NODE_POSITIONS.skill.y (360) + 70 (skill node height) = 430
- *
- * Padding (16px each side) gives the wrapper breathing room without
- * crowding the User node above.
- */
-const AGENT_CONTAINER_BOX = {
-  x: -166,
-  y: 84,
-  width: 707,
-  height: 362,
+// Approximate node sizes — match the inline `width` values used inside
+// each node component. Used to compute the dotted Agent container's
+// bounding box dynamically so it hugs ONLY the nodes that are actually
+// visible (no wasted space for satellites that aren't rendered).
+const NODE_SIZES = {
+  user: { width: 150, height: 70 },
+  agent: { width: 200, height: 190 },
+  tool: { width: 150, height: 70 },
+  context: { width: 200, height: 200 },
+  toolsList: { width: 130, height: 200 },
 } as const;
+
+/**
+ * Compute the dotted Agent container's bounding box dynamically based
+ * on which nodes actually render this frame. Tighter than the prior
+ * static constant, because:
+ *
+ *   • Skill node is hidden until first activation → before then,
+ *     container right edge stops at agent.
+ *   • Tools satellite hidden when iter has no `visibleTools` →
+ *     container left edge stops at agent.
+ *   • Context satellite hidden when no injections → container right
+ *     edge stops at agent (or skill, whichever is further right).
+ *
+ * USER stays OUTSIDE — the human is not part of the agent.
+ *
+ * Padding adds breathing room around the contained nodes without
+ * crowding the User above. Header room (top inset) leaves space for
+ * the "Agent · <name>" legend.
+ */
+function computeAgentContainerBox({
+  showTool,
+  showContext,
+  showTools,
+}: {
+  showTool: boolean;
+  showContext: boolean;
+  showTools: boolean;
+}): { x: number; y: number; width: number; height: number } {
+  const PADDING = 16;
+  const HEADER_ROOM = 22;
+
+  // Horizontal extent — two regimes:
+  //
+  // 1. ANY agent feature is in play (tool used, satellite visible)
+  //    → reserve the full satellite span so the box doesn't jump
+  //    width when satellites appear/disappear mid-run. Predictable
+  //    layout for runs that USE the agent's surface area.
+  //
+  // 2. Pure LLMCall (no tool ever, no satellites) → hug just the LLM
+  //    card. The container is conceptually still "the agent boundary,"
+  //    but reserving 700px of horizontal whitespace for features
+  //    that never appear reads as broken / pointless. Tight width
+  //    is the LLMCall identity: "Agent = just one LLM API call."
+  const anyAgentSurface = showTool || showContext || showTools;
+  let xMin: number;
+  let xMax: number;
+  if (anyAgentSurface) {
+    xMin = TOOLS_NODE_POSITION.x;
+    xMax = CONTEXT_NODE_POSITION.x + NODE_SIZES.context.width;
+  } else {
+    xMin = NODE_POSITIONS.agent.x;
+    xMax = NODE_POSITIONS.agent.x + NODE_SIZES.agent.width;
+  }
+
+  // Vertical extent shrinks when Tool is hidden — for pure LLMCall
+  // samples (no tool calls), the container hugs just the LLM card.
+  // Skill no longer factors in because the Skill node was removed
+  // from the structural graph (skill activation is shown in the
+  // Context satellite instead).
+  const yMin = NODE_POSITIONS.agent.y - HEADER_ROOM;
+  const llmBottom = NODE_POSITIONS.agent.y + NODE_SIZES.agent.height;
+  const toolBottom = showTool
+    ? NODE_POSITIONS.tool.y + NODE_SIZES.tool.height
+    : 0;
+  const yMax = Math.max(llmBottom, toolBottom);
+  return {
+    x: xMin - PADDING,
+    y: yMin - PADDING / 2,
+    width: xMax - xMin + PADDING * 2,
+    height: yMax - yMin + PADDING * 2,
+  };
+}
 
 /**
  * Route every (from, to) pair to specific handles so edges don't
@@ -427,33 +487,51 @@ export function StageFlow({
     return [...bySource.values()];
   }, [activeInjectionsBySlot]);
 
-  const nodes = useMemo<Node[]>(() => {
-    // Container node — rendered FIRST so it sits at the back. Covers
-    // LLM + Tool + Skill + satellites; User stays outside (the human
-    // is not part of the agent). The label "Agent · <name>" makes the
-    // unit explicit so newcomers stop confusing "Agent" with "the LLM".
-    const containerNode: Node = {
-      id: "agent-container",
-      type: "agent-container",
-      position: { x: AGENT_CONTAINER_BOX.x, y: AGENT_CONTAINER_BOX.y },
-      data: {
-        agentName,
-        width: AGENT_CONTAINER_BOX.width,
-        height: AGENT_CONTAINER_BOX.height,
-      },
-      draggable: false,
-      selectable: false,
-      // ReactFlow renders nodes in array order; the first node is at
-      // the back. zIndex on the wrapper div is also lowered for safety
-      // in case ReactFlow's render order differs across versions.
-      zIndex: -1,
-    };
+  // Pedagogy gate: an Agent EXISTS only when the run has agent-shaped
+  // surface area — at least one tool call, or context-engineering
+  // injections, or a tools roster. A pure LLMCall (one prompt in, one
+  // response out) is NOT an agent: it's just an API call. Rendering
+  // an "Agent · <name>" container around a single LLM box would teach
+  // the wrong definition.
+  //
+  //   Agent = LLM + Tools + iteration loop + context engineering
+  //
+  // For LLMCall samples the container is suppressed entirely; the LLM
+  // node stands free, accurately representing "this is just an LLM
+  // call." The container appears the moment any agent surface fires.
+  const isAgentRun =
+    touched.has("tool") || contextSummary.length > 0 || toolsRoster !== null;
 
-    const base = (Object.keys(NODE_POSITIONS) as StageNodeId[])
+  const nodes = useMemo<Node[]>(() => {
+    const containerBox = computeAgentContainerBox({
+      showTool: touched.has("tool"),
+      showContext: contextSummary.length > 0,
+      showTools: toolsRoster !== null,
+    });
+    const containerNode: Node | null = isAgentRun
+      ? {
+          id: "agent-container",
+          type: "agent-container",
+          position: { x: containerBox.x, y: containerBox.y },
+          data: {
+            agentName,
+            width: containerBox.width,
+            height: containerBox.height,
+          },
+          draggable: false,
+          selectable: false,
+          // ReactFlow renders nodes in array order; first node is at
+          // the back. zIndex -1 is belt-and-suspenders.
+          zIndex: -1,
+        }
+      : null;
+
+    const base = (Object.keys(NODE_POSITIONS) as Array<keyof typeof NODE_POSITIONS>)
       .filter((id) => {
-        // Hide SKILL node when never touched to keep the graph clean
-        // for runs that don't use any skill.
-        if (id === "skill") return touched.has("skill");
+        // Hide TOOL when never touched — pure LLMCall runs (no tools)
+        // shouldn't reserve a Tool slot. As soon as the agent calls
+        // any tool, the node appears (and the container expands).
+        if (id === "tool") return touched.has("tool");
         return true;
       })
       .map((id) => ({
@@ -519,8 +597,11 @@ export function StageFlow({
     }
     // Container goes FIRST in the array so it renders behind everything
     // else — both via array order and the zIndex: -1 belt-and-suspenders.
-    return [containerNode, ...base];
+    // For LLMCall (no agent surface), containerNode is null and we
+    // render just the inner nodes free-standing.
+    return containerNode ? [containerNode, ...base] : base;
   }, [
+    isAgentRun,
     activeNodes,
     touched,
     activeStage,

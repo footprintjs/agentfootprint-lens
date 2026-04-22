@@ -38,6 +38,9 @@ export function AskCard({ timeline, focusIndex, stages }: AskCardProps) {
     <div
       data-fp-lens="ask-card"
       style={{
+        // Match the StageFlow's height (parent grid cell sets the
+        // height; we fill it). Internal sections handle their own
+        // scroll so the card itself never exceeds the cell.
         display: "flex",
         flexDirection: "column",
         gap: 12,
@@ -45,25 +48,40 @@ export function AskCard({ timeline, focusIndex, stages }: AskCardProps) {
         background: t.bg,
         fontFamily: t.fontSans,
         color: t.text,
-        overflow: "auto",
+        // `100%` + `minHeight: 0` lets nested flex children (the
+        // markdown blob in Agent Reasoning, etc.) decide their own
+        // overflow behavior without forcing the whole card to grow.
+        height: "100%",
+        minHeight: 0,
+        overflow: "hidden",
       }}
     >
-      <section>
-        <Label t={t}>Your question</Label>
-        <div
-          style={{
-            marginTop: 4,
-            padding: "10px 12px",
-            background: `color-mix(in srgb, ${t.accent} 12%, ${t.bgElev})`,
-            border: `1px solid ${t.border}`,
-            borderRadius: 6,
-            fontSize: 13,
-            lineHeight: 1.5,
-          }}
-        >
-          {currentTurn?.userPrompt ?? "No question yet."}
-        </div>
-      </section>
+      {/* "Your question" intentionally omitted here — it already lives
+          in the chat MessagesPanel below the flow. Repeating it on the
+          right was visual noise that ate the limited side-panel real
+          estate. The active "Step N/M" line below carries the orienting
+          context (which step within the run we're looking at). */}
+
+      {/* Scrollable body. ONE scroll container for the whole body (not
+          per-section) so the user scrolls once and reaches everything
+          — matches right-sidebar convention in IDE tools / debuggers.
+          Sections inside have `flexShrink: 0` so they keep their
+          natural heights; long content (Agent Reasoning markdown,
+          tool results) still gets per-section `maxHeight` caps so one
+          huge blob can't push everything else off-screen. */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 12,
+          flex: "1 1 0",
+          minHeight: 0,
+          overflow: "auto",
+          // Narrow scrollbar so it doesn't steal width from content.
+          scrollbarWidth: "thin",
+          scrollbarGutter: "stable",
+        }}
+      >
 
       {currentStage && (
         <section>
@@ -203,6 +221,7 @@ export function AskCard({ timeline, focusIndex, stages }: AskCardProps) {
           </div>
         </section>
       )}
+      </div>
     </div>
   );
 }

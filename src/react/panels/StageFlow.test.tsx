@@ -42,6 +42,17 @@ const minimalUserToAgentStage: Stage = {
   mutations: {},
 };
 
+const userToAgentToTool: Stage = {
+  index: 1,
+  from: "agent",
+  to: "tool",
+  primitive: "tool",
+  label: "Called search",
+  turnIndex: 0,
+  iterIndex: 1,
+  mutations: {},
+};
+
 describe("StageFlow — Agent container + LLM rename", () => {
   it("1. center node displays the new label 'LLM' (rename in place)", () => {
     renderFlow(<StageFlow stages={[minimalUserToAgentStage]} agentName="Acme" />);
@@ -51,41 +62,56 @@ describe("StageFlow — Agent container + LLM rename", () => {
     expect(screen.getByText("The API call")).toBeInTheDocument();
   });
 
-  it("2. dotted Agent container renders with the supplied agentName", () => {
+  it("2. dotted Agent container renders only when the run has agent surface (tool/context/tools)", () => {
+    // Pure LLMCall (no tool ever) → NO Agent container. Pedagogy:
+    // Agent = LLM + Tools + loop + context engineering. An LLM call
+    // alone is just an API call, not an agent — rendering "Agent · X"
+    // around a single LLM box would teach the wrong definition.
     renderFlow(<StageFlow stages={[minimalUserToAgentStage]} agentName="Neo" />);
-    // The "Agent · " prefix sits next to the agent name in the legend.
+    expect(screen.queryByText(/Agent ·/)).not.toBeInTheDocument();
+  });
+
+  it("3. container appears with agentName once a tool stage is present", () => {
+    renderFlow(
+      <StageFlow stages={[minimalUserToAgentStage, userToAgentToTool]} agentName="Neo" />,
+    );
     expect(screen.getByText(/Agent ·/)).toBeInTheDocument();
     expect(screen.getByText("Neo")).toBeInTheDocument();
   });
 
-  it("3. agentName defaults to 'Agent' when consumer omits the prop", () => {
-    renderFlow(<StageFlow stages={[minimalUserToAgentStage]} />);
-    // Container legend = "Agent · Agent" when no name supplied — the
-    // prefix + the fallback name. Renders the fallback inside the
-    // mono-styled span.
-    const labels = screen.getAllByText("Agent");
-    // At least one Agent text element exists (the fallback name in
-    // the legend). Could be more if other UI surfaces also carry the
-    // word — checking presence is sufficient for the contract.
-    expect(labels.length).toBeGreaterThan(0);
+  it("4. no container without stages OR without agent surface — LLMCall path stays clean", () => {
+    // Empty stages → no container.
+    const { unmount } = renderFlow(<StageFlow stages={[]} agentName="Bot" />);
+    expect(screen.queryByText(/Agent ·/)).not.toBeInTheDocument();
+    unmount();
+    // User-to-agent only (LLMCall, no tools) → still no container.
+    renderFlow(<StageFlow stages={[minimalUserToAgentStage]} agentName="Bot" />);
+    expect(screen.queryByText(/Agent ·/)).not.toBeInTheDocument();
   });
 
-  it("4. container renders even before any stages have fired", () => {
-    // No stages = nothing to focus on, but the Agent boundary itself
-    // is structural — it's the "this is one autonomous unit" marker
-    // and should be visible from the moment Lens mounts.
-    renderFlow(<StageFlow stages={[]} agentName="Bot" />);
-    expect(screen.getByText(/Agent ·/)).toBeInTheDocument();
-    expect(screen.getByText("Bot")).toBeInTheDocument();
-  });
-
-  it("5. container does not hide inner LLM / User / Tool nodes", () => {
+  it("5. container does not hide inner LLM / User nodes; Tool only when used", () => {
+    // No tool stage in the test setup → Tool node hides (LLMCall path).
     renderFlow(<StageFlow stages={[minimalUserToAgentStage]} agentName="X" />);
-    // All three structural nodes render alongside the container.
     expect(screen.getByText("LLM")).toBeInTheDocument();
     expect(screen.getByText("User")).toBeInTheDocument();
-    expect(screen.getByText("Tool")).toBeInTheDocument();
-    // And the container legend co-exists with them.
-    expect(screen.getByText(/Agent ·/)).toBeInTheDocument();
+    expect(screen.queryByText("Tool")).not.toBeInTheDocument();
+    // No container either (LLMCall pedagogy).
+    expect(screen.queryByText(/Agent ·/)).not.toBeInTheDocument();
+
+    // Add a Tool stage → Tool node appears AND container appears.
+    const withTool: Stage = {
+      ...minimalUserToAgentStage,
+      index: 1,
+      from: "agent",
+      to: "tool",
+      primitive: "tool",
+      label: "Called search",
+      iterIndex: 1,
+    };
+    const { unmount } = renderFlow(
+      <StageFlow stages={[minimalUserToAgentStage, withTool]} agentName="X" />,
+    );
+    expect(screen.getAllByText("Tool").length).toBeGreaterThan(0);
+    unmount();
   });
 });
