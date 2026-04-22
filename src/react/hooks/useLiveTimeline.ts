@@ -32,6 +32,7 @@ import { useCallback, useMemo, useRef, useState } from "react";
 import { agentTimeline, type AgentTimelineRecorder } from "agentfootprint/observe";
 import type { EmitEvent } from "footprintjs";
 import type { AgentTimeline } from "../../core/types";
+import { timelineFromRecorder } from "../../core/timelineFromRecorder";
 
 export interface UseLiveTimelineResult {
   readonly timeline: AgentTimeline;
@@ -75,11 +76,11 @@ export function useLiveTimeline(): UseLiveTimelineResult {
   const systemPromptRef = useRef<string | undefined>(undefined);
 
   const [timeline, setTimeline] = useState<AgentTimeline>(() =>
-    decorateTimeline(recorder.getTimeline(), systemPromptRef.current),
+    decorateTimeline(timelineFromRecorder(recorder), systemPromptRef.current),
   );
 
   const sync = useCallback(() => {
-    setTimeline(decorateTimeline(recorder.getTimeline(), systemPromptRef.current));
+    setTimeline(decorateTimeline(timelineFromRecorder(recorder), systemPromptRef.current));
   }, [recorder]);
 
   const ingest = useCallback(

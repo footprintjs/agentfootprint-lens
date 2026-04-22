@@ -19,6 +19,14 @@
  *       optional `rawSnapshot` field the snapshot-import adapter uses
  */
 
+import type {
+  AgentMessage,
+  AgentToolInvocation,
+  AgentTurn,
+  AgentInfo,
+  SubAgentTimeline,
+} from "agentfootprint";
+
 export type {
   AgentMessage,
   AgentToolCallStub,
@@ -31,16 +39,24 @@ export type {
   SubAgentTimeline,
 } from "agentfootprint";
 
-import type { AgentTimeline as AgentTimelineBase } from "agentfootprint";
-
 /**
- * Lens-flavored AgentTimeline. Adds the optional `rawSnapshot` escape
- * hatch used by the snapshot-import adapter (`fromAgentSnapshot`) —
- * consumers who already have a runtime snapshot pass it through for
- * advanced panels (custom extensions reading `sharedState` directly).
- * The live-recorder path leaves this undefined; no cost when unused.
+ * Lens-flavored AgentTimeline — the bundled render shape Lens panels
+ * consume. Composed from the recorder's selector surface (see
+ * `timelineFromRecorder`). Not extended from agentfootprint (which now
+ * exposes selectors, not a blob); Lens owns this shape because it is a
+ * UI-layer concern — Vue / Angular / CLI consumers define their own
+ * bundles off the same selectors.
+ *
+ * Adds `rawSnapshot` — escape hatch used by `fromAgentSnapshot` for the
+ * snapshot-import path. Live-recorder path leaves it undefined.
  */
-export interface AgentTimeline extends AgentTimelineBase {
+export interface AgentTimeline {
+  readonly agent: AgentInfo;
+  readonly turns: readonly AgentTurn[];
+  readonly messages: readonly AgentMessage[];
+  readonly tools: readonly AgentToolInvocation[];
+  readonly finalDecision: Record<string, unknown>;
+  readonly subAgents: readonly SubAgentTimeline[];
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   readonly rawSnapshot?: any;
 }

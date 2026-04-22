@@ -19,9 +19,11 @@ import { Lens } from "./Lens";
 import type { AgentTimeline } from "../core/types";
 
 const emptyTimeline: AgentTimeline = {
+  agent: { id: "test", name: "Test" },
   turns: [],
   messages: [],
   tools: [],
+  subAgents: [],
   finalDecision: {},
   rawSnapshot: null,
 };

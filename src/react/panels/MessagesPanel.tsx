@@ -315,7 +315,12 @@ function TurnBlock({
         }
         return (
           <IterationBlock
-            key={iter.index}
+            // Composite key: turn + iter index. Multi-agent runs can
+            // produce iterations with the same `iter.index` across
+            // different sub-agents (each sub-agent's first iter is
+            // index 1) — without the turn prefix React warns about
+            // duplicate keys.
+            key={`${turn.index}.${iter.index}.${i}`}
             iter={iter}
             iterPositionInTurn={i + 1}
             turnIndex={turn.index}

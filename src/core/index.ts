@@ -17,10 +17,11 @@
  * For LIVE event ingestion during a run, use the recorder pattern:
  *
  *     import { agentTimeline } from 'agentfootprint';
+ *     import { timelineFromRecorder } from 'agentfootprint-lens';
  *     const t = agentTimeline();
  *     agent.recorder(t).build();
  *     // ... after agent.run():
- *     <Lens timeline={t.getTimeline()} />
+ *     <Lens timeline={timelineFromRecorder(t)} />
  *
  * Or use `<Lens for={runner} />` — Lens auto-creates the recorder
  * internally (see useLiveTimeline). The previous Lens-local
@@ -39,6 +40,7 @@ export type {
 } from "./types";
 
 export { fromAgentSnapshot } from "./fromAgentSnapshot";
+export { timelineFromRecorder } from "./timelineFromRecorder";
 
 export { deriveStages } from "./deriveStages";
 export type {
