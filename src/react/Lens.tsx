@@ -37,6 +37,15 @@ import { useLiveTimeline } from "./hooks/useLiveTimeline";
  * missing channel.
  */
 export interface LensRunner {
+  /**
+   * Preferred path (agentfootprint 1.21+): attach a recorder directly
+   * to the executor's emit channel. Lens uses this when available so
+   * the AgentTimelineRecorder receives full EmitEvent (with real
+   * runtimeStageId + subflowPath), enabling multi-agent grouping.
+   * Falls back to `observe()` for older runner versions.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  attachRecorder?: (recorder: any) => () => void;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   observe?: (handler: (event: any) => void) => (() => void);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -168,32 +177,68 @@ export function Lens({
   const [selectedId, setSelectedId] = useState<string>(defaultTabId);
 
   // ── `for={runner}` path ─────────────────────────────────────────
-  // When a runner is supplied, Lens:
-  //   1. Spins up its own `useLiveTimeline` and subscribes to the
-  //      runner's event stream (observe + unsubscribe on unmount).
-  //   2. Re-renders after each run to pick up the new snapshot /
-  //      narrative entries / spec from the runner accessors.
+  // When a runner is supplied, Lens picks the best wiring path the
+  // runner exposes:
   //
-  // Consumers writing `<Lens for={agent} />` get everything for free —
-  // no manual timeline wiring, no manual snapshot plumbing. The
-  // explicit props (timeline, runtimeSnapshot, narrativeEntries, spec)
-  // act as the "raw" path for replay / test scenarios.
+  //   1. PREFERRED — `runner.attachRecorder(recorder)` (agentfootprint
+  //      1.21+). Lens attaches the canonical `agentTimeline()` recorder
+  //      directly to the executor's emit channel. Recorder receives
+  //      full EmitEvent (real runtimeStageId + subflowPath) — required
+  //      for multi-agent grouping. Also more efficient: no event-shape
+  //      translation, no synth ids.
+  //
+  //   2. FALLBACK — `runner.observe(handler)`. Lens subscribes to the
+  //      AgentStreamEvent stream and translates each event to EmitEvent
+  //      shape inside `useLiveTimeline`. Older runner versions only
+  //      have this path; multi-agent grouping limited.
+  //
+  // Either way, consumers writing `<Lens for={agent} />` get everything
+  // for free. The explicit props (timeline, runtimeSnapshot, ...)
+  // remain the "raw" path for replay / test scenarios.
   const autoLens = useLiveTimeline();
   const [, bumpSnapshot] = useReducer((x: number) => x + 1, 0);
   useEffect(() => {
-    if (!runnerProp?.observe) return;
+    if (!runnerProp) return;
     autoLens.reset();
+
+    // Bumper: re-render after each turn so the snapshot accessors
+    // (getSnapshot / getNarrativeEntries / getSpec) return final values.
+    const onTurnComplete = () => bumpSnapshot();
+
+    // Path 1 — direct recorder attach (agentfootprint 1.21+)
+    if (runnerProp.attachRecorder) {
+      const detachRecorder = runnerProp.attachRecorder(autoLens.recorder);
+      // Still subscribe to observe() purely for the turn-complete bump
+      // signal — recorder doesn't drive React re-renders by itself.
+      const stopObserve = runnerProp.observe?.((event: unknown) => {
+        const type =
+          event && typeof event === "object"
+            ? (event as { type?: string }).type
+            : undefined;
+        if (type === "turn_end" || type === "agentfootprint.agent.turn_complete") {
+          onTurnComplete();
+        }
+        // Also force a re-render every event — the recorder updated
+        // its internal storage but React doesn't know yet. Cheap
+        // because getTimeline() is bounded by run length.
+        bumpSnapshot();
+      });
+      return () => {
+        detachRecorder();
+        stopObserve?.();
+      };
+    }
+
+    // Path 2 — observe() + translate (older runners)
+    if (!runnerProp.observe) return;
     const stop = runnerProp.observe((event: unknown) => {
       autoLens.ingest(event);
-      // `turn_end` is the cue to refresh the snapshot reads — the run
-      // has finished, so getSnapshot / getNarrativeEntries / getSpec
-      // now return final values. Bumping state forces a re-render.
       const type =
         event && typeof event === "object"
           ? (event as { type?: string }).type
           : undefined;
       if (type === "turn_end" || type === "agentfootprint.agent.turn_complete") {
-        bumpSnapshot();
+        onTurnComplete();
       }
     });
     return stop;
@@ -202,7 +247,7 @@ export function Lens({
   }, [runnerProp]);
 
   // Decide which data source wins: runner-driven (preferred) or explicit props.
-  const usingRunner = !!runnerProp?.observe;
+  const usingRunner = !!runnerProp?.observe || !!runnerProp?.attachRecorder;
   const resolvedTimeline = usingRunner ? autoLens.timeline : timeline;
   const resolvedSnapshot = usingRunner
     ? (runnerProp?.getSnapshot?.() ?? null)

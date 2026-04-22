@@ -67,6 +67,10 @@ export function fromAgentSnapshot(runtime: AnySnapshot): AgentTimeline {
     tools: allTools,
     finalDecision: (shared.decision as Record<string, unknown>) ?? {},
     rawSnapshot: runtime,
+    // Snapshot-import path doesn't track subflowPath per stage, so the
+    // multi-agent slice can't be derived here. Live recorder path is
+    // the canonical source for subAgents.
+    subAgents: [],
   };
 }
 

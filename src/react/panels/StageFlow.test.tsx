@@ -22,6 +22,7 @@ import { render, screen, within } from "@testing-library/react";
 import { ReactFlowProvider } from "@xyflow/react";
 import { StageFlow } from "./StageFlow";
 import type { Stage } from "../../core/deriveStages";
+import type { AgentTimeline } from "../../core/types";
 
 // React Flow refuses to render without a parent ReactFlowProvider when
 // Lens uses internal hooks (useReactFlow for FitViewOnResize). The
@@ -113,5 +114,104 @@ describe("StageFlow — Agent container + LLM rename", () => {
     );
     expect(screen.getAllByText("Tool").length).toBeGreaterThan(0);
     unmount();
+  });
+});
+
+describe("StageFlow — multi-agent rendering", () => {
+  function timelineWithSubAgents(subIds: string[]): AgentTimeline {
+    return {
+      agent: { id: "pipeline", name: "Pipeline" },
+      turns: [],
+      messages: [],
+      tools: [],
+      finalDecision: {},
+      subAgents: subIds.map((id) => ({
+        id,
+        name: id,
+        turns: [
+          {
+            index: 0,
+            userPrompt: "",
+            iterations: [
+              {
+                index: 1,
+                assistantContent: `${id} response`,
+                toolCalls: [],
+                decisionAtStart: {},
+                visibleTools: [],
+                contextInjections: [],
+                contextLedger: {},
+                messagesSentCount: 0,
+              },
+            ],
+            finalContent: `${id} response`,
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            totalDurationMs: 0,
+            contextInjections: [],
+            contextLedger: {},
+          },
+        ],
+        tools: [],
+      })),
+    };
+  }
+
+  it("M1. multi-agent: renders one SubAgentNode per sub-agent in the timeline", () => {
+    renderFlow(
+      <StageFlow
+        stages={[]}
+        agentName="Pipeline"
+        timeline={timelineWithSubAgents(["classify", "analyze", "respond"])}
+      />,
+    );
+    // Each sub-agent's id surfaces in its box's legend.
+    expect(screen.getByText("classify")).toBeInTheDocument();
+    expect(screen.getByText("analyze")).toBeInTheDocument();
+    expect(screen.getByText("respond")).toBeInTheDocument();
+  });
+
+  it("M2. multi-agent: each box labels with 'Agent · <id>' (consistent with single-agent)", () => {
+    renderFlow(
+      <StageFlow stages={[]} timeline={timelineWithSubAgents(["a", "b"])} />,
+    );
+    // Both sub-agent boxes carry the "Agent · " prefix.
+    const labels = screen.getAllByText(/Agent ·/);
+    expect(labels.length).toBe(2);
+  });
+
+  it("M3. multi-agent: User node is preserved at the top of the chain", () => {
+    renderFlow(
+      <StageFlow stages={[]} timeline={timelineWithSubAgents(["a", "b"])} />,
+    );
+    expect(screen.getByText("User")).toBeInTheDocument();
+  });
+
+  it("M4. multi-agent: single-agent structural nodes (Tool, satellites) are NOT rendered", () => {
+    renderFlow(
+      <StageFlow stages={[]} timeline={timelineWithSubAgents(["a", "b"])} />,
+    );
+    // The single-agent Tool node would be labeled "Data source / action".
+    expect(screen.queryByText("Data source / action")).not.toBeInTheDocument();
+    // No satellite labels either.
+    expect(screen.queryByText(/Context engineered/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Tools ·/)).not.toBeInTheDocument();
+  });
+
+  it("M5. single-agent: empty subAgents array → original layout (no SubAgentNode renders)", () => {
+    const single: AgentTimeline = {
+      agent: { id: "agent", name: "Agent" },
+      turns: [],
+      messages: [],
+      tools: [],
+      finalDecision: {},
+      subAgents: [],
+    };
+    renderFlow(
+      <StageFlow stages={[minimalUserToAgentStage]} agentName="X" timeline={single} />,
+    );
+    // The single-agent LLM label appears (not the sub-agent box).
+    expect(screen.getByText("LLM")).toBeInTheDocument();
+    expect(screen.getByText("The API call")).toBeInTheDocument();
   });
 });

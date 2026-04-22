@@ -28,6 +28,7 @@ export type {
   AgentIteration,
   AgentTurn,
   AgentInfo,
+  SubAgentTimeline,
 } from "agentfootprint";
 
 import type { AgentTimeline as AgentTimelineBase } from "agentfootprint";

@@ -119,6 +119,17 @@ const CONTEXT_NODE_POSITION = { x: 325, y: 120 };
 // via `autoActivate`), so this satellite re-renders per iteration.
 const TOOLS_NODE_POSITION = { x: -150, y: 120 };
 
+// Multi-agent layout — when timeline.subAgents has N entries (Pipeline
+// / Swarm / Routing pattern), the StageFlow swaps from the single-agent
+// LLM-centric layout to a vertical chain of sub-agent boxes. Each
+// sub-agent box represents one logical agent inside the multi-agent
+// run, labeled with its id and showing iteration + tool counts.
+const SUBAGENT_BOX_WIDTH = 280;
+const SUBAGENT_BOX_HEIGHT = 90;
+const SUBAGENT_GAP = 30;
+const SUBAGENT_X = 100; // Same column as User above.
+const SUBAGENT_Y_START = 120; // Just below User node.
+
 // Approximate node sizes — match the inline `width` values used inside
 // each node component. Used to compute the dotted Agent container's
 // bounding box dynamically so it hugs ONLY the nodes that are actually
@@ -367,6 +378,37 @@ export function StageFlow({
   // Aggregate edges by (from,to) — one line per relationship, its label
   // shows the last stage that used it.
   const edges = useMemo<Edge[]>(() => {
+    // Multi-agent path — chain edges down the sub-agent column.
+    const subs = timeline?.subAgents ?? [];
+    if (subs.length > 0) {
+      const out: Edge[] = [];
+      // User → first sub-agent
+      out.push({
+        id: `user→subagent-${subs[0].id}`,
+        source: "user",
+        target: `subagent-${subs[0].id}`,
+        type: "labelled",
+        sourceHandle: "b-out",
+        targetHandle: "t-in",
+        data: { primitive: "message", active: false, isLoop: false, stage: undefined },
+      } as Edge);
+      // Sub-agent[i] → Sub-agent[i+1]
+      for (let i = 0; i < subs.length - 1; i++) {
+        const a = subs[i];
+        const b = subs[i + 1];
+        out.push({
+          id: `subagent-${a.id}→subagent-${b.id}`,
+          source: `subagent-${a.id}`,
+          target: `subagent-${b.id}`,
+          type: "labelled",
+          sourceHandle: "b-out",
+          targetHandle: "t-in",
+          data: { primitive: "message", active: false, isLoop: false, stage: undefined },
+        } as Edge);
+      }
+      return out;
+    }
+
     const byKey = new Map<string, { from: StageNodeId; to: StageNodeId; lastStage: Stage }>();
     visible.forEach((s) => {
       byKey.set(`${s.from}→${s.to}`, { from: s.from, to: s.to, lastStage: s });
@@ -405,7 +447,7 @@ export function StageFlow({
         },
       } satisfies Edge;
     });
-  }, [visible, activeStage]);
+  }, [visible, activeStage, timeline]);
 
   // Current tool roster + delta — what the LLM can call on THIS step,
   // and how it changed since the previous step. Skill activations
@@ -502,7 +544,64 @@ export function StageFlow({
   const isAgentRun =
     touched.has("tool") || contextSummary.length > 0 || toolsRoster !== null;
 
+  // Multi-agent detection — when the recorder grouped events by
+  // subflowPath into per-sub-agent timelines, we render N stacked
+  // sub-agent boxes instead of the single-agent structural graph.
+  // Each box is its own dotted "Agent · <id>" container with a
+  // compact LLM summary inside (iteration count + tool count).
+  const subAgents = timeline?.subAgents ?? [];
+  const isMultiAgent = subAgents.length > 0;
+
   const nodes = useMemo<Node[]>(() => {
+    // ── Multi-agent path ───────────────────────────────────────────
+    // Replace the single-agent structural graph with a vertical chain
+    // of sub-agent boxes. Skip the satellites (Tools / Context) and
+    // the inner Tool node — those represent ONE agent's slots, not
+    // multi-agent identity. Each sub-agent box still carries its own
+    // identity + per-sub-agent counts.
+    if (isMultiAgent) {
+      const userNode: Node = {
+        id: "user",
+        type: "lens",
+        position: NODE_POSITIONS.user,
+        data: {
+          id: "user",
+          active: false,
+          touched: true,
+        },
+        draggable: false,
+      };
+      const subAgentNodes: Node[] = subAgents.map((sa, i) => {
+        const turnCount = sa.turns.length;
+        const iterCount = sa.turns.reduce((acc, t) => acc + t.iterations.length, 0);
+        const toolCount = sa.tools.length;
+        return {
+          id: `subagent-${sa.id}`,
+          type: "subagent",
+          position: {
+            x: SUBAGENT_X,
+            y: SUBAGENT_Y_START + i * (SUBAGENT_BOX_HEIGHT + SUBAGENT_GAP),
+          },
+          data: {
+            id: sa.id,
+            name: sa.name,
+            turnCount,
+            iterCount,
+            toolCount,
+            // Active when the LAST turn of the LAST sub-agent matches
+            // the focused stage's owner — primitive heuristic until
+            // deriveStages tags stages with sub-agent. For MVP, the
+            // sub-agent at the end of the chain is the "currently
+            // running" one.
+            active: i === subAgents.length - 1,
+          },
+          draggable: false,
+        } satisfies Node;
+      });
+      return [userNode, ...subAgentNodes];
+    }
+
+    // ── Single-agent path (original) ───────────────────────────────
     const containerBox = computeAgentContainerBox({
       showTool: touched.has("tool"),
       showContext: contextSummary.length > 0,
@@ -602,6 +701,8 @@ export function StageFlow({
     return containerNode ? [containerNode, ...base] : base;
   }, [
     isAgentRun,
+    isMultiAgent,
+    subAgents,
     activeNodes,
     touched,
     activeStage,
@@ -621,6 +722,7 @@ export function StageFlow({
       context: ContextNode,
       "tools-list": ToolsListNode,
       "agent-container": AgentContainerNode,
+      subagent: SubAgentNode,
     }),
     [],
   );
@@ -1068,6 +1170,113 @@ function AgentContainerNode({ data }: NodeProps) {
       >
         Agent · <span style={{ color: t.text, fontFamily: t.fontMono }}>{d.agentName}</span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * SubAgentNode — compact card representing one sub-agent in a
+ * multi-agent run (Pipeline / Swarm / Routing). Shows the sub-agent's
+ * id + iteration count + tool count. Stacked vertically by the parent
+ * StageFlow when `timeline.subAgents.length > 0`.
+ *
+ * Each sub-agent gets its own dotted border (visually consistent with
+ * the single-agent dotted Agent container) so the multi-agent unit
+ * reads as "N distinct agents chained together" rather than one big
+ * blob. Connected by simple arrows down the column.
+ *
+ * MVP shape — full per-sub-agent structural detail (LLM/Tool nodes
+ * inside each box) is a follow-up. For now the box surfaces enough
+ * info to debug multi-agent runs (which sub-agent ran, how many
+ * iterations, how many tools).
+ */
+function SubAgentNode({ data }: NodeProps) {
+  const t = useLensTheme();
+  const d = data as {
+    id: string;
+    name: string;
+    turnCount: number;
+    iterCount: number;
+    toolCount: number;
+    active: boolean;
+  };
+  const accent = d.active ? t.accent : t.border;
+  return (
+    <div
+      style={{
+        width: SUBAGENT_BOX_WIDTH,
+        height: SUBAGENT_BOX_HEIGHT,
+        position: "relative",
+        padding: "12px 14px",
+        borderRadius: 12,
+        background: d.active
+          ? `color-mix(in srgb, ${t.accent} 12%, ${t.bgElev})`
+          : t.bgElev,
+        border: `1.5px dashed ${accent}`,
+        color: t.text,
+        fontFamily: t.fontSans,
+        boxShadow: d.active
+          ? `0 0 16px color-mix(in srgb, ${t.accent} 30%, transparent)`
+          : `0 1px 3px rgba(0,0,0,0.12)`,
+        transition: "background 220ms ease, border-color 220ms ease, box-shadow 220ms ease",
+      }}
+    >
+      {/* "Agent · <name>" legend on the top border */}
+      <div
+        style={{
+          position: "absolute",
+          top: -10,
+          left: 14,
+          padding: "1px 10px",
+          background: t.bg,
+          color: t.textMuted,
+          fontSize: 9,
+          fontWeight: 600,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Agent · <span style={{ color: t.text, fontFamily: t.fontMono }}>{d.name}</span>
+      </div>
+      {/* Compact LLM identity row */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          marginTop: 4,
+        }}
+      >
+        <NodeIcon id="agent" color={d.active ? t.accent : t.text} />
+        <div style={{ display: "flex", flexDirection: "column" }}>
+          <span style={{ fontSize: 14, fontWeight: 600, color: t.text }}>LLM</span>
+          <span style={{ fontSize: 10, color: t.textSubtle }}>The API call</span>
+        </div>
+      </div>
+      {/* Counts */}
+      <div
+        style={{
+          display: "flex",
+          gap: 12,
+          marginTop: 8,
+          fontSize: 10,
+          color: t.textMuted,
+          fontFamily: t.fontMono,
+        }}
+      >
+        <span>
+          <strong style={{ color: t.text }}>{d.iterCount}</strong> iter
+          {d.iterCount === 1 ? "" : "s"}
+        </span>
+        <span>
+          <strong style={{ color: t.text }}>{d.toolCount}</strong> tool
+          {d.toolCount === 1 ? "" : "s"}
+        </span>
+      </div>
+      {/* Handles for the chain edges */}
+      <Handle type="target" position={Position.Top} id="t-in" style={HANDLE_STYLE} />
+      <Handle type="source" position={Position.Bottom} id="b-out" style={HANDLE_STYLE} />
     </div>
   );
 }
