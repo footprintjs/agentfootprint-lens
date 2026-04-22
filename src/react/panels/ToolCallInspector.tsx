@@ -14,12 +14,16 @@ export interface ToolCallInspectorProps {
   readonly timeline: AgentTimeline;
   readonly selectedId?: string | null;
   readonly onSelect?: (invocation: AgentToolInvocation) => void;
+  /** Display name for the agent in copy ("Every tool <name> called",
+   *  "<name> hasn't called any tools yet"). Defaults to "the agent". */
+  readonly agentName?: string;
 }
 
 export function ToolCallInspector({
   timeline,
   selectedId,
   onSelect,
+  agentName = "the agent",
 }: ToolCallInspectorProps) {
   const t = useLensTheme();
   return (
@@ -47,12 +51,12 @@ export function ToolCallInspector({
           background: t.bgElev,
         }}
       >
-        Every tool Neo called · {timeline.tools.length}
+        Every tool {agentName} called · {timeline.tools.length}
       </div>
       <div style={{ overflow: "auto", flex: 1 }}>
         {timeline.tools.length === 0 && (
           <div style={{ padding: 14, color: t.textSubtle, fontSize: 12 }}>
-            Neo hasn't called any tools yet.
+            {agentName} hasn't called any tools yet.
           </div>
         )}
         {timeline.tools.map((tc) => {

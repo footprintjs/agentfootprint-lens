@@ -19,13 +19,14 @@
  *   • Click an edge → `onEdgeClick(stage)` fires so the host can
  *     scroll the Messages panel to the relevant iteration.
  */
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   ReactFlow,
   Background,
   BackgroundVariant,
   Handle,
   Position,
+  useReactFlow,
   type Edge,
   type Node,
   type NodeProps,
@@ -72,11 +73,21 @@ export interface StageFlowProps {
 // FLAVOR of tool — list_skills / read_skill ARE tool calls, and the
 // Skill node lights up as a bracket around the Tool node on those
 // steps.
+// Vertical layout — top-to-bottom is the conversation flow.
+//
+// Spacing logic (heights are approximate — actual node height depends
+// on whether the Agent has a skill chip + ports row visible):
+//   user (y=20, ~70 tall)  → ends ~y=90
+//   agent (y=120, ~210 tall) → ends ~y=330  (50px gap above)
+//   tool (y=360, ~70 tall) → ends ~y=430   (30px gap above)
+// Tighter than the original (y=160 / y=380 / 220px gaps) so the bounding
+// box is more compact and `fitView` gives the satellites + flow nodes
+// a balanced read instead of the User column being lonely on the left.
 const NODE_POSITIONS: Record<StageNodeId, { x: number; y: number }> = {
   user: { x: 100, y: 20 },
-  agent: { x: 100, y: 160 },
-  tool: { x: 100, y: 380 },
-  skill: { x: 320, y: 380 },
+  agent: { x: 100, y: 120 },
+  tool: { x: 100, y: 360 },
+  skill: { x: 320, y: 360 },
 };
 
 // Context-engineering satellite — sits 5px to the right of the Agent
@@ -87,7 +98,7 @@ const NODE_POSITIONS: Record<StageNodeId, { x: number; y: number }> = {
 // separate node type ("context") whenever there are injections this
 // turn; otherwise it's hidden so runs without context engineering keep
 // the original 4-node layout.
-const CONTEXT_NODE_POSITION = { x: 325, y: 160 };
+const CONTEXT_NODE_POSITION = { x: 325, y: 120 };
 
 // Tools satellite — dynamic tool roster (count + names) sitting to the
 // LEFT of the Agent card. Symmetry with the Context satellite on the
@@ -95,7 +106,7 @@ const CONTEXT_NODE_POSITION = { x: 325, y: 160 };
 // the Agent; "context injected" on the right is what just LANDED in
 // the slots. Tool count changes mid-run (skill activations add tools
 // via `autoActivate`), so this satellite re-renders per iteration.
-const TOOLS_NODE_POSITION = { x: -150, y: 160 };
+const TOOLS_NODE_POSITION = { x: -150, y: 120 };
 
 /**
  * Route every (from, to) pair to specific handles so edges don't
@@ -455,6 +466,18 @@ export function StageFlow({
   );
   const edgeTypes = useMemo(() => ({ labelled: LensEdge(onEdgeClick) }), [onEdgeClick]);
 
+  // Recompute fit-key whenever a new node appears/disappears so fitView
+  // re-fires (ReactFlow's `fitView` flag only fits on initial mount).
+  // Without this, adding the Tools/Context satellites mid-run leaves the
+  // graph zoomed for the old bounding box.
+  const fitKey = useMemo(
+    () =>
+      nodes
+        .map((n) => n.id)
+        .sort()
+        .join("|"),
+    [nodes],
+  );
   return (
     <div
       data-fp-lens="stage-flow"
@@ -462,6 +485,10 @@ export function StageFlow({
         height,
         background: t.bg,
         borderBottom: `1px solid ${t.border}`,
+        // ResizeObserver target — FitViewOnResize watches this element
+        // (not the window) so the graph refits when the host panel
+        // changes width via splitter drag, not just window resize.
+        position: "relative",
       }}
     >
       <EdgeMarkerDefs />
@@ -471,7 +498,12 @@ export function StageFlow({
         nodeTypes={nodeTypes}
         edgeTypes={edgeTypes}
         fitView
-        fitViewOptions={{ padding: 0.15 }}
+        // Bigger padding (was 0.15) leaves breathing room around the
+        // bounding box so satellites don't crowd the edge of the canvas.
+        // `maxZoom: 1` prevents over-zooming when the bounding box is
+        // small (single-User-node early in the run) — the graph stays
+        // readable instead of inflating to fit the container.
+        fitViewOptions={{ padding: 0.2, maxZoom: 1 }}
         proOptions={{ hideAttribution: true }}
         nodesDraggable={false}
         nodesConnectable={false}
@@ -481,6 +513,7 @@ export function StageFlow({
         zoomOnPinch={false}
         zoomOnDoubleClick={false}
       >
+        <FitViewOnResize fitKey={fitKey} />
         <Background
           variant={BackgroundVariant.Dots}
           gap={18}
@@ -490,6 +523,51 @@ export function StageFlow({
       </ReactFlow>
     </div>
   );
+}
+
+/**
+ * FitViewOnResize — refits the ReactFlow viewport when the parent
+ * container resizes (splitter drag, window resize, panel toggle) AND
+ * when `fitKey` changes (a node gets added/removed). Mirrors the
+ * pattern in footprint-explainable-ui/TracedFlowchartView so Lens has
+ * the same auto-resize behavior as the Explainable Trace surface.
+ *
+ * Container-scoped via ResizeObserver instead of window-scoped, so this
+ * handles container drags / responsive layout shifts that don't change
+ * the window size at all.
+ */
+function FitViewOnResize({ fitKey }: { fitKey: string }) {
+  const { fitView } = useReactFlow();
+  const lastKeyRef = useRef<string>("");
+  useEffect(() => {
+    // Refit on key change (new node arrived) — let layout settle first.
+    if (fitKey !== lastKeyRef.current) {
+      lastKeyRef.current = fitKey;
+      const t = setTimeout(
+        () => requestAnimationFrame(() => fitView({ padding: 0.2, maxZoom: 1 })),
+        50,
+      );
+      return () => clearTimeout(t);
+    }
+  }, [fitKey, fitView]);
+
+  useEffect(() => {
+    // Container resize → refit. Walk up to find the StageFlow root
+    // (data-fp-lens="stage-flow") so we observe the actual sized panel,
+    // not ReactFlow's internal pane.
+    const root = document.querySelector<HTMLElement>('[data-fp-lens="stage-flow"]');
+    if (!root) return;
+    const refit = () =>
+      requestAnimationFrame(() => fitView({ padding: 0.2, maxZoom: 1 }));
+    const ro = new ResizeObserver(refit);
+    ro.observe(root);
+    window.addEventListener("resize", refit);
+    return () => {
+      ro.disconnect();
+      window.removeEventListener("resize", refit);
+    };
+  }, [fitView]);
+  return null;
 }
 
 // ── Custom Node ─────────────────────────────────────────────────
@@ -1283,6 +1361,12 @@ function LensEdge(onEdgeClick?: (stage: Stage) => void) {
       isLoop: boolean;
       stage: Stage;
     };
+    // Smooth-step paths absorb node-width and handle-offset mismatches.
+    // Straight paths require pixel-perfect center alignment of every
+    // pair of connected nodes, which doesn't hold here (User is 150
+    // wide, Agent is 200 wide; handles are offset by ±14 to keep
+    // bidirectional arrows from overlapping). Smoothstep also makes
+    // multi-agent layouts trivial — no per-pair manual alignment math.
     const [edgePath] = getSmoothStepPath({
       sourceX,
       sourceY,

@@ -219,6 +219,12 @@ export function Lens({
     ...(skills !== undefined ? { skills } : {}),
     ...(activeSkillId !== undefined ? { activeSkillId } : {}),
     ...(onToolCallClick !== undefined ? { onToolCallClick } : {}),
+    // appName doubles as the narration name — when "Neo" is the brand
+    // it's also "Neo called list_skills" inside the panel. Consumers
+    // who want different brand vs narration can override AgentLens
+    // directly with `agentName`, but the common case is "they're the
+    // same string" so we forward it implicitly.
+    ...(appName !== undefined ? { agentName: appName } : {}),
   };
 
   const brand = appName ? (

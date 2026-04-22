@@ -30,6 +30,14 @@ export interface MessagesPanelProps {
   readonly onToolCallClick?: (invocation: AgentToolInvocation) => void;
   readonly systemPrompt?: string;
   /**
+   * Display name for the agent in narration ("Neo called tool …",
+   * "Acme Bot is ready to answer"). Defaults to "Agent" when the
+   * consumer doesn't supply one — generic enough to read sensibly for
+   * any sample (calculator agent, RAG bot, etc.) without leaking the
+   * Neo MDS triage scenario's name into other apps.
+   */
+  readonly agentName?: string;
+  /**
    * Ordered list of stages derived from the timeline. Lets each
    * iteration block tag its stage index range so the slider's focus
    * position can map to a specific iteration block to scroll to.
@@ -62,6 +70,7 @@ export function MessagesPanel({
   focusIndex,
   onFocusChange,
   isLive,
+  agentName = "Agent",
 }: MessagesPanelProps) {
   const t = useLensTheme();
   const scrollRef = useRef<HTMLDivElement | null>(null);
@@ -195,7 +204,7 @@ export function MessagesPanel({
         overflow: "auto",
       }}
     >
-      {systemPrompt && <SystemBubble text={systemPrompt} />}
+      {systemPrompt && <SystemBubble text={systemPrompt} agentName={agentName} />}
       {timeline.turns.map((turn) => (
         <TurnBlock
           key={turn.index}
@@ -206,13 +215,14 @@ export function MessagesPanel({
           focusIndex={focusIndex}
           stages={stages}
           onFocusChange={onFocusChange}
+          agentName={agentName}
         />
       ))}
     </div>
   );
 }
 
-function SystemBubble({ text }: { text: string }) {
+function SystemBubble({ text, agentName }: { text: string; agentName: string }) {
   const t = useLensTheme();
   const [open, setOpen] = useState(false);
   const preview = text.slice(0, 140).replace(/\s+/g, " ") + (text.length > 140 ? "…" : "");
@@ -241,7 +251,7 @@ function SystemBubble({ text }: { text: string }) {
           font: "inherit",
         }}
       >
-        <strong>How Neo is configured</strong> {open ? "▾" : "▸"} {open ? "" : preview}
+        <strong>How {agentName} is configured</strong> {open ? "▾" : "▸"} {open ? "" : preview}
       </button>
       {open && (
         <pre
@@ -268,6 +278,7 @@ function TurnBlock({
   focusIndex,
   stages,
   onFocusChange,
+  agentName,
 }: {
   turn: AgentTurn;
   allMessages: readonly AgentMessage[];
@@ -276,6 +287,7 @@ function TurnBlock({
   focusIndex?: number;
   stages?: readonly Stage[];
   onFocusChange?: (stageIndex: number) => void;
+  agentName: string;
 }) {
   const t = useLensTheme();
   return (
@@ -313,6 +325,7 @@ function TurnBlock({
             stages={stages}
             range={range}
             focusIndex={focusIndex}
+            agentName={agentName}
             {...(range && onFocusChange
               ? { onClick: () => onFocusChange(range.lastStageIndex) }
               : {})}
@@ -378,21 +391,26 @@ function UserBubble({ text }: { text: string }) {
  * actually did and renders a sentence instead of a technical label.
  *
  * Special-case three common meta-tools:
- *   • list_skills  → "Neo is looking up available skills"
- *   • read_skill   → "Neo activated the <id> skill"
- *   • ask_human    → "Neo asked the user for clarification"
+ *   • list_skills  → "<name> is looking up available skills"
+ *   • read_skill   → "<name> activated the <id> skill"
+ *   • ask_human    → "<name> asked the user for clarification"
  * Everything else falls through to the generic form
- *   "Neo called tool (<name>)".
+ *   "<name> called tool (<name>)".
+ *
+ * `name` defaults to "Agent" upstream when no consumer-supplied
+ * `agentName` is given — keeps the narration sensible across every
+ * sample (calculator, RAG bot, swarm) instead of leaking the Neo MDS
+ * triage scenario's name into other apps.
  *
  * Parallel calls collapse to a plural form with tool names visible
  * (up to 3) or a count (4+).
  */
-function iterationHeadline(iter: AgentIteration): string {
+function iterationHeadline(iter: AgentIteration, name: string): string {
   if (iter.toolCalls.length === 0) {
-    return "Neo is ready to answer";
+    return `${name} is ready to answer`;
   }
   if (iter.toolCalls.length === 1) {
-    return singleToolHeadline(iter.toolCalls[0]);
+    return singleToolHeadline(iter.toolCalls[0], name);
   }
   // Any round with >1 tool call is parallel — the LLM emitted them in
   // one response and the agent runtime fans them out concurrently. Be
@@ -400,21 +418,21 @@ function iterationHeadline(iter: AgentIteration): string {
   // "three sequential rounds".
   const names = iter.toolCalls.map((tc) => tc.name);
   if (names.length <= 3) {
-    return `Neo called ${names.length} tools in parallel (${names.join(", ")})`;
+    return `${name} called ${names.length} tools in parallel (${names.join(", ")})`;
   }
-  return `Neo gathered data from ${names.length} tools in parallel`;
+  return `${name} gathered data from ${names.length} tools in parallel`;
 }
 
-function singleToolHeadline(tc: AgentToolInvocation): string {
-  if (tc.name === "list_skills") return "Neo is looking up available skills";
+function singleToolHeadline(tc: AgentToolInvocation, name: string): string {
+  if (tc.name === "list_skills") return `${name} is looking up available skills`;
   if (tc.name === "read_skill") {
     const id = (tc.arguments?.id as string | undefined) ?? "?";
-    return `Neo activated the "${id}" skill`;
+    return `${name} activated the "${id}" skill`;
   }
   if (tc.name === "ask_human" || tc.name === "ask_user") {
-    return "Neo asked the user for clarification";
+    return `${name} asked the user for clarification`;
   }
-  return `Neo called tool (${tc.name})`;
+  return `${name} called tool (${tc.name})`;
 }
 
 function IterationBlock({
@@ -428,6 +446,7 @@ function IterationBlock({
   range,
   focusIndex,
   onClick,
+  agentName,
 }: {
   iter: AgentIteration;
   iterPositionInTurn: number;
@@ -450,11 +469,12 @@ function IterationBlock({
    *  stage — the only path from commentary → slider after the scroll
    *  handler was removed. */
   onClick?: () => void;
+  agentName: string;
 }) {
   const t = useLensTheme();
   const [showContext, setShowContext] = useState(false);
   const key = `${turnIndex}.${iter.index}`;
-  const headline = iterationHeadline(iter);
+  const headline = iterationHeadline(iter, agentName);
   const contextMessages = allMessages.slice(0, iter.messagesSentCount);
 
   // Progressive-reveal cursor:

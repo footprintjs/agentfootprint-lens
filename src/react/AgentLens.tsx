@@ -85,6 +85,14 @@ export interface AgentLensProps {
    * `timeline.finalDecision.currentSkill` when that's a string.
    */
   readonly activeSkillId?: string | null;
+  /**
+   * Display name used in narration ("Neo called …", "RagBot is ready
+   * to answer", etc.) and in panel headers ("Every tool <name>
+   * called"). Defaults to the agent's `name` from the runtime snapshot,
+   * or "Agent" as a final fallback. Lens forwards `appName` here when
+   * the consumer uses `<Lens appName="…" />`.
+   */
+  readonly agentName?: string;
 }
 
 export function AgentLens({
@@ -94,6 +102,7 @@ export function AgentLens({
   onToolCallClick,
   skills,
   activeSkillId,
+  agentName,
 }: AgentLensProps) {
   const t = useLensTheme();
   const timeline = useMemo<AgentTimeline | null>(() => {
@@ -156,6 +165,19 @@ export function AgentLens({
     (typeof timeline.rawSnapshot?.sharedState?.systemPrompt === "string"
       ? (timeline.rawSnapshot.sharedState.systemPrompt as string)
       : undefined);
+
+  // Resolution order: explicit prop → agent's name from the snapshot
+  // (set via `Agent.create({ name })`) → "Agent" fallback. The snapshot
+  // path means apps that don't pass `appName` to <Lens> still get a
+  // sensible per-sample label, and we never fall back to a hardcoded
+  // "Neo" that bleeds across samples.
+  const derivedAgentName =
+    agentName ??
+    (typeof timeline.rawSnapshot?.agentName === "string"
+      ? (timeline.rawSnapshot.agentName as string)
+      : typeof timeline.rawSnapshot?.name === "string"
+        ? (timeline.rawSnapshot.name as string)
+        : "Agent");
 
   // Compute stages once per timeline change. Pure derivation — cheap.
   const stages = useMemo(() => (timeline ? deriveStages(timeline) : []), [timeline]);
@@ -417,6 +439,7 @@ export function AgentLens({
           focusIndex={resolvedFocus}
           onFocusChange={handleFocusChange}
           isLive={isLive}
+          agentName={derivedAgentName}
           {...(derivedSystemPrompt && { systemPrompt: derivedSystemPrompt })}
         />
       </div>
