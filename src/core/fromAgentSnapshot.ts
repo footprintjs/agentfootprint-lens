@@ -311,7 +311,7 @@ function assembleTurns(
         visibleTools: visible?.visibleTools ?? [],
         // Post-process path (snapshot-import — no live emit stream) has no
         // way to reconstruct context-injection timing. Leave empty; the
-        // live path via LiveTimelineBuilder fills these in naturally.
+        // live path via agentTimeline() recorder fills these in naturally.
         contextInjections: [],
         contextLedger: {},
       };
@@ -358,7 +358,7 @@ function finalizeTurn(t: {
     totalDurationMs,
     // Post-process snapshot path has no live emit timing, so the
     // turn-level context fields stay empty here too — the live
-    // LiveTimelineBuilder path is the one that captures injections.
+    // live recorder path is the one that captures injections.
     contextInjections: [],
     contextLedger: {},
   };

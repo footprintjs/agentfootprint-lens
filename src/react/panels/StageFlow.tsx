@@ -300,7 +300,7 @@ export function StageFlow({
   // Current tool roster + delta — what the LLM can call on THIS step,
   // and how it changed since the previous step. Skill activations
   // (autoActivate) add tools mid-run, so the count is dynamic. Reads
-  // `visibleTools` from each iteration (LiveTimelineBuilder + the
+  // `visibleTools` from each iteration (agentTimeline recorder + the
   // snapshot adapter both populate this from `resolve-tools` output).
   const toolsRoster = useMemo<{
     names: readonly string[];

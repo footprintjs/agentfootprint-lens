@@ -7,13 +7,25 @@
  * the rendering layer.
  *
  * Main exports:
- *   • AgentTimeline + related types — the shape Lens renders against
- *   • LiveTimelineBuilder — ingests agentfootprint stream events during
- *     a run and produces an AgentTimeline incrementally
+ *   • AgentTimeline + related types — re-exported from agentfootprint
+ *     (canonical source of truth across UI libraries)
  *   • fromAgentSnapshot — parses a completed runtimeSnapshot into a
- *     timeline (post-hoc path)
+ *     timeline (post-hoc path for replay scenarios)
  *   • deriveStages — pure timeline → ordered Stage[] derivation for
  *     flowchart/time-travel surfaces
+ *
+ * For LIVE event ingestion during a run, use the recorder pattern:
+ *
+ *     import { agentTimeline } from 'agentfootprint';
+ *     const t = agentTimeline();
+ *     agent.recorder(t).build();
+ *     // ... after agent.run():
+ *     <Lens timeline={t.getTimeline()} />
+ *
+ * Or use `<Lens for={runner} />` — Lens auto-creates the recorder
+ * internally (see useLiveTimeline). The previous Lens-local
+ * `LiveTimelineBuilder` was removed in 0.8.0; the canonical
+ * `agentTimeline()` recorder in agentfootprint replaces it.
  */
 
 export type {
@@ -25,8 +37,6 @@ export type {
   AgentToolCallStub,
   LensSkill,
 } from "./types";
-
-export { LiveTimelineBuilder } from "./LiveTimelineBuilder";
 
 export { fromAgentSnapshot } from "./fromAgentSnapshot";
 
