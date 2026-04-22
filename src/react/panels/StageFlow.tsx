@@ -35,6 +35,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import type { Stage, StageNodeId } from "../../core/deriveStages";
+import type { AgentContextInjection, AgentContextLedger, AgentTimeline } from "../../core/types";
 import { useLensTheme } from "../theme/useLensTheme";
 
 export interface StageFlowProps {
@@ -53,6 +54,14 @@ export interface StageFlowProps {
    * see at a glance which skill is providing the current context.
    */
   readonly activeSkillId?: string | null;
+  /**
+   * Full timeline — used to resolve context-injection badges per-slot
+   * on the Agent node. When omitted, no injection badges render (pure
+   * structural view). Passing this is what makes RAG / Memory / Skill
+   * injections visible ON the Agent card (in addition to the AskCard
+   * summary on the right).
+   */
+  readonly timeline?: AgentTimeline;
 }
 
 // Node positions — deliberately fixed, not layout-auto. The graph is
@@ -70,15 +79,41 @@ const NODE_POSITIONS: Record<StageNodeId, { x: number; y: number }> = {
   skill: { x: 320, y: 380 },
 };
 
+// Context-engineering satellite — sits 5px to the right of the Agent
+// card (agent width is 200px, position.x is 100, so the satellite at
+// x=325 leaves a small gap). Not part of `StageNodeId` because it's a
+// UI affordance, NOT a semantic node — no edges from it carry meaning,
+// and `deriveStages` never references it. ReactFlow renders it from a
+// separate node type ("context") whenever there are injections this
+// turn; otherwise it's hidden so runs without context engineering keep
+// the original 4-node layout.
+const CONTEXT_NODE_POSITION = { x: 325, y: 160 };
+
+// Tools satellite — dynamic tool roster (count + names) sitting to the
+// LEFT of the Agent card. Symmetry with the Context satellite on the
+// right gives a clean read: "tools available" on the left feeds INTO
+// the Agent; "context injected" on the right is what just LANDED in
+// the slots. Tool count changes mid-run (skill activations add tools
+// via `autoActivate`), so this satellite re-renders per iteration.
+const TOOLS_NODE_POSITION = { x: -150, y: 160 };
+
 /**
  * Route every (from, to) pair to specific handles so edges don't
  * default to Left/Right in a vertical layout. Returns the source +
  * target handle IDs that match our 4-sides-with-offsets handle setup.
  *
- *   user ↕ agent        — vertical corridor
- *   agent ↕ tool        — vertical corridor
- *   user ↔ agent (ans)  — skips to top corridor
- *   agent ↔ skill       — horizontal sidecar
+ *   user → agent        — straight down (top corridor)
+ *   agent → user (ans)  — straight up (top corridor)
+ *   agent → tool        — straight down (bottom corridor)
+ *   tool → agent (loop) — LEFT-SIDE CURVE so the return reads as a
+ *                         loop around the side, not a parallel arrow
+ *                         in the same lane as the outgoing call.
+ *                         Skill node sits on the RIGHT of tool — left
+ *                         side stays clean for the curve.
+ *   skill → agent       — RIGHT-SIDE CURVE (mirrors the tool loop on
+ *                         the opposite side so skill returns are
+ *                         visually distinct from tool returns).
+ *   agent ↔ skill       — horizontal sidecar (right-side handles).
  *
  * Defaults to (b-out → t-in) so missing cases still render something
  * sensible rather than crashing.
@@ -87,15 +122,23 @@ function pickHandles(
   from: StageNodeId,
   to: StageNodeId,
 ): { sourceHandle: string; targetHandle: string } {
-  // Vertical corridor: user ↕ agent ↕ tool.
+  // User ↕ Agent (top corridor) — call up + answer down.
   if (from === "user" && to === "agent") return { sourceHandle: "b-out", targetHandle: "t-in" };
   if (from === "agent" && to === "user") return { sourceHandle: "t-out", targetHandle: "b-in" };
-  if (from === "agent" && to === "tool") return { sourceHandle: "b-out", targetHandle: "t-in" };
-  if (from === "tool" && to === "agent") return { sourceHandle: "t-out", targetHandle: "b-in" };
 
-  // Horizontal sidecar: agent ↔ skill.
+  // Agent → Tool: outgoing call goes straight down.
+  if (from === "agent" && to === "tool") return { sourceHandle: "b-out", targetHandle: "t-in" };
+  // Tool → Agent: return curves out to the LEFT (both nodes' left
+  // handles), so the smooth-step router draws a side loop around the
+  // call edge instead of overlapping it.
+  if (from === "tool" && to === "agent") return { sourceHandle: "l-out", targetHandle: "l-in" };
+
+  // Agent → Skill: horizontal sidecar to the right.
   if (from === "agent" && to === "skill") return { sourceHandle: "r-out", targetHandle: "l-in" };
-  if (from === "skill" && to === "agent") return { sourceHandle: "l-out", targetHandle: "r-in" };
+  // Skill → Agent: mirror the tool-loop pattern, but on the RIGHT —
+  // skill sits on the right of tool, so right-side curve keeps it
+  // visually paired with the right-side call edge.
+  if (from === "skill" && to === "agent") return { sourceHandle: "r-out", targetHandle: "r-in" };
 
   // Anything else (tool ↔ skill, user ↔ skill): fall back to the
   // nearest sensible pair. Keeps the graph resilient to future
@@ -127,12 +170,51 @@ export function StageFlow({
   onEdgeClick,
   height = 460,
   activeSkillId,
+  timeline,
 }: StageFlowProps) {
   const t = useLensTheme();
   const focus =
     focusIndex !== undefined && focusIndex >= 0 ? focusIndex : stages.length - 1;
   const visible = useMemo(() => stages.slice(0, focus + 1), [stages, focus]);
   const activeStage = visible[visible.length - 1];
+
+  // Context injections + ledger for the Agent's current view — keyed by
+  // the slot they land in (system-prompt / messages / tools). Drives the
+  // per-slot badges on the Agent card ("2 chunks · top 0.95" etc.).
+  //
+  // Two-tier resolution (matches AskCard):
+  //   • iter-active: bind to the active iteration so per-step injections
+  //     surface in fine-grained detail.
+  //   • turn-level fallback: when the focused stage has no iter (e.g. the
+  //     initial User → Agent edge), render the cumulative turn-level
+  //     injections so users always see the "context engineered this turn"
+  //     picture without having to scrub forward.
+  const { activeInjectionsBySlot, activeLedger } = useMemo<{
+    activeInjectionsBySlot: Map<string, AgentContextInjection[]>;
+    activeLedger: AgentContextLedger;
+  }>(() => {
+    const bySlot = new Map<string, AgentContextInjection[]>();
+    if (!timeline || !activeStage) return { activeInjectionsBySlot: bySlot, activeLedger: {} };
+    const turn = timeline.turns[activeStage.turnIndex];
+    const iter =
+      activeStage.iterIndex !== undefined
+        ? turn?.iterations.find((it) => it.index === activeStage.iterIndex)
+        : undefined;
+    const injections =
+      iter && iter.contextInjections.length > 0
+        ? iter.contextInjections
+        : turn?.contextInjections ?? [];
+    for (const ci of injections) {
+      const bucket = bySlot.get(ci.slot) ?? [];
+      bucket.push(ci);
+      bySlot.set(ci.slot, bucket);
+    }
+    const ledger =
+      iter && iter.contextInjections.length > 0
+        ? iter.contextLedger
+        : turn?.contextLedger ?? {};
+    return { activeInjectionsBySlot: bySlot, activeLedger: ledger };
+  }, [timeline, activeStage]);
 
   // Which nodes have ever been touched — hide un-used nodes (notably
   // SKILL, which is silent for runs that don't activate any skill).
@@ -175,10 +257,15 @@ export function StageFlow({
         to === activeStage.to;
       const { sourceHandle, targetHandle } = pickHandles(from, to);
       // Loop edges = traffic coming BACK to the agent (tool or skill
-      // returning data, which triggers the next LLM iteration). We
-      // render these as dashed + marching-ants so the user reads them
-      // as "this is the return leg — another LLM call is about to
-      // start." Primary/outgoing edges stay solid.
+      // returning data, which triggers the next LLM iteration). The
+      // dashed stroke is permanent so the user can always tell a return
+      // edge from an outgoing call (visual structure of the graph).
+      // The marching-ants animation + accent color, however, only fire
+      // when the active step IS this edge — otherwise the loop sits
+      // quietly in dim border color like every other inactive edge.
+      // (Earlier behavior animated all loops always, which read as
+      // "this loop is happening right now" even when the user was
+      // scrubbed to a totally different step.)
       const isLoop = to === "agent" && (from === "tool" || from === "skill");
       return {
         id: `${from}→${to}`,
@@ -187,8 +274,8 @@ export function StageFlow({
         sourceHandle,
         targetHandle,
         type: "labelled",
-        // Only loop edges get the marching-ants animation.
-        animated: isLoop,
+        // Marching-ants only when this loop edge is the active stage.
+        animated: isLoop && isActive,
         data: {
           primitive: lastStage.primitive,
           active: isActive,
@@ -199,8 +286,88 @@ export function StageFlow({
     });
   }, [visible, activeStage]);
 
+  // Current tool roster + delta — what the LLM can call on THIS step,
+  // and how it changed since the previous step. Skill activations
+  // (autoActivate) add tools mid-run, so the count is dynamic. Reads
+  // `visibleTools` from each iteration (LiveTimelineBuilder + the
+  // snapshot adapter both populate this from `resolve-tools` output).
+  const toolsRoster = useMemo<{
+    names: readonly string[];
+    delta: number;
+    deltaSource?: string;
+  } | null>(() => {
+    if (!timeline || !activeStage || activeStage.iterIndex === undefined) return null;
+    const turn = timeline.turns[activeStage.turnIndex];
+    if (!turn) return null;
+    const iterIdx = turn.iterations.findIndex((it) => it.index === activeStage.iterIndex);
+    if (iterIdx < 0) return null;
+    const iter = turn.iterations[iterIdx];
+    const names = iter.visibleTools;
+    if (!names || names.length === 0) return null;
+    const prevIter = iterIdx > 0 ? turn.iterations[iterIdx - 1] : undefined;
+    const prevCount = prevIter?.visibleTools?.length ?? 0;
+    const delta = names.length - prevCount;
+    // Attribute the growth to a skill if one activated this iter — the
+    // most common cause of dynamic tool growth in skill-gated agents.
+    const skillInjection = iter.contextInjections.find((ci) => ci.source === "skill");
+    return {
+      names,
+      delta,
+      ...(delta > 0 && skillInjection ? { deltaSource: "skill" } : {}),
+    };
+  }, [timeline, activeStage]);
+
+  // A flat source-summary for the satellite Context node. Groups
+  // injections by source so the satellite renders one row per source
+  // (even when multiple fire on the same iter/turn). Each entry folds
+  // its own deltaCounts into a per-source ledger so the satellite can
+  // show wire-level deltas right next to who caused them
+  // ("SKILL · sys prompt · +3.5k chars · +tools"). Dedup + ledger fold
+  // happens here so ContextNode stays a pure renderer.
+  const contextSummary = useMemo(() => {
+    const bySource = new Map<
+      string,
+      {
+        source: string;
+        slots: Set<AgentContextInjection["slot"]>;
+        labels: string[];
+        count: number;
+        ledger: Record<string, number | boolean>;
+      }
+    >();
+    for (const list of activeInjectionsBySlot.values()) {
+      for (const ci of list) {
+        const entry = bySource.get(ci.source) ?? {
+          source: ci.source,
+          slots: new Set<AgentContextInjection["slot"]>(),
+          labels: [],
+          count: 0,
+          ledger: {} as Record<string, number | boolean>,
+        };
+        entry.slots.add(ci.slot);
+        entry.labels.push(ci.label);
+        entry.count += 1;
+        const d = ci.deltaCount;
+        if (d) {
+          for (const [key, val] of Object.entries(d)) {
+            if (typeof val === "number") {
+              const prev = typeof entry.ledger[key] === "number"
+                ? (entry.ledger[key] as number)
+                : 0;
+              entry.ledger[key] = prev + val;
+            } else if (typeof val === "boolean") {
+              entry.ledger[key] = (entry.ledger[key] === true) || val;
+            }
+          }
+        }
+        bySource.set(ci.source, entry);
+      }
+    }
+    return [...bySource.values()];
+  }, [activeInjectionsBySlot]);
+
   const nodes = useMemo<Node[]>(() => {
-    return (Object.keys(NODE_POSITIONS) as StageNodeId[])
+    const base = (Object.keys(NODE_POSITIONS) as StageNodeId[])
       .filter((id) => {
         // Hide SKILL node when never touched to keep the graph clean
         // for runs that don't use any skill.
@@ -219,6 +386,9 @@ export function StageFlow({
           // Multiple can be true at once (read_skill touches all three).
           ...(id === "agent" && activeStage
             ? { activeMutations: activeStage.mutations }
+            : {}),
+          ...(id === "agent"
+            ? { activeInjectionsBySlot, activeLedger }
             : {}),
           // Skill annotation on the Agent node — tells the user which
           // skill is governing the current System Prompt + Tools. Pure
@@ -240,12 +410,49 @@ export function StageFlow({
             : {}),
         },
         draggable: false,
-      }));
-  }, [activeNodes, touched, activeStage, activeSkillId]);
+      })) as Node[];
+    // Append the context satellite only when there's something to show.
+    // Runs without any context engineering keep the original 4-node
+    // layout — no phantom empty card.
+    if (contextSummary.length > 0) {
+      base.push({
+        id: "context",
+        type: "context",
+        position: CONTEXT_NODE_POSITION,
+        data: { sources: contextSummary },
+        draggable: false,
+      } as Node);
+    }
+    // Tools satellite — only when the active iter knows its tool roster.
+    // Hidden for snapshot-import paths where `visibleTools` wasn't
+    // captured, so we don't show a misleading empty list.
+    if (toolsRoster) {
+      base.push({
+        id: "tools-list",
+        type: "tools-list",
+        position: TOOLS_NODE_POSITION,
+        data: toolsRoster,
+        draggable: false,
+      } as Node);
+    }
+    return base;
+  }, [
+    activeNodes,
+    touched,
+    activeStage,
+    activeSkillId,
+    activeInjectionsBySlot,
+    activeLedger,
+    contextSummary,
+    toolsRoster,
+  ]);
 
   // Memoize nodeTypes + edgeTypes so React Flow doesn't warn about
   // changing types on every render.
-  const nodeTypes = useMemo(() => ({ lens: LensNode }), []);
+  const nodeTypes = useMemo(
+    () => ({ lens: LensNode, context: ContextNode, "tools-list": ToolsListNode }),
+    [],
+  );
   const edgeTypes = useMemo(() => ({ labelled: LensEdge(onEdgeClick) }), [onEdgeClick]);
 
   return (
@@ -363,6 +570,14 @@ function LensNode({ data }: NodeProps) {
     active: boolean;
     touched: boolean;
     activeMutations?: Stage["mutations"];
+    /** Per-slot context injections for the current iteration — keyed by
+     *  slot name. AgentPorts renders these as badges on each slot row. */
+    activeInjectionsBySlot?: Map<string, AgentContextInjection[]>;
+    /** Accumulated per-iteration ledger (summed deltaCounts). Drives
+     *  the "+N system msgs" / "+N chars" / "+N tools" counters on each
+     *  slot, plus the dotted-border indicator that says "this slot has
+     *  been augmented this iteration." */
+    activeLedger?: AgentContextLedger;
     /** Context-specific label shown in place of the generic sub-label
      *  when the node is active (e.g., the tool name for the Tool node
      *  during an agent→tool or tool→agent edge). */
@@ -506,6 +721,8 @@ function LensNode({ data }: NodeProps) {
               active={d.active}
               mutations={d.activeMutations}
               filledCard={isActive}
+              injectionsBySlot={d.activeInjectionsBySlot}
+              ledger={d.activeLedger}
             />
           </>
         )}
@@ -525,6 +742,287 @@ function LensNode({ data }: NodeProps) {
       </div>
     </div>
   );
+}
+
+/**
+ * ContextNode — the dotted satellite to the right of the Agent that
+ * lists what was injected into the prompt this step / turn.
+ *
+ * Sits 5px from the Agent card so it reads as "attached, but not part
+ * of the semantic graph." No edges connect to it (no Handle elements);
+ * the proximity + dotted border do the visual work. Source rows render
+ * as small badges grouped by source (skill, instructions, memory, RAG)
+ * with a per-source label so users can map "INSTRUCTIONS · 1 instr"
+ * back to the dotted slot row inside the Agent.
+ *
+ * Hidden when there are no injections — runs without any context
+ * engineering keep the original 4-node layout.
+ */
+function ContextNode({ data }: NodeProps) {
+  const t = useLensTheme();
+  const d = data as {
+    sources: Array<{
+      source: string;
+      slots: Set<AgentContextInjection["slot"]>;
+      labels: string[];
+      count: number;
+      ledger: Record<string, number | boolean>;
+    }>;
+  };
+  if (!d.sources || d.sources.length === 0) return null;
+  return (
+    <div
+      style={{
+        width: 200,
+        padding: "8px 10px",
+        borderRadius: 8,
+        background: "transparent",
+        border: `1.5px dashed ${t.accent}`,
+        color: t.text,
+        fontFamily: t.fontSans,
+      }}
+    >
+      <div
+        style={{
+          fontSize: 9,
+          color: t.textSubtle,
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+          fontWeight: 600,
+          marginBottom: 6,
+        }}
+      >
+        Context engineered
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        {d.sources.map((s) => {
+          const slot = [...s.slots][0];
+          const deltas = describeSourceDeltas(s.ledger, s.labels);
+          return (
+            <div
+              key={s.source}
+              title={s.labels.join(" · ")}
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 2,
+              }}
+            >
+              {/* source · slot — header line, identifies WHO and WHERE */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span
+                  style={{
+                    fontFamily: t.fontMono,
+                    fontWeight: 700,
+                    letterSpacing: "0.06em",
+                    textTransform: "uppercase",
+                    color: t.accent,
+                    fontSize: 9,
+                    padding: "1px 5px",
+                    border: `1px solid ${t.accent}`,
+                    borderRadius: 3,
+                  }}
+                >
+                  {s.source}
+                  {s.count > 1 ? ` ×${s.count}` : ""}
+                </span>
+                <span style={{ color: t.textSubtle, fontSize: 9 }}>→</span>
+                <span style={{ fontSize: 9, color: t.textMuted }}>{slotShort(slot)}</span>
+              </div>
+              {/* deltas — wire-level numbers (chars added, tools added,
+                  msg-role counters). Indented under the source so the
+                  reader's eye links delta to source. */}
+              {deltas.length > 0 && (
+                <div
+                  style={{
+                    paddingLeft: 8,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 4,
+                  }}
+                >
+                  {deltas.map((dlabel) => (
+                    <span
+                      key={dlabel}
+                      style={{
+                        fontSize: 9,
+                        padding: "0 4px",
+                        borderRadius: 3,
+                        fontFamily: t.fontMono,
+                        color: t.text,
+                        background: `color-mix(in srgb, ${t.accent} 12%, transparent)`,
+                        border: `1px dashed ${t.accent}`,
+                      }}
+                    >
+                      {dlabel}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Compress a per-source ledger into short human delta strings:
+ *
+ *   { systemPromptChars: 3500 }        → ["+3.5k chars"]
+ *   { tools: 7 }                        → ["+7 tools"]
+ *   { toolsFromSkill: true }            → ["+? tools"]
+ *   { system: 2, tool: 1 }              → ["+2 sys msgs", "+1 tool msg"]
+ *
+ * Falls back to the injection's own short label (e.g., "3 chunks · top
+ * 0.95") when the ledger is empty but the source still has descriptive
+ * text — keeps RAG / instructions visible even when they don't carry
+ * numeric counters yet.
+ */
+function describeSourceDeltas(
+  ledger: Record<string, number | boolean>,
+  labels: string[],
+): string[] {
+  const out: string[] = [];
+  const n = (k: string): number =>
+    typeof ledger[k] === "number" ? (ledger[k] as number) : 0;
+
+  const chars = n("systemPromptChars");
+  if (chars > 0) {
+    out.push(chars >= 1000 ? `+${(chars / 1000).toFixed(1)}k chars` : `+${chars} chars`);
+  }
+  const tools = n("tools");
+  if (tools > 0) out.push(`+${tools} tools`);
+  if (ledger["toolsFromSkill"] === true && tools === 0) out.push("+? tools");
+
+  const sys = n("system");
+  const tool = n("tool");
+  const user = n("user");
+  if (sys > 0) out.push(`+${sys} sys msg${sys === 1 ? "" : "s"}`);
+  if (tool > 0) out.push(`+${tool} tool msg${tool === 1 ? "" : "s"}`);
+  if (user > 0) out.push(`+${user} user msg${user === 1 ? "" : "s"}`);
+
+  // No numeric counters present → fall back to the source's first label
+  // (e.g. "3 chunks · top 0.95" for RAG, "1 instruction" for instructions)
+  // so the satellite never shows a bare source chip with no context.
+  if (out.length === 0 && labels.length > 0) out.push(labels[0]);
+
+  return out;
+}
+
+/**
+ * ToolsListNode — dotted satellite to the LEFT of the Agent showing
+ * the dynamic tool roster: how many tools the LLM can call on this
+ * step, and how that count changed since the previous step.
+ *
+ * Why a satellite (not a slot row inside Agent): the Tools slot inside
+ * the Agent card is structural ("the API has a tools field"). The roster
+ * is data — names + count + delta — that grows mid-run when skills
+ * activate via `autoActivate`. Showing names here lets users see the
+ * actual menu the agent has on each step instead of just a "+N tools"
+ * counter on the slot row. Hidden when `visibleTools` is empty (no
+ * info to show, no point rendering an empty card).
+ */
+function ToolsListNode({ data }: NodeProps) {
+  const t = useLensTheme();
+  const d = data as { names: readonly string[]; delta: number; deltaSource?: string };
+  if (!d.names || d.names.length === 0) return null;
+  // Truncate the list to keep the satellite scannable. A "+N more"
+  // hint at the bottom makes the truncation visible without crowding.
+  const MAX_VISIBLE = 6;
+  const visible = d.names.slice(0, MAX_VISIBLE);
+  const overflow = d.names.length - visible.length;
+  return (
+    <div
+      style={{
+        width: 130,
+        padding: "8px 10px",
+        borderRadius: 8,
+        background: "transparent",
+        border: `1.5px dashed ${t.accent}`,
+        color: t.text,
+        fontFamily: t.fontSans,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "baseline",
+          justifyContent: "space-between",
+          marginBottom: 6,
+        }}
+      >
+        <span
+          style={{
+            fontSize: 9,
+            color: t.textSubtle,
+            textTransform: "uppercase",
+            letterSpacing: "0.08em",
+            fontWeight: 600,
+          }}
+        >
+          Tools · {d.names.length}
+        </span>
+        {d.delta > 0 && (
+          <span
+            title={
+              d.deltaSource
+                ? `+${d.delta} added by ${d.deltaSource} this iteration`
+                : `+${d.delta} since previous iteration`
+            }
+            style={{
+              fontSize: 9,
+              padding: "0 4px",
+              borderRadius: 3,
+              fontFamily: t.fontMono,
+              fontWeight: 700,
+              color: t.accent,
+              border: `1px dashed ${t.accent}`,
+            }}
+          >
+            +{d.delta}
+            {d.deltaSource ? ` · ${d.deltaSource}` : ""}
+          </span>
+        )}
+      </div>
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 2,
+          fontFamily: t.fontMono,
+          fontSize: 9,
+          color: t.textMuted,
+        }}
+      >
+        {visible.map((name) => (
+          <div
+            key={name}
+            title={name}
+            style={{
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {name}
+          </div>
+        ))}
+        {overflow > 0 && (
+          <div style={{ color: t.textSubtle, fontStyle: "italic" }}>
+            +{overflow} more
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function slotShort(slot: AgentContextInjection["slot"] | undefined): string {
+  if (slot === "system-prompt") return "sys prompt";
+  if (slot === "tools") return "tools";
+  return "messages";
 }
 
 /** Minimal icon set for the four semantic nodes. Keeps style parity
@@ -611,11 +1109,20 @@ function AgentPorts({
   active,
   mutations,
   filledCard,
+  injectionsBySlot,
+  ledger,
 }: {
   active: boolean;
   mutations?: Stage["mutations"];
   /** True when the parent card is in active/filled state (accent bg). */
   filledCard: boolean;
+  /** Context injections for the current iteration, keyed by slot name. */
+  injectionsBySlot?: Map<string, AgentContextInjection[]>;
+  /** Per-iteration accumulated ledger — sum of deltaCounts for every
+   *  injection. Drives the dotted-border indicator on each slot
+   *  (signals "this slot has been augmented this iteration") plus the
+   *  inline +N counters. Empty ledger renders nothing. */
+  ledger?: AgentContextLedger;
 }) {
   const t = useLensTheme();
   // A port is "lit" when this step mutated it. read_skill lights all
@@ -625,48 +1132,34 @@ function AgentPorts({
   const litMsg = active && mutations?.messages === true;
   const litTools = active && mutations?.tools === true;
 
-  // Per-port delta badge when the adapter gave us a count.
-  const spBadge =
-    mutations?.systemPromptDeltaChars !== undefined
-      ? `+${mutations.systemPromptDeltaChars.toLocaleString()} chars`
-      : null;
-  const toolsBadge = (() => {
-    const added = mutations?.toolsAdded ?? 0;
-    const removed = mutations?.toolsRemoved ?? 0;
-    if (added === 0 && removed === 0) return null;
-    const bits: string[] = [];
-    if (added > 0) bits.push(`+${added}`);
-    if (removed > 0) bits.push(`-${removed}`);
-    return bits.join(" / ");
-  })();
-
+  // Slot rows are now indicator-only — char/tool delta badges that used
+  // to render here moved to the ContextNode satellite (one source of
+  // truth for "what was added"). The `mutations` prop is still consumed
+  // for the lit-state computation above; the per-port `badge` field is
+  // gone from the row shape.
   const ports: Array<{
     key: Stage["primitive"];
     label: string;
     hint: string;
     lit: boolean;
-    badge: string | null;
   }> = [
     {
       key: "system-prompt",
       label: "System Prompt",
       hint: "Instructions Neo runs on",
       lit: litSP,
-      badge: litSP ? spBadge : null,
     },
     {
       key: "message",
       label: "Messages",
       hint: "Conversation so far",
       lit: litMsg,
-      badge: null,
     },
     {
       key: "tool",
       label: "Tools",
       hint: "What Neo can call",
       lit: litTools,
-      badge: litTools ? toolsBadge : null,
     },
   ];
 
@@ -691,45 +1184,69 @@ function AgentPorts({
         borderRadius: 6,
       }}
     >
-      {ports.map((p) => (
-        <div
-          key={p.key}
-          title={p.hint}
-          style={{
-            padding: "2px 8px",
-            borderRadius: 3,
-            background: p.lit ? portLitBg : "transparent",
-            color: p.lit ? portLitColor : portIdle,
-            fontSize: 10,
-            fontWeight: p.lit ? 600 : 500,
-            letterSpacing: "0.02em",
-            textAlign: "left",
-            fontFamily: t.fontSans,
-            display: "flex",
-            alignItems: "center",
-            gap: 6,
-            borderLeft: `2px solid ${p.lit ? portLitBorder : portIdleBorder}`,
-          }}
-        >
-          <span style={{ fontSize: 8 }}>▸</span>
-          <span style={{ flex: 1 }}>{p.label}</span>
-          {p.badge && (
-            <span
-              style={{
-                fontSize: 9,
-                padding: "0 4px",
-                borderRadius: 3,
-                background: filledCard ? "rgba(255,255,255,0.22)" : t.bg,
-                color: p.lit ? portLitColor : portIdle,
-                fontFamily: t.fontMono,
-                fontWeight: 600,
-              }}
-            >
-              {p.badge}
-            </span>
-          )}
-        </div>
-      ))}
+      {ports.map((p) => {
+        // Map the port key (singular "message" / "tool") to the injection
+        // slot key (plural "messages" / "tools"). "system-prompt" matches
+        // directly.
+        const injectionSlotKey =
+          p.key === "message" ? "messages" : p.key === "tool" ? "tools" : "system-prompt";
+        const injections = injectionsBySlot?.get(injectionSlotKey) ?? [];
+        // Build per-slot delta summary from the ledger. Different slots
+        // care about different counters: messages-slot tracks role
+        // counters (system / user / tool); system-prompt-slot tracks
+        // char growth; tools-slot tracks tool count.
+        const slotDelta = computeSlotDelta(p.key, ledger);
+        // "Augmented this iteration" — the dotted border signals the
+        // slot has accumulated content from context engineering, even
+        // when the LIVE step (mutations) didn't touch it directly.
+        // Persists across the whole turn until a fresh iteration.
+        const augmented = injections.length > 0 || slotDelta !== null;
+        const baseBorderColor = p.lit ? portLitBorder : portIdleBorder;
+        const borderStyle = augmented && !p.lit ? "dashed" : "solid";
+        return (
+          <div
+            key={p.key}
+            title={p.hint}
+            style={{
+              padding: "2px 8px",
+              borderRadius: 3,
+              background: p.lit ? portLitBg : "transparent",
+              color: p.lit ? portLitColor : portIdle,
+              fontSize: 10,
+              fontWeight: p.lit ? 600 : 500,
+              letterSpacing: "0.02em",
+              textAlign: "left",
+              fontFamily: t.fontSans,
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              borderLeft: `2px ${borderStyle} ${baseBorderColor}`,
+              // Whole-row dotted ring when augmented but not currently
+              // lit — makes the "ledger has additions" status visible
+              // on inactive slots without yelling.
+              ...(augmented && !p.lit
+                ? {
+                    outline: `1px dashed ${
+                      filledCard ? "rgba(255,255,255,0.4)" : t.accent
+                    }`,
+                    outlineOffset: -1,
+                  }
+                : {}),
+            }}
+          >
+            <span style={{ fontSize: 8 }}>▸</span>
+            <span style={{ flex: 1 }}>{p.label}</span>
+            {/* Slot rows are indicator-only:
+                - solid left border + filled bg when this step LIT the
+                  slot (read_skill, ragQuery completing, etc.)
+                - dashed left border + outline ring when the slot was
+                  augmented earlier this turn (cumulative)
+                The "what was added by whom" lives in the ContextNode
+                satellite to the right — char counts, tool counts, and
+                source chips all moved there to keep the slots scannable. */}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -776,27 +1293,27 @@ function LensEdge(onEdgeClick?: (stage: Stage) => void) {
       borderRadius: 10,
     });
 
-    // Color: active edge pops in accent; loop edges in accent-mix so
-    // they read as "related flow direction" without shouting; rest in
-    // border grey.
-    const stroke = d.active
-      ? t.accent
-      : d.isLoop
-        ? `color-mix(in srgb, ${t.accent} 55%, ${t.border})`
-        : t.border;
-    const strokeWidth = d.active ? 2.25 : d.isLoop ? 1.75 : 1.5;
-    // Dashed ONLY for loop edges (return-to-agent traffic).
-    // React Flow's built-in `animated` handles the marching-ants motion;
-    // we combine it with a dashArray for the visual stipple.
+    // Color/weight: only the ACTIVE edge pops in accent (regardless of
+    // whether it's a loop or an outgoing call). Inactive loops drop to
+    // border grey just like any other inactive edge — the dashed stroke
+    // still tells the user "this is a return path", so we don't need
+    // accent color to do double duty. Earlier loop edges always wore
+    // accent, which made the graph look like the loop was firing at
+    // every step.
+    const stroke = d.active ? t.accent : t.border;
+    const strokeWidth = d.active ? 2.25 : 1.5;
+    // Dashed ONLY for loop edges (return-to-agent traffic) — kept across
+    // both active/inactive states so the structural distinction
+    // (call vs. return) is always visible. React Flow's built-in
+    // `animated` handles the marching-ants motion; we set
+    // `animated: isLoop && isActive` upstream so that only fires on the
+    // active loop.
     const strokeDasharray = d.isLoop ? "5 4" : undefined;
 
-    // Three shared markers live at the StageFlow root (<EdgeMarkerDefs/>)
-    // so we don't regenerate the same <defs> per edge per render.
-    const markerId = d.active
-      ? "lens-arrow-active"
-      : d.isLoop
-        ? "lens-arrow-loop"
-        : "lens-arrow-dim";
+    // Two shared markers cover every edge state: accent arrow for the
+    // active edge, dim grey arrow for everything else. The old loop-tinted
+    // marker is unused now — markers track the stroke color exactly.
+    const markerId = d.active ? "lens-arrow-active" : "lens-arrow-dim";
 
     return (
       <>
@@ -829,4 +1346,49 @@ function LensEdge(onEdgeClick?: (stage: Stage) => void) {
       </>
     );
   };
+}
+
+// ── Slot-delta synthesis ────────────────────────────────────────────
+//
+// Compresses the per-iteration ledger into a slot-specific summary
+// string, matching what students expect to see at the wire level:
+//
+//   System Prompt slot → "+1.2k chars" (charcount growth)
+//   Messages slot      → "system +2" or "tool +3" (role-counter delta)
+//   Tools slot         → "+3 tools"
+//
+// Returns null when the slot has no relevant delta — the UI hides the
+// badge entirely in that case so noise stays low. Each slot reads
+// only the keys it cares about; unknown keys flow through ignored.
+function computeSlotDelta(
+  portKey: Stage["primitive"],
+  ledger: AgentContextLedger | undefined,
+): string | null {
+  if (!ledger) return null;
+  const num = (k: string): number => (typeof ledger[k] === "number" ? (ledger[k] as number) : 0);
+
+  if (portKey === "system-prompt") {
+    const chars = num("systemPromptChars");
+    if (chars <= 0) return null;
+    return chars >= 1000 ? `+${(chars / 1000).toFixed(1)}k chars` : `+${chars} chars`;
+  }
+  if (portKey === "message") {
+    // Roles that meaningfully arrive via context engineering.
+    const sys = num("system");
+    const tool = num("tool");
+    const user = num("user");
+    const parts: string[] = [];
+    if (sys > 0) parts.push(`system +${sys}`);
+    if (tool > 0) parts.push(`tool +${tool}`);
+    if (user > 0) parts.push(`user +${user}`);
+    return parts.length > 0 ? parts.join(" · ") : null;
+  }
+  if (portKey === "tool") {
+    const tools = num("tools");
+    const fromSkill = ledger["toolsFromSkill"] === true;
+    if (tools > 0) return `+${tools} tools`;
+    if (fromSkill) return "+? tools (skill)";
+    return null;
+  }
+  return null;
 }

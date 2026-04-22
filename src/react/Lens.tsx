@@ -17,15 +17,35 @@
  * Skills are optional. If the app doesn't register any skills, the
  * Skills button + modal simply don't render — no empty state.
  */
-import { useState } from "react";
+import { useEffect, useReducer, useState } from "react";
 import type { ReactNode } from "react";
 import { ExplainableShell, FootprintTheme } from "footprint-explainable-ui";
-import type { ThemeTokens } from "footprint-explainable-ui";
+import type { ThemeTokens, NarrativeEntry } from "footprint-explainable-ui";
 import { AgentLens } from "./AgentLens";
 import type { AgentLensProps } from "./AgentLens";
 import { Tabs } from "./components/Tabs/Tabs";
 import { SelfSizingRoot } from "./layout/SelfSizingRoot";
-import { useLensTheme } from "./theme/useLensTheme";
+import { resolve as resolveLensTheme, useLensTheme } from "./theme/useLensTheme";
+import { useLiveTimeline } from "./hooks/useLiveTimeline";
+
+/**
+ * Shape every agentfootprint runner exposes — all Lens needs to feed
+ * itself from a runner: subscribe to its events, read its snapshot, and
+ * (optionally) narrative entries + spec. Accept partial implementations
+ * so Lens works with user-built runners that only implement what they
+ * need. Not all fields present? Lens renders the empty state for any
+ * missing channel.
+ */
+export interface LensRunner {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  observe?: (handler: (event: any) => void) => (() => void);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getSnapshot?: () => any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getNarrativeEntries?: () => readonly any[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  getSpec?: () => any;
+}
 
 export interface LensProps {
   /**
@@ -69,6 +89,26 @@ export interface LensProps {
    */
   readonly traceView?: ReactNode;
   /**
+   * Structured narrative entries from `executor.getNarrativeEntries()`.
+   * Forwarded to the default Explainable Trace tab — the adapter
+   * groups entries by stageId so each snapshot's "Insights → Story"
+   * panel shows the rich per-stage narrative. Without this, stages
+   * show "Narrative not available".
+   *
+   * This is the single narrative prop you need; the flat string form
+   * (`executor.getNarrative()`) is derivable from these entries and is
+   * NOT a separate input.
+   */
+  readonly narrativeEntries?: readonly NarrativeEntry[];
+  /**
+   * FlowChart spec from `executor.getSpec()` / `chart.toSpec()`.
+   * Forwarded to the default trace view so the flowchart panel
+   * renders the stage topology. Without it, the trace tab shows a
+   * snapshot list but no flowchart.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  readonly spec?: any | null;
+  /**
    * Theme tokens. When supplied, Lens wraps its tree in
    * `<FootprintTheme tokens={theme}>` internally — consumers don't
    * have to import FootprintTheme themselves. When omitted, Lens
@@ -82,6 +122,23 @@ export interface LensProps {
    *   <Lens theme={dark ? coolDark : coolLight} .../>
    */
   readonly theme?: ThemeTokens;
+  /**
+   * The runner to watch — any object with `observe()` + `getSnapshot()`.
+   * When supplied, Lens auto-subscribes to the runner's event stream,
+   * tracks its snapshot, and reads narrativeEntries + spec. Consumers
+   * don't pass timeline / runtimeSnapshot / narrativeEntries / spec
+   * manually. This is the recommended integration for app code.
+   *
+   *     const agent = useLens(() => Agent.create(...).build());
+   *     <Lens for={agent} />
+   *
+   * Takes precedence over the explicit props when present. Omit to
+   * drive Lens explicitly (replay scenarios, custom ingestion, testing).
+   *
+   * The prop is named `for` because it reads naturally as
+   * "Lens for this runner" — valid in JSX despite being a JS keyword.
+   */
+  readonly for?: LensRunner | null;
 }
 
 export function Lens({
@@ -96,14 +153,68 @@ export function Lens({
   trailingSlot,
   renderAll = false,
   traceView,
+  narrativeEntries,
+  spec,
   theme,
+  for: runnerProp,
 }: LensProps) {
-  const t = useLensTheme();
+  // When the consumer passes `theme`, resolve it DIRECTLY instead of going
+  // through `useLensTheme()`'s context read. The `<FootprintTheme>` wrap at
+  // the bottom of this component only affects *descendants*, not the Tabs
+  // colors we compute here — so without this, the Tabs fall back to the
+  // coolDark defaults even when the consumer asks for a different palette.
+  const themedTokens = useLensTheme();
+  const t = theme ? resolveLensTheme(theme) : themedTokens;
   const [selectedId, setSelectedId] = useState<string>(defaultTabId);
 
+  // ── `for={runner}` path ─────────────────────────────────────────
+  // When a runner is supplied, Lens:
+  //   1. Spins up its own `useLiveTimeline` and subscribes to the
+  //      runner's event stream (observe + unsubscribe on unmount).
+  //   2. Re-renders after each run to pick up the new snapshot /
+  //      narrative entries / spec from the runner accessors.
+  //
+  // Consumers writing `<Lens for={agent} />` get everything for free —
+  // no manual timeline wiring, no manual snapshot plumbing. The
+  // explicit props (timeline, runtimeSnapshot, narrativeEntries, spec)
+  // act as the "raw" path for replay / test scenarios.
+  const autoLens = useLiveTimeline();
+  const [, bumpSnapshot] = useReducer((x: number) => x + 1, 0);
+  useEffect(() => {
+    if (!runnerProp?.observe) return;
+    autoLens.reset();
+    const stop = runnerProp.observe((event: unknown) => {
+      autoLens.ingest(event);
+      // `turn_end` is the cue to refresh the snapshot reads — the run
+      // has finished, so getSnapshot / getNarrativeEntries / getSpec
+      // now return final values. Bumping state forces a re-render.
+      const type =
+        event && typeof event === "object"
+          ? (event as { type?: string }).type
+          : undefined;
+      if (type === "turn_end" || type === "agentfootprint.agent.turn_complete") {
+        bumpSnapshot();
+      }
+    });
+    return stop;
+    // autoLens + bumpSnapshot are stable; runnerProp identity drives resubscribe
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runnerProp]);
+
+  // Decide which data source wins: runner-driven (preferred) or explicit props.
+  const usingRunner = !!runnerProp?.observe;
+  const resolvedTimeline = usingRunner ? autoLens.timeline : timeline;
+  const resolvedSnapshot = usingRunner
+    ? (runnerProp?.getSnapshot?.() ?? null)
+    : (runtimeSnapshot ?? null);
+  const resolvedNarrative = usingRunner
+    ? (runnerProp?.getNarrativeEntries?.() as NarrativeEntry[] | undefined)
+    : narrativeEntries;
+  const resolvedSpec = usingRunner ? runnerProp?.getSpec?.() : spec;
+
   const agentLensProps: AgentLensProps = {
-    runtimeSnapshot,
-    ...(timeline !== undefined ? { timeline } : {}),
+    runtimeSnapshot: resolvedSnapshot,
+    ...(resolvedTimeline !== undefined ? { timeline: resolvedTimeline } : {}),
     ...(systemPrompt !== undefined ? { systemPrompt } : {}),
     ...(skills !== undefined ? { skills } : {}),
     ...(activeSkillId !== undefined ? { activeSkillId } : {}),
@@ -148,7 +259,13 @@ export function Lens({
           // snapshot so consumers get something useful out of the
           // box without wiring anything.
           content: traceView ?? (
-            <ExplainableShell runtimeSnapshot={runtimeSnapshot ?? null} />
+            <ExplainableShell
+              runtimeSnapshot={resolvedSnapshot ?? null}
+              {...(resolvedNarrative !== undefined
+                ? { narrativeEntries: [...resolvedNarrative] }
+                : {})}
+              {...(resolvedSpec !== undefined ? { spec: resolvedSpec } : {})}
+            />
           ),
         },
       ]}

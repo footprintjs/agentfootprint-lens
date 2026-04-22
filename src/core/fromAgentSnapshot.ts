@@ -309,6 +309,11 @@ function assembleTurns(
         decisionAtStart: {}, // TODO(phase-2): derive from pre-iter commit
         ...(instr?.matchedInstructions && { matchedInstructions: instr.matchedInstructions }),
         visibleTools: visible?.visibleTools ?? [],
+        // Post-process path (snapshot-import — no live emit stream) has no
+        // way to reconstruct context-injection timing. Leave empty; the
+        // live path via LiveTimelineBuilder fills these in naturally.
+        contextInjections: [],
+        contextLedger: {},
       };
 
       currentTurn.iterations.push(iteration);
@@ -351,5 +356,10 @@ function finalizeTurn(t: {
     totalInputTokens,
     totalOutputTokens,
     totalDurationMs,
+    // Post-process snapshot path has no live emit timing, so the
+    // turn-level context fields stay empty here too — the live
+    // LiveTimelineBuilder path is the one that captures injections.
+    contextInjections: [],
+    contextLedger: {},
   };
 }

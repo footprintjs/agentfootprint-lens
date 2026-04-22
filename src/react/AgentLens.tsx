@@ -221,19 +221,54 @@ export function AgentLens({
     [handleFocusChange],
   );
 
+  // Container-width responsiveness — same pattern as
+  // `<ExplainableShell>`. When the host panel is narrower than the
+  // two-column grid's comfortable minimum, stack `graph` above `ask`
+  // in a single column. ResizeObserver + state (no media queries)
+  // means Lens reacts to its own container's width, not the viewport
+  // — works inside drawers, splitters, and resizable panels.
+  const shellRef = useRef<HTMLDivElement>(null);
+  const [isNarrow, setIsNarrow] = useState(false);
+  useEffect(() => {
+    const el = shellRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      const w = entry.contentRect.width;
+      setIsNarrow(w < 640);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   return (
     <div
+      ref={shellRef}
       data-fp-lens="shell"
+      data-fp-lens-narrow={isNarrow ? "true" : "false"}
       style={{
         display: "grid",
         // Top: TimeTravel slider (tt) + Skills button trailing on the
         // right. Middle-left: vertical StageFlow. Middle-right: AskCard
         // with current question + active step detail. Below: MessagesPanel
         // full width. Footer: RunSummary (only after first turn completes).
-        gridTemplateColumns: "minmax(320px, 1fr) minmax(220px, 320px)",
-        gridTemplateRows: "auto auto minmax(0, 1fr) auto",
-        gridTemplateAreas:
-          '"tt tt" "graph ask" "messages messages" "summary summary"',
+        //
+        // Wide layout: two columns (graph | ask) with shared top/bottom rows.
+        // Narrow layout: single column, ask card stacks below graph — same
+        // responsive pattern `<ExplainableShell>` uses when its container
+        // drops below ~640px. Container-width driven (ResizeObserver), so
+        // this reacts to panel drags / splitters, not the viewport.
+        //
+        // Both columns use `minmax(0, ...)` so grid tracks can shrink below
+        // their preferred size without clipping content.
+        gridTemplateColumns: isNarrow
+          ? "minmax(0, 1fr)"
+          : "minmax(0, 1fr) minmax(0, 320px)",
+        gridTemplateRows: isNarrow
+          ? "auto auto auto minmax(0, 1fr) auto"
+          : "auto auto minmax(0, 1fr) auto",
+        gridTemplateAreas: isNarrow
+          ? '"tt" "graph" "ask" "messages" "summary"'
+          : '"tt tt" "graph ask" "messages messages" "summary summary"',
         // Self-constraining sizing contract — Lens never requires the
         // host to get their flex chain exactly right.
         //
@@ -342,6 +377,7 @@ export function AgentLens({
               focusIndex={resolvedFocus}
               onEdgeClick={handleEdgeClick}
               activeSkillId={derivedActiveSkill}
+              timeline={timeline}
             />
           </div>
           <div

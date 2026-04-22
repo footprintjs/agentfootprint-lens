@@ -22,7 +22,7 @@ export * from "../core";
 // done. Handles both Lens (live agent view) and Explainable Trace
 // internally via tabs when `traceView` is supplied.
 export { Lens } from "./Lens";
-export type { LensProps } from "./Lens";
+export type { LensProps, LensRunner } from "./Lens";
 
 // Agent view alone — for consumers who own their own chrome and want
 // just the Lens surface without the tab wrapper.
@@ -55,6 +55,7 @@ export type { RunSummaryProps } from "./panels/RunSummary";
 // Hooks.
 export { useLiveTimeline } from "./hooks/useLiveTimeline";
 export type { UseLiveTimelineResult } from "./hooks/useLiveTimeline";
+export { useLens } from "./hooks/useLens";
 
 // Theme.
 export { useLensTheme, resolve as resolveLensTheme } from "./theme/useLensTheme";

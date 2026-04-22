@@ -35,6 +35,67 @@ export interface AgentToolInvocation {
   readonly durationMs?: number;
 }
 
+/**
+ * A single context injection captured on this iteration — e.g. RAG
+ * adding chunks to Messages, a Skill activating a prompt, Memory
+ * re-injecting prior turns, Instructions firing per-tool guidance.
+ *
+ * Rendered as a tag inside the Agent card's slot
+ * (system-prompt / messages / tools). The library emits these
+ * via `agentfootprint.context.*` events; Lens keeps the ones that
+ * fire between an iteration's `llm_start` and the same iteration's
+ * `llm_end`, plus any that fire BEFORE the first `llm_start` (those
+ * apply to iteration 1's context — same mental model).
+ *
+ * This is the library's teaching surface — each injection says
+ * WHO (source) and WHERE (slot) it flowed into, so students can see
+ * that "RAG isn't magic — it just added N chunks into Messages".
+ */
+export interface AgentContextInjection {
+  /** Short source name — `rag`, `skill`, `memory`, `instructions`, etc. */
+  readonly source: string;
+  /** Which Agent slot this injection targets. */
+  readonly slot: "system-prompt" | "messages" | "tools";
+  /** Short human label for the Lens tag — e.g. "3 chunks · top 0.95". */
+  readonly label: string;
+  /**
+   * Wire-level LLM role of the injected content when it lands in the
+   * `messages` slot. `system` for classical RAG, `tool` for agentic
+   * RAG tool results, `user` for rare pre-pend patterns, undefined for
+   * system-prompt / tools slot targets (those have no role — they
+   * mutate the slot directly).
+   */
+  readonly role?: "system" | "user" | "assistant" | "tool";
+  /**
+   * Index in `messages[]` where the injected message landed — lets the
+   * "Inspect messages" drill-down jump straight to the row. Only set
+   * for messages-slot injections.
+   */
+  readonly targetIndex?: number;
+  /**
+   * Per-slot count deltas this injection contributed. Drives the
+   * per-iteration ledger shown on the Agent card ("system +2,
+   * tools +3"). Keys are intentionally open — new injection sources
+   * can introduce new counters without a schema change.
+   */
+  readonly deltaCount?: Record<string, number | boolean>;
+  /** Raw payload from the emit event — available in the expand-drawer. */
+  readonly payload: Record<string, unknown>;
+}
+
+/**
+ * Per-iteration accumulated ledger — sums every injection's deltaCount
+ * so the Agent card can show "system +2 · tools +3 · systemPromptChars +1200"
+ * without re-walking the injection list every render. Computed lazily
+ * in `getTimeline()` from the iteration's `contextInjections`.
+ *
+ * Keys are open-ended (match deltaCount shape); standard keys the UI
+ * knows about today: `system` | `user` | `assistant` | `tool`
+ * (message-role counters), `systemPromptChars` (char growth),
+ * `tools` (tool-slot additions).
+ */
+export type AgentContextLedger = Record<string, number | boolean>;
+
 /** One LLM call + its tool loop. */
 export interface AgentIteration {
   readonly index: number;
@@ -53,6 +114,19 @@ export interface AgentIteration {
   readonly matchedInstructions?: readonly string[];
   /** Tool names visible to the LLM on this iteration. */
   readonly visibleTools: readonly string[];
+  /**
+   * Context injections that shaped this iteration's prompt —
+   * RAG chunks, skill activations, memory writes, instructions fired.
+   * Empty when the iteration ran with just the static base context.
+   */
+  readonly contextInjections: readonly AgentContextInjection[];
+  /**
+   * Accumulated ledger for this iteration — sum of every injection's
+   * `deltaCount`. Drives the per-slot counter badges on the Agent card
+   * (e.g. "system +2" on the Messages slot, "+1200 chars" on System
+   * Prompt). Empty object when the iteration had no injections.
+   */
+  readonly contextLedger: AgentContextLedger;
   /**
    * Number of messages in the conversation at the moment `llm_start`
    * fired. `timeline.messages.slice(0, messagesSentCount)` yields
@@ -73,6 +147,22 @@ export interface AgentTurn {
   readonly totalInputTokens: number;
   readonly totalOutputTokens: number;
   readonly totalDurationMs: number;
+  /**
+   * All context injections that fired during this turn, in emission
+   * order — flat union of every iteration's `contextInjections`.
+   * Surfaces "what context engineering happened this turn" without
+   * requiring the user to scrub to a specific iteration. AskCard reads
+   * this when the focused stage isn't bound to an iter (e.g. the
+   * initial User → Agent edge before iter 1 fires).
+   */
+  readonly contextInjections: readonly AgentContextInjection[];
+  /**
+   * Turn-level accumulated ledger — sum of every iteration's
+   * `contextLedger`. Drives the turn-summary chips on the StageFlow
+   * Agent card when no iter is active, so users always see the
+   * cumulative context-engineering picture for the current turn.
+   */
+  readonly contextLedger: AgentContextLedger;
 }
 
 /**
