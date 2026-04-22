@@ -51,6 +51,10 @@ export { AskCard } from "./panels/AskCard";
 export type { AskCardProps } from "./panels/AskCard";
 export { RunSummary } from "./panels/RunSummary";
 export type { RunSummaryProps } from "./panels/RunSummary";
+export { CommentaryPanel } from "./panels/CommentaryPanel";
+export type { CommentaryPanelProps } from "./panels/CommentaryPanel";
+export { ThinkKitPanel } from "./panels/ThinkKitPanel";
+export type { ThinkKitPanelProps } from "./panels/ThinkKitPanel";
 
 // Hooks.
 export { useLiveTimeline } from "./hooks/useLiveTimeline";
