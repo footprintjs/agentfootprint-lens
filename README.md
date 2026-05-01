@@ -133,29 +133,69 @@ One mental model. The runner does the work; Lens watches.
 
 ## Theming
 
-Lens inherits from `footprint-explainable-ui`'s theme system. Two built-in presets, or bring your own:
+**As of v0.13.0 Lens inherits theme tokens from your app via CSS variables.** Set `--fp-*` (the same names `footprint-explainable-ui` uses) on any parent — Lens picks them up automatically. No `theme=` prop needed; no flash of unstyled content on theme switch.
 
-```tsx
-import { coolDark, coolLight } from 'footprint-explainable-ui';
-import { Lens } from 'agentfootprint-lens';
+### The token contract — set these on `:root` (or any parent of `<Lens>`)
 
-<Lens for={agent} theme={isDark ? coolDark : coolLight} />
+```css
+:root {
+  /* Surfaces */
+  --fp-bg-primary:   #0f172a;
+  --fp-bg-secondary: #1e293b;
+  --fp-bg-tertiary:  #334155;
+
+  /* Text */
+  --fp-text-primary:   #f8fafc;
+  --fp-text-secondary: #94a3b8;
+  --fp-text-muted:     #64748b;
+
+  /* Border */
+  --fp-border: #334155;
+
+  /* Accent / state */
+  --fp-color-primary: #6366f1;
+  --fp-color-success: #22c55e;
+  --fp-color-error:   #ef4444;
+  --fp-color-warning: #f59e0b;
+}
 ```
 
-Pass any `ThemeTokens` object. CSS vars work too — handy if your app already flips theme at the `:root` level:
+Resolution order per token: **`--lens-X` → `--fp-X` → hardcoded fallback**. So Lens-specific overrides win over shared `--fp-*` design tokens, which win over the built-in defaults.
+
+### Light / dark theme switching
+
+If your app already toggles theme by mutating CSS variables on `:root`, `body`, or a wrapper, Lens follows automatically with no extra wiring:
 
 ```tsx
-<Lens
-  for={agent}
-  theme={{
-    colors: {
-      bgPrimary: 'var(--my-bg)',
-      textPrimary: 'var(--my-fg)',
-      // …
-    },
-  }}
-/>
+function App() {
+  const [dark, setDark] = useState(true);
+  return (
+    <div data-theme={dark ? 'dark' : 'light'}>
+      {/* your existing :root[data-theme=dark] { --fp-* … } CSS */}
+      <Lens for={agent} />
+    </div>
+  );
+}
 ```
+
+### Lens-only overrides (when you want Lens to look different from the rest of the app)
+
+Set `--lens-*` on a parent of `<Lens>` only:
+
+```css
+.my-lens-container {
+  --lens-bg-primary:   #0a0e1a;     /* darker than the app */
+  --lens-color-primary: #f59e0b;     /* amber accent for Lens chips */
+  --lens-edge-decision: #ec4899;     /* edge color for decision arrows in the graph */
+  --lens-src-skill:     #7c3aed;     /* skill-injection chip color */
+}
+```
+
+See `src/v2/react/theme/tokens.ts` for the full token list (surfaces / text / border / accent / 4 edge kinds / 7 injection-source chips / typography).
+
+### Programmatic override (legacy `theme=` prop)
+
+The old `<Lens theme={tokens} />` API still works for back-compat, but the CSS-variable contract above is the new recommended path — it survives SSR, doesn't reflow on toggle, and themes both Lens and `footprint-explainable-ui` from the same token sheet.
 
 ---
 
