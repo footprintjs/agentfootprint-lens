@@ -233,10 +233,12 @@ export const Lens: React.FC<LensProps> = ({
     );
   return (
     <EngineerView
+      recorder={recorder}
       stepGraph={stepGraph}
       summary={summary}
       log={log}
       humanizer={effectiveHumanizer}
+      appName={effectiveAppName}
       total={stepCount}
       focusStep={focusStep}
       onFocusChange={handleFocusChange}
@@ -343,10 +345,12 @@ function sliceTreeByOffset(root: RunTreeNode, cutoffMs: number): RunTreeNode {
 // ─── Engineer view ────────────────────────────────────────────
 
 const EngineerView: React.FC<{
+  recorder: LensRecorder;
   stepGraph?: import('agentfootprint').StepGraph;
   summary: ReturnType<LensRecorder['selectSummary']>;
   log: readonly EventLogEntry[];
   humanizer: Humanizer;
+  appName: string;
   total: number;
   focusStep: number;
   onFocusChange: (seq: number) => void;
@@ -354,7 +358,19 @@ const EngineerView: React.FC<{
   /** Live "thinking / responding" line shown in Commentary while an
    *  LLM call is in flight. Null when no call is active. */
   liveStreamLine: string | null;
-}> = ({ stepGraph, summary, log, humanizer, total, focusStep, onFocusChange, isLive, liveStreamLine }) => {
+}> = ({
+  recorder,
+  stepGraph,
+  summary,
+  log,
+  humanizer,
+  appName,
+  total,
+  focusStep,
+  onFocusChange,
+  isLive,
+  liveStreamLine,
+}) => {
   // Drill-down state. Empty = top-level (all agents visible); a path
   // means the user zoomed into ONE agent's internal flow.
   const { drillPath, drillInto, drillTo } = useDrillPath();
@@ -487,8 +503,18 @@ const EngineerView: React.FC<{
         overflow: 'hidden',
       }}
     >
-      {/* Toolbar: SummaryCard + Slider, compact and fixed at top. */}
-      <SummaryCard summary={summary} />
+      {/* Toolbar: SummaryCard + CopyForLLM + Slider, compact at top. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <SummaryCard summary={summary} />
+        </div>
+        <CopyForLLMButton
+          recorder={recorder}
+          {...(stepGraph ? { stepGraph } : {})}
+          humanizer={humanizer}
+          appName={appName}
+        />
+      </div>
       <TimeTravel
         total={total}
         focusSeq={focusStep}
@@ -1134,6 +1160,77 @@ const AnalystView: React.FC<{
  * subscribes via useSyncExternalStore), so accumulated tokens grow
  * naturally as they arrive.
  */
+/**
+ * "Copy for LLM" button — dumps the run as one Markdown blob (run
+ * summary + per-boundary rollups + every step with payload + commentary)
+ * to the clipboard, ready to paste into a chat for debugging
+ * assistance. Mirror of footprint-explainable-ui's NarrativePanel
+ * "Copy for LLM" button.
+ */
+const CopyForLLMButton: React.FC<{
+  recorder: LensRecorder;
+  stepGraph?: import('agentfootprint').StepGraph;
+  humanizer: Humanizer;
+  appName: string;
+}> = ({ recorder, stepGraph, humanizer, appName }) => {
+  const [copied, setCopied] = useState(false);
+  const handleCopy = async (): Promise<void> => {
+    const { buildLLMText } = await import('../core/copyForLLM.js');
+    const text = buildLLMText({
+      recorder,
+      ...(stepGraph ? { stepGraph } : {}),
+      humanizer,
+      appName,
+    });
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Clipboard API may be unavailable (insecure context, sandbox,
+      // older browser). Fall back to a textarea trick: select + copy.
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand('copy');
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      } finally {
+        document.body.removeChild(ta);
+      }
+    }
+  };
+  return (
+    <button
+      onClick={handleCopy}
+      title="Copy run as LLM-ready text — paste into Claude/ChatGPT to debug"
+      style={{
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: 6,
+        padding: '6px 12px',
+        marginRight: 8,
+        fontSize: 11,
+        fontWeight: 600,
+        fontFamily: 'inherit',
+        color: copied ? '#fff' : T.textPrimary,
+        background: copied ? T.warning : T.bgElevated,
+        border: `1px solid ${copied ? T.warning : T.border}`,
+        borderRadius: 6,
+        cursor: 'pointer',
+        whiteSpace: 'nowrap',
+        transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+      }}
+    >
+      {copied ? '✓ Copied!' : '📋 Copy for LLM'}
+    </button>
+  );
+};
+
 const LiveStreamLine: React.FC<{ line: string }> = ({ line }) => (
   <div
     style={{

@@ -42,3 +42,9 @@ export {
   AGENT_GROUP_WIDTH,
   type AgentGroupNodeData,
 } from './AgentGroupNode.js';
+export {
+  AgentCardNode,
+  AGENT_CARD_HEIGHT,
+  AGENT_CARD_WIDTH,
+  type AgentCardNodeData,
+} from './AgentCardNode.js';

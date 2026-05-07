@@ -31,6 +31,9 @@ import '@xyflow/react/dist/style.css';
 import type { ContextInjection, StepGraph, StepNode } from 'agentfootprint';
 import type { EventLogEntry } from '../core/types.js';
 import {
+  AgentCardNode,
+  AGENT_CARD_HEIGHT,
+  AGENT_CARD_WIDTH,
   AgentGroupNode,
   AGENT_GROUP_HEIGHT,
   AGENT_GROUP_PADDING,
@@ -99,7 +102,15 @@ const NODE_TYPES = {
   tool: ToolNode,
   contextBin: ContextBinNode,
   agentGroup: AgentGroupNode,
+  agentCard: AgentCardNode,
 };
+
+// Multi-agent layout — collapsed cards arranged in a vertical chain.
+// Each card stacks below the previous; horizontal centering happens
+// via fitView padding.
+const MULTI_AGENT_CARD_X = 80;
+const MULTI_AGENT_CARD_Y_START = 60;
+const MULTI_AGENT_CARD_GAP = 40;
 
 // ─── Component ───────────────────────────────────────────────────────
 
@@ -129,6 +140,13 @@ export const RunTreeFlow: React.FC<RunTreeFlowProps> = ({
 
   const onNodeDoubleClick = onDrillInto
     ? (_e: React.MouseEvent, n: Node) => {
+        // Only `agentGroup` drills in (single-agent layout). Cards in
+        // the multi-agent top-level view have their drill-down deferred
+        // to v0.14.1 — the existing drillPath plumbing matches by
+        // subflowPath prefix, but the card's runtimeStageId-based
+        // identifier doesn't compose with it cleanly. Until that's
+        // fixed, double-click on cards is a no-op and the cursor
+        // signals static (default) instead of zoom-in.
         if (n.type === 'agentGroup') {
           const agentId = n.id.replace(/^agent-group-/, '');
           if (agentId && agentId !== 'root') onDrillInto(agentId);
@@ -289,6 +307,69 @@ function buildFlow(
   // agent[i+1] — reads as a pipeline, not siblings. Single-agent
   // runs use (0, AGENT_GROUP_Y) which reduces to the old layout.
   const multiAgent = view.agents.length > 1;
+
+  // ── Multi-agent top-level view (Phase U1) ────────────────────────
+  //
+  // When the run has >1 primitive boundary AND we're not drilled in,
+  // render each Agent / LLMCall / Sequence / etc. as a COLLAPSED
+  // AgentCardNode. Drill-in (double-click) switches the same view
+  // back to the single-agent layout below for the focused boundary.
+  //
+  // Single-agent runs and drilled-in views skip this branch entirely
+  // and fall through to the existing AgentGroupNode + LLM + Tool layout.
+  if (multiAgent) {
+    view.agents.forEach((agent, idx) => {
+      const cardY =
+        MULTI_AGENT_CARD_Y_START + idx * (AGENT_CARD_HEIGHT + MULTI_AGENT_CARD_GAP);
+      // For v0.14.0 we don't have a reliable "is this agent in flight
+      // RIGHT NOW" signal at the card level (Phase U3 will wire
+      // LiveStateRecorder.turn). Default to 'done' for completed runs;
+      // selection signaling lives in the border (boxShadow) instead of
+      // the status badge — slider scrub must not flicker the badge.
+      const status: 'running' | 'in-flight-active' | 'done' | 'error' = 'done';
+      nodes.push({
+        id: `agent-card-${agent.groupId.replace(/^agent-group-/, '')}`,
+        position: { x: MULTI_AGENT_CARD_X, y: cardY },
+        type: 'agentCard',
+        data: {
+          label: agent.label,
+          selected: agent.groupId === selectedId,
+          status,
+          ...(agent.primitiveKind ? { primitiveKind: agent.primitiveKind } : {}),
+        },
+        width: AGENT_CARD_WIDTH,
+        height: AGENT_CARD_HEIGHT,
+        selectable: true,
+        draggable: false,
+      });
+    });
+
+    // Handoff edges between consecutive agents — pipeline arrow chain.
+    for (let i = 0; i < view.agents.length - 1; i++) {
+      const from = view.agents[i];
+      const to = view.agents[i + 1];
+      const fromId = `agent-card-${from.groupId.replace(/^agent-group-/, '')}`;
+      const toId = `agent-card-${to.groupId.replace(/^agent-group-/, '')}`;
+      edges.push({
+        id: `handoff-card-${i}`,
+        source: fromId,
+        target: toId,
+        type: 'smoothstep',
+        label: 'handoff',
+        labelStyle: { fontSize: 10, fill: 'var(--lens-text-muted, #64748b)' },
+        labelBgStyle: { fill: 'var(--lens-bg-elevated, #fff)', fillOpacity: 0.92 },
+        style: {
+          stroke: 'var(--lens-edge-decision, #db2777)',
+          strokeWidth: 1.5,
+          strokeDasharray: '4 3',
+        },
+        markerEnd: { type: 'arrowclosed' as const, color: 'var(--lens-edge-decision, #db2777)' },
+      });
+    }
+
+    return { nodes, edges };
+  }
+  // ── Single-agent / drilled-in view (existing layout) ─────────────
 
   view.agents.forEach((agent, idx) => {
     const groupX = multiAgent ? 0 : 0;

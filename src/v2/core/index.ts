@@ -15,3 +15,4 @@ export {
   type Humanizer,
 } from './humanizer.js';
 export * from './selectors/index.js';
+export { buildLLMText, type BuildLLMTextArgs } from './copyForLLM.js';
