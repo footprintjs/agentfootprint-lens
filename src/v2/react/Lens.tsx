@@ -118,6 +118,9 @@ export const Lens: React.FC<LensProps> = ({
   const tree = recorder.selectRunTree();
   const log = recorder.selectEventLog();
   const summary = recorder.selectSummary();
+  // Pure renderer: agentfootprint's StepGraph already collapses
+  // internal subflows (`sf-thinking` + `thinking-{handler}`) into the
+  // wrapping LLM step's payload. Lens trusts the data layer.
 
   // Tool descriptions are already in the event log: every Tools-slot
   // composition emits one `context.injected` per tool with
@@ -362,6 +365,73 @@ const EngineerView: React.FC<{
   const focusedNode = stepGraph?.nodes[focusStep];
   const focusedRuntimeStageId = focusedNode?.runtimeStageId;
   const currentStepLabel = focusedNode?.label;
+
+  // Step → event-seq mapping. Resolves each step to a concrete log
+  // entry so Commentary can scrub by slider position even when a step
+  // is a SYNTHETIC node (User / fork-branch / decision-branch nodes
+  // have no runtimeStageId from the event log). For synthetic steps we
+  // inherit the prior step's seq so the timeline keeps moving forward
+  // monotonically as the user drags.
+  //
+  // Without this map: steps 0, 2, 6 (synthetic-only positions in a
+  // typical agent run) showed no commentary highlight and no filter,
+  // making the slider feel broken on every other position.
+  const stepToEventSeq = useMemo<readonly number[]>(() => {
+    if (!stepGraph || log.length === 0) return [];
+    const firstSeq = log[0].seq;
+    const seqs: number[] = [];
+    let lastResolvedSeq = firstSeq;
+    // Anchor strategy varies by node kind. The key insight: a single
+    // LLM call's events all share ONE runtimeStageId, so "first match"
+    // would point every step in that call (send + receive) to llm.start.
+    // We need:
+    //   • user→llm / tool→llm → FIRST matching event (the SEND moment)
+    //   • llm→user            → LAST matching event  (the RECEIVE moment
+    //                            — final answer delivered)
+    //   • llm→tool            → FIRST matching event (tool dispatch)
+    //   • subflow boundary    → FIRST matching event (entry)
+    //   • synthetic / no id   → inherit prior step's seq
+    const anchorSide = (kind: string): 'first' | 'last' =>
+      kind === 'llm->user' ? 'last' : 'first';
+    for (const node of stepGraph.nodes) {
+      const id = node.runtimeStageId;
+      let resolved = -1;
+      if (id !== undefined) {
+        const side = anchorSide(node.kind);
+        if (side === 'first') {
+          for (const e of log) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const stageId = (e.event.meta as any)?.runtimeStageId as string | undefined;
+            if (stageId === id) {
+              resolved = e.seq;
+              break;
+            }
+          }
+        } else {
+          // Walk backwards for the LAST matching event — the moment
+          // this stage *finished*, which is what `llm→user` represents.
+          for (let i = log.length - 1; i >= 0; i--) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const stageId = (log[i].event.meta as any)?.runtimeStageId as string | undefined;
+            if (stageId === id) {
+              resolved = log[i].seq;
+              break;
+            }
+          }
+        }
+      }
+      // Synthetic node OR no matching event → inherit prior step's
+      // seq so the slider doesn't "rewind" the visible commentary.
+      // Defaults to the FIRST event seq for the head-of-list synthetic
+      // step (the User node) so slider position 0 still scrubs to a
+      // real event instead of falling through to "show everything".
+      if (resolved === -1) resolved = lastResolvedSeq;
+      seqs.push(resolved);
+      lastResolvedSeq = resolved;
+    }
+    return seqs;
+  }, [stepGraph, log]);
+  const focusedSeq = stepToEventSeq[focusStep] ?? -1;
   const handleNodeSelect = (nodeId: string): void => {
     if (!stepGraph) return;
     const idx = stepGraph.nodes.findIndex((n) => n.id === nodeId);
@@ -437,45 +507,50 @@ const EngineerView: React.FC<{
           overflow: 'hidden',
         }}
       >
-        {/* LEFT: Topology — collapsible. When expanded, panel + closing
-            pill (▶ arrow); when collapsed, only the pill (◀ arrow,
-            invites expansion). */}
-        {leftExpanded ? (
-          <>
-            <div
-              style={{
-                width: 200,
-                flexShrink: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden',
-                borderRight: `1px solid ${T.border}`,
-              }}
-            >
-              <SidePanelHeader title="Agents" />
-              <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
-                <AgentList
-                  nodes={agentNodes}
-                  selectedId={focusedNode?.id}
-                  onSelect={handleNodeSelect}
-                />
+        {/* LEFT: Topology — collapsible. Hidden ENTIRELY when the run
+            has fewer than 2 agent/LLM instances: the panel exists to
+            navigate BETWEEN agents, and a single instance has nothing
+            to navigate. Showing an "Agents" pill that expands to "1
+            entry" wastes width and reads as broken UI. The pill +
+            panel come back automatically once the run produces a
+            multi-agent / multi-LLMCall topology. */}
+        {agentNodes.length >= 2 &&
+          (leftExpanded ? (
+            <>
+              <div
+                style={{
+                  width: 200,
+                  flexShrink: 0,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  overflow: 'hidden',
+                  borderRight: `1px solid ${T.border}`,
+                }}
+              >
+                <SidePanelHeader title="Agents" />
+                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                  <AgentList
+                    nodes={agentNodes}
+                    selectedId={focusedNode?.id}
+                    onSelect={handleNodeSelect}
+                  />
+                </div>
               </div>
-            </div>
+              <VLinePill
+                label="Agents"
+                expanded
+                side="left"
+                onClick={() => setLeftExpanded(false)}
+              />
+            </>
+          ) : (
             <VLinePill
               label="Agents"
-              expanded
+              expanded={false}
               side="left"
-              onClick={() => setLeftExpanded(false)}
+              onClick={() => setLeftExpanded(true)}
             />
-          </>
-        ) : (
-          <VLinePill
-            label="Agents"
-            expanded={false}
-            side="left"
-            onClick={() => setLeftExpanded(true)}
-          />
-        )}
+          ))}
 
         {/* CENTER: Flowchart — always visible, primary visual. */}
         <div
@@ -528,20 +603,25 @@ const EngineerView: React.FC<{
         {rightExpanded && (
           <div
             style={{
-              width: 320,
-              flexShrink: 0,
+              // Flex-shrink 1 with min/max so the panel yields width to
+              // the central flowchart when the container is narrow. The
+              // hard 320px-fixed width was squeezing the flowchart to
+              // ~280px in compact layouts (e.g., embedded in a 30%
+              // sidebar), causing React Flow to auto-zoom to ~30% and
+              // render nodes invisibly small.
+              flex: '0 1 320px',
+              minWidth: 220,
+              maxWidth: 360,
               display: 'flex',
               flexDirection: 'column',
               overflow: 'hidden',
               borderLeft: `1px solid ${T.border}`,
             }}
           >
-            <NodeDetailPanel
-              {...(focusedNode ? { node: focusedNode } : {})}
-              // Close = jump slider back to first step (the closest
-              // analog now that selection IS the slider position).
-              onClose={() => onFocusChange(0)}
-            />
+            <NodeDetailPanel {...(focusedNode ? { node: focusedNode } : {})} />
+            {/* No `onClose` — the side pill (▶ DETAILS) is the canonical
+                way to dismiss this panel. Removed the in-content × button
+                so collapse logic lives in one place. */}
           </div>
         )}
       </div>
@@ -572,7 +652,10 @@ const EngineerView: React.FC<{
             log={log}
             humanizer={humanizer}
             liveStreamLine={liveStreamLine}
-            {...(focusedRuntimeStageId ? { focusRuntimeStageId: focusedRuntimeStageId } : {})}
+            isLastStep={
+              stepGraph != null && focusStep === stepGraph.nodes.length - 1
+            }
+            focusedSeq={focusedSeq}
           />
         </div>
       )}
@@ -591,28 +674,35 @@ const EngineerView: React.FC<{
 const Commentary: React.FC<{
   log: readonly EventLogEntry[];
   humanizer: Humanizer;
-  /** runtimeStageId of the slider's current step. Lines whose
-   *  underlying event matches this id are highlighted, and the first
-   *  matching line scrolls into view as the slider moves. */
-  focusRuntimeStageId?: string;
+  /** Resolved event-log `seq` for the slider's current step. The Lens
+   *  parent computes this via the `stepToEventSeq` mapping so that
+   *  synthetic stepGraph nodes (User, fork-branch, decision-branch —
+   *  no runtimeStageId of their own) still scrub the timeline by
+   *  inheriting the prior step's seq. -1 when nothing resolves yet. */
+  focusedSeq?: number;
   /** Live "thinking / responding" line shown while an LLM call is in
    *  flight (between stream.llm_start and stream.llm_end). Null when
    *  no call is active. Rendered AFTER the visible cumulative entries
    *  so the user sees the active token stream at the bottom. */
   liveStreamLine: string | null;
-}> = ({ log, humanizer, focusRuntimeStageId, liveStreamLine }) => {
+  /** True when the slider is on the LAST step. On the final step we
+   *  show the full event log (run complete view); earlier steps slice
+   *  by the focused step's anchor seq so the user reads the timeline
+   *  as a chronological scrub. */
+  isLastStep?: boolean;
+}> = ({ log, humanizer, focusedSeq, liveStreamLine, isLastStep }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const firstFocusRef = useRef<HTMLDivElement | null>(null);
 
-  // Scroll the first-focused line into view whenever the slider's
-  // runtimeStageId changes. Smooth so the pan reads as deliberate.
+  // Scroll the focused line into view whenever the slider position
+  // changes. Smooth so the pan reads as deliberate.
   useEffect(() => {
-    if (!focusRuntimeStageId || !firstFocusRef.current) return;
+    if (focusedSeq === undefined || focusedSeq < 0 || !firstFocusRef.current) return;
     firstFocusRef.current.scrollIntoView({
       block: 'center',
       behavior: 'smooth',
     });
-  }, [focusRuntimeStageId]);
+  }, [focusedSeq]);
 
   // Walk the log once; tag each line as focused if the event's
   // runtimeStageId matches the slider's current step. Capture the
@@ -645,19 +735,20 @@ const Commentary: React.FC<{
         // (yellow background, amber left border); earlier events render
         // in subdued color so the gradient feels like history → now.
         // The bottom panel scrolls so the focused range stays in view.
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const idOf = (e: EventLogEntry): string | undefined =>
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          (e.event.meta as any)?.runtimeStageId as string | undefined;
-        // Find the LAST log index that belongs to the focused step.
-        // Everything up to and including that index is visible.
-        let lastFocusIdx = -1;
-        if (focusRuntimeStageId !== undefined) {
-          for (let i = 0; i < log.length; i++) {
-            if (idOf(log[i]) === focusRuntimeStageId) lastFocusIdx = i;
-          }
-        }
-        const cutoff = lastFocusIdx === -1 ? log.length - 1 : lastFocusIdx;
+        //
+        // Time-travel scrubbing semantics — at slider step N, the Lens
+        // parent has already resolved step N to a concrete event seq
+        // (via `stepToEventSeq`). We slice 0..focusedSeq inclusive so
+        // the visible commentary represents "the run as it appeared
+        // when step N began", and we highlight the entry AT focusedSeq
+        // so the user sees which line corresponds to the slider.
+        //
+        //   • Last step          → full log (run complete view)
+        //   • Earlier step       → events with seq ≤ focusedSeq
+        //   • focusedSeq missing → full log (safe default)
+        const cutoff = isLastStep || focusedSeq === undefined || focusedSeq < 0
+          ? log.length - 1
+          : Math.max(0, log.findIndex((e) => e.seq === focusedSeq));
         const visible = log.slice(0, cutoff + 1);
 
         return (
@@ -665,9 +756,8 @@ const Commentary: React.FC<{
             {visible.map((entry, i) => {
               const line = humanizer(entry.event);
               if (line === null) return null;
-              const focused =
-                focusRuntimeStageId !== undefined && idOf(entry) === focusRuntimeStageId;
-              const isLastFocused = focused && i === lastFocusIdx;
+              const focused = focusedSeq !== undefined && entry.seq === focusedSeq;
+              const isLastFocused = focused && i === cutoff;
               return (
                 <div
                   key={entry.seq}

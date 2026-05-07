@@ -206,51 +206,108 @@ const ReActStepBody: React.FC<{ node: StepNode }> = ({ node }) => {
   if (node.llmModel) rows.push(['model', node.llmModel]);
   if (node.slotUpdated) rows.push(['what landed in', node.slotUpdated]);
   if (duration !== undefined && duration > 0) rows.push(['duration', `${Math.round(duration)}ms`]);
+
+  // Per-kind input/output payloads. Each ReAct step has a clear
+  // "what arrived" and "what was produced" — surface them so a developer
+  // reading the panel can see the actual data flowing through, not just
+  // metadata rows.
+  const ioSections = ioSectionsFor(node);
   return (
-    <div style={sectionStyle}>
-      {/* No "ReAct step / user→llm" sub-header — the panel header
-          already states it. Hidden per "stop leaking library terms +
-          stop showing redundant rows" feedback. */}
-      {rows.length > 0 && (
-        <div style={{ display: 'grid', gap: 4, fontSize: 12, padding: 8 }}>
-          {rows.map(([label, value]) => (
-            <Field key={label} label={label}>
-              {value}
-            </Field>
-          ))}
-        </div>
-      )}
-      {(() => {
-        // Context engineering = engineered injections ONLY. Baseline
-        // sources are LLM-API natives, not engineering decisions.
-        // Hidden when nothing is engineered — adaptive rendering: only
-        // surface fields that have meaningful UPDATE / ADD content.
-        const engineered = (node.injections ?? []).filter(
-          (inj) => !BASELINE_SOURCES.has(inj.source),
-        );
-        if (engineered.length === 0) return null;
-        return (
-          <div style={{ padding: '0 8px 8px' }}>
-            <div style={sectionLabelStyle}>Context engineering</div>
-            <ul style={{ margin: '4px 0 0', paddingLeft: 14, fontSize: 11, color: T.textSecondary }}>
-              {engineered.map((inj, i) => (
-                <li key={i} style={{ padding: '2px 0' }}>
-                  <code style={{ fontSize: 11 }}>
-                    [{inj.slot}] {inj.source}
-                    {inj.sourceId ? `:${inj.sourceId}` : ''}
-                  </code>
-                  {inj.contentSummary && (
-                    <span style={{ opacity: 0.7, marginLeft: 6 }}>· {inj.contentSummary}</span>
-                  )}
-                </li>
-              ))}
-            </ul>
+    <>
+      <div style={sectionStyle}>
+        {/* No "ReAct step / user→llm" sub-header — the panel header
+            already states it. Hidden per "stop leaking library terms +
+            stop showing redundant rows" feedback. */}
+        {rows.length > 0 && (
+          <div style={{ display: 'grid', gap: 4, fontSize: 12, padding: 8 }}>
+            {rows.map(([label, value]) => (
+              <Field key={label} label={label}>
+                {value}
+              </Field>
+            ))}
           </div>
-        );
-      })()}
-    </div>
+        )}
+        {(() => {
+          // Context engineering = engineered injections ONLY. Baseline
+          // sources are LLM-API natives, not engineering decisions.
+          // Hidden when nothing is engineered — adaptive rendering: only
+          // surface fields that have meaningful UPDATE / ADD content.
+          const engineered = (node.injections ?? []).filter(
+            (inj) => !BASELINE_SOURCES.has(inj.source),
+          );
+          if (engineered.length === 0) return null;
+          return (
+            <div style={{ padding: '0 8px 8px' }}>
+              <div style={sectionLabelStyle}>Context engineering</div>
+              <ul style={{ margin: '4px 0 0', paddingLeft: 14, fontSize: 11, color: T.textSecondary }}>
+                {engineered.map((inj, i) => (
+                  <li key={i} style={{ padding: '2px 0' }}>
+                    <code style={{ fontSize: 11 }}>
+                      [{inj.slot}] {inj.source}
+                      {inj.sourceId ? `:${inj.sourceId}` : ''}
+                    </code>
+                    {inj.contentSummary && (
+                      <span style={{ opacity: 0.7, marginLeft: 6 }}>· {inj.contentSummary}</span>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })()}
+      </div>
+      {ioSections.map((s) => (
+        <PayloadSection key={s.label} label={s.label} payload={s.payload} emptyHint="(none)" />
+      ))}
+    </>
   );
 };
+
+/**
+ * Per-kind Input/Output sections. The user's mental model:
+ *
+ *   user→llm   — input: user message (carried via slot boundaries)
+ *   llm→tool   — input: LLM's reasoning text · output: tool args (JSON)
+ *   tool→llm   — input: tool result (JSON) → next LLM call
+ *   llm→user   — output: final answer text
+ *
+ * Sections with no payload are omitted (adaptive — don't show empty rows).
+ */
+function ioSectionsFor(
+  node: StepNode,
+): Array<{ label: string; payload: unknown }> {
+  const out: Array<{ label: string; payload: unknown }> = [];
+  switch (node.kind) {
+    case 'llm->tool': {
+      if (node.assistantText) {
+        out.push({ label: "LLM's reasoning", payload: node.assistantText });
+      }
+      if (node.toolArgs !== undefined) {
+        out.push({ label: 'Tool input (args)', payload: node.toolArgs });
+      }
+      break;
+    }
+    case 'tool->llm': {
+      if (node.toolResult !== undefined) {
+        out.push({ label: 'Tool result sent to LLM', payload: node.toolResult });
+      }
+      break;
+    }
+    case 'llm->user': {
+      if (node.assistantText) {
+        out.push({ label: 'Final answer', payload: node.assistantText });
+      }
+      break;
+    }
+    case 'user->llm':
+    default:
+      // No extra I/O sections for user→llm — the user message already
+      // shows up via the `messages` slot boundary list inside the LLM
+      // card; surfacing it again here would be redundant.
+      break;
+  }
+  return out;
+}
 
 /**
  * Sources that are NATIVE channels of every LLM API — not context
@@ -276,17 +333,24 @@ const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, 
 
 // ── Pretty-print payload ───────────────────────────────────────────────
 
-/** JSON.stringify with indent=2, plus truncation guard for huge values. */
+/** JSON.stringify with indent=2, plus truncation guard for huge values.
+ *  Strings render as raw text (no enclosing quotes) so reasoning / answer
+ *  blobs read like prose, not like a serialized literal. */
 function prettyPrint(value: unknown): string {
-  try {
-    const str = JSON.stringify(value, null, 2);
-    if (str.length > 4000) {
-      return str.slice(0, 4000) + '\n\n... (truncated; ' + (str.length - 4000) + ' chars)';
+  let str: string;
+  if (typeof value === 'string') {
+    str = value;
+  } else {
+    try {
+      str = JSON.stringify(value, null, 2);
+    } catch {
+      return '(unable to serialize)';
     }
-    return str;
-  } catch {
-    return '(unable to serialize)';
   }
+  if (str.length > 4000) {
+    return str.slice(0, 4000) + '\n\n... (truncated; ' + (str.length - 4000) + ' chars)';
+  }
+  return str;
 }
 
 // ── Styles ─────────────────────────────────────────────────────────────

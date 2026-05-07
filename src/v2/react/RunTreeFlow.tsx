@@ -23,6 +23,7 @@ import {
   Background,
   Controls,
   useReactFlow,
+  useNodesInitialized,
   type Edge,
   type Node,
 } from '@xyflow/react';
@@ -139,11 +140,37 @@ export const RunTreeFlow: React.FC<RunTreeFlowProps> = ({
   // reason (window, panel collapse/expand, splitter drag, parent flex change).
   const containerRef = useRef<HTMLDivElement | null>(null);
 
+  // Build a structural fingerprint of the current graph so FitViewOnResize
+  // re-fits whenever the node SET changes — not just when the length
+  // changes. Two consecutive runs can produce graphs with the same node
+  // count but different shapes/positions; if depKey only watched length
+  // we'd skip the fit and the new nodes would render outside the
+  // viewport (the "empty flowchart on follow-up turn" bug).
+  const graphFingerprint = useMemo(() => {
+    let h = 0;
+    for (const n of nodes) {
+      const s = `${n.id}|${n.position.x}|${n.position.y}`;
+      for (let i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    }
+    return `${nodes.length}:${edges.length}:${h}`;
+  }, [nodes, edges]);
+
   return (
     <div
       ref={containerRef}
       data-fp-lens="run-tree-flow"
-      style={{ width: '100%', height: '100%', minHeight: 320, background: 'var(--lens-bg, transparent)' }}
+      style={{
+        width: '100%',
+        height: '100%',
+        // minHeight keeps the flowchart usable when the parent is
+        // shorter than the natural layout. minWidth was missing and
+        // let parents squeeze us to ~280px, which made React Flow
+        // auto-zoom to ~30% and render nodes invisibly small.
+        // 480px keeps nodes legible in side-panel layouts.
+        minHeight: 320,
+        minWidth: 480,
+        background: 'var(--lens-bg, transparent)',
+      }}
     >
       <style>{LENS_DEFAULT_CSS}</style>
       <ReactFlow
@@ -165,9 +192,14 @@ export const RunTreeFlow: React.FC<RunTreeFlowProps> = ({
         preventScrolling={false}
         proOptions={{ hideAttribution: true }}
       >
-        <FitViewOnResize depKey={nodes.length} containerRef={containerRef} />
+        <FitViewOnResize depKey={graphFingerprint} containerRef={containerRef} />
         <Background gap={20} size={1} color="var(--lens-background-dots, #e5e7eb)" />
-        <Controls showInteractive={false} />
+        {/* Hide React Flow's +/-/fit controls when there's nothing to
+            zoom into. Floating control buttons over an empty canvas
+            are visual noise (they look like an unfinished UI element)
+            and can never do anything useful when nodes.length === 0.
+            Shows back automatically once the run produces nodes. */}
+        {nodes.length > 0 && <Controls showInteractive={false} />}
       </ReactFlow>
     </div>
   );
@@ -185,39 +217,49 @@ function FitViewOnResize({
   depKey,
   containerRef,
 }: {
-  depKey: number;
+  /** Structural fingerprint that changes whenever the node set
+   *  changes (id list, positions, edge count). String so consecutive
+   *  graphs with the same node count but different shapes still
+   *  trigger a re-fit. See `graphFingerprint` in RunTreeFlowInner. */
+  depKey: string;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const { fitView } = useReactFlow();
+  // React Flow's measurement pass is async — `nodesInitialized` flips
+  // to `true` only after every node's DOM measurement landed. Without
+  // this gate, fitView() runs on a partial layout and either centers
+  // on the first node only OR computes a stale viewport that leaves
+  // newer nodes off-screen. The previous setTimeout(50) was a race
+  // that lost intermittently when measurement took longer (heavy
+  // initial render, slow CI, multiple HMR reloads, etc.).
+  const nodesInitialized = useNodesInitialized();
+
   useEffect(() => {
+    // Skip fitting until React Flow tells us every node has been
+    // measured. Once initialized, refit on every depKey change.
+    if (!nodesInitialized) return;
     const handler = () => {
       requestAnimationFrame(() => fitView({ padding: 0.3, duration: 200 }));
     };
+    handler();
 
-    // 1. Initial fit + on every depKey change (node set changed)
-    const timer = setTimeout(handler, 50);
-
-    // 2. ResizeObserver on the flowchart container — catches ANY size
-    //    change: window resize, internal panel collapse/expand, splitter
-    //    drag, parent flex re-layout. Replaces the window-resize-only
-    //    listener so internal layout shifts trigger re-fit.
+    // ResizeObserver on the flowchart container — catches ANY size
+    // change: window resize, internal panel collapse/expand, splitter
+    // drag, parent flex re-layout.
     const el = containerRef.current;
     let observer: ResizeObserver | undefined;
     if (el && typeof ResizeObserver !== 'undefined') {
       observer = new ResizeObserver(() => handler());
       observer.observe(el);
     }
-
-    // 3. Window resize fallback (some browsers fire RO inconsistently
-    //    when the document itself reflows).
+    // Window resize fallback (some browsers fire RO inconsistently
+    // when the document itself reflows).
     window.addEventListener('resize', handler);
-
     return () => {
-      clearTimeout(timer);
       observer?.disconnect();
       window.removeEventListener('resize', handler);
     };
-  }, [fitView, depKey, containerRef]);
+  }, [fitView, depKey, containerRef, nodesInitialized]);
   return null;
 }
 
@@ -267,7 +309,12 @@ function buildFlow(
         selected: agent.groupId === selectedId,
         ...(agent.primitiveKind ? { primitiveKind: agent.primitiveKind } : {}),
       },
-      style: { width: AGENT_GROUP_WIDTH, height: AGENT_GROUP_HEIGHT },
+      // xyflow v12: parent sizing comes from top-level `width`/`height`.
+      // Setting `style.width/height` AS WELL appears to confuse RF —
+      // children get clipped to a phantom zero-size box. Single source
+      // of truth: top-level only.
+      width: AGENT_GROUP_WIDTH,
+      height: AGENT_GROUP_HEIGHT,
       selectable: true,
       draggable: false,
     });
@@ -278,7 +325,6 @@ function buildFlow(
     nodes.push({
       id: `${agent.groupId}-ctx`,
       parentId: agent.groupId,
-      extent: 'parent' as const,
       position: CONTEXT_BIN_IN_GROUP,
       type: 'contextBin',
       data: { chips: chipsForAgent },
@@ -294,7 +340,6 @@ function buildFlow(
     nodes.push({
       id: agent.llmId,
       parentId: agent.groupId,
-      extent: 'parent' as const,
       position: LLM_IN_GROUP,
       type: 'llm',
       data: { updatedSlot },
