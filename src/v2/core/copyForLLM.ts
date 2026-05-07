@@ -46,11 +46,56 @@ export interface BuildLLMTextArgs {
   readonly humanizer?: Humanizer;
   /** App name woven into commentary lines. Default: `'Chatbot'`. */
   readonly appName?: string;
+  /** Optional snapshot of the consumer's current view state — slider
+   *  position, focused step, drill path, etc. When provided, output
+   *  includes a "Current View State" section so an LLM (or human
+   *  reviewer) can diagnose slider-sync / focus / drill issues from
+   *  the paste alone. */
+  readonly viewState?: ViewStateSnapshot;
+}
+
+/** Snapshot of the Lens render state at copy time. All fields optional
+ *  — pass whichever the consumer can cheaply provide. */
+export interface ViewStateSnapshot {
+  /** Slider position (0-based step index). */
+  readonly focusStep?: number;
+  /** Total number of steps in the slider. */
+  readonly totalSteps?: number;
+  /** Live or paused (autoAdvance state). */
+  readonly isLive?: boolean;
+  /** Drill-down path (`[]` = top-level). */
+  readonly drillPath?: readonly string[];
+  /** `'top-level'` or `'drill-down'`. */
+  readonly mode?: 'top-level' | 'drill-down';
+  /** Currently-focused StepNode at the slider position. */
+  readonly currentStep?: {
+    readonly label?: string;
+    readonly kind?: string;
+    readonly runtimeStageId?: string;
+    readonly subflowPath?: readonly string[];
+    readonly iterationIndex?: number;
+  };
+  /** Number of visible steps at the current slider position. */
+  readonly visibleStepsCount?: number;
+  /** Resolved event-log seq the slider currently anchors to. */
+  readonly focusedEventSeq?: number;
+  /** Which actor lanes are "lit" at the current slider position
+   *  (e.g. `['user', 'llm', 'tool']`). */
+  readonly touched?: readonly string[];
+  /** Active edge key (the edge highlighted as "current"). */
+  readonly activeEdgeKey?: string;
 }
 
 /** Build the full LLM-ready Markdown blob for the current run. */
 export function buildLLMText(args: BuildLLMTextArgs): string {
-  const { recorder, stepGraph, boundaryRollups, humanizer, appName = 'Chatbot' } = args;
+  const {
+    recorder,
+    stepGraph,
+    boundaryRollups,
+    humanizer,
+    appName = 'Chatbot',
+    viewState,
+  } = args;
   const summary = recorder.selectSummary();
   const log = recorder.selectEventLog();
 
@@ -76,6 +121,49 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
   if (summary.totalUsd !== undefined) sections.push(`- **Estimated cost:** $${summary.totalUsd.toFixed(4)}`);
   if (summary.permissionDenials > 0) sections.push(`- **Permission denials:** ${summary.permissionDenials}`);
   if (summary.paused) sections.push(`- **Paused:** yes`);
+
+  // ── 1.5. Current View State (debug aid) ──────────────────────
+  // Snapshot of slider / focus / drill state at copy time. Helps an
+  // LLM reviewer (or human poring over the paste) diagnose
+  // "slider doesn't sync with the chart" / "drill is stuck" /
+  // "edge highlight wrong" without needing live access to the UI.
+  if (viewState) {
+    sections.push('\n# Current View State (at copy time)\n');
+    if (viewState.focusStep !== undefined && viewState.totalSteps !== undefined) {
+      sections.push(`- **Slider position:** ${viewState.focusStep + 1} / ${viewState.totalSteps}`);
+    }
+    if (viewState.isLive !== undefined) {
+      sections.push(`- **Live (auto-advancing):** ${viewState.isLive ? 'yes' : 'no'}`);
+    }
+    if (viewState.mode) sections.push(`- **Mode:** ${viewState.mode}`);
+    if (viewState.drillPath && viewState.drillPath.length > 0) {
+      sections.push(`- **Drill path:** ${viewState.drillPath.join(' / ')}`);
+    }
+    if (viewState.currentStep) {
+      const cs = viewState.currentStep;
+      const parts: string[] = [];
+      if (cs.label) parts.push(cs.label);
+      if (cs.kind) parts.push(`(\`${cs.kind}\`)`);
+      if (cs.iterationIndex !== undefined) parts.push(`iter #${cs.iterationIndex}`);
+      sections.push(`- **Current step:** ${parts.join(' ')}`);
+      if (cs.runtimeStageId) sections.push(`  - runtimeStageId: \`${cs.runtimeStageId}\``);
+      if (cs.subflowPath && cs.subflowPath.length > 1) {
+        sections.push(`  - subflowPath: ${cs.subflowPath.slice(1).join(' → ')}`);
+      }
+    }
+    if (viewState.visibleStepsCount !== undefined) {
+      sections.push(`- **Visible steps:** ${viewState.visibleStepsCount}`);
+    }
+    if (viewState.focusedEventSeq !== undefined) {
+      sections.push(`- **Focused event seq:** ${viewState.focusedEventSeq}`);
+    }
+    if (viewState.touched && viewState.touched.length > 0) {
+      sections.push(`- **Touched actors:** ${viewState.touched.join(', ')}`);
+    }
+    if (viewState.activeEdgeKey) {
+      sections.push(`- **Active edge:** \`${viewState.activeEdgeKey}\``);
+    }
+  }
 
   // ── 2. Per-Boundary Rollups ──────────────────────────────────
   if (boundaryRollups && boundaryRollups.length > 0) {

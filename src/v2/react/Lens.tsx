@@ -513,6 +513,29 @@ const EngineerView: React.FC<{
           {...(stepGraph ? { stepGraph } : {})}
           humanizer={humanizer}
           appName={appName}
+          viewState={{
+            focusStep,
+            totalSteps: total,
+            isLive,
+            drillPath,
+            mode: drillPath.length > 0 ? 'drill-down' : 'top-level',
+            ...(focusedNode
+              ? {
+                  currentStep: {
+                    label: focusedNode.label,
+                    kind: focusedNode.kind,
+                    ...(focusedNode.runtimeStageId
+                      ? { runtimeStageId: focusedNode.runtimeStageId }
+                      : {}),
+                    subflowPath: focusedNode.subflowPath,
+                    ...(focusedNode.iterationIndex !== undefined
+                      ? { iterationIndex: focusedNode.iterationIndex }
+                      : {}),
+                  },
+                }
+              : {}),
+            ...(focusedSeq >= 0 ? { focusedEventSeq: focusedSeq } : {}),
+          }}
         />
       </div>
       <TimeTravel
@@ -1172,7 +1195,13 @@ const CopyForLLMButton: React.FC<{
   stepGraph?: import('agentfootprint').StepGraph;
   humanizer: Humanizer;
   appName: string;
-}> = ({ recorder, stepGraph, humanizer, appName }) => {
+  /** Optional snapshot of view state at copy time (slider position,
+   *  current step, drill path, etc.). Plumbed by EngineerView so the
+   *  copied paste includes a Current View State section — invaluable
+   *  for diagnosing slider-sync / focus / drill bugs from the paste
+   *  alone. */
+  viewState?: import('../core/copyForLLM.js').ViewStateSnapshot;
+}> = ({ recorder, stepGraph, humanizer, appName, viewState }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async (): Promise<void> => {
     const { buildLLMText } = await import('../core/copyForLLM.js');
@@ -1181,6 +1210,7 @@ const CopyForLLMButton: React.FC<{
       ...(stepGraph ? { stepGraph } : {}),
       humanizer,
       appName,
+      ...(viewState ? { viewState } : {}),
     });
     try {
       await navigator.clipboard.writeText(text);
