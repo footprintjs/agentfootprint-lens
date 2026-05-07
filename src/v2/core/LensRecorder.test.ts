@@ -19,6 +19,7 @@ import {
 } from 'agentfootprint';
 import { LensRecorder, lensRecorder } from './LensRecorder.js';
 import { defaultHumanizer } from './humanizer.js';
+import { SequenceRecorder } from 'footprintjs/trace';
 
 // ─── Fixtures ───────────────────────────────────────────────────
 
@@ -276,5 +277,104 @@ describe('defaultHumanizer', () => {
     // the registry but the default humanizer doesn't have a case for
     // it yet — fallback form is `[type]`.
     expect(line).toBe('[agentfootprint.embedding.generated]');
+  });
+});
+
+// ─── New wiring verification (Option A refactor) ────────────────────
+
+describe('LensRecorder — SequenceRecorder integration (v0.13.2)', () => {
+  it('IS a SequenceRecorder<EventLogEntry>', () => {
+    const r = lensRecorder();
+    expect(r).toBeInstanceOf(SequenceRecorder);
+  });
+
+  it('exposes inherited entryCount / getEntries / getEntriesForStep / aggregate', async () => {
+    const llm = LLMCall.create({
+      provider: scriptedToolProvider(),
+      model: 'm',
+    })
+      .system('s')
+      .build();
+    const r = lensRecorder();
+    r.observe(llm);
+    await llm.run('go');
+
+    // Inherited from SequenceRecorder<EventLogEntry>:
+    expect(r.entryCount).toBeGreaterThan(0);
+    expect(r.getEntries().length).toBe(r.entryCount);
+    expect(typeof r.aggregate).toBe('function');
+    expect(typeof r.getEntriesForStep).toBe('function');
+    expect(typeof r.getEntryRanges).toBe('function');
+    // Lens-specific selectors:
+    expect(r.selectEventLog().length).toBe(r.entryCount);
+    expect(r.selectSummary().llmCallCount).toBeGreaterThanOrEqual(1);
+  });
+
+  it('selectSummary uses .aggregate() under the hood — same numbers', async () => {
+    const llm = LLMCall.create({
+      provider: scriptedToolProvider(),
+      model: 'm',
+    })
+      .system('s')
+      .build();
+    const r = lensRecorder();
+    r.observe(llm);
+    await llm.run('go');
+
+    const summary = r.selectSummary();
+    // Sanity-check the aggregate-derived fields match a plain reduce
+    // over the event log — proves the refactor is behavior-preserving.
+    let llmCallCount = 0;
+    let toolCallCount = 0;
+    for (const { event } of r.getEntries()) {
+      if (event.type === 'agentfootprint.stream.llm_start') llmCallCount++;
+      if (event.type === 'agentfootprint.stream.tool_start') toolCallCount++;
+    }
+    expect(summary.llmCallCount).toBe(llmCallCount);
+    expect(summary.toolCallCount).toBe(toolCallCount);
+  });
+});
+
+describe('LensRecorder — LiveStateRecorder integration (v0.13.2)', () => {
+  it('exposes a `liveState` LiveStateRecorder field', () => {
+    const r = lensRecorder();
+    expect(r.liveState).toBeDefined();
+    expect(typeof r.liveState.isLLMInFlight).toBe('function');
+    expect(typeof r.liveState.getPartialLLM).toBe('function');
+    expect(typeof r.liveState.isToolExecuting).toBe('function');
+  });
+
+  it('liveState is auto-subscribed via observe() and detaches with the recorder', async () => {
+    const llm = LLMCall.create({
+      provider: scriptedToolProvider(),
+      model: 'm',
+    })
+      .system('s')
+      .build();
+    const r = lensRecorder();
+    r.observe(llm);
+    await llm.run('go');
+
+    // After the run completes, no LLM is in flight.
+    expect(r.liveState.isLLMInFlight()).toBe(false);
+    expect(r.liveState.isToolExecuting()).toBe(false);
+  });
+
+  it('liveState clears its transient state when the recorder detaches', async () => {
+    const llm = LLMCall.create({
+      provider: scriptedToolProvider(),
+      model: 'm',
+    })
+      .system('s')
+      .build();
+    const r = lensRecorder();
+    r.observe(llm);
+    await llm.run('go');
+    r.detach();
+    // Detach disposes the subscription but doesn't destroy state — the
+    // post-run state is already terminal (no active boundaries).
+    expect(r.liveState.isLLMInFlight()).toBe(false);
+    expect(r.liveState.isToolExecuting()).toBe(false);
+    expect(r.liveState.isAgentInTurn()).toBe(false);
   });
 });

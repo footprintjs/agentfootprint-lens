@@ -131,7 +131,12 @@ export const Lens: React.FC<LensProps> = ({
   // 'Get current weather for a city'").
   //
   // Recompute when the log grows so newly-registered tools show up.
-  const toolDescriptions = useMemo(() => buildToolDescriptions(log), [log]);
+  const toolDescriptions = useMemo(
+    () => buildToolDescriptions(recorder),
+    // log identity changes each event tick — the dep signals
+    // re-aggregation when new events arrive.
+    [recorder, log],
+  );
 
   // Merged commentary templates (consumer override + bundled defaults).
   // Used both by the humanizer for normal lines AND by the live-stream
@@ -151,10 +156,18 @@ export const Lens: React.FC<LensProps> = ({
   // partial string that animates the gap between llm.start and llm.end.
   // Outside an active call, it's null and Commentary renders nothing
   // extra.
+  //
+  // O(1): reads `recorder.liveState` (an agentfootprint LiveStateRecorder
+  // already subscribed by LensRecorder.observe()) instead of folding the
+  // event log every render. The dependency on `log` only triggers
+  // re-computation when an event arrives — the actual values come from
+  // the live tracker's transient state.
   const effectiveAppName = appName ?? 'Chatbot';
   const liveStreamLine = useMemo(
-    () => computeLiveStreamLine(log, effectiveAppName, mergedTemplates),
-    [log, effectiveAppName, mergedTemplates],
+    () => computeLiveStreamLine(recorder, effectiveAppName, mergedTemplates),
+    // log identity changes on every event tick — that's our re-render
+    // signal even though we read recorder.liveState directly.
+    [recorder, log, effectiveAppName, mergedTemplates],
   );
 
   // Build the default humanizer with `appName` woven in — only when
@@ -251,38 +264,23 @@ export const Lens: React.FC<LensProps> = ({
  *     Pre-token: `'{{appName}} is thinking…'`.
  *     With tokens: `'{{appName}} is responding: <partial>'`.
  *
- * "In flight" = the most-recent `agentfootprint.stream.llm_start`
- * with no following `agentfootprint.stream.llm_end`. Tokens between
- * the two are accumulated; their concatenation is the partial.
- *
- * Pure projection over `log` — no closures, no I/O. Lens calls this
- * inside a useMemo that re-runs every event tick.
+ * "In flight" / partial come from the LensRecorder's bundled
+ * `LiveStateRecorder` (agentfootprint v2.14.2+). It maintains
+ * bracket-scoped state on the `BoundaryStateTracker<TState>` storage
+ * primitive (footprintjs v4.17.2+) and exposes O(1) reads. Lens stays
+ * a direct mapping — no event-log fold, no reverse walk.
  */
 function computeLiveStreamLine(
-  log: readonly EventLogEntry[],
+  recorder: LensRecorder,
   appName: string,
   templates: CommentaryTemplates,
 ): string | null {
-  // Walk backwards: first sentinel we hit decides the state.
-  let activeStartIdx = -1;
-  for (let i = log.length - 1; i >= 0; i--) {
-    const t = log[i].event.type;
-    if (t === 'agentfootprint.stream.llm_end') return null; // closed
-    if (t === 'agentfootprint.stream.llm_start') {
-      activeStartIdx = i;
-      break;
-    }
-  }
-  if (activeStartIdx < 0) return null;
-
-  // Concatenate every stream.token chunk after the active start.
-  let partial = '';
-  for (let j = activeStartIdx + 1; j < log.length; j++) {
-    const ev = log[j].event;
-    if (ev.type === 'agentfootprint.stream.token') {
-      partial += (ev.payload as { content: string }).content;
-    }
-  }
+  // O(1) reads against the live-state recorder LensRecorder owns.
+  // No log-fold, no reverse-walk — replaces the prior hand-rolled
+  // backwards loop with a direct mapping over the LiveStateRecorder
+  // bracket-scoped state from agentfootprint v2.14.2.
+  if (!recorder.liveState.isLLMInFlight()) return null;
+  const partial = recorder.liveState.getPartialLLM();
 
   if (partial.length === 0) {
     const tmpl = templates['stream.thinking'] ?? '';
@@ -307,21 +305,23 @@ function computeLiveStreamLine(
  * call).
  */
 function buildToolDescriptions(
-  log: readonly EventLogEntry[],
+  recorder: LensRecorder,
 ): ReadonlyMap<string, string> {
-  const m = new Map<string, string>();
-  for (const entry of log) {
-    if (entry.event.type !== 'agentfootprint.context.injected') continue;
+  // Inherited `.aggregate()` from SequenceRecorder<EventLogEntry> —
+  // single-pass fold, no parallel array. The `Map` accumulator is
+  // mutated in-place per fold step, returned at the end.
+  return recorder.aggregate<Map<string, string>>((m, entry) => {
+    if (entry.event.type !== 'agentfootprint.context.injected') return m;
     const p = entry.event.payload;
-    if (p.source !== 'registry' || p.slot !== 'tools') continue;
+    if (p.source !== 'registry' || p.slot !== 'tools') return m;
     const name = p.sourceId;
     const summary = p.contentSummary;
-    if (!name || !summary) continue;
+    if (!name || !summary) return m;
     const prefix = `${name}: `;
     const desc = summary.startsWith(prefix) ? summary.slice(prefix.length) : summary;
     m.set(name, desc);
-  }
-  return m;
+    return m;
+  }, new Map<string, string>());
 }
 
 function sliceTreeByOffset(root: RunTreeNode, cutoffMs: number): RunTreeNode {

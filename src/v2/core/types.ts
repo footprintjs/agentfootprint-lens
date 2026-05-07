@@ -120,6 +120,11 @@ export interface EventLogEntry {
   readonly runOffsetMs: number;
   /** The full typed v2 event. */
   readonly event: AgentfootprintEvent;
+  /** Lifted from `event.meta.runtimeStageId` so this entry plugs into
+   *  footprintjs's `SequenceRecorder` keyed-index pattern (per-step
+   *  lookups, range index, time-travel slicing). Undefined for events
+   *  whose dispatcher meta has no stageId attached (rare). */
+  readonly runtimeStageId?: string;
 }
 
 // ─── RunSummary ─────────────────────────────────────────────────────

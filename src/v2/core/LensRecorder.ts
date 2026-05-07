@@ -2,17 +2,29 @@
  * LensRecorder — subscribes to a v2 Runner's EventDispatcher and
  * builds a RunTree + EventLog from the typed event stream.
  *
- * Pattern: Observer (GoF) over the v2 typed EventDispatcher.
- * Role:    Lens-layer translation adapter. Takes events IN, emits a
- *          queryable RunTree + EventLog OUT. Views consume via
- *          selectors — they never touch raw events unless they want the
- *          firehose.
- * Emits:   N/A — observes only.
+ * Pattern: combines TWO library primitives in one consumer class —
+ *
+ *   - **STORAGE shelf**:  `extends SequenceRecorder<EventLogEntry>` from
+ *                         footprintjs (v4.17.2+). Inherits append-only
+ *                         ordered + keyed-by-runtimeStageId storage,
+ *                         `.aggregate()`, `.accumulate()`,
+ *                         `.getEntriesForStep()`, `.getEntryRanges()`.
+ *
+ *   - **OBSERVER source**: subscribes to the v2 Runner's EventDispatcher
+ *                          (typed events).
+ *
+ * Plus a `LiveStateRecorder` (agentfootprint v2.14.2+) attached lazily
+ * on `observe()` so consumers reading "is the LLM in flight right now?"
+ * get an O(1) answer without folding the event log.
  *
  * Mental model:
- *   runner.on('*')  →  EventLog (raw, ordered)  ─┐
- *                                                 ├─→  Selectors  →  Views
- *   event handlers  →  RunTree (structural tree) ─┘
+ *
+ *   ```
+ *   runner.on('*')  →  inherited SequenceRecorder.emit()  ─┐
+ *                                                           ├─→  Selectors  →  Views
+ *   event handlers  →  RunTree (structural tree)            │
+ *   live trackers   →  LiveStateRecorder                    ┘  (live commentary)
+ *   ```
  *
  * The tree is built incrementally via a stack:
  *   composition.enter / turn_start / iteration_start  → push node
@@ -20,9 +32,19 @@
  *   llm_start / tool_start                            → push leaf node
  *   llm_end / tool_end                                → pop leaf, attach details
  *   context.* / cost.* / eval.* / ...                 → attach to current top
+ *
+ * Hand-rolled aggregations are intentionally avoided — `selectSummary`
+ * uses inherited `.aggregate()`, live commentary uses `LiveStateRecorder`.
+ * Lens stays a *direct mapping* over library primitives.
  */
 
-import type { AgentfootprintEvent, Runner, Unsubscribe } from 'agentfootprint';
+import { SequenceRecorder } from 'footprintjs/trace';
+import {
+  LiveStateRecorder,
+  type AgentfootprintEvent,
+  type Runner,
+  type Unsubscribe,
+} from 'agentfootprint';
 import type {
   EventLogEntry,
   IterationDetails,
@@ -72,8 +94,9 @@ interface BuildingNode {
   composition?: { compositionKind: 'Sequence' | 'Parallel' | 'Conditional' | 'Loop'; childCount: number };
 }
 
-export class LensRecorder {
-  private readonly log: EventLogEntry[] = [];
+export class LensRecorder extends SequenceRecorder<EventLogEntry> {
+  /** SequenceRecorder requires a stable id for idempotent attach. */
+  readonly id = 'lens';
   private readonly stack: BuildingNode[] = [];
   /** Synthetic root — always present so selectors have a stable tree even pre-run. */
   private readonly root: BuildingNode;
@@ -81,6 +104,11 @@ export class LensRecorder {
   private runStartMs?: number;
   private unsubscribes: Unsubscribe[] = [];
   private finalStatus: RunNodeStatus = 'running';
+  /** Live transient state of the in-flight run. Subscribed in `observe()`,
+   *  cleared/disposed on `detach()`. Lens reads `liveState.isLLMInFlight()`
+   *  / `getPartialLLM()` / etc. for O(1) live commentary, instead of
+   *  folding the event log every render. */
+  readonly liveState = new LiveStateRecorder();
   /**
    * External-store subscribers — React (`useSyncExternalStore`) and any
    * non-React consumer that wants push-based refresh. Called synchronously
@@ -90,6 +118,7 @@ export class LensRecorder {
   private readonly changeListeners = new Set<() => void>();
 
   constructor(rootLabel = 'Run') {
+    super();
     this.root = {
       id: 'run-root',
       kind: 'run',
@@ -132,15 +161,23 @@ export class LensRecorder {
    * recorder (useful for cleanup after post-run rendering is done).
    */
   observe(runner: Runner): Unsubscribe {
-    const off = runner.on('*', (event: AgentfootprintEvent) => {
+    const offEvent = runner.on('*', (event: AgentfootprintEvent) => {
       this.handleEvent(event);
     });
-    this.unsubscribes.push(off);
+    // Wire the live-state trackers (LLM / tool / turn). They share the
+    // same dispatcher subscription pattern but maintain independent
+    // bracket-scoped state — O(1) reads in render code.
+    const offLive = this.liveState.subscribe(runner);
+    const composed: Unsubscribe = () => {
+      offEvent();
+      offLive();
+    };
+    this.unsubscribes.push(composed);
     return () => {
-      const idx = this.unsubscribes.indexOf(off);
+      const idx = this.unsubscribes.indexOf(composed);
       if (idx >= 0) {
         this.unsubscribes.splice(idx, 1);
-        off();
+        composed();
       }
     };
   }
@@ -149,6 +186,9 @@ export class LensRecorder {
   detach(): void {
     for (const off of this.unsubscribes) off();
     this.unsubscribes.length = 0;
+    // The live-state recorder owns its own subscription disposers,
+    // composed inside the `unsubscribes` array — no separate cleanup
+    // needed beyond the loop above.
   }
 
   // ─── Event handling ────────────────────────────────────────────
@@ -166,8 +206,15 @@ export class LensRecorder {
       wallClockMs,
       runOffsetMs,
       event,
+      // Lift runtimeStageId onto the entry so the inherited
+      // SequenceRecorder index keys correctly — gives us O(1)
+      // `getEntriesForStep(rid)` and the per-step range index for
+      // free, no parallel data structure.
+      runtimeStageId: event.meta.runtimeStageId,
     };
-    this.log.push(entry);
+    // Inherited from SequenceRecorder<EventLogEntry>: appends to the
+    // ordered + keyed storage. Replaces the old `this.log.push(entry)`.
+    this.emit(entry);
 
     // Attach to the currently-active node so views can render
     // per-node event streams (e.g., "here are the context events
@@ -434,68 +481,93 @@ export class LensRecorder {
 
   // ─── Selectors ────────────────────────────────────────────────
 
-  /** The complete ordered event log. */
+  /** The complete ordered event log. Inherited storage from
+   *  `SequenceRecorder<EventLogEntry>` — no parallel array. */
   selectEventLog(): readonly EventLogEntry[] {
-    return this.log;
+    return this.getEntries();
   }
 
   /** The RunTree — frozen, recursive, immutable snapshot. */
   selectRunTree(): RunTreeNode {
-    // Finalize the root if the run ended cleanly.
-    if (this.root.endOffsetMs === undefined && this.log.length > 0) {
-      this.root.endOffsetMs = this.log[this.log.length - 1]!.runOffsetMs;
+    // Finalize the root if the run ended cleanly. `entryCount` is an
+    // O(1) inherited getter — no need to materialize the array first.
+    if (this.root.endOffsetMs === undefined && this.entryCount > 0) {
+      const last = this.getEntries()[this.entryCount - 1]!;
+      this.root.endOffsetMs = last.runOffsetMs;
       this.root.status = this.finalStatus === 'running' ? 'ok' : this.finalStatus;
     }
     return freezeNode(this.root);
   }
 
-  /** Summary stats — computed lazily from the log each call. */
+  /** Summary stats — computed lazily via the inherited `.aggregate()`
+   *  fold from `SequenceRecorder<EventLogEntry>`. Single-pass, types
+   *  derived from the AgentfootprintEvent discriminated union. */
   selectSummary(): RunSummary {
-    let llmCallCount = 0;
-    let toolCallCount = 0;
-    let iterationCount = 0;
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
-    let totalUsd: number | undefined;
-    let permissionDenials = 0;
-    let paused = false;
+    type Acc = {
+      llmCallCount: number;
+      toolCallCount: number;
+      iterationCount: number;
+      totalInputTokens: number;
+      totalOutputTokens: number;
+      totalUsd: number | undefined;
+      permissionDenials: number;
+      paused: boolean;
+    };
+    const init: Acc = {
+      llmCallCount: 0,
+      toolCallCount: 0,
+      iterationCount: 0,
+      totalInputTokens: 0,
+      totalOutputTokens: 0,
+      totalUsd: undefined,
+      permissionDenials: 0,
+      paused: false,
+    };
 
-    for (const { event } of this.log) {
-      if (event.type === 'agentfootprint.stream.llm_start') llmCallCount++;
-      if (event.type === 'agentfootprint.stream.tool_start') toolCallCount++;
-      if (event.type === 'agentfootprint.agent.iteration_start') iterationCount++;
-      if (event.type === 'agentfootprint.composition.iteration_start') iterationCount++;
-      if (event.type === 'agentfootprint.stream.llm_end') {
-        totalInputTokens += event.payload.usage.input;
-        totalOutputTokens += event.payload.usage.output;
+    const acc = this.aggregate<Acc>((a, { event }) => {
+      switch (event.type) {
+        case 'agentfootprint.stream.llm_start':
+          return { ...a, llmCallCount: a.llmCallCount + 1 };
+        case 'agentfootprint.stream.tool_start':
+          return { ...a, toolCallCount: a.toolCallCount + 1 };
+        case 'agentfootprint.agent.iteration_start':
+        case 'agentfootprint.composition.iteration_start':
+          return { ...a, iterationCount: a.iterationCount + 1 };
+        case 'agentfootprint.stream.llm_end':
+          return {
+            ...a,
+            totalInputTokens: a.totalInputTokens + event.payload.usage.input,
+            totalOutputTokens: a.totalOutputTokens + event.payload.usage.output,
+          };
+        case 'agentfootprint.cost.tick':
+          return { ...a, totalUsd: event.payload.cumulative.estimatedUsd };
+        case 'agentfootprint.permission.check':
+          return event.payload.result === 'deny'
+            ? { ...a, permissionDenials: a.permissionDenials + 1 }
+            : a;
+        case 'agentfootprint.pause.request':
+          return { ...a, paused: true };
+        case 'agentfootprint.pause.resume':
+          return { ...a, paused: false };
+        default:
+          return a;
       }
-      if (event.type === 'agentfootprint.cost.tick') {
-        totalUsd = event.payload.cumulative.estimatedUsd;
-      }
-      if (event.type === 'agentfootprint.permission.check' && event.payload.result === 'deny') {
-        permissionDenials++;
-      }
-      // Last-write-wins: pause.request flips paused on; pause.resume
-      // flips it off. Without the resume case, status stuck as
-      // "paused" forever after the first HITL — even when the resume
-      // completed and the run finished `ok`.
-      if (event.type === 'agentfootprint.pause.request') paused = true;
-      if (event.type === 'agentfootprint.pause.resume') paused = false;
-    }
+    }, init);
 
-    const startedAt = this.log[0]?.wallClockMs ?? 0;
-    const endedAt = this.log[this.log.length - 1]?.wallClockMs;
+    const entries = this.getEntries();
+    const startedAt = entries[0]?.wallClockMs ?? 0;
+    const endedAt = entries[entries.length - 1]?.wallClockMs;
     return {
       startedAt,
       ...(endedAt !== undefined && { endedAt, durationMs: endedAt - startedAt }),
-      status: paused ? 'paused' : this.finalStatus === 'running' ? 'ok' : this.finalStatus,
-      llmCallCount,
-      toolCallCount,
-      iterationCount,
-      totalTokens: { input: totalInputTokens, output: totalOutputTokens },
-      ...(totalUsd !== undefined && { totalUsd }),
-      permissionDenials,
-      paused,
+      status: acc.paused ? 'paused' : this.finalStatus === 'running' ? 'ok' : this.finalStatus,
+      llmCallCount: acc.llmCallCount,
+      toolCallCount: acc.toolCallCount,
+      iterationCount: acc.iterationCount,
+      totalTokens: { input: acc.totalInputTokens, output: acc.totalOutputTokens },
+      ...(acc.totalUsd !== undefined && { totalUsd: acc.totalUsd }),
+      permissionDenials: acc.permissionDenials,
+      paused: acc.paused,
     };
   }
 }
