@@ -327,13 +327,23 @@ function buildFlow(
       // selection signaling lives in the border (boxShadow) instead of
       // the status badge — slider scrub must not flicker the badge.
       const status: 'running' | 'in-flight-active' | 'done' | 'error' = 'done';
+      // Slider-to-card sync: a card highlights when the focused step
+      // (slider position) belongs to it — i.e., the focused step's
+      // subflowPath starts with the agent's subflowPath. The previous
+      // approach compared `agent.groupId === selectedId` (a strict
+      // string equality between an `agent-group-*` id and the focused
+      // step's bare runtimeStageId) and never matched, so the
+      // multi-agent cards never reacted to slider scrubbing.
+      const isFocusedAgent = view.currentStep
+        ? sameAgent(view.currentStep, agent)
+        : false;
       nodes.push({
         id: `agent-card-${agent.groupId.replace(/^agent-group-/, '')}`,
         position: { x: MULTI_AGENT_CARD_X, y: cardY },
         type: 'agentCard',
         data: {
           label: agent.label,
-          selected: agent.groupId === selectedId,
+          selected: isFocusedAgent,
           status,
           ...(agent.primitiveKind ? { primitiveKind: agent.primitiveKind } : {}),
         },
