@@ -14,7 +14,12 @@ import { useCallback, useState } from 'react';
 
 export interface UseDrillPathResult {
   readonly drillPath: readonly string[];
-  readonly drillInto: (id: string) => void;
+  /** Drill into a specific boundary by its FULL subflowPath. Replaces
+   *  `drillPath` (does NOT append) — nested boundaries' subflowPaths
+   *  already include their parent segments, so replacement composes
+   *  correctly for nested drills (Agent A → Agent B: passing B's
+   *  subflowPath, which contains A's prefix, drills into B). */
+  readonly drillInto: (subflowPath: readonly string[]) => void;
   readonly drillBack: () => void;
   readonly drillToRoot: () => void;
   readonly drillTo: (path: readonly string[]) => void;
@@ -34,8 +39,8 @@ export function useDrillPath(
 ): UseDrillPathResult {
   const [drillPath, setDrillPath] = useState<readonly string[]>(initial);
 
-  const drillInto = useCallback((id: string) => {
-    setDrillPath((prev) => [...prev, id]);
+  const drillInto = useCallback((subflowPath: readonly string[]) => {
+    setDrillPath(subflowPath);
   }, []);
 
   const drillBack = useCallback(() => {

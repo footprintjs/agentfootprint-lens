@@ -249,10 +249,19 @@ describe('selectStepView — pattern 7: drill-down scope', () => {
       mkStep({ id: 'b-s1', kind: 'user->llm', subflowPath: ['billing'] }),
     ]);
 
+    // v0.15.0 hierarchical slider: top-level multi-agent view scrubs
+    // ONLY the primitive boundary nodes (one position per agent),
+    // not every internal step. The internal ReAct steps become
+    // scrubbable AFTER drill-in. This matches the 5-card-icon →
+    // drill-into-card UX in Lens.
     const topView = selectStepView({ graph, log: [], focusIndex: 4, drillPath: [] });
     expect(topView.mode).toBe('top-level');
     expect(topView.agents).toHaveLength(2);
-    expect(topView.visibleSteps.length).toBe(5);
+    // Multi-agent top-level: visibleSteps = boundary nodes only (2),
+    // NOT all 5 graph nodes. Slider has 2 positions at this level.
+    expect(topView.visibleSteps.length).toBe(2);
+    expect(topView.visibleSteps.every((s) => s.kind === 'subflow')).toBe(true);
+    expect(topView.totalSteps).toBe(2);
 
     const drilled = selectStepView({ graph, log: [], focusIndex: 4, drillPath: ['triage'] });
     expect(drilled.mode).toBe('drill-down');
@@ -262,5 +271,23 @@ describe('selectStepView — pattern 7: drill-down scope', () => {
     expect(drilled.visibleSteps.every((s) => s.subflowPath[0] === 'triage')).toBe(true);
     expect(drilled.breadcrumb).toHaveLength(2);
     expect(drilled.breadcrumb[1].label).toBe('triage');
+  });
+
+  it('single-Agent run unchanged: top-level slider scrubs ALL steps', () => {
+    // When there's only ONE primitive boundary, the hierarchical
+    // slider doesn't kick in — top-level view keeps full step
+    // granularity (the existing single-agent UX).
+    const graph = mkGraph([
+      mkStep({ id: 'agent', kind: 'subflow', label: 'agent', isPrimitiveBoundary: true, primitiveKind: 'Agent', subflowPath: ['agent'] }),
+      mkStep({ id: 's1', kind: 'user->llm', subflowPath: ['agent'] }),
+      mkStep({ id: 's2', kind: 'llm->tool', subflowPath: ['agent'] }),
+      mkStep({ id: 's3', kind: 'tool->llm', subflowPath: ['agent'] }),
+      mkStep({ id: 's4', kind: 'llm->user', subflowPath: ['agent'] }),
+    ]);
+    const view = selectStepView({ graph, log: [], focusIndex: 4, drillPath: [] });
+    expect(view.mode).toBe('top-level');
+    expect(view.agents).toHaveLength(1);
+    expect(view.visibleSteps.length).toBe(5); // all steps, not just boundary
+    expect(view.totalSteps).toBe(5);
   });
 });

@@ -65,15 +65,19 @@ describe('useStepFocus — pattern 3: pins when user scrubs back', () => {
 // ─── useDrillPath ────────────────────────────────────────────────────
 
 describe('useDrillPath — pattern 4: drillInto + drillBack', () => {
-  it('appends and pops segments', () => {
+  it('replaces drillPath with the agent subflowPath; drillBack pops one level', () => {
     const { result } = renderHook(() => useDrillPath());
     expect(result.current.drillPath).toEqual([]);
-    act(() => result.current.drillInto('triage'));
-    expect(result.current.drillPath).toEqual(['triage']);
-    act(() => result.current.drillInto('billing'));
-    expect(result.current.drillPath).toEqual(['triage', 'billing']);
+    // v0.15.0+: drillInto receives the agent's FULL subflowPath
+    // (rooted under '__root__') and REPLACES drillPath. Nested
+    // boundaries' subflowPaths already include parent segments, so
+    // replacement composes for nested drills.
+    act(() => result.current.drillInto(['__root__', 'triage']));
+    expect(result.current.drillPath).toEqual(['__root__', 'triage']);
+    act(() => result.current.drillInto(['__root__', 'triage', 'billing']));
+    expect(result.current.drillPath).toEqual(['__root__', 'triage', 'billing']);
     act(() => result.current.drillBack());
-    expect(result.current.drillPath).toEqual(['triage']);
+    expect(result.current.drillPath).toEqual(['__root__', 'triage']);
   });
 });
 

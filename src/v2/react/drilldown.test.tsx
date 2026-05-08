@@ -131,12 +131,22 @@ describe('drill-down — pattern 6: mode flip', () => {
 
 // ─── Pattern 7: slider total reflects scoped count ───────────────────
 
-describe('drill-down — pattern 7: scoped total', () => {
-  it('totalSteps equals scoped-subflow step count in drill-down mode', () => {
+describe('drill-down — pattern 7: scoped total (hierarchical slider)', () => {
+  it('top-level multi-agent: totalSteps = boundary count (one per agent)', () => {
+    // v0.15.0 hierarchical slider: at top-level with multiple
+    // agents, the slider scrubs ONLY boundary nodes. swarmGraph has
+    // 6 nodes (2 Agent boundaries + 4 inner steps); top-level
+    // shows the 2 boundaries only.
     const graph = swarmGraph();
     const topTotal = selectStepView({ graph, log: [], focusIndex: 10, drillPath: [] }).totalSteps;
+    expect(topTotal).toBe(2);
+  });
+
+  it('drilled-in: totalSteps = scoped-subflow step count', () => {
+    // After drilling into triage, the slider scrubs triage's full
+    // step set (boundary + 2 inner LLM steps).
+    const graph = swarmGraph();
     const drilled = selectStepView({ graph, log: [], focusIndex: 10, drillPath: ['triage'] }).totalSteps;
-    expect(drilled).toBeLessThan(topTotal);
-    expect(drilled).toBe(3); // triage subflow + 2 LLM steps
+    expect(drilled).toBe(3);
   });
 });

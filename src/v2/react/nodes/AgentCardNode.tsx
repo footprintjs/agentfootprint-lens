@@ -140,9 +140,10 @@ export const AgentCardNode: React.FC<NodeProps<Node<AgentCardNodeData>>> = ({ da
           : '0 1px 4px rgba(0,0,0,0.06)',
         fontFamily: 'var(--lens-font-sans, ui-sans-serif, system-ui)',
         color: 'var(--lens-text, #1e293b)',
-        // Static for v0.14.0 — drill-in lands in v0.14.1 once the
-        // subflowPath-based drill matcher is wired correctly.
-        cursor: 'default',
+        // Re-enabled in v0.15.0 — drill-from-card now passes the
+        // agent's full subflowPath, which selectStepView matches by
+        // prefix. Double-click drills into this card's agent.
+        cursor: 'zoom-in',
         position: 'relative',
         transition: 'box-shadow 0.15s, transform 0.15s',
       }}
@@ -245,8 +246,21 @@ export const AgentCardNode: React.FC<NodeProps<Node<AgentCardNodeData>>> = ({ da
         </div>
       )}
 
-      {/* Drill-in hint deferred to v0.14.1 — re-add once the
-          subflowPath-based drill matcher is wired. */}
+      {/* Subtle drill-in hint — bottom right. */}
+      <div
+        style={{
+          position: 'absolute',
+          bottom: 4,
+          right: 8,
+          fontSize: 9,
+          color: 'var(--lens-text-muted, #64748b)',
+          opacity: 0.5,
+          letterSpacing: 0.5,
+          textTransform: 'uppercase',
+        }}
+      >
+        drill in ↘
+      </div>
     </div>
   );
 };

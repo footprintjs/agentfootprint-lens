@@ -79,8 +79,10 @@ export interface RunTreeFlowProps {
   readonly drillPath?: readonly string[];
   readonly onSelect?: (node: StepNode) => void;
   readonly selectedId?: string;
-  /** Called when user double-clicks an agent container. */
-  readonly onDrillInto?: (agentId: string) => void;
+  /** Called when user double-clicks an agent container or card.
+   *  Receives the agent's FULL subflowPath (rooted under '__root__'),
+   *  which the consumer's drillPath state should adopt as-is. */
+  readonly onDrillInto?: (agentSubflowPath: readonly string[]) => void;
 }
 
 // ─── Layout constants ────────────────────────────────────────────────
@@ -140,17 +142,18 @@ export const RunTreeFlow: React.FC<RunTreeFlowProps> = ({
 
   const onNodeDoubleClick = onDrillInto
     ? (_e: React.MouseEvent, n: Node) => {
-        // Only `agentGroup` drills in (single-agent layout). Cards in
-        // the multi-agent top-level view have their drill-down deferred
-        // to v0.14.1 — the existing drillPath plumbing matches by
-        // subflowPath prefix, but the card's runtimeStageId-based
-        // identifier doesn't compose with it cleanly. Until that's
-        // fixed, double-click on cards is a no-op and the cursor
-        // signals static (default) instead of zoom-in.
-        if (n.type === 'agentGroup') {
-          const agentId = n.id.replace(/^agent-group-/, '');
-          if (agentId && agentId !== 'root') onDrillInto(agentId);
-        }
+        // Both `agentGroup` (drilled single-agent layout) and `agentCard`
+        // (multi-agent top-level view) drill in via the same path —
+        // look the agent up by RF node id, recover its subflowPath,
+        // and pass that as the new drillPath. selectStepView matches
+        // by subflowPath prefix, so this composes for nested drills.
+        if (n.type !== 'agentGroup' && n.type !== 'agentCard') return;
+        const agent = view.agents.find((a) => {
+          const cardId = `agent-card-${a.groupId.replace(/^agent-group-/, '')}`;
+          return n.id === a.groupId || n.id === cardId;
+        });
+        if (!agent || agent.subflowPath.length === 0) return;
+        onDrillInto(agent.subflowPath);
       }
     : undefined;
 

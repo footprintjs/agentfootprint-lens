@@ -1105,17 +1105,27 @@ const Breadcrumb: React.FC<{
     >
       ◀ Run
     </button>
-    {path.map((segment, i) => (
-      <React.Fragment key={i}>
-        <span style={{ opacity: 0.5 }}>/</span>
-        <button
-          onClick={() => onJumpTo(i + 1)}
-          style={crumbButtonStyle(i === path.length - 1)}
-        >
-          {segment}
-        </button>
-      </React.Fragment>
-    ))}
+    {path.map((segment, i) => {
+      // Skip the synthetic `__root__` segment — it's already
+      // represented by the "Run" button. Drill paths from the new
+      // subflowPath-aware drill carry it as the first segment.
+      if (segment === '__root__') return null;
+      // Strip Sequence's `step-` prefix so labels read "classify"
+      // instead of "step-classify". Matches the agentName humanizer
+      // convention from agentfootprint v2.14.4.
+      const label = segment.replace(/^step-/, '');
+      return (
+        <React.Fragment key={i}>
+          <span style={{ opacity: 0.5 }}>/</span>
+          <button
+            onClick={() => onJumpTo(i + 1)}
+            style={crumbButtonStyle(i === path.length - 1)}
+          >
+            {label}
+          </button>
+        </React.Fragment>
+      );
+    })}
   </div>
 );
 

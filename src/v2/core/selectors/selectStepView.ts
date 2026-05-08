@@ -64,8 +64,18 @@ export function selectStepView(args: SelectStepViewArgs): StepView {
     ? (agents.find((a) => a.subflowPath.join('/') === drillPath.join('/')) ?? agents[0])
     : agents[0];
 
+  // Hierarchical slider (v0.15.0): when multiple primitive boundaries
+  // exist AND we're at the top level, the slider scrubs only the
+  // boundary nodes — one position per Agent / LLMCall / Sequence /
+  // etc. The internal ReAct steps inside each boundary become
+  // scrubbable AFTER drill-in (their subflowPath prefix-matches the
+  // drillPath). Single-Agent runs and drill-in views keep the full
+  // step list.
+  const isMultiAgentTopLevel = drillPath.length === 0 && agents.length > 1;
   const scopedSteps = drillPath.length === 0
-    ? graph.nodes
+    ? (isMultiAgentTopLevel
+        ? graph.nodes.filter((s) => s.kind === 'subflow' && s.isPrimitiveBoundary === true)
+        : graph.nodes)
     : graph.nodes.filter((s) => startsWith(s.subflowPath, drillPath));
 
   // Re-clamp focusIndex to the scoped slice. When drilling into an
