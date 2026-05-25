@@ -8,6 +8,7 @@
  */
 
 import type { StepGraph, StepNode } from 'agentfootprint';
+import type { Hop } from './selectHops.js';
 
 // ─── Actor identity ─────────────────────────────────────────────────
 
@@ -140,4 +141,15 @@ export interface StepView {
   readonly breadcrumb: readonly BreadcrumbItem[];
   /** The full graph; consumers usually use `visibleSteps` instead. */
   readonly graph: StepGraph;
+  /**
+   * Logical arrows for THIS scope — one per slider position. Drives:
+   *   - flowchart edge rendering (no inline edge synthesis)
+   *   - slider total (`hops.length`)
+   *   - focused-step lookup (`hops[focusStep].anchorStep`)
+   *
+   * Multi-agent top-level: `agents.length + 1` hops (asks + N-1
+   * forwards + answers). Single-agent / drilled-in: one hop per
+   * `user->llm` / `llm->tool` / `tool->llm` / `llm->user` step.
+   */
+  readonly hops: readonly Hop[];
 }

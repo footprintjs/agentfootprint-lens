@@ -42,8 +42,8 @@ import type { AgentInstance } from './types.js';
  * IDs are stable within a run — safe to use as React keys.
  */
 export function selectAgentInstances(graph: StepGraph): AgentInstance[] {
-  const boundaries = graph.nodes.filter((n) => n.isPrimitiveBoundary === true);
-  if (boundaries.length === 0) {
+  const allBoundaries = graph.nodes.filter((n) => n.isPrimitiveBoundary === true);
+  if (allBoundaries.length === 0) {
     // Synthetic root — peek at the first subflow node's `primitiveKind`
     // so we can label the container by what's actually running, not a
     // hardcoded `'Agent'`. Falls back to `'Runner'` when the graph
@@ -61,6 +61,35 @@ export function selectAgentInstances(graph: StepGraph): AgentInstance[] {
       },
     ];
   }
+
+  // LEAF-filter: keep only the DEEPEST primitive boundaries — the ones
+  // that actually do work. Drop composition wrappers (Sequence /
+  // Parallel / Conditional / Loop) when at least one of their children
+  // is itself a primitive boundary, since the children fully describe
+  // the run.
+  //
+  // Examples:
+  //   Sequence(LLMCall a, LLMCall b)        → [a, b]    (Sequence dropped)
+  //   Parallel(LLMCall x, LLMCall y, LLMCall z) → [x, y, z] (Parallel dropped)
+  //   Conditional(when a / otherwise b)     → [a] OR [b] (only the chosen
+  //                                                       runs has events;
+  //                                                       boundaries with
+  //                                                       no descendants
+  //                                                       in graph.nodes
+  //                                                       fall through)
+  //   Loop(body)                            → [body]   (Loop dropped — the
+  //                                                     body is the unit of
+  //                                                     work)
+  //   Standalone Agent / LLMCall / RAG run  → [self]   (no nested primitive,
+  //                                                     so it's already a leaf)
+  const boundaries = allBoundaries.filter((b) =>
+    !allBoundaries.some(
+      (other) =>
+        other !== b &&
+        isStrictDescendant(other.subflowPath, b.subflowPath),
+    ),
+  );
+
   return boundaries.map((b) => ({
     groupId: `agent-group-${b.id}`,
     llmId: `stage-llm-${b.id}`,
@@ -69,4 +98,18 @@ export function selectAgentInstances(graph: StepGraph): AgentInstance[] {
     subflowPath: b.subflowPath,
     ...(b.primitiveKind ? { primitiveKind: b.primitiveKind } : {}),
   }));
+}
+
+/** True iff `child` is strictly deeper than `parent` (parent is a proper
+ *  prefix of child). Used to detect "is this boundary nested inside another
+ *  boundary" so we can drop the wrapper. */
+function isStrictDescendant(
+  child: readonly string[],
+  parent: readonly string[],
+): boolean {
+  if (child.length <= parent.length) return false;
+  for (let i = 0; i < parent.length; i++) {
+    if (child[i] !== parent[i]) return false;
+  }
+  return true;
 }

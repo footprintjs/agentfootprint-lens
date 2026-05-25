@@ -40,12 +40,16 @@ export const UserNode: React.FC<NodeProps<Node<UserNodeData>>> = ({ data }) => (
       boxShadow: data.lit ? '0 2px 10px rgba(0, 0, 0, 0.06)' : 'none',
     }}
   >
-    {/* PARALLEL routing — user→llm on the LEFT, llm→user on the RIGHT,
-        both running straight vertically. Reversing these would cause
-        the two edges to cross through the middle (X-shape), which
-        reads as "something weird happens between user and LLM."
-        Parallel paths keep the flow legible. */}
+    {/* SINGLE-AGENT triangle handles — user→llm on the LEFT (bottom),
+        llm→user on the RIGHT (bottom). Parallel vertical paths keep
+        the triangle legible. */}
     <Handle id="user-out" type="source" position={Position.Bottom} style={{ opacity: 0, left: '30%' }} />
+    {/* MULTI-AGENT pipeline — `user-side-in` lets the answer arrow
+        from the last agent land on User's RIGHT side instead of
+        weaving back to a bottom handle. Without this, a chain
+        `User → A → B → User-bottom` traced a long zig-zag past every
+        card. */}
+    <Handle id="user-side-in" type="target" position={Position.Right} style={{ opacity: 0, top: '50%' }} />
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 600 }}>
       <span aria-hidden>👤</span>
       <span>User</span>

@@ -15,8 +15,10 @@
  */
 
 export { Lens, type LensProps, type LensView } from './Lens.js';
+// Lens v0.1 — single-pipeline xyflow renderer driven by the L2
+// translator. The canonical chart for v0.1.
+export { LensFlow, type LensFlowProps } from './LensFlow.js';
 export { RunTreeView } from './RunTreeView.js';
-export { RunTreeFlow, type RunTreeFlowProps } from './RunTreeFlow.js';
 export { EventStream } from './EventStream.js';
 export { SummaryCard } from './SummaryCard.js';
 export { TimeTravel, type TimeTravelProps } from './TimeTravel.js';

@@ -19,7 +19,7 @@ import {
 } from 'agentfootprint';
 import { LensRecorder, lensRecorder } from './LensRecorder.js';
 import { defaultHumanizer } from './humanizer.js';
-import { SequenceRecorder } from 'footprintjs/trace';
+import { SequenceStore } from 'footprintjs/trace';
 
 // ─── Fixtures ───────────────────────────────────────────────────
 
@@ -282,13 +282,23 @@ describe('defaultHumanizer', () => {
 
 // ─── New wiring verification (Option A refactor) ────────────────────
 
-describe('LensRecorder — SequenceRecorder integration (v0.13.2)', () => {
-  it('IS a SequenceRecorder<EventLogEntry>', () => {
+describe('LensRecorder — SequenceStore composition (v3.0)', () => {
+  it('composes a SequenceStore<EventLogEntry> internally', async () => {
     const r = lensRecorder();
-    expect(r).toBeInstanceOf(SequenceRecorder);
+    // Composition pattern in v3.0+ — the recorder is no longer a
+    // SequenceRecorder subclass. Verify the public delegators expose
+    // the same surface area as the inherited methods used to.
+    expect(typeof r.entryCount).toBe('number');
+    expect(typeof r.getEntries).toBe('function');
+    expect(typeof r.getEntriesForStep).toBe('function');
+    expect(typeof r.getEntryRanges).toBe('function');
+    expect(typeof r.aggregate).toBe('function');
+    // The underlying primitive is still exported by footprintjs/trace
+    // for consumers who want to compose their own recorders.
+    expect(typeof SequenceStore).toBe('function');
   });
 
-  it('exposes inherited entryCount / getEntries / getEntriesForStep / aggregate', async () => {
+  it('exposes entryCount / getEntries / getEntriesForStep / aggregate as public delegators', async () => {
     const llm = LLMCall.create({
       provider: scriptedToolProvider(),
       model: 'm',
@@ -297,7 +307,7 @@ describe('LensRecorder — SequenceRecorder integration (v0.13.2)', () => {
       .build();
     const r = lensRecorder();
     r.observe(llm);
-    await llm.run('go');
+    await llm.run({ message: 'go' });
 
     // Inherited from SequenceRecorder<EventLogEntry>:
     expect(r.entryCount).toBeGreaterThan(0);
@@ -319,7 +329,7 @@ describe('LensRecorder — SequenceRecorder integration (v0.13.2)', () => {
       .build();
     const r = lensRecorder();
     r.observe(llm);
-    await llm.run('go');
+    await llm.run({ message: 'go' });
 
     const summary = r.selectSummary();
     // Sanity-check the aggregate-derived fields match a plain reduce
@@ -353,7 +363,7 @@ describe('LensRecorder — LiveStateRecorder integration (v0.13.2)', () => {
       .build();
     const r = lensRecorder();
     r.observe(llm);
-    await llm.run('go');
+    await llm.run({ message: 'go' });
 
     // After the run completes, no LLM is in flight.
     expect(r.liveState.isLLMInFlight()).toBe(false);
@@ -369,7 +379,7 @@ describe('LensRecorder — LiveStateRecorder integration (v0.13.2)', () => {
       .build();
     const r = lensRecorder();
     r.observe(llm);
-    await llm.run('go');
+    await llm.run({ message: 'go' });
     r.detach();
     // Detach disposes the subscription but doesn't destroy state — the
     // post-run state is already terminal (no active boundaries).

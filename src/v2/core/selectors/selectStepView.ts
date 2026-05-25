@@ -18,6 +18,7 @@ import type { BreadcrumbItem, StepView } from './types.js';
 import { selectAgentInstances } from './selectAgentInstances.js';
 import { selectEdges, stepToStageEndpoints } from './selectEdges.js';
 import { selectFocusDetail } from './selectFocusDetail.js';
+import { selectHops } from './selectHops.js';
 import { selectTouched } from './selectTouched.js';
 
 export interface SelectStepViewArgs {
@@ -47,13 +48,7 @@ export interface SelectStepViewArgs {
  *   - `touched` includes at least `user` (run begins with user msg).
  */
 export function selectStepView(args: SelectStepViewArgs): StepView {
-  const { graph, log, focusIndex, drillPath } = args;
-
-  const totalSteps = graph.nodes.length;
-  const clampedFocus = Math.min(
-    Math.max(0, focusIndex),
-    Math.max(0, totalSteps - 1),
-  );
+  const { graph, focusIndex, drillPath } = args;
 
   const agents = selectAgentInstances(graph);
   const mode: StepView['mode'] = drillPath.length === 0 ? 'top-level' : 'drill-down';
@@ -64,35 +59,45 @@ export function selectStepView(args: SelectStepViewArgs): StepView {
     ? (agents.find((a) => a.subflowPath.join('/') === drillPath.join('/')) ?? agents[0])
     : agents[0];
 
-  // Hierarchical slider (v0.15.0): when multiple primitive boundaries
-  // exist AND we're at the top level, the slider scrubs only the
-  // boundary nodes — one position per Agent / LLMCall / Sequence /
-  // etc. The internal ReAct steps inside each boundary become
-  // scrubbable AFTER drill-in (their subflowPath prefix-matches the
-  // drillPath). Single-Agent runs and drill-in views keep the full
-  // step list.
-  const isMultiAgentTopLevel = drillPath.length === 0 && agents.length > 1;
-  const scopedSteps = drillPath.length === 0
-    ? (isMultiAgentTopLevel
-        ? graph.nodes.filter((s) => s.kind === 'subflow' && s.isPrimitiveBoundary === true)
-        : graph.nodes)
-    : graph.nodes.filter((s) => startsWith(s.subflowPath, drillPath));
+  // ── Hops are the SINGLE source of truth for the slider axis. ─
+  // - `hops.length` is the slider total
+  // - `focusIndex` is an index into `hops`
+  // - `currentStep` is `hops[focusIndex].anchorStep`
+  // - `visibleSteps` is the prefix of anchor StepNodes through `focusIndex`
+  // - `activeEdgeKey` derives from `hops[focusIndex]` source/target
+  //
+  // This eliminates the previous off-by-one between slider position
+  // (hop count = arrow count) and `currentStep` (which used to index
+  // into the raw scoped node list and lagged by one step).
+  const hops = selectHops({ graph, drillPath, agents });
+  const totalHops = hops.length;
+  const clampedFocus = Math.min(
+    Math.max(0, focusIndex),
+    Math.max(0, totalHops - 1),
+  );
 
-  // Re-clamp focusIndex to the scoped slice. When drilling into an
-  // agent the slider maps to THAT agent's step count.
-  const scopedFocus = Math.min(clampedFocus, Math.max(0, scopedSteps.length - 1));
-  const visibleSteps = scopedSteps.slice(0, scopedFocus + 1);
-  const currentStep = visibleSteps[visibleSteps.length - 1];
+  const focusedHop = hops[clampedFocus];
+  const currentStep = focusedHop?.anchorStep;
+
+  // Visible steps = anchor steps for hops 0..clampedFocus. Skip hops
+  // that have no anchor (synthetic chain hops with `undefined`
+  // anchorStep — they don't appear in `visibleSteps` but still count
+  // toward `totalSteps`).
+  const visibleSteps: StepNode[] = [];
+  for (let i = 0; i <= clampedFocus; i++) {
+    const a = hops[i]?.anchorStep;
+    if (a && !visibleSteps.includes(a)) visibleSteps.push(a);
+  }
 
   const touched = selectTouched(visibleSteps);
   const edges = selectEdges(visibleSteps, agentForEdges);
 
-  // Active edge = the one the current focus step lifts to.
-  const focusMapping = currentStep
-    ? stepToStageEndpoints(currentStep, agentForEdges)
-    : null;
-  const activeEdgeKey = focusMapping
-    ? `${focusMapping.source}->${focusMapping.target}`
+  // Active edge — derived directly from the focused hop's source/target
+  // (which already match the flowchart node IDs). For ReAct hops this
+  // matches `stepToStageEndpoints`; for chain hops (asks/forwards/answers)
+  // the source/target are agent-card IDs and the chart highlights those.
+  const activeEdgeKey = focusedHop
+    ? `${focusedHop.source}->${focusedHop.target}`
     : undefined;
 
   // Touch the selector so tree-shaking keeps it reachable — consumers
@@ -100,6 +105,7 @@ export function selectStepView(args: SelectStepViewArgs): StepView {
   // isn't part of StepView itself (it would grow the ViewModel for a
   // detail most views don't render).
   void selectFocusDetail;
+  void stepToStageEndpoints;
 
   return {
     mode,
@@ -107,11 +113,12 @@ export function selectStepView(args: SelectStepViewArgs): StepView {
     visibleSteps,
     touched,
     edges,
-    activeEdgeKey,
-    currentStep,
-    totalSteps: scopedSteps.length,
+    ...(activeEdgeKey ? { activeEdgeKey } : {}),
+    ...(currentStep ? { currentStep } : {}),
+    totalSteps: totalHops,
     breadcrumb: buildBreadcrumb(drillPath, agents),
     graph,
+    hops,
   };
 }
 

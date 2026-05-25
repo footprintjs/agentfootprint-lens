@@ -11,3 +11,10 @@ export { useLensRecorder } from './useLensRecorder.js';
 export { useStepFocus, type UseStepFocusResult } from './useStepFocus.js';
 export { useDrillPath, type UseDrillPathResult } from './useDrillPath.js';
 export { useStepView } from './useStepView.js';
+export {
+  useCommentarySlider,
+  type UseCommentarySliderResult,
+  type CommentarySliderMode,
+} from './useCommentarySlider.js';
+// Lens v0.1 render pipeline — turns a Runner into a laid-out xyflow graph.
+export { useLensRenderGraph } from './useLensRenderGraph.js';

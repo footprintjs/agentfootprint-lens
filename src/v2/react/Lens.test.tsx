@@ -35,49 +35,60 @@ function scripted(): LLMProvider {
   };
 }
 
-async function runAgent(): Promise<ReturnType<typeof lensRecorder>> {
-  const agent = Agent.create({ provider: scripted(), model: 'mock' })
+function buildAgent() {
+  return Agent.create({ provider: scripted(), model: 'mock' })
     .system('')
     .tool({
       schema: { name: 'lookup', description: '', inputSchema: { type: 'object' } },
       execute: () => 'found',
     })
     .build();
+}
+
+async function runAgent(): Promise<{
+  recorder: ReturnType<typeof lensRecorder>;
+  runner: ReturnType<typeof buildAgent>;
+}> {
+  const agent = buildAgent();
   const recorder = lensRecorder();
   recorder.observe(agent);
   await agent.run({ message: 'go' });
-  return recorder;
+  return { recorder, runner: agent };
 }
 
 describe('<Lens> engineer view', () => {
-  it('renders the run tree, event stream, and summary', async () => {
-    const recorder = await runAgent();
-    const { container } = render(<Lens recorder={recorder} view="engineer" />);
+  it('renders the chart, summary, and commentary when a runner is attached', async () => {
+    const { recorder, runner } = await runAgent();
+    const { container } = render(
+      <Lens recorder={recorder} runner={runner} view="engineer" />,
+    );
 
     // Summary card
     expect(container.textContent).toMatch(/LLM calls/i);
     expect(container.textContent).toMatch(/Tool calls/i);
     expect(container.textContent).toMatch(/Iterations/i);
 
-    // Flowchart empty-state — without a StepGraph prop, Lens shows
-    // a copy-and-paste snippet telling the consumer how to wire
-    // enable.flowchart(). Not a Turn/tree anymore — the run-flow
-    // panel is the StepGraph-driven triangle.
-    expect(container.textContent).toMatch(/runner\.enable\.flowchart/);
+    // L4: the chart is the single LensFlow xyflow renderer. Detect by
+    // xyflow's root class — present whenever <ReactFlow> mounts.
+    expect(container.querySelector('.react-flow')).toBeTruthy();
 
     // Commentary — humanized teaching narration (Chatbot/LLM verb discipline).
-    // teachingHumanizer renders "Chatbot sent the question to the LLM" for
-    // llm.start (iter 1).
     expect(container.textContent).toMatch(/Chatbot sent/);
+  });
+
+  it('shows an empty-state hint when no runner is attached', async () => {
+    const { recorder } = await runAgent();
+    const { container } = render(<Lens recorder={recorder} view="engineer" />);
+    expect(container.textContent).toMatch(/No runner attached/);
+    // No xyflow root in the empty-state branch.
+    expect(container.querySelector('.react-flow')).toBeFalsy();
   });
 });
 
 describe('<Lens> analyst view', () => {
   it('renders humanized commentary lines', async () => {
-    const recorder = await runAgent();
+    const { recorder } = await runAgent();
     const { container } = render(<Lens recorder={recorder} view="analyst" />);
-    // teachingHumanizer renders "Chatbot sent the question to the LLM" for
-    // llm.start, and "User asked Chatbot:" for agent.turn_start.
     expect(container.textContent).toMatch(/Chatbot sent/);
     expect(container.textContent).toMatch(/User asked Chatbot/);
   });
@@ -85,7 +96,7 @@ describe('<Lens> analyst view', () => {
 
 describe('<Lens> user view', () => {
   it('surfaces the final LLM content', async () => {
-    const recorder = await runAgent();
+    const { recorder } = await runAgent();
     const { container } = render(<Lens recorder={recorder} view="user" />);
     expect(container.textContent).toMatch(/final answer: ship it/);
   });

@@ -1,10 +1,17 @@
 /**
- * agentfootprint-lens — public entry.
+ * agentfootprint-lens — public entry (React).
  *
- * Root is Lens v2 — the event-driven recorder architecture built on
- * agentfootprint's typed event stream. Consumers import the `Lens` React
- * component, create a `LensRecorder`, and attach it to any v2 `Runner`
- * via `recorder.observe(runner)` before `runner.run()`.
+ * Two import surfaces:
+ *
+ *   - `'agentfootprint-lens'`        → React components + headless core
+ *                                       Use this from React apps.
+ *   - `'agentfootprint-lens/core'`   → Headless only — `LensRecorder`,
+ *                                       `ChangeNotifier`, selectors,
+ *                                       types. Zero React dep. Use this
+ *                                       from Vue / Angular / Recoil /
+ *                                       CLI / DOM consumers.
+ *
+ * React example:
  *
  *   import { Lens, LensRecorder } from 'agentfootprint-lens';
  *
@@ -12,6 +19,12 @@
  *   recorder.observe(agent);
  *   await agent.run({ message: 'hi' });
  *   return <Lens recorder={recorder} view="engineer" />;
+ *
+ * Vue example (headless core only — no React in the bundle):
+ *
+ *   import { LensRecorder, ChangeNotifier } from 'agentfootprint-lens/core';
+ *   // build your own Vue composable around the same primitives.
+ *   // See ChangeNotifier JSDoc for an adapter snippet.
  *
  * Lens v1 has been removed — it lives at git history only. All
  * consumers migrate to the recorder/observe pattern.

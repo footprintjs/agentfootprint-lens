@@ -51,9 +51,17 @@ export {
   stepToStageEndpoints,
 } from './selectEdges.js';
 export { selectFocusDetail } from './selectFocusDetail.js';
+export { selectHops, type Hop, type SelectHopsArgs } from './selectHops.js';
+export { selectStepAgentName } from './selectStepAgentName.js';
 export { selectStepView, type SelectStepViewArgs } from './selectStepView.js';
 export {
   BASELINE_SOURCES,
   isContextEngineering,
   selectContextEngineeringInjections,
 } from './selectContextEngineeringInjections.js';
+export {
+  selectCommentaryAt,
+  selectCommentaryRanges,
+  type CommentaryAtCommit,
+  type CommentaryRange,
+} from './selectCommentary.js';

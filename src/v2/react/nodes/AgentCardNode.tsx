@@ -22,7 +22,7 @@
  */
 
 import React from 'react';
-import type { Node, NodeProps } from '@xyflow/react';
+import { Handle, Position, type Node, type NodeProps } from '@xyflow/react';
 
 // ─── Per-primitive visual affordance ───────────────────────────────
 
@@ -148,6 +148,36 @@ export const AgentCardNode: React.FC<NodeProps<Node<AgentCardNodeData>>> = ({ da
         transition: 'box-shadow 0.15s, transform 0.15s',
       }}
     >
+      {/* Edge-attachment handles. Without these, xyflow silently drops
+          edges that target this node — which is why the User → first-agent
+          and inter-agent handoff arrows weren't rendering in the multi-
+          agent view. Top handle takes the incoming arrow (User asks /
+          previous agent forwards), bottom handle emits the outgoing arrow
+          (forwards to next agent / answers User). */}
+      <Handle
+        id="card-top"
+        type="target"
+        position={Position.Top}
+        style={{ opacity: 0 }}
+      />
+      <Handle
+        id="card-bottom"
+        type="source"
+        position={Position.Bottom}
+        style={{ opacity: 0 }}
+      />
+      {/* RIGHT source — the LAST card in a multi-agent chain emits the
+          "answers" edge from here so it can curve up the right side
+          back to User without weaving past the cards above. Other
+          cards in the chain don't use this handle but having it
+          declared on every card keeps the component uniform. */}
+      <Handle
+        id="card-right"
+        type="source"
+        position={Position.Right}
+        style={{ opacity: 0, top: '50%' }}
+      />
+
       {/* Header strip — icon + name on the left, status badge on the right. */}
       <div
         style={{

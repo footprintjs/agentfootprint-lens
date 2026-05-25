@@ -12,14 +12,17 @@
  * components (RunTreeView, EventStream, SummaryCard) directly.
  */
 
-import React, { memo, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useEffect, useMemo, useRef, useState } from "react";
 
 // One-time global stylesheet — keyframes for the streaming caret.
 // Injected on first import so consumers don't need to wire CSS.
 // Idempotent via the unique `data-lens-keyframes` marker.
-if (typeof document !== 'undefined' && !document.querySelector('style[data-lens-keyframes]')) {
-  const styleEl = document.createElement('style');
-  styleEl.setAttribute('data-lens-keyframes', 'v2');
+if (
+  typeof document !== "undefined" &&
+  !document.querySelector("style[data-lens-keyframes]")
+) {
+  const styleEl = document.createElement("style");
+  styleEl.setAttribute("data-lens-keyframes", "v2");
   styleEl.textContent = `@keyframes lens-blink { 50% { opacity: 0; } }`;
   document.head.appendChild(styleEl);
 }
@@ -27,32 +30,64 @@ import {
   defaultCommentaryTemplates,
   renderCommentary,
   type CommentaryTemplates,
-} from 'agentfootprint';
-import type { LensRecorder } from '../core/LensRecorder.js';
-import type { EventLogEntry, RunTreeNode } from '../core/types.js';
-import type { Humanizer } from '../core/humanizer.js';
-import { makeTeachingHumanizer } from '../core/humanizer.js';
-import { RunTreeFlow } from './RunTreeFlow.js';
-import { SummaryCard } from './SummaryCard.js';
-import { TimeTravel } from './TimeTravel.js';
-import { NodeDetailPanel } from './NodeDetailPanel.js';
-import { useLensRecorder } from './hooks/useLensRecorder.js';
-import { useDrillPath } from './hooks/useDrillPath.js';
-import { T } from './theme/index.js';
+} from "agentfootprint";
+import type { LensRecorder } from "../core/LensRecorder.js";
+import type { EventLogEntry, RunTreeNode } from "../core/types.js";
+import type { Humanizer } from "../core/humanizer.js";
+import { makeTeachingHumanizer } from "../core/humanizer.js";
+import {
+  selectAgentInstances,
+  selectHops,
+  selectStepAgentName,
+} from "../core/selectors/index.js";
+import { LensFlow } from "./LensFlow.js";
+import { SummaryCard } from "./SummaryCard.js";
+import { TimeTravel } from "./TimeTravel.js";
+import { NodeDetailPanel } from "./NodeDetailPanel.js";
+import { useLensRecorder } from "./hooks/useLensRecorder.js";
+import { useDrillPath } from "./hooks/useDrillPath.js";
+import { useCommitSync } from "./hooks/useCommitSync.js";
+import { useCursorPositions } from "./hooks/useCursorPositions.js";
+import { T } from "./theme/index.js";
 
-export type LensView = 'engineer' | 'analyst' | 'user';
+export type LensView = "engineer" | "analyst" | "user";
+
+/**
+ * Lens reads the chart from a real agentfootprint `Runner`. The chart
+ * is derived at build time via the runner's `getUIGroupWith` API
+ * (memoised on the runner side) — full composition graph visible
+ * from t=0, no growth as events fire. Cursor movement only
+ * HIGHLIGHTS positions; it does not reshape the chart. See
+ * `memory/lens_v0_1_one_cursor_architecture.md`.
+ */
+export type LensRunnerLike = import("agentfootprint").Runner;
 
 export interface LensProps {
   /** The recorder that was observing the run. Drives EventStream +
    *  Summary + selected-node detail. */
   readonly recorder: LensRecorder;
   /**
-   * StepGraph from `runner.enable.flowchart()`. agentfootprint owns the
-   * step derivation; Lens just renders. When absent, the flowchart card
-   * shows an empty state — useful if a consumer wants EventStream-only
-   * mode.
+   * Optional — when provided, Lens reads the static flowchart blueprint
+   * from `runner.getSpec().buildTimeStructure` and renders the FULL
+   * structure from t=0. Without this prop, Lens falls back to the
+   * live-built spec from the recorder's boundary index (chart grows
+   * as events fire). The static path is strictly better for live
+   * monitoring: chart visible immediately, no scrub-back shrinkage,
+   * no layout jitter. See `memory/lens_v0_1_one_cursor_architecture.md`.
    */
-  readonly stepGraph?: import('agentfootprint').StepGraph;
+  readonly runner?: LensRunnerLike;
+  /**
+   * StepGraph from `runner.enable.flowchart()`. agentfootprint owns the
+   * step derivation; Lens just renders. When absent, Lens reads from
+   * `recorder.snapshot.getStepGraph()` (the Phase 4 incremental
+   * snapshot recorder, attached automatically by `recorder.observe()`).
+   *
+   * Recommended: omit this prop and let Lens use `recorder.snapshot` —
+   * that path is the canonical Phase 4 source-of-structural-truth and
+   * fixes multi-branch Parallel rendering. The prop remains for
+   * backward compat with consumers wiring their own FlowchartRecorder.
+   */
+  readonly stepGraph?: import("agentfootprint").StepGraph;
   /** Which audience view to render. Default: `engineer`. */
   readonly view?: LensView;
   /** Optional humanizer override. Default: a `teachingHumanizer`
@@ -102,12 +137,14 @@ export interface LensProps {
    * wording in that case).
    */
   readonly commentaryTemplates?: Partial<CommentaryTemplates>;
+
 }
 
 export const Lens: React.FC<LensProps> = ({
   recorder,
+  runner,
   stepGraph,
-  view = 'engineer',
+  view = "engineer",
   humanizer,
   appName,
   commentaryTemplates,
@@ -118,6 +155,13 @@ export const Lens: React.FC<LensProps> = ({
   const tree = recorder.selectRunTree();
   const log = recorder.selectEventLog();
   const summary = recorder.selectSummary();
+
+  // Phase 4 — single source of structural truth.
+  // If consumer didn't supply a stepGraph prop, fall back to the
+  // incremental snapshot recorder (attached automatically by
+  // `recorder.observe(runner)`). The recorder is built event-by-event
+  // during traversal — O(1) per event, O(1) read here. No post-walk.
+  const effectiveStepGraph = stepGraph ?? recorder.snapshot.getStepGraph();
   // Pure renderer: agentfootprint's StepGraph already collapses
   // internal subflows (`sf-thinking` + `thinking-{handler}`) into the
   // wrapping LLM step's payload. Lens trusts the data layer.
@@ -145,7 +189,10 @@ export const Lens: React.FC<LensProps> = ({
   const mergedTemplates: CommentaryTemplates = useMemo(
     () =>
       commentaryTemplates
-        ? ({ ...defaultCommentaryTemplates, ...commentaryTemplates } as CommentaryTemplates)
+        ? ({
+            ...defaultCommentaryTemplates,
+            ...commentaryTemplates,
+          } as CommentaryTemplates)
         : defaultCommentaryTemplates,
     [commentaryTemplates],
   );
@@ -162,7 +209,7 @@ export const Lens: React.FC<LensProps> = ({
   // event log every render. The dependency on `log` only triggers
   // re-computation when an event arrives — the actual values come from
   // the live tracker's transient state.
-  const effectiveAppName = appName ?? 'Chatbot';
+  const effectiveAppName = appName ?? "Chatbot";
   const liveStreamLine = useMemo(
     () => computeLiveStreamLine(recorder, effectiveAppName, mergedTemplates),
     // log identity changes on every event tick — that's our re-render
@@ -185,14 +232,30 @@ export const Lens: React.FC<LensProps> = ({
     [humanizer, appName, toolDescriptions, commentaryTemplates],
   );
 
-  // ─── Time-travel scrub state ──────────────────────────────────
-  // Scrub axis = the StepGraph's node count (ReAct step count). A
-  // 2-iteration Agent run with a tool is 4 steps; a 5-hop swarm is
-  // ~10. Meaningful units — matches the old v1 "Step 6 / 6" feel.
-  // Falls back to the event-log length when no StepGraph is provided.
-  const stepCount = stepGraph?.nodes.length ?? log.length;
+  // ─── Drill-down state (lifted from EngineerView) ──────────────
+  // Lives at the Lens level so the slider total — which depends on
+  // drillPath via hop count — can be computed in this scope. EngineerView
+  // receives drillPath + setters as props.
+  const { drillPath, drillInto, drillTo } = useDrillPath();
+
+  // ─── ONE-CURSOR architecture (Lens v0.1, compound time axis) ──────
+  // Cursor type = runtimeStageId (same address space as Trace + commitLog).
+  // Position SET = compound time axis — at any drill depth, the slider's
+  // positions equal the chart's visible nodes at that level:
+  //   depth 0           → top-level groups (Parallel = ONE position)
+  //   inside a group    → that group's direct sub-groups
+  //   leaf group        → that group's commits
+  // ONE cursor concept; the position-set scales by drill depth. See
+  // `memory/lens_v0_1_one_cursor_architecture.md`.
+  const syncMap = useCommitSync(recorder);
+  const cursorPositions = useCursorPositions(recorder, drillPath);
+  const stepCount = Math.max(1, cursorPositions.length);
   const maxStep = Math.max(0, stepCount - 1);
   const [focusStep, setFocusStep] = useState(0);
+  // Cursor's runtimeStageId — derived from the current position. Used
+  // by Commentary cutoff, chart highlight, Trace sync.
+  const cursorRuntimeStageId: string =
+    cursorPositions[focusStep]?.runtimeStageId ?? '';
   // `autoAdvance` is the source of truth for "stay pinned to live."
   // It flips OFF only when the user explicitly scrubs back; clicking
   // the Live button (or scrubbing back to maxStep) flips it ON again.
@@ -217,8 +280,8 @@ export const Lens: React.FC<LensProps> = ({
 
   const isLive = autoAdvance && focusStep >= maxStep;
 
-  if (view === 'user') return <UserView tree={tree} summary={summary} />;
-  if (view === 'analyst')
+  if (view === "user") return <UserView tree={tree} summary={summary} />;
+  if (view === "analyst")
     return (
       <AnalystView
         summary={summary}
@@ -234,7 +297,8 @@ export const Lens: React.FC<LensProps> = ({
   return (
     <EngineerView
       recorder={recorder}
-      stepGraph={stepGraph}
+      {...(runner ? { runner } : {})}
+      stepGraph={effectiveStepGraph}
       summary={summary}
       log={log}
       humanizer={effectiveHumanizer}
@@ -244,6 +308,12 @@ export const Lens: React.FC<LensProps> = ({
       onFocusChange={handleFocusChange}
       isLive={isLive}
       liveStreamLine={liveStreamLine}
+      drillPath={drillPath}
+      onDrillInto={drillInto}
+      onDrillTo={drillTo}
+      syncMap={syncMap}
+      cursorPositions={cursorPositions}
+      cursorRuntimeStageId={cursorRuntimeStageId}
     />
   );
 };
@@ -272,6 +342,18 @@ export const Lens: React.FC<LensProps> = ({
  * primitive (footprintjs v4.17.2+) and exposes O(1) reads. Lens stays
  * a direct mapping — no event-log fold, no reverse walk.
  */
+/** True iff `prefix` is a prefix of `path` (segment-wise equality). */
+function isPathPrefix(
+  prefix: readonly string[],
+  path: readonly string[],
+): boolean {
+  if (prefix.length > path.length) return false;
+  for (let i = 0; i < prefix.length; i++) {
+    if (prefix[i] !== path[i]) return false;
+  }
+  return true;
+}
+
 function computeLiveStreamLine(
   recorder: LensRecorder,
   appName: string,
@@ -285,10 +367,10 @@ function computeLiveStreamLine(
   const partial = recorder.liveState.getPartialLLM();
 
   if (partial.length === 0) {
-    const tmpl = templates['stream.thinking'] ?? '';
+    const tmpl = templates["stream.thinking"] ?? "";
     return renderCommentary(tmpl, { appName });
   }
-  const tmpl = templates['stream.token.partial'] ?? '';
+  const tmpl = templates["stream.token.partial"] ?? "";
   return renderCommentary(tmpl, { appName, partial });
 }
 
@@ -313,14 +395,16 @@ function buildToolDescriptions(
   // single-pass fold, no parallel array. The `Map` accumulator is
   // mutated in-place per fold step, returned at the end.
   return recorder.aggregate<Map<string, string>>((m, entry) => {
-    if (entry.event.type !== 'agentfootprint.context.injected') return m;
+    if (entry.event.type !== "agentfootprint.context.injected") return m;
     const p = entry.event.payload;
-    if (p.source !== 'registry' || p.slot !== 'tools') return m;
+    if (p.source !== "registry" || p.slot !== "tools") return m;
     const name = p.sourceId;
     const summary = p.contentSummary;
     if (!name || !summary) return m;
     const prefix = `${name}: `;
-    const desc = summary.startsWith(prefix) ? summary.slice(prefix.length) : summary;
+    const desc = summary.startsWith(prefix)
+      ? summary.slice(prefix.length)
+      : summary;
     m.set(name, desc);
     return m;
   }, new Map<string, string>());
@@ -329,13 +413,16 @@ function buildToolDescriptions(
 function sliceTreeByOffset(root: RunTreeNode, cutoffMs: number): RunTreeNode {
   const walk = (n: RunTreeNode): RunTreeNode | null => {
     if (n.startOffsetMs > cutoffMs) return null;
-    const children = n.children.map(walk).filter((c): c is RunTreeNode => c !== null);
-    const endMs = n.durationMs !== undefined ? n.startOffsetMs + n.durationMs : undefined;
+    const children = n.children
+      .map(walk)
+      .filter((c): c is RunTreeNode => c !== null);
+    const endMs =
+      n.durationMs !== undefined ? n.startOffsetMs + n.durationMs : undefined;
     const stillRunning = endMs === undefined || endMs > cutoffMs;
     return {
       ...n,
       children,
-      status: stillRunning ? 'running' : n.status,
+      status: stillRunning ? "running" : n.status,
       durationMs: stillRunning ? undefined : n.durationMs,
     };
   };
@@ -346,8 +433,12 @@ function sliceTreeByOffset(root: RunTreeNode, cutoffMs: number): RunTreeNode {
 
 const EngineerView: React.FC<{
   recorder: LensRecorder;
-  stepGraph?: import('agentfootprint').StepGraph;
-  summary: ReturnType<LensRecorder['selectSummary']>;
+  /** Optional runner — when provided, Lens reads the static spec from
+   *  `runner.getSpec().buildTimeStructure` (full chart visible at t=0).
+   *  Otherwise falls back to the live-built spec from the recorder. */
+  runner?: LensRunnerLike;
+  stepGraph?: import("agentfootprint").StepGraph;
+  summary: ReturnType<LensRecorder["selectSummary"]>;
   log: readonly EventLogEntry[];
   humanizer: Humanizer;
   appName: string;
@@ -358,8 +449,24 @@ const EngineerView: React.FC<{
   /** Live "thinking / responding" line shown in Commentary while an
    *  LLM call is in flight. Null when no call is active. */
   liveStreamLine: string | null;
+  /** Drill state — lifted to Lens so the slider total (which depends
+   *  on drillPath) can be computed in the parent scope. */
+  drillPath: readonly string[];
+  onDrillInto: (path: readonly string[]) => void;
+  onDrillTo: (path: readonly string[]) => void;
+  /** Per-commit sync map — read for commentary cutoff resolution. */
+  syncMap: readonly import("../core/group/buildCommitSyncMap.js").CommitSyncEntry[];
+  /** Slider's valid positions at the current drill level. Compound
+   *  time-axis: at depth 0 these are top-level groups; deeper levels
+   *  expose direct sub-groups or commits. See
+   *  `memory/lens_v0_1_one_cursor_architecture.md`. */
+  cursorPositions: readonly import("../core/group/cursorPositionsAtDrill.js").CursorPosition[];
+  /** runtimeStageId of the current slider position. Drives chart-box
+   *  highlight + commentary cutoff. */
+  cursorRuntimeStageId: string;
 }> = ({
   recorder,
+  runner,
   stepGraph,
   summary,
   log,
@@ -370,17 +477,71 @@ const EngineerView: React.FC<{
   onFocusChange,
   isLive,
   liveStreamLine,
+  drillPath,
+  onDrillInto,
+  onDrillTo,
+  syncMap,
+  cursorPositions,
+  cursorRuntimeStageId,
 }) => {
-  // Drill-down state. Empty = top-level (all agents visible); a path
-  // means the user zoomed into ONE agent's internal flow.
-  const { drillPath, drillInto, drillTo } = useDrillPath();
+  // `syncMap` and the slider's compound-position list (`cursorPositions`)
+  // are read directly by the slider/commentary cutoff logic farther
+  // below. They remain in the props for completeness even though this
+  // top-level component body doesn't consume them outside the JSX.
+  void syncMap;
+
+  // Cursor → static-spec-node id. The slider cursor is a per-execution
+  // runtimeStageId (`[subflowPath/]stageId#executionIndex`); the
+  // SpecNode tree uses the bare stageId. Strip the `#N` suffix to map
+  // the cursor onto its highlight node — Loop iterations all map to
+  // the SAME spec node, iteration index is overlaid separately.
+  // Locked rule, see `memory/lens_v0_1_one_cursor_architecture.md`
+  // section "Cursor → highlight mapping".
+  const selectedSpecNodeId = cursorRuntimeStageId
+    ? cursorRuntimeStageId.split("#")[0] ?? ""
+    : "";
+  // Aliases for legacy local-name references throughout the component.
+  const drillInto = onDrillInto;
+  const drillTo = onDrillTo;
   // Single-source-of-truth: the slider's `focusStep` IS the selection.
   // The right Details panel + the bottom Commentary panel both bind
   // to this — moving the slider auto-updates both. Clicking a node in
   // the flowchart calls `handleNodeSelect` which jumps the slider.
-  const focusedNode = stepGraph?.nodes[focusStep];
+  //
+  // focusStep is an index into the HOP list (the slider's logical
+  // axis). To produce a focused StepNode for the details pane, we
+  // resolve `hops[focusStep].anchorStep` — see below.
+  const hops = useMemo(() => {
+    if (!stepGraph) return [];
+    const agentInstances = selectAgentInstances(stepGraph);
+    return selectHops({ graph: stepGraph, drillPath, agents: agentInstances });
+  }, [stepGraph, drillPath]);
+  const focusedHop = hops[focusStep];
+  const focusedNode = focusedHop?.anchorStep ?? stepGraph?.nodes[focusStep];
   const focusedRuntimeStageId = focusedNode?.runtimeStageId;
-  const currentStepLabel = focusedNode?.label;
+  // Multi-agent runs benefit from agent-prefixed step labels: a generic
+  // `'user → llm'` becomes `'classify · user → llm'` so it's obvious
+  // which agent the slider position belongs to. Single-agent runs fall
+  // back to the raw step label (the agent header already covers it).
+  const stepAgentName = useMemo(() => {
+    if (!stepGraph || !focusedNode) return undefined;
+    const agents = selectAgentInstances(stepGraph);
+    return selectStepAgentName(focusedNode, agents);
+  }, [stepGraph, focusedNode]);
+  // Cursor-position label is the canonical slider tooltip in drill-down
+  // mode: it carries human-readable strings like `'Committee · forks'`,
+  // `'legal · start'`, `'merged'`, `'Run · end'` — already disambiguated
+  // by `cursorPositionsAtDrill`. Prefer it when present so the slider
+  // never shows a stutter like `'legal · legal'` (which the older
+  // `stepAgentName · focusedNode.label` form produced when an Agent and
+  // its inner LLMCall shared a name).
+  const cursorPositionLabel = cursorPositions[focusStep]?.label;
+  const currentStepLabel = cursorPositionLabel
+    ?? (focusedNode
+      ? stepAgentName
+        ? `${stepAgentName} · ${focusedNode.label}`
+        : focusedNode.label
+      : undefined);
 
   // Step → event-seq mapping. Resolves each step to a concrete log
   // entry so Commentary can scrub by slider position even when a step
@@ -392,43 +553,47 @@ const EngineerView: React.FC<{
   // Without this map: steps 0, 2, 6 (synthetic-only positions in a
   // typical agent run) showed no commentary highlight and no filter,
   // making the slider feel broken on every other position.
+  // hop → event seq mapping. v0.16: keyed by HOP index (slider axis),
+  // not raw node index. Each hop's `anchorStep` resolves to a concrete
+  // event seq using the same first/last-match rule as before:
+  //   • user→llm / tool→llm / llm→tool → FIRST matching event (dispatch)
+  //   • llm→user                       → LAST matching event (delivery)
+  //   • asks / forwards / answers      → FIRST matching event for the
+  //     anchor (which is the first ReAct step inside the destination
+  //     agent — captures the moment that agent received its input)
+  //   • hops with NO anchor            → inherit the prior hop's seq so
+  //     the slider doesn't rewind the visible commentary.
   const stepToEventSeq = useMemo<readonly number[]>(() => {
-    if (!stepGraph || log.length === 0) return [];
+    if (!stepGraph || hops.length === 0 || log.length === 0) return [];
     const firstSeq = log[0].seq;
     const seqs: number[] = [];
     let lastResolvedSeq = firstSeq;
-    // Anchor strategy varies by node kind. The key insight: a single
-    // LLM call's events all share ONE runtimeStageId, so "first match"
-    // would point every step in that call (send + receive) to llm.start.
-    // We need:
-    //   • user→llm / tool→llm → FIRST matching event (the SEND moment)
-    //   • llm→user            → LAST matching event  (the RECEIVE moment
-    //                            — final answer delivered)
-    //   • llm→tool            → FIRST matching event (tool dispatch)
-    //   • subflow boundary    → FIRST matching event (entry)
-    //   • synthetic / no id   → inherit prior step's seq
-    const anchorSide = (kind: string): 'first' | 'last' =>
-      kind === 'llm->user' ? 'last' : 'first';
-    for (const node of stepGraph.nodes) {
-      const id = node.runtimeStageId;
+
+    const anchorSide = (kind: string): "first" | "last" =>
+      kind === "llm->user" || kind === "answers" ? "last" : "first";
+
+    for (const hop of hops) {
+      const id = hop.anchorStep?.runtimeStageId;
       let resolved = -1;
       if (id !== undefined) {
-        const side = anchorSide(node.kind);
-        if (side === 'first') {
+        const side = anchorSide(hop.kind);
+        if (side === "first") {
           for (const e of log) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const stageId = (e.event.meta as any)?.runtimeStageId as string | undefined;
+            const stageId = (e.event.meta as any)?.runtimeStageId as
+              | string
+              | undefined;
             if (stageId === id) {
               resolved = e.seq;
               break;
             }
           }
         } else {
-          // Walk backwards for the LAST matching event — the moment
-          // this stage *finished*, which is what `llm→user` represents.
           for (let i = log.length - 1; i >= 0; i--) {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const stageId = (log[i].event.meta as any)?.runtimeStageId as string | undefined;
+            const stageId = (log[i].event.meta as any)?.runtimeStageId as
+              | string
+              | undefined;
             if (stageId === id) {
               resolved = log[i].seq;
               break;
@@ -436,20 +601,26 @@ const EngineerView: React.FC<{
           }
         }
       }
-      // Synthetic node OR no matching event → inherit prior step's
-      // seq so the slider doesn't "rewind" the visible commentary.
-      // Defaults to the FIRST event seq for the head-of-list synthetic
-      // step (the User node) so slider position 0 still scrubs to a
-      // real event instead of falling through to "show everything".
       if (resolved === -1) resolved = lastResolvedSeq;
       seqs.push(resolved);
       lastResolvedSeq = resolved;
     }
     return seqs;
-  }, [stepGraph, log]);
+  }, [stepGraph, hops, log]);
   const focusedSeq = stepToEventSeq[focusStep] ?? -1;
   const handleNodeSelect = (nodeId: string): void => {
     if (!stepGraph) return;
+    // v0.16: focusStep is a HOP index, not a node index. Find the hop
+    // whose anchor step matches the clicked StepGraph node id and jump
+    // the slider to that hop position. Falls back to the prior node-
+    // index behavior when no hop anchor matches (defensive — shouldn't
+    // happen for any visible StepNode, but keeps the click handler
+    // resilient if a synthetic node ever surfaces in the chart).
+    const hopIdx = hops.findIndex((h) => h.anchorStep?.id === nodeId);
+    if (hopIdx >= 0) {
+      onFocusChange(hopIdx);
+      return;
+    }
     const idx = stepGraph.nodes.findIndex((n) => n.id === nodeId);
     if (idx >= 0) onFocusChange(idx);
   };
@@ -488,23 +659,23 @@ const EngineerView: React.FC<{
     const all = stepGraph?.nodes ?? [];
     return all.filter(
       (n) =>
-        n.kind === 'subflow' &&
-        (n.primitiveKind === 'Agent' || n.primitiveKind === 'LLMCall'),
+        n.kind === "subflow" &&
+        (n.primitiveKind === "Agent" || n.primitiveKind === "LLMCall"),
     );
   }, [stepGraph]);
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
+        display: "flex",
+        flexDirection: "column",
         gap: 0,
-        height: '100%',
+        height: "100%",
         minHeight: 0,
-        overflow: 'hidden',
+        overflow: "hidden",
       }}
     >
       {/* Toolbar: SummaryCard + CopyForLLM + Slider, compact at top. */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
           <SummaryCard summary={summary} />
         </div>
@@ -518,7 +689,7 @@ const EngineerView: React.FC<{
             totalSteps: total,
             isLive,
             drillPath,
-            mode: drillPath.length > 0 ? 'drill-down' : 'top-level',
+            mode: drillPath.length > 0 ? "drill-down" : "top-level",
             ...(focusedNode
               ? {
                   currentStep: {
@@ -552,8 +723,8 @@ const EngineerView: React.FC<{
         style={{
           flex: 1,
           minHeight: 0,
-          display: 'flex',
-          overflow: 'hidden',
+          display: "flex",
+          overflow: "hidden",
         }}
       >
         {/* LEFT: Topology — collapsible. Hidden ENTIRELY when the run
@@ -570,14 +741,14 @@ const EngineerView: React.FC<{
                 style={{
                   width: 200,
                   flexShrink: 0,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  overflow: 'hidden',
+                  display: "flex",
+                  flexDirection: "column",
+                  overflow: "hidden",
                   borderRight: `1px solid ${T.border}`,
                 }}
               >
                 <SidePanelHeader title="Agents" />
-                <div style={{ flex: 1, minHeight: 0, overflowY: 'auto' }}>
+                <div style={{ flex: 1, minHeight: 0, overflowY: "auto" }}>
                   <AgentList
                     nodes={agentNodes}
                     selectedId={focusedNode?.id}
@@ -606,37 +777,40 @@ const EngineerView: React.FC<{
           style={{
             flex: 1,
             minWidth: 0,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
           }}
         >
           {drillPath.length > 0 && (
-            <Breadcrumb path={drillPath} onJumpTo={(i) => drillTo(drillPath.slice(0, i))} />
+            <Breadcrumb
+              path={drillPath}
+              onJumpTo={(i) => drillTo(drillPath.slice(0, i))}
+            />
           )}
           <div
             style={{
               flex: 1,
               minHeight: 0,
               background: T.bgPrimary,
-              overflow: 'hidden',
+              overflow: "hidden",
             }}
           >
-            {stepGraph ? (
-              <RunTreeFlow
-                graph={stepGraph}
-                eventLog={log}
-                drillPath={drillPath}
-                onSelect={(n) => handleNodeSelect(n.id)}
-                selectedId={focusedNode?.id}
-                focusIndex={focusStep}
-                onDrillInto={drillInto}
+            {runner ? (
+              // Lens v0.1 single-pipeline renderer. Reads the runner's
+              // build-time UI group via lensGroupTranslator, lays it out
+              // with dagre, mounts xyflow. The legacy DrillableFlowchart
+              // and RunTreeFlow paths were removed — one canonical chart.
+              // See `memory/lens_v0_1_one_cursor_architecture.md`.
+              <LensFlow
+                runner={runner}
+                selectedRuntimeStageId={cursorRuntimeStageId}
               />
             ) : (
               <div style={{ padding: 24, color: T.textMuted, fontSize: 12 }}>
-                No flowchart yet — attach a runner via
-                <code> runner.enable.flowchart()</code> and pass the handle's
-                <code> getSnapshot()</code> output as <code>stepGraph</code>.
+                No runner attached — pass the agentfootprint Runner via
+                <code> &lt;Lens runner=&#123;runner&#125; /&gt;</code> to render
+                the composition graph.
               </div>
             )}
           </div>
@@ -658,12 +832,12 @@ const EngineerView: React.FC<{
               // ~280px in compact layouts (e.g., embedded in a 30%
               // sidebar), causing React Flow to auto-zoom to ~30% and
               // render nodes invisibly small.
-              flex: '0 1 320px',
+              flex: "0 1 320px",
               minWidth: 220,
               maxWidth: 360,
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
+              display: "flex",
+              flexDirection: "column",
+              overflow: "hidden",
               borderLeft: `1px solid ${T.border}`,
             }}
           >
@@ -691,9 +865,9 @@ const EngineerView: React.FC<{
             height: 180,
             flexShrink: 0,
             borderTop: `1px solid ${T.border}`,
-            overflow: 'hidden',
-            display: 'flex',
-            flexDirection: 'column',
+            overflow: "hidden",
+            display: "flex",
+            flexDirection: "column",
             background: T.bgElevated,
           }}
         >
@@ -746,10 +920,11 @@ const Commentary: React.FC<{
   // Scroll the focused line into view whenever the slider position
   // changes. Smooth so the pan reads as deliberate.
   useEffect(() => {
-    if (focusedSeq === undefined || focusedSeq < 0 || !firstFocusRef.current) return;
+    if (focusedSeq === undefined || focusedSeq < 0 || !firstFocusRef.current)
+      return;
     firstFocusRef.current.scrollIntoView({
-      block: 'center',
-      behavior: 'smooth',
+      block: "center",
+      behavior: "smooth",
     });
   }, [focusedSeq]);
 
@@ -764,8 +939,8 @@ const Commentary: React.FC<{
       style={{
         flex: 1,
         minHeight: 0,
-        overflowY: 'auto',
-        padding: '6px 12px',
+        overflowY: "auto",
+        padding: "6px 12px",
         fontSize: 12,
         lineHeight: 1.6,
         fontFamily: T.fontSans,
@@ -774,7 +949,7 @@ const Commentary: React.FC<{
       {(() => {
         if (log.length === 0) {
           return (
-            <div style={{ color: T.textSecondary, fontStyle: 'italic' }}>
+            <div style={{ color: T.textSecondary, fontStyle: "italic" }}>
               No moments yet — run a sample to see commentary.
             </div>
           );
@@ -795,9 +970,13 @@ const Commentary: React.FC<{
         //   • Last step          → full log (run complete view)
         //   • Earlier step       → events with seq ≤ focusedSeq
         //   • focusedSeq missing → full log (safe default)
-        const cutoff = isLastStep || focusedSeq === undefined || focusedSeq < 0
-          ? log.length - 1
-          : Math.max(0, log.findIndex((e) => e.seq === focusedSeq));
+        const cutoff =
+          isLastStep || focusedSeq === undefined || focusedSeq < 0
+            ? log.length - 1
+            : Math.max(
+                0,
+                log.findIndex((e) => e.seq === focusedSeq),
+              );
         const visible = log.slice(0, cutoff + 1);
 
         return (
@@ -805,28 +984,31 @@ const Commentary: React.FC<{
             {visible.map((entry, i) => {
               const line = humanizer(entry.event);
               if (line === null) return null;
-              const focused = focusedSeq !== undefined && entry.seq === focusedSeq;
+              const focused =
+                focusedSeq !== undefined && entry.seq === focusedSeq;
               const isLastFocused = focused && i === cutoff;
               return (
                 <div
                   key={entry.seq}
                   ref={isLastFocused ? firstFocusRef : undefined}
                   style={{
-                    padding: '3px 8px',
+                    padding: "3px 8px",
                     borderBottom: `1px solid ${T.border}`,
-                    background: focused ? `color-mix(in srgb, ${T.warning} 20%, transparent)` : 'transparent',
+                    background: focused
+                      ? `color-mix(in srgb, ${T.warning} 20%, transparent)`
+                      : "transparent",
                     borderLeft: focused
                       ? `3px solid ${T.warning}`
-                      : '3px solid transparent',
+                      : "3px solid transparent",
                     color: focused ? T.textPrimary : T.textSecondary,
                     fontWeight: focused ? 500 : 400,
                     lineHeight: 1.55,
-                    transition: 'background 0.2s ease, color 0.2s ease',
+                    transition: "background 0.2s ease, color 0.2s ease",
                   }}
                 >
                   <span
                     style={{
-                      display: 'inline-block',
+                      display: "inline-block",
                       minWidth: 56,
                       marginRight: 8,
                       fontFamily: T.fontMono,
@@ -843,7 +1025,9 @@ const Commentary: React.FC<{
             {/* Live "thinking / responding" line — pulses while an LLM
                 call is in flight, replaced by the bundled `llm_end`
                 narration once the call closes. */}
-            {liveStreamLine !== null && <LiveStreamLine line={liveStreamLine} />}
+            {liveStreamLine !== null && (
+              <LiveStreamLine line={liveStreamLine} />
+            )}
           </>
         );
       })()}
@@ -856,14 +1040,14 @@ const Commentary: React.FC<{
 const SidePanelHeader: React.FC<{ title: string }> = ({ title }) => (
   <div
     style={{
-      padding: '8px 12px',
+      padding: "8px 12px",
       borderBottom: `1px solid ${T.border}`,
       fontSize: 11,
       fontWeight: 600,
       color: T.textMuted,
-      textTransform: 'uppercase',
-      letterSpacing: '0.08em',
-      flex: 'none',
+      textTransform: "uppercase",
+      letterSpacing: "0.08em",
+      flex: "none",
       background: T.bgElevated,
     }}
   >
@@ -883,19 +1067,26 @@ const SidePanelHeader: React.FC<{ title: string }> = ({ title }) => (
  * Conditional) — those are the wiring, not the cast.
  */
 const AgentList: React.FC<{
-  nodes: readonly import('agentfootprint').StepNode[];
+  nodes: readonly import("agentfootprint").StepNode[];
   selectedId?: string;
   onSelect: (id: string) => void;
 }> = ({ nodes, selectedId, onSelect }) => {
   if (nodes.length === 0) {
     return (
-      <div style={{ padding: 12, fontSize: 11, color: T.textSecondary, fontStyle: 'italic' }}>
+      <div
+        style={{
+          padding: 12,
+          fontSize: 11,
+          color: T.textSecondary,
+          fontStyle: "italic",
+        }}
+      >
         No Agent or LLMCall instances in this run.
       </div>
     );
   }
   return (
-    <div style={{ padding: 4, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ padding: 4, display: "flex", flexDirection: "column" }}>
       {nodes.map((n) => (
         <AgentListRow
           key={n.id}
@@ -909,56 +1100,64 @@ const AgentList: React.FC<{
 };
 
 const AgentListRow: React.FC<{
-  node: import('agentfootprint').StepNode;
+  node: import("agentfootprint").StepNode;
   selected: boolean;
   onClick: () => void;
 }> = ({ node, selected, onClick }) => {
   // Per-primitive icon — same affordance language as the AgentGroupNode
   // header in the run-flow graph (consistent across the UI).
   const icon =
-    node.primitiveKind === 'Agent'
-      ? '🤖'
-      : node.primitiveKind === 'LLMCall'
-        ? '📡'
-        : '⚙️';
+    node.primitiveKind === "Agent"
+      ? "🤖"
+      : node.primitiveKind === "LLMCall"
+        ? "📡"
+        : "⚙️";
   const subtitle =
-    node.primitiveKind === 'Agent'
-      ? 'ReAct'
-      : node.primitiveKind === 'LLMCall'
-        ? 'one-shot'
-        : node.primitiveKind ?? 'runner';
+    node.primitiveKind === "Agent"
+      ? "ReAct"
+      : node.primitiveKind === "LLMCall"
+        ? "one-shot"
+        : (node.primitiveKind ?? "runner");
   return (
     <button
       onClick={onClick}
       style={{
-        display: 'flex',
-        alignItems: 'center',
+        display: "flex",
+        alignItems: "center",
         gap: 8,
-        padding: '6px 10px',
-        margin: '1px 0',
-        border: 'none',
+        padding: "6px 10px",
+        margin: "1px 0",
+        border: "none",
         borderRadius: 4,
-        background: selected ? `color-mix(in srgb, ${T.warning} 20%, transparent)` : 'transparent',
+        background: selected
+          ? `color-mix(in srgb, ${T.warning} 20%, transparent)`
+          : "transparent",
         color: T.textPrimary,
-        cursor: 'pointer',
-        textAlign: 'left',
-        fontFamily: 'inherit',
+        cursor: "pointer",
+        textAlign: "left",
+        fontFamily: "inherit",
         fontSize: 11,
-        width: '100%',
+        width: "100%",
       }}
     >
       <span aria-hidden style={{ fontSize: 14 }}>
         {icon}
       </span>
-      <span style={{ display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <span style={{ fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+      <span style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <span
+          style={{
+            fontWeight: 600,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+          }}
+        >
           {node.label}
         </span>
         <span
           style={{
             fontSize: 9,
             color: T.textSecondary,
-            textTransform: 'uppercase',
+            textTransform: "uppercase",
             letterSpacing: 0.4,
           }}
         >
@@ -989,33 +1188,35 @@ const HLinePill = memo(function HLinePill({
   onClick: () => void;
 }) {
   return (
-    <div style={{ display: 'flex', alignItems: 'center', flex: 'none' }}>
+    <div style={{ display: "flex", alignItems: "center", flex: "none" }}>
       <div style={{ flex: 1, height: 1, background: T.border }} />
       <button
         onClick={onClick}
         style={{
-          display: 'flex',
-          alignItems: 'center',
+          display: "flex",
+          alignItems: "center",
           gap: 5,
-          padding: '3px 12px',
-          margin: '4px 0',
+          padding: "3px 12px",
+          margin: "4px 0",
           fontSize: 10,
           fontWeight: 600,
-          fontFamily: 'inherit',
+          fontFamily: "inherit",
           color: T.textMuted,
           background: T.bgElevated,
           border: `1px solid ${T.border}`,
           borderRadius: 10,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          letterSpacing: '0.04em',
-          textTransform: 'uppercase',
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
         }}
       >
-        <span style={{ fontSize: 7 }}>{expanded ? '▼' : '▶'}</span>
+        <span style={{ fontSize: 7 }}>{expanded ? "▼" : "▶"}</span>
         {label}
         {detail && (
-          <span style={{ fontWeight: 400, opacity: 0.5, fontSize: 9 }}>{detail}</span>
+          <span style={{ fontWeight: 400, opacity: 0.5, fontSize: 9 }}>
+            {detail}
+          </span>
         )}
       </button>
       <div style={{ flex: 1, height: 1, background: T.border }} />
@@ -1026,51 +1227,54 @@ const HLinePill = memo(function HLinePill({
 const VLinePill = memo(function VLinePill({
   label,
   expanded,
-  side = 'right',
+  side = "right",
   onClick,
 }: {
   label: string;
   expanded: boolean;
-  side?: 'left' | 'right';
+  side?: "left" | "right";
   onClick: () => void;
 }) {
   // Arrow direction: when on the RIGHT edge of the center, expanded
   // points right (▶, "you can collapse me right") and collapsed points
   // left (◀, "expand me leftward back into view").
-  const arrow = side === 'right' ? (expanded ? '▶' : '◀') : (expanded ? '◀' : '▶');
+  const arrow =
+    side === "right" ? (expanded ? "▶" : "◀") : expanded ? "◀" : "▶";
   return (
     <div
       style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        flex: 'none',
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        flex: "none",
       }}
     >
       <div style={{ flex: 1, width: 1, background: T.border }} />
       <button
         onClick={onClick}
         style={{
-          display: 'flex',
-          alignItems: 'center',
+          display: "flex",
+          alignItems: "center",
           gap: 4,
-          padding: '10px 4px',
-          margin: '0 3px',
+          padding: "10px 4px",
+          margin: "0 3px",
           fontSize: 10,
           fontWeight: 600,
-          fontFamily: 'inherit',
+          fontFamily: "inherit",
           color: T.textMuted,
           background: T.bgElevated,
           border: `1px solid ${T.border}`,
           borderRadius: 10,
-          cursor: 'pointer',
-          whiteSpace: 'nowrap',
-          letterSpacing: '0.04em',
-          textTransform: 'uppercase',
-          writingMode: 'vertical-lr',
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+          letterSpacing: "0.04em",
+          textTransform: "uppercase",
+          writingMode: "vertical-lr",
         }}
       >
-        <span style={{ fontSize: 7, writingMode: 'horizontal-tb' as const }}>{arrow}</span>
+        <span style={{ fontSize: 7, writingMode: "horizontal-tb" as const }}>
+          {arrow}
+        </span>
         {label}
       </button>
       <div style={{ flex: 1, width: 1, background: T.border }} />
@@ -1089,10 +1293,10 @@ const Breadcrumb: React.FC<{
 }> = ({ path, onJumpTo }) => (
   <div
     style={{
-      display: 'flex',
-      alignItems: 'center',
+      display: "flex",
+      alignItems: "center",
       gap: 6,
-      padding: '6px 10px',
+      padding: "6px 10px",
       fontSize: 12,
       color: T.textMuted,
       fontFamily: T.fontSans,
@@ -1109,11 +1313,11 @@ const Breadcrumb: React.FC<{
       // Skip the synthetic `__root__` segment — it's already
       // represented by the "Run" button. Drill paths from the new
       // subflowPath-aware drill carry it as the first segment.
-      if (segment === '__root__') return null;
+      if (segment === "__root__") return null;
       // Strip Sequence's `step-` prefix so labels read "classify"
       // instead of "step-classify". Matches the agentName humanizer
       // convention from agentfootprint v2.14.4.
-      const label = segment.replace(/^step-/, '');
+      const label = segment.replace(/^step-/, "");
       return (
         <React.Fragment key={i}>
           <span style={{ opacity: 0.5 }}>/</span>
@@ -1131,14 +1335,14 @@ const Breadcrumb: React.FC<{
 
 function crumbButtonStyle(current = false): React.CSSProperties {
   return {
-    background: current ? T.warning : 'transparent',
-    color: current ? '#fff' : T.textSecondary,
+    background: current ? T.warning : "transparent",
+    color: current ? "#fff" : T.textSecondary,
     border: `1px solid ${current ? T.warning : T.border}`,
     borderRadius: 999,
-    padding: '2px 8px',
+    padding: "2px 8px",
     fontSize: 11,
     fontWeight: 600,
-    cursor: 'pointer',
+    cursor: "pointer",
     lineHeight: 1.4,
   };
 }
@@ -1146,7 +1350,7 @@ function crumbButtonStyle(current = false): React.CSSProperties {
 // ─── Analyst view ────────────────────────────────────────────
 
 const AnalystView: React.FC<{
-  summary: ReturnType<LensRecorder['selectSummary']>;
+  summary: ReturnType<LensRecorder["selectSummary"]>;
   log: readonly EventLogEntry[];
   humanizer: Humanizer;
   total: number;
@@ -1154,9 +1358,18 @@ const AnalystView: React.FC<{
   onFocusChange: (seq: number) => void;
   isLive: boolean;
   liveStreamLine: string | null;
-}> = ({ summary, log, humanizer, total, focusSeq, onFocusChange, isLive, liveStreamLine }) => {
+}> = ({
+  summary,
+  log,
+  humanizer,
+  total,
+  focusSeq,
+  onFocusChange,
+  isLive,
+  liveStreamLine,
+}) => {
   return (
-    <div style={{ display: 'grid', gap: 16 }}>
+    <div style={{ display: "grid", gap: 16 }}>
       <SummaryCard summary={summary} />
       <TimeTravel
         total={total}
@@ -1170,15 +1383,21 @@ const AnalystView: React.FC<{
             const line = humanizer(entry.event);
             if (line === null) return null;
             return (
-              <div key={entry.seq} style={{ padding: '4px 0', borderBottom: `1px solid ${T.border}` }}>
-                <span style={{ opacity: 0.5, marginRight: 8 }}>+{Math.round(entry.runOffsetMs)}ms</span>
+              <div
+                key={entry.seq}
+                style={{
+                  padding: "4px 0",
+                  borderBottom: `1px solid ${T.border}`,
+                }}
+              >
+                <span style={{ opacity: 0.5, marginRight: 8 }}>
+                  +{Math.round(entry.runOffsetMs)}ms
+                </span>
                 {line}
               </div>
             );
           })}
-          {liveStreamLine !== null && (
-            <LiveStreamLine line={liveStreamLine} />
-          )}
+          {liveStreamLine !== null && <LiveStreamLine line={liveStreamLine} />}
         </div>
       </Card>
     </div>
@@ -1202,7 +1421,7 @@ const AnalystView: React.FC<{
  */
 const CopyForLLMButton: React.FC<{
   recorder: LensRecorder;
-  stepGraph?: import('agentfootprint').StepGraph;
+  stepGraph?: import("agentfootprint").StepGraph;
   humanizer: Humanizer;
   appName: string;
   /** Optional snapshot of view state at copy time (slider position,
@@ -1210,11 +1429,11 @@ const CopyForLLMButton: React.FC<{
    *  copied paste includes a Current View State section — invaluable
    *  for diagnosing slider-sync / focus / drill bugs from the paste
    *  alone. */
-  viewState?: import('../core/copyForLLM.js').ViewStateSnapshot;
+  viewState?: import("../core/copyForLLM.js").ViewStateSnapshot;
 }> = ({ recorder, stepGraph, humanizer, appName, viewState }) => {
   const [copied, setCopied] = useState(false);
   const handleCopy = async (): Promise<void> => {
-    const { buildLLMText } = await import('../core/copyForLLM.js');
+    const { buildLLMText } = await import("../core/copyForLLM.js");
     const text = buildLLMText({
       recorder,
       ...(stepGraph ? { stepGraph } : {}),
@@ -1229,14 +1448,14 @@ const CopyForLLMButton: React.FC<{
     } catch {
       // Clipboard API may be unavailable (insecure context, sandbox,
       // older browser). Fall back to a textarea trick: select + copy.
-      const ta = document.createElement('textarea');
+      const ta = document.createElement("textarea");
       ta.value = text;
-      ta.style.position = 'fixed';
-      ta.style.left = '-9999px';
+      ta.style.position = "fixed";
+      ta.style.left = "-9999px";
       document.body.appendChild(ta);
       ta.select();
       try {
-        document.execCommand('copy');
+        document.execCommand("copy");
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
       } finally {
@@ -1249,24 +1468,24 @@ const CopyForLLMButton: React.FC<{
       onClick={handleCopy}
       title="Copy run as LLM-ready text — paste into Claude/ChatGPT to debug"
       style={{
-        display: 'inline-flex',
-        alignItems: 'center',
+        display: "inline-flex",
+        alignItems: "center",
         gap: 6,
-        padding: '6px 12px',
+        padding: "6px 12px",
         marginRight: 8,
         fontSize: 11,
         fontWeight: 600,
-        fontFamily: 'inherit',
-        color: copied ? '#fff' : T.textPrimary,
+        fontFamily: "inherit",
+        color: copied ? "#fff" : T.textPrimary,
         background: copied ? T.warning : T.bgElevated,
         border: `1px solid ${copied ? T.warning : T.border}`,
         borderRadius: 6,
-        cursor: 'pointer',
-        whiteSpace: 'nowrap',
-        transition: 'background 0.15s, color 0.15s, border-color 0.15s',
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        transition: "background 0.15s, color 0.15s, border-color 0.15s",
       }}
     >
-      {copied ? '✓ Copied!' : '📋 Copy for LLM'}
+      {copied ? "✓ Copied!" : "📋 Copy for LLM"}
     </button>
   );
 };
@@ -1274,13 +1493,13 @@ const CopyForLLMButton: React.FC<{
 const LiveStreamLine: React.FC<{ line: string }> = ({ line }) => (
   <div
     style={{
-      padding: '4px 8px',
+      padding: "4px 8px",
       marginTop: 4,
       borderRadius: 4,
       background: `color-mix(in srgb, ${T.warning} 12%, transparent)`,
       borderLeft: `3px solid ${T.warning}`,
       color: T.warning,
-      fontStyle: 'italic',
+      fontStyle: "italic",
     }}
   >
     {line}
@@ -1288,7 +1507,7 @@ const LiveStreamLine: React.FC<{ line: string }> = ({ line }) => (
       style={{
         marginLeft: 4,
         opacity: 0.7,
-        animation: 'lens-blink 1s steps(2, start) infinite',
+        animation: "lens-blink 1s steps(2, start) infinite",
       }}
     >
       ▍
@@ -1300,7 +1519,7 @@ const LiveStreamLine: React.FC<{ line: string }> = ({ line }) => (
 
 const UserView: React.FC<{
   tree: RunTreeNode;
-  summary: ReturnType<LensRecorder['selectSummary']>;
+  summary: ReturnType<LensRecorder["selectSummary"]>;
 }> = ({ tree, summary }) => {
   // Find the last LLM-call leaf's content — the agent's final response
   // from a user-facing angle.
@@ -1310,12 +1529,20 @@ const UserView: React.FC<{
       style={{
         padding: 16,
         fontFamily: T.fontSans,
-        display: 'grid',
+        display: "grid",
         gap: 12,
       }}
     >
-      <div style={{ fontSize: 11, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
-        {summary.status} · {summary.iterationCount} iterations · {summary.toolCallCount} tool calls
+      <div
+        style={{
+          fontSize: 11,
+          color: T.textMuted,
+          textTransform: "uppercase",
+          letterSpacing: 0.4,
+        }}
+      >
+        {summary.status} · {summary.iterationCount} iterations ·{" "}
+        {summary.toolCallCount} tool calls
       </div>
       <div
         style={{
@@ -1327,7 +1554,7 @@ const UserView: React.FC<{
           border: `1px solid ${T.border}`,
         }}
       >
-        {finalContent ?? 'Run in progress…'}
+        {finalContent ?? "Run in progress…"}
       </div>
     </div>
   );
@@ -1337,7 +1564,7 @@ const UserView: React.FC<{
 function extractFinalContent(node: RunTreeNode): string | undefined {
   let last: string | undefined;
   const walk = (n: RunTreeNode): void => {
-    if (n.kind === 'llm-call' && n.details?.kind === 'llm-call') {
+    if (n.kind === "llm-call" && n.details?.kind === "llm-call") {
       last = n.details.llm.content;
     }
     for (const c of n.children) walk(c);
@@ -1348,7 +1575,10 @@ function extractFinalContent(node: RunTreeNode): string | undefined {
 
 // ─── Shared card shell ────────────────────────────────────────
 
-const Card: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
+const Card: React.FC<{ title: string; children: React.ReactNode }> = ({
+  title,
+  children,
+}) => (
   <div
     style={{
       border: `1px solid ${T.border}`,
@@ -1358,12 +1588,12 @@ const Card: React.FC<{ title: string; children: React.ReactNode }> = ({ title, c
   >
     <div
       style={{
-        padding: '8px 12px',
+        padding: "8px 12px",
         borderBottom: `1px solid ${T.border}`,
         fontSize: 12,
         fontWeight: 500,
         color: T.textSecondary,
-        textTransform: 'uppercase',
+        textTransform: "uppercase",
         letterSpacing: 0.4,
       }}
     >
