@@ -191,7 +191,7 @@ Set `--lens-*` on a parent of `<Lens>` only:
 }
 ```
 
-See `src/v2/react/theme/tokens.ts` for the full token list (surfaces / text / border / accent / 4 edge kinds / 7 injection-source chips / typography).
+See `src/react/theme/tokens.ts` for the full token list (surfaces / text / border / accent / 4 edge kinds / 7 injection-source chips / typography).
 
 ### Programmatic override (legacy `theme=` prop)
 

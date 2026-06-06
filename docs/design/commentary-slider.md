@@ -207,8 +207,8 @@ Internal: a single React Flow / div layout component reads `useCommentarySlider(
 ## 9. Implementation milestones
 
 1. Add `boundary` field to LensRecorder + wire in `observe()` (+ helpers for live commit count).
-2. Add selectors `selectCommentaryAt` / `selectCommentaryRanges` in `src/v2/core/selectors/`.
-3. Add `useCommentarySlider` hook in `src/v2/react/hooks/`.
+2. Add selectors `selectCommentaryAt` / `selectCommentaryRanges` in `src/core/selectors/`.
+3. Add `useCommentarySlider` hook in `src/react/hooks/`.
 4. Add `slider="commentary"` prop to `<Lens>`. Wire slider rendering.
 5. 7-pattern tests for selectors + hook.
 6. 7-panel review.

@@ -529,7 +529,7 @@ export const DrillableFlowchart: React.FC<DrillableFlowchartProps>;
 
 ### `<Lens layout="drill-down">` wiring
 ```tsx
-// In src/v2/react/Lens.tsx — extend LensProps.layout with 'drill-down'.
+// In src/react/Lens.tsx — extend LensProps.layout with 'drill-down'.
 // When layout === 'drill-down', render <DrillableFlowchart> + <AgentLegendStrip>
 // + <CompareBranchesPanel> (when current view is a parallel fork) + side panel.
 

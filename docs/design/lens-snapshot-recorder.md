@@ -4,7 +4,7 @@ Last revised: Phase 4 of v5 migration (footprintjs 5.0 / agentfootprint 3.0 / le
 
 This document is the canonical reference for how Lens consumes structure
 from footprintjs and payload from agentfootprint. Read it before
-modifying anything in `src/v2/core/LensSnapshotRecorder.ts` or its
+modifying anything in `src/core/LensSnapshotRecorder.ts` or its
 selectors.
 
 ---

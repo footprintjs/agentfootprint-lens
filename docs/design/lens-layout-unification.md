@@ -72,7 +72,7 @@ For `Sequence`, the algorithm chains them via `next` pointers → `specToLayout`
 ## 4. Component restructure
 
 ```
-src/v2/react/
+src/react/
 ├── RunTreeFlow.tsx           ← REPLACED with thin wrapper
 └── nodes/
     └── (legacy custom nodes — kept for migration / removal in v1.2)
@@ -80,7 +80,7 @@ src/v2/react/
 
 The new `RunTreeFlow` is a ~50-line wrapper that:
 1. Reads `lens.boundary` via `useLensRecorder(lens)` for change subscription.
-2. Calls a new `buildSpecTreeFromBoundary(lens.boundary)` helper (pure, in `src/v2/core/`).
+2. Calls a new `buildSpecTreeFromBoundary(lens.boundary)` helper (pure, in `src/core/`).
 3. Calls `specToLayout(tree)` from explainable-ui.
 4. Renders via `<FlowchartView nodes={positioned.nodes} edges={positioned.edges} />`.
 
@@ -91,7 +91,7 @@ Drill-in / drill-out / commentary chips are layered ON TOP of FlowchartView as R
 ## 5. Public API additions
 
 ```ts
-// src/v2/core/buildSpecTreeFromBoundary.ts (NEW)
+// src/core/buildSpecTreeFromBoundary.ts (NEW)
 export function buildSpecTreeFromBoundary(
   boundary: BoundaryRecorder,
 ): SpecNode;
@@ -101,7 +101,7 @@ export function buildSpecTreeFromBoundary(
 ```
 
 ```ts
-// src/v2/react/RunTreeFlow.tsx (REPLACED)
+// src/react/RunTreeFlow.tsx (REPLACED)
 export interface RunTreeFlowProps {
   recorder: LensRecorder;
   // ... existing props for drill state, focus, etc.
@@ -117,7 +117,7 @@ No new top-level Lens props. Consumer-facing `<Lens>` API unchanged.
 
 After Layer 4 ships AND playground confirms correctness:
 
-- `src/v2/react/nodes/CustomNode.tsx` (or equivalent custom React Flow node) — replaced by explainable-ui's `StageNode`
+- `src/react/nodes/CustomNode.tsx` (or equivalent custom React Flow node) — replaced by explainable-ui's `StageNode`
 - Custom layout calculations inside the old `RunTreeFlow.tsx` (x/y math, fork detection, etc.)
 - Any utility that exists ONLY to feed the old layout
 

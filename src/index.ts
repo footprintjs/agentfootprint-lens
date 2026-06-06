@@ -25,9 +25,6 @@
  *   import { LensRecorder, ChangeNotifier } from 'agentfootprint-lens/core';
  *   // build your own Vue composable around the same primitives.
  *   // See ChangeNotifier JSDoc for an adapter snippet.
- *
- * Lens v1 has been removed — it lives at git history only. All
- * consumers migrate to the recorder/observe pattern.
  */
-export * from './v2/core/index.js';
-export * from './v2/react/index.js';
+export * from './core/index.js';
+export * from './react/index.js';

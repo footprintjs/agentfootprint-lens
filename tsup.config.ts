@@ -1,7 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  // Single entry point — Lens v2 is the only surface. Two exports:
+  // Two exports:
   //
   //   "agentfootprint-lens"         → ./dist/index.{js,cjs}    (React + core)
   //   "agentfootprint-lens/core"    → ./dist/core.{js,cjs}     (headless)
@@ -11,7 +11,7 @@ export default defineConfig({
   // LensRecorder and types.
   entry: {
     index: "src/index.ts",
-    core: "src/v2/core/index.ts",
+    core: "src/core/index.ts",
   },
   format: ["esm", "cjs"],
   dts: true,
@@ -19,7 +19,16 @@ export default defineConfig({
   // Peer deps must NOT be bundled — consumers provide them. This also
   // ensures FootprintTheme context (if reintroduced) is the same module
   // instance in both packages so theme tokens propagate transparently.
-  external: ["react", "react-dom", "footprint-explainable-ui", "@xyflow/react"],
+  // `footprintjs` (+ subpaths /trace, /advanced) is a peerDependency too —
+  // it MUST be external, else a stale copy of e.g. `walkSubflowSpec` gets
+  // baked into the lens bundle and ignores the consumer's footprintjs version.
+  external: [
+    "react",
+    "react-dom",
+    "footprint-explainable-ui",
+    "@xyflow/react",
+    /^footprintjs(\/|$)/,
+  ],
   esbuildOptions(options) {
     options.jsx = "automatic";
   },
