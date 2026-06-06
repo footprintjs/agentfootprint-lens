@@ -29,7 +29,7 @@
  * the result to navigator.clipboard.writeText().
  */
 
-import type { StepGraph, StepNode, BoundaryAggregate } from "agentfootprint";
+import type { StepGraph, StepNode, BoundaryAggregate } from "agentfootprint/observe";
 import type { LensRecorder } from "./LensRecorder.js";
 import type { Humanizer } from "./humanizer.js";
 import { selectAgentInstances } from "./selectors/selectAgentInstances.js";

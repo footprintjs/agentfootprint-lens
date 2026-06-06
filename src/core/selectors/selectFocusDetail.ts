@@ -9,7 +9,7 @@
  *          detail view in other frameworks). Pure — framework-agnostic.
  */
 
-import type { StepNode } from 'agentfootprint';
+import type { StepNode } from 'agentfootprint/observe';
 import type { EventLogEntry } from '../types.js';
 import type { FocusDetail } from './types.js';
 

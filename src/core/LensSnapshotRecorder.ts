@@ -24,7 +24,7 @@ import type {
   FlowSubflowEvent,
   TraversalContext,
 } from 'footprintjs';
-import type { StepGraph, StepNode, StepEdge } from 'agentfootprint';
+import type { StepGraph, StepNode, StepEdge } from 'agentfootprint/observe';
 import type {
   AgentfootprintEvent,
   AgentfootprintEventType,

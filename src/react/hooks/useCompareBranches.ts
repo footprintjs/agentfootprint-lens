@@ -40,7 +40,7 @@
 
 import { useMemo } from 'react';
 import type { SpecNode } from '../../core/buildSpecTreeFromBoundary.js';
-import type { StepGraph, StepNode } from 'agentfootprint';
+import type { StepGraph, StepNode } from 'agentfootprint/observe';
 import { parseRoleFromDescription } from '../../core/utils/parseRoleFromDescription.js';
 
 export interface BranchColumn {

@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { CommitRangeIndex } from 'footprintjs/trace';
-import type { BoundaryRangeLabel } from 'agentfootprint';
+import type { BoundaryRangeLabel } from 'agentfootprint/observe';
 import { findInflightBranches } from './findInflightBranches.js';
 
 function subflowLabel(

@@ -16,7 +16,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { ContextInjection } from 'agentfootprint';
+import type { ContextInjection } from 'agentfootprint/observe';
 import {
   BASELINE_SOURCES,
   isContextEngineering,

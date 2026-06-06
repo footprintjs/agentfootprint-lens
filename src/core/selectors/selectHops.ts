@@ -33,7 +33,7 @@
  * unit of traversal; drilled in, the ReAct steps inside one agent are.
  */
 
-import type { StepGraph, StepNode } from 'agentfootprint';
+import type { StepGraph, StepNode } from 'agentfootprint/observe';
 import type { ActorId, AgentInstance } from './types.js';
 
 /**

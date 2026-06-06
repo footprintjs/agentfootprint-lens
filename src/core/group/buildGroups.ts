@@ -30,7 +30,7 @@
  */
 
 import type { CommitRangeIndex } from 'footprintjs/trace';
-import type { BoundaryRangeLabel } from 'agentfootprint';
+import type { BoundaryRangeLabel } from 'agentfootprint/observe';
 import type { Group } from './Group.js';
 
 /** Exact equality of two subflow-path arrays (the chart-nesting chain). */

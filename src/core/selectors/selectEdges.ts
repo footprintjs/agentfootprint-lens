@@ -8,7 +8,7 @@
  *          visual clutter. Matches v1's `StageFlow.edges` aggregation.
  */
 
-import type { StepNode } from 'agentfootprint';
+import type { StepNode } from 'agentfootprint/observe';
 import type { AgentInstance, EdgeAgg } from './types.js';
 
 /**

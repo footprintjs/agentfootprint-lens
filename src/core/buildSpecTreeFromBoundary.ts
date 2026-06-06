@@ -16,7 +16,7 @@
  * See `docs/design/lens-layout-unification.md` for the full contract.
  */
 
-import type { BoundaryRecorder, BoundaryRangeLabel } from 'agentfootprint';
+import type { BoundaryRecorder, BoundaryRangeLabel } from 'agentfootprint/observe';
 
 /**
  * SpecNode — Lens-local subflow tree shape.

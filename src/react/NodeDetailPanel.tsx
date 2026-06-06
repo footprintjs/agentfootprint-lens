@@ -20,7 +20,7 @@
  */
 
 import React from 'react';
-import type { StepNode } from 'agentfootprint';
+import type { StepNode } from 'agentfootprint/observe';
 import { T } from './theme/index.js';
 
 export interface NodeDetailPanelProps {

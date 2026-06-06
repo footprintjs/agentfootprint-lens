@@ -36,7 +36,7 @@
 
 import type { Node, Edge } from '@xyflow/react';
 import type { SpecNode } from '../buildSpecTreeFromBoundary.js';
-import type { StepGraph } from 'agentfootprint';
+import type { StepGraph } from 'agentfootprint/observe';
 import type { RetryCluster, RetryAttempt } from '../utils/groupRetryAttempts.js';
 
 /** Synthetic-sibling node data. The index signature satisfies xyflow's

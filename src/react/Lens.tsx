@@ -93,7 +93,7 @@ export interface LensProps {
    * fixes multi-branch Parallel rendering. The prop remains for
    * backward compat with consumers wiring their own FlowchartRecorder.
    */
-  readonly stepGraph?: import("agentfootprint").StepGraph;
+  readonly stepGraph?: import("agentfootprint/observe").StepGraph;
   /**
    * Consumer-driven chart override (engineer view). When provided, the chart
    * renders THIS footprintjs-derived graph with THIS explain-ui layout +
@@ -456,7 +456,7 @@ const EngineerView: React.FC<{
   runner?: LensRunnerLike;
   /** Consumer-driven chart override — forwarded to LensFlow. */
   chart?: LensFlowProps["chart"];
-  stepGraph?: import("agentfootprint").StepGraph;
+  stepGraph?: import("agentfootprint/observe").StepGraph;
   summary: ReturnType<LensRecorder["selectSummary"]>;
   log: readonly EventLogEntry[];
   humanizer: Humanizer;
@@ -585,7 +585,7 @@ const EngineerView: React.FC<{
     if (!stepGraph || stepGraph.nodes.length === 0 || !cursorRuntimeStageId) {
       return {
         cursorFocusedNode: undefined,
-        cursorRelatedNodes: [] as readonly import('agentfootprint').StepNode[],
+        cursorRelatedNodes: [] as readonly import('agentfootprint/observe').StepNode[],
       };
     }
     // Run · start and Run · end share the same cursorRuntimeStageId
@@ -597,7 +597,7 @@ const EngineerView: React.FC<{
     if (base === '__root__' && cursorKind === 'group-start') {
       return {
         cursorFocusedNode: undefined,
-        cursorRelatedNodes: [] as readonly import('agentfootprint').StepNode[],
+        cursorRelatedNodes: [] as readonly import('agentfootprint/observe').StepNode[],
       };
     }
     const exact = stepGraph.nodes.find(
@@ -1407,7 +1407,7 @@ const SidePanelHeader: React.FC<{ title: string }> = ({ title }) => (
  * Conditional) — those are the wiring, not the cast.
  */
 const AgentList: React.FC<{
-  nodes: readonly import("agentfootprint").StepNode[];
+  nodes: readonly import("agentfootprint/observe").StepNode[];
   selectedId?: string;
   onSelect: (id: string) => void;
 }> = ({ nodes, selectedId, onSelect }) => {
@@ -1440,7 +1440,7 @@ const AgentList: React.FC<{
 };
 
 const AgentListRow: React.FC<{
-  node: import("agentfootprint").StepNode;
+  node: import("agentfootprint/observe").StepNode;
   selected: boolean;
   onClick: () => void;
 }> = ({ node, selected, onClick }) => {
@@ -1761,7 +1761,7 @@ const AnalystView: React.FC<{
  */
 const CopyForLLMButton: React.FC<{
   recorder: LensRecorder;
-  stepGraph?: import("agentfootprint").StepGraph;
+  stepGraph?: import("agentfootprint/observe").StepGraph;
   humanizer: Humanizer;
   appName: string;
   /** Optional snapshot of view state at copy time (slider position,

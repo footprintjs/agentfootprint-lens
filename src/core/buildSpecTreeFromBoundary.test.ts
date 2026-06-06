@@ -16,7 +16,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { boundaryRecorder, LLMCall, Parallel, MockProvider } from 'agentfootprint';
+import { LLMCall, Parallel, MockProvider } from 'agentfootprint';
+import { boundaryRecorder } from 'agentfootprint/observe';
 import { buildSpecTreeFromBoundary, type SpecNode } from './buildSpecTreeFromBoundary.js';
 import type { TraversalContext, FlowSubflowEvent } from 'footprintjs';
 

@@ -4,7 +4,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { LensRecorder } from '../LensRecorder.js';
-import type { BoundaryRangeLabel } from 'agentfootprint';
+import type { BoundaryRangeLabel } from 'agentfootprint/observe';
 import { buildCommitSyncMap } from './buildCommitSyncMap.js';
 
 /** Build a LensRecorder with synthetic commitLog + boundary ranges.

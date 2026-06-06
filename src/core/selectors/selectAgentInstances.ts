@@ -17,7 +17,7 @@
  * distinction (cost / iteration attribution).
  */
 
-import type { StepGraph } from 'agentfootprint';
+import type { StepGraph } from 'agentfootprint/observe';
 import type { AgentInstance } from './types.js';
 
 /**

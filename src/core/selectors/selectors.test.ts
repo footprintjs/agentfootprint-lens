@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import type { StepGraph, StepNode } from "agentfootprint";
+import type { StepGraph, StepNode } from "agentfootprint/observe";
 import {
   selectAgentInstances,
   selectEdges,

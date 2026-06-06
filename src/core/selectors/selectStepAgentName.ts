@@ -12,7 +12,7 @@
  * synthetic nodes, the User actor, etc.).
  */
 
-import type { StepNode } from "agentfootprint";
+import type { StepNode } from "agentfootprint/observe";
 import type { AgentInstance } from "./types.js";
 
 /**

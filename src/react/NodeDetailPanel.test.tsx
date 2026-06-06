@@ -19,7 +19,7 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import type { StepNode } from 'agentfootprint';
+import type { StepNode } from 'agentfootprint/observe';
 import { NodeDetailPanel } from './NodeDetailPanel.js';
 
 // ── Helpers ─────────────────────────────────────────────────────────────

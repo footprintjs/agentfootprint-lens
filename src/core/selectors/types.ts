@@ -7,7 +7,7 @@
  * render them. No framework-specific fields leak here.
  */
 
-import type { StepGraph, StepNode } from 'agentfootprint';
+import type { StepGraph, StepNode } from 'agentfootprint/observe';
 import type { Hop } from './selectHops.js';
 
 // ─── Actor identity ─────────────────────────────────────────────────

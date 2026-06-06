@@ -8,7 +8,7 @@
  *          used in `StageFlow.tsx`.
  */
 
-import type { StepNode } from 'agentfootprint';
+import type { StepNode } from 'agentfootprint/observe';
 import type { ActorId } from './types.js';
 
 /**

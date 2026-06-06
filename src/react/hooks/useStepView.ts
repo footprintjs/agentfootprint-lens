@@ -20,7 +20,7 @@
  */
 
 import { useMemo } from 'react';
-import type { StepGraph } from 'agentfootprint';
+import type { StepGraph } from 'agentfootprint/observe';
 import { selectStepView, type StepView } from '../../core/selectors/index.js';
 import type { EventLogEntry } from '../../core/types.js';
 

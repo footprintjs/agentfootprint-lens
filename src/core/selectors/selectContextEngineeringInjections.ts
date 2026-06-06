@@ -25,7 +25,7 @@
  *     here keeps them in sync.
  */
 
-import type { ContextInjection } from 'agentfootprint';
+import type { ContextInjection } from 'agentfootprint/observe';
 
 /**
  * Sources that represent baseline LLM-API flow — NOT context engineering:

@@ -18,7 +18,7 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import type { StepGraph, StepNode } from 'agentfootprint';
+import type { StepGraph, StepNode } from 'agentfootprint/observe';
 import { useStepFocus } from './useStepFocus.js';
 import { useDrillPath } from './useDrillPath.js';
 import { useStepView } from './useStepView.js';

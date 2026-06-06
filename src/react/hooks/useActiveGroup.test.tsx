@@ -7,7 +7,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { LensRecorder } from '../../core/LensRecorder.js';
-import type { BoundaryRangeLabel } from 'agentfootprint';
+import type { BoundaryRangeLabel } from 'agentfootprint/observe';
 import { useActiveGroup } from './useActiveGroup.js';
 
 const sync = (fn: () => void): void => fn();

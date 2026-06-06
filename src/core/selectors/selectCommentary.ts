@@ -11,7 +11,7 @@
  * See `docs/design/commentary-slider.md` for the contract.
  */
 
-import type { BoundaryRecorder, BoundaryRangeLabel } from 'agentfootprint';
+import type { BoundaryRecorder, BoundaryRangeLabel } from 'agentfootprint/observe';
 
 // Re-export the label type so consumers of this selector get the
 // same shape without reaching into agentfootprint directly.

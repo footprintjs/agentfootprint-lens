@@ -12,7 +12,7 @@
  * `useMemo` or equivalent handles per-render stability).
  */
 
-import type { StepGraph, StepNode } from 'agentfootprint';
+import type { StepGraph, StepNode } from 'agentfootprint/observe';
 import type { EventLogEntry } from '../types.js';
 import type { BreadcrumbItem, StepView } from './types.js';
 import { selectAgentInstances } from './selectAgentInstances.js';

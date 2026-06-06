@@ -45,15 +45,8 @@
  */
 
 import { SequenceStore } from 'footprintjs/trace';
-import {
-  LiveStateRecorder,
-  BoundaryRecorder,
-  type AgentfootprintEvent,
-  type FlowchartHandle,
-  type Runner,
-  type StepGraph,
-  type Unsubscribe,
-} from 'agentfootprint';
+import { type AgentfootprintEvent, type FlowchartHandle, type Runner, type Unsubscribe } from 'agentfootprint';
+import { LiveStateRecorder, BoundaryRecorder, type StepGraph } from 'agentfootprint/observe';
 import {
   createTraceRuntimeOverlay,
   type TraceRuntimeOverlayHandle,

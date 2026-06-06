@@ -40,7 +40,7 @@
  *   3. Recurse into `next` chain.
  */
 
-import type { StepGraph, StepNode, StepEdge } from 'agentfootprint';
+import type { StepGraph, StepNode, StepEdge } from 'agentfootprint/observe';
 
 /** Footprintjs StageSnapshot — the runtime tree node shape. We only
  *  read fields the snapshot reliably populates; `unknown` for the rest.

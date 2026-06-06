@@ -37,7 +37,7 @@
  */
 
 import type { CommitRangeIndex } from 'footprintjs/trace';
-import type { BoundaryRangeLabel } from 'agentfootprint';
+import type { BoundaryRangeLabel } from 'agentfootprint/observe';
 
 export function findInflightBranches(
   boundaryIndex: CommitRangeIndex<BoundaryRangeLabel>,

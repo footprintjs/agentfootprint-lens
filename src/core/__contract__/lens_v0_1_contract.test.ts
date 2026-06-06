@@ -44,7 +44,7 @@ import { diffPrompts } from '../utils/diffPrompts.js';
 import { splitLensStores } from '../stores/splitLensStores.js';
 import { overlayToLayoutAugment } from '../augment/overlayToLayoutAugment.js';
 import { mergeAugmentedLayout } from '../augment/mergeAugmentedLayout.js';
-import type { BoundaryRangeLabel } from 'agentfootprint';
+import type { BoundaryRangeLabel } from 'agentfootprint/observe';
 
 // ─── Fixture: Agent with tool (proven LensRecorder.observe() pathway) ──
 // Mirrors the working Lens.test.tsx integration so the snapshot

@@ -7,7 +7,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import type { SpecNode } from '../../core/buildSpecTreeFromBoundary.js';
-import type { StepGraph, StepNode } from 'agentfootprint';
+import type { StepGraph, StepNode } from 'agentfootprint/observe';
 import { useCompareBranches } from './useCompareBranches.js';
 
 function parallelSpec(branchIds: readonly string[]): SpecNode {
