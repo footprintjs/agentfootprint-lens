@@ -380,3 +380,46 @@ describe('NodeDetailPanel — pattern 10: run I/O at root boundary', () => {
     expect(screen.getByText(/All steps in this scope/i)).toBeDefined();
   });
 });
+
+describe('NodeDetailPanel — pattern 10: drilled internal stage (no StepNode)', () => {
+  it('renders the internal stage name + description when scrubbed onto it', () => {
+    render(
+      <NodeDetailPanel
+        cursorRuntimeStageId="sf-injection-engine/route#4"
+        internalStage={{
+          name: 'Route',
+          description: 'Partition active injections into per-slot buckets',
+          offsetMs: 160,
+        }}
+      />,
+    );
+    expect(screen.getByText('Route')).toBeDefined();
+    expect(screen.getByText(/Partition active injections/)).toBeDefined();
+    expect(screen.getByText(/ran at \+160ms/)).toBeDefined();
+    // It explains WHY there's no rich payload yet (sets expectations).
+    expect(screen.getByText(/runs inside the subflow's own scope/)).toBeDefined();
+    // It is NOT the generic "Click a node to inspect" empty state.
+    expect(screen.queryByText(/Click a node to inspect/)).toBeNull();
+  });
+
+  it('renders the name alone when no description is available', () => {
+    render(<NodeDetailPanel internalStage={{ name: 'Gather' }} />);
+    expect(screen.getByText('Gather')).toBeDefined();
+    expect(screen.queryByText(/ran at/)).toBeNull();
+  });
+
+  it('a real StepNode takes precedence over internalStage', () => {
+    const node = mkNode({
+      id: 'sf-llm-call#1',
+      kind: 'subflow',
+      label: 'LLM Call',
+      primitiveKind: 'LLMCall',
+      subflowPath: ['__root__', 'sf-llm-call'],
+      entryPayload: { prompt: 'hi' },
+    });
+    render(<NodeDetailPanel node={node} internalStage={{ name: 'Route' }} />);
+    // The StepNode's label wins; the internalStage card is not shown.
+    expect(screen.getByText('LLM Call')).toBeDefined();
+    expect(screen.queryByText(/runs inside the subflow's own scope/)).toBeNull();
+  });
+});

@@ -60,7 +60,7 @@ describe('buildCommitSyncMap — unit', () => {
     expect(map).toHaveLength(1);
     const allowed = new Set([
       'runtimeStageId', 'commitIdx', 'runtimeGroupId',
-      'subflowPath', 'depth', 'label',
+      'subflowPath', 'depth', 'label', 'overwriteKeys',
     ]);
     for (const k of Object.keys(map[0]!)) expect(allowed.has(k)).toBe(true);
   });

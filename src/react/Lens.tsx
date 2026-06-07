@@ -38,12 +38,13 @@ import { makeTeachingHumanizer } from "../core/humanizer.js";
 import {
   selectAgentInstances,
   selectHops,
-  selectStepAgentName,
 } from "../core/selectors/index.js";
 import { LensFlow, type LensFlowProps } from "./LensFlow.js";
 import { SummaryCard } from "./SummaryCard.js";
 import { TimeTravel } from "./TimeTravel.js";
 import { NodeDetailPanel } from "./NodeDetailPanel.js";
+import { WhatHappenedTimeline } from "./WhatHappenedTimeline.js";
+import { buildTimelineMoments } from "./buildTimelineMoments.js";
 import { useLensRecorder } from "./hooks/useLensRecorder.js";
 import { useDrillPath } from "./hooks/useDrillPath.js";
 import { useCommitSync } from "./hooks/useCommitSync.js";
@@ -510,6 +511,16 @@ const EngineerView: React.FC<{
   // top-level component body doesn't consume them outside the JSX.
   void syncMap;
 
+  // Memoize the runtime overlay: getOverlay() returns a DEFENSIVE COPY (deep-
+  // clones executionOrder + the error/running maps), so calling it inline in JSX
+  // every render is O(n) per render on a long run. Recompute only when the
+  // overlay's monotonic version() bumps (once per overlay-mutating event).
+  const traceOverlay = useMemo(
+    () => recorder.runtime.getOverlay(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [recorder, recorder.runtime.version()],
+  );
+
 
   // Cursor → static-spec-node id. The slider cursor is a per-execution
   // runtimeStageId (`[subflowPath/]stageId#executionIndex`); the
@@ -616,6 +627,26 @@ const EngineerView: React.FC<{
     return { cursorFocusedNode: exact, cursorRelatedNodes: related };
   }, [stepGraph, cursorRuntimeStageId, cursorPositions, focusStep]);
 
+  // Lightweight detail for a DRILLED subflow's internal stage (Gather/Evaluate/
+  // Route/Delta). These have no StepNode and no parent-log commit (subflow-
+  // scoped), so `cursorFocusedNode` is undefined — but we still want every
+  // drilled stage to show its name + what it does when scrubbed onto. Derive it
+  // from the chart node (label + description, tagged `subflowOf`) + the runtime
+  // overlay (when it ran). Gated to drilled internals: a top-level stage or the
+  // subflow boundary (subflowOf undefined) yields nothing here.
+  const cursorInternalStage = useMemo(() => {
+    if (cursorFocusedNode || drillPath.length === 0 || !chart) return undefined;
+    const node = chart.graph.nodes.find((n) => n.id === selectedSpecNodeId);
+    const data = node?.data as { label?: string; description?: string; subflowOf?: unknown } | undefined;
+    if (!data || data.subflowOf === undefined) return undefined;
+    const entry = traceOverlay.executionOrder.find((e) => e.runtimeStageId === cursorRuntimeStageId);
+    return {
+      name: data.label ?? entry?.stageName ?? selectedSpecNodeId,
+      ...(data.description !== undefined ? { description: data.description } : {}),
+      ...(entry && typeof entry.timestampMs === 'number' ? { offsetMs: entry.timestampMs } : {}),
+    };
+  }, [cursorFocusedNode, drillPath, chart, selectedSpecNodeId, traceOverlay, cursorRuntimeStageId]);
+
   // Run boundary I/O — the REAL data the (lens-invented) User node
   // represents. footprintjs records `run.entry` (the input the human
   // sent) and `run.exit` (the answer returned) at the root boundary;
@@ -652,23 +683,6 @@ const EngineerView: React.FC<{
   // root position exists; we relabel it "Run · failed" and surface the
   // error in the Details panel there.
   const runError = summary.error;
-  // Multi-agent runs benefit from agent-prefixed step labels: a generic
-  // `'user → llm'` becomes `'classify · user → llm'` so it's obvious
-  // which agent the slider position belongs to. Single-agent runs fall
-  // back to the raw step label (the agent header already covers it).
-  const stepAgentName = useMemo(() => {
-    if (!stepGraph || !focusedNode) return undefined;
-    const agents = selectAgentInstances(stepGraph);
-    return selectStepAgentName(focusedNode, agents);
-  }, [stepGraph, focusedNode]);
-  // Cursor-position label is the canonical slider tooltip in drill-down
-  // mode: it carries human-readable strings like `'Committee · forks'`,
-  // `'legal · start'`, `'merged'`, `'Run · end'` — already disambiguated
-  // by `cursorPositionsAtDrill`. Prefer it when present so the slider
-  // never shows a stutter like `'legal · legal'` (which the older
-  // `stepAgentName · focusedNode.label` form produced when an Agent and
-  // its inner LLMCall shared a name).
-  const cursorPositionLabel = cursorPositions[focusStep]?.label;
   // At a PARALLEL ("Context") stop the position carries the concurrent branch
   // group ids — resolve them to chart node ids (strip `#executionIndex`) so the
   // chart lights every branch at once. Undefined for ordinary single-node stops.
@@ -677,18 +691,6 @@ const EngineerView: React.FC<{
     if (!ids || ids.length === 0) return undefined;
     return new Set(ids.map((id) => id.split('#')[0]!));
   }, [cursorPositions, focusStep]);
-  const currentStepLabel =
-    // Terminal failure boundary reads "Run · failed" instead of the
-    // generic "Run · end".
-    rootPhase === 'end' && runError
-      ? 'Run · failed'
-      : cursorPositionLabel
-      ?? (focusedNode
-        ? stepAgentName
-          ? `${stepAgentName} · ${focusedNode.label}`
-          : focusedNode.label
-        : undefined);
-
   // Step → event-seq mapping. Resolves each step to a concrete log
   // entry so Commentary can scrub by slider position even when a step
   // is a SYNTHETIC node (User / fork-branch / decision-branch nodes
@@ -863,6 +865,21 @@ const EngineerView: React.FC<{
     const v = commentarySeqs[focusStep];
     return v !== undefined ? v : (stepToEventSeq[focusStep] ?? -1);
   }, [commentarySeqs, focusStep, stepToEventSeq]);
+
+  // The "WHAT HAPPENED" timeline: one moment per cursor stop (the right-rail
+  // dots ARE the scrubber — clicking one is `onFocusChange(i)`, the same single
+  // cursor the slider drives). Built by the pure `buildTimelineMoments` helper.
+  const timelineMoments = useMemo(
+    () =>
+      buildTimelineMoments({
+        cursorPositions,
+        commentarySeqs,
+        log,
+        humanizer,
+        executionOrder: traceOverlay.executionOrder,
+      }),
+    [cursorPositions, commentarySeqs, log, humanizer, traceOverlay],
+  );
   const handleNodeSelect = (nodeId: string): void => {
     if (!stepGraph) return;
     // v0.16: focusStep is a HOP index, not a node index. Find the hop
@@ -903,7 +920,10 @@ const EngineerView: React.FC<{
   //   └────────────────────────────────────────────────┘
   const [leftExpanded, setLeftExpanded] = useState(true);
   const [rightExpanded, setRightExpanded] = useState(true);
-  const [bottomExpanded, setBottomExpanded] = useState(true);
+  // The "WHAT HAPPENED" timeline (right rail) now carries the moment-by-moment
+  // narration, so the bottom commentary strip starts COLLAPSED — it's available
+  // (click to expand the full prose) but out of the way for the clean layout.
+  const [bottomExpanded, setBottomExpanded] = useState(false);
   // Agent / LLMCall boundaries surface in the left "Agents" list.
   // For Swarm / multi-agent runs this enumerates every Agent (Triage,
   // Billing, …); for a Sequence-of-LLMCalls run it enumerates each
@@ -964,12 +984,14 @@ const EngineerView: React.FC<{
           }}
         />
       </div>
+      {/* Compact controls only (◀ ▶ ⟳Live + count) — the WHAT HAPPENED timeline
+          is the scrubber, so the drag track here would be redundant. */}
       <TimeTravel
+        compact
         total={total}
         focusSeq={focusStep}
         onFocusChange={onFocusChange}
         isLive={isLive}
-        {...(currentStepLabel ? { currentStepLabel } : {})}
       />
 
       {/* Main row: [Topology pill | Topology panel] [Center flowchart]
@@ -1083,7 +1105,7 @@ const EngineerView: React.FC<{
                     onFocusChange(0);
                   }
                 }}
-                traceRuntimeOverlay={recorder.runtime.getOverlay()}
+                traceRuntimeOverlay={traceOverlay}
               />
             ) : (
               <div style={{ padding: 24, color: T.textMuted, fontSize: 12 }}>
@@ -1105,33 +1127,52 @@ const EngineerView: React.FC<{
         {rightExpanded && (
           <div
             style={{
-              // Flex-shrink 1 with min/max so the panel yields width to
-              // the central flowchart when the container is narrow. The
-              // hard 320px-fixed width was squeezing the flowchart to
-              // ~280px in compact layouts (e.g., embedded in a 30%
-              // sidebar), causing React Flow to auto-zoom to ~30% and
-              // render nodes invisibly small.
-              flex: "0 1 320px",
-              minWidth: 220,
-              maxWidth: 360,
+              // The "WHAT HAPPENED" timeline rail. Wider than the old details
+              // pane (it now carries scrubber + commentary + details in one),
+              // but still flex-shrinks so the central flowchart keeps room.
+              flex: "0 1 430px",
+              minWidth: 300,
+              maxWidth: 480,
               display: "flex",
               flexDirection: "column",
               overflow: "hidden",
               borderLeft: `1px solid ${T.border}`,
             }}
           >
-            <NodeDetailPanel
-              {...(cursorFocusedNode ? { node: cursorFocusedNode } : {})}
-              relatedNodes={cursorRelatedNodes}
-              cursorRuntimeStageId={cursorRuntimeStageId}
-              {...(rootPhase ? { rootPhase } : {})}
-              {...(runInput !== undefined ? { runInput } : {})}
-              {...(runOutput !== undefined ? { runOutput } : {})}
-              {...(runError !== undefined ? { runError } : {})}
+            {/* The timeline IS the scrubber + commentary + details, folded into
+                one rail (the mockup's right column). Clicking a moment moves the
+                same single cursor; the focused moment expands to the existing
+                NodeDetailPanel content inline. */}
+            <WhatHappenedTimeline
+              moments={timelineMoments}
+              focusStep={focusStep}
+              onFocusChange={onFocusChange}
+              {...(cursorFocusedNode ||
+              cursorInternalStage ||
+              runInput !== undefined ||
+              runOutput !== undefined ||
+              runError !== undefined
+                ? {
+                    // Pass the framed detail card ONLY when there's REAL structured
+                    // detail (a focused stage, a drilled internal, or run I/O). A
+                    // bare milestone (Iteration / Context) shows just its tight
+                    // description line — no empty framed "Click a node" box.
+                    detail: (
+                      <NodeDetailPanel
+                        hideEmptyState
+                        {...(cursorFocusedNode ? { node: cursorFocusedNode } : {})}
+                        relatedNodes={cursorRelatedNodes}
+                        cursorRuntimeStageId={cursorRuntimeStageId}
+                        {...(rootPhase ? { rootPhase } : {})}
+                        {...(runInput !== undefined ? { runInput } : {})}
+                        {...(runOutput !== undefined ? { runOutput } : {})}
+                        {...(runError !== undefined ? { runError } : {})}
+                        {...(cursorInternalStage ? { internalStage: cursorInternalStage } : {})}
+                      />
+                    ),
+                  }
+                : {})}
             />
-            {/* No `onClose` — the side pill (▶ DETAILS) is the canonical
-                way to dismiss this panel. Removed the in-content × button
-                so collapse logic lives in one place. */}
           </div>
         )}
       </div>
@@ -1168,6 +1209,13 @@ const EngineerView: React.FC<{
                 ? cursorRuntimeStageId.split('#')[0]
                 : undefined
             }
+            {...(cursorInternalStage
+              ? {
+                  syntheticCurrentLine: cursorInternalStage.description
+                    ? `${cursorInternalStage.name} — ${cursorInternalStage.description}`
+                    : cursorInternalStage.name,
+                }
+              : {})}
           />
         </div>
       )}
@@ -1182,6 +1230,43 @@ const EngineerView: React.FC<{
 // can return `null` to hide noise events). Same shape used by
 // AnalystView; extracted here for reuse in EngineerView's bottom
 // panel.
+
+/** The synthetic "you are here" line for a drilled internal stage — its own
+ *  event isn't in the log (subflow-scoped), so we narrate it from the stage's
+ *  name + description. Shared by the cutoff-empty branch and the post-list
+ *  fragment so the markup/style live in one place. */
+const SyntheticNowLine = React.forwardRef<HTMLDivElement, { line: string }>(
+  function SyntheticNowLine({ line }, ref) {
+    return (
+      <div
+        ref={ref}
+        style={{
+          padding: "3px 8px",
+          borderBottom: `1px solid ${T.border}`,
+          background: `color-mix(in srgb, ${T.warning} 20%, transparent)`,
+          borderLeft: `3px solid ${T.warning}`,
+          color: T.textPrimary,
+          fontWeight: 500,
+          lineHeight: 1.55,
+        }}
+      >
+        <span
+          style={{
+            display: "inline-block",
+            minWidth: 56,
+            marginRight: 8,
+            fontFamily: T.fontMono,
+            fontSize: 10,
+            color: T.warning,
+          }}
+        >
+          now
+        </span>
+        {line}
+      </div>
+    );
+  },
+);
 
 const Commentary: React.FC<{
   log: readonly EventLogEntry[];
@@ -1213,9 +1298,19 @@ const Commentary: React.FC<{
    *  no call is active. Rendered AFTER the visible cumulative entries
    *  so the user sees the active token stream at the bottom. */
   liveStreamLine: string | null;
-}> = ({ log, humanizer, focusedSeq, cursorScopeBase, liveStreamLine }) => {
+  /**
+   * Synthetic "you are here" line for a DRILLED subflow's internal stage
+   * (Gather/Evaluate/Route/Delta). Those stages run in the subflow's own scope
+   * and mostly emit nothing into the log, so scrubbing onto them wouldn't add a
+   * commentary line. We synthesize one from the stage's name + description so the
+   * commentary advances per drilled stop. Replaced by the real emitted line once
+   * each stage emits its own event (the "rich" phase). `null` when not on a
+   * drilled internal stage. */
+  syntheticCurrentLine?: string | null;
+}> = ({ log, humanizer, focusedSeq, cursorScopeBase, liveStreamLine, syntheticCurrentLine }) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const firstFocusRef = useRef<HTMLDivElement | null>(null);
+  const syntheticRef = useRef<HTMLDivElement | null>(null);
 
   // Scroll the focused line into view whenever the slider position
   // changes. Smooth so the pan reads as deliberate.
@@ -1227,6 +1322,13 @@ const Commentary: React.FC<{
       behavior: "smooth",
     });
   }, [focusedSeq]);
+
+  // Scroll the synthetic drilled-stage line into view as the user scrubs the
+  // drilled internals (it's appended below the cumulative entries).
+  useEffect(() => {
+    if (!syntheticCurrentLine || !syntheticRef.current) return;
+    syntheticRef.current.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [syntheticCurrentLine]);
 
   // O(1) seq → array-index lookup, rebuilt once per log change.
   // Replaces a per-render `log.findIndex(e => e.seq === focusedSeq)`
@@ -1291,6 +1393,10 @@ const Commentary: React.FC<{
             ? -1
             : Math.max(0, seqToIndex.get(focusedSeq) ?? -1);
         if (cutoff < 0) {
+          // A drilled internal stage at the very start still narrates itself.
+          if (syntheticCurrentLine) {
+            return <SyntheticNowLine ref={syntheticRef} line={syntheticCurrentLine} />;
+          }
           return (
             <div style={{ color: T.textSecondary, fontStyle: "italic" }}>
               Scrub the slider to walk through the run.
@@ -1316,11 +1422,17 @@ const Commentary: React.FC<{
           return stageId === cursorScopeBase || stageId.startsWith(scopePrefix);
         };
 
+        // Collapse CONSECUTIVE identical lines — two injections in the same
+        // turn often render the same generic prose ("injected a custom piece of
+        // context."); showing it twice in a row is noise.
+        let prevLine: string | null = null;
         return (
           <>
             {visible.map((entry, i) => {
               const line = humanizer(entry.event);
               if (line === null) return null;
+              if (line === prevLine) return null; // skip consecutive duplicate
+              prevLine = line;
               const focused =
                 focusedSeq !== undefined && entry.seq === focusedSeq;
               const isLastFocused = focused && i === cutoff;
@@ -1362,6 +1474,10 @@ const Commentary: React.FC<{
                 </div>
               );
             })}
+            {/* Synthetic "you are here" line for a drilled internal stage. */}
+            {syntheticCurrentLine && (
+              <SyntheticNowLine ref={syntheticRef} line={syntheticCurrentLine} />
+            )}
             {/* Live "thinking / responding" line — pulses while an LLM
                 call is in flight, replaced by the bundled `llm_end`
                 narration once the call closes. */}
@@ -1807,13 +1923,17 @@ const CopyForLLMButton: React.FC<{
     <button
       onClick={handleCopy}
       title="Copy run as LLM-ready text — paste into Claude/ChatGPT to debug"
+      aria-label="Copy run as LLM-ready text"
       style={{
         display: "inline-flex",
         alignItems: "center",
+        justifyContent: "center",
         gap: 6,
-        padding: "6px 12px",
-        marginRight: 8,
-        fontSize: 11,
+        // Icon-only (the tooltip explains it) — the full "Copy for LLM" label
+        // ate space the metrics row needed. Compact square button.
+        padding: "6px 8px",
+        marginRight: 6,
+        fontSize: 13,
         fontWeight: 600,
         fontFamily: "inherit",
         color: copied ? "#fff" : T.textPrimary,
@@ -1822,10 +1942,11 @@ const CopyForLLMButton: React.FC<{
         borderRadius: 6,
         cursor: "pointer",
         whiteSpace: "nowrap",
+        flex: "none",
         transition: "background 0.15s, color 0.15s, border-color 0.15s",
       }}
     >
-      {copied ? "✓ Copied!" : "📋 Copy for LLM"}
+      {copied ? "✓" : "📋"}
     </button>
   );
 };

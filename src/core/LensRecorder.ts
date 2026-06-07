@@ -276,13 +276,33 @@ export class LensRecorder {
    * via the boundary index. See
    * `memory/lens_v0_1_one_cursor_architecture.md`.
    */
-  getCommitLog(): ReadonlyArray<{ readonly runtimeStageId?: string; readonly stageId?: string }> {
+  getCommitLog(): ReadonlyArray<{
+    readonly runtimeStageId?: string;
+    readonly stageId?: string;
+    /** Keys this commit actually CHANGED (footprintjs commits are change-only).
+     *  Used to light only the slots whose contribution changed. Agent commits
+     *  are not run-namespaced, so the top-level overwrite/updates keys ARE the
+     *  scope keys (e.g. `systemPromptInjections`). */
+    readonly overwriteKeys?: readonly string[];
+  }> {
     const runner = this.currentRunner;
     if (!runner) return [];
     const snap = (runner as {
-      getLastSnapshot?: () => { commitLog?: ReadonlyArray<{ runtimeStageId?: string; stageId?: string }> };
+      getLastSnapshot?: () => {
+        commitLog?: ReadonlyArray<{
+          runtimeStageId?: string;
+          stageId?: string;
+          overwrite?: Record<string, unknown>;
+          updates?: Record<string, unknown>;
+        }>;
+      };
     }).getLastSnapshot?.();
-    return snap?.commitLog ?? [];
+    const log = snap?.commitLog ?? [];
+    return log.map((c) => ({
+      runtimeStageId: c.runtimeStageId,
+      stageId: c.stageId,
+      overwriteKeys: [...Object.keys(c.overwrite ?? {}), ...Object.keys(c.updates ?? {})],
+    }));
   }
 
   /**

@@ -63,6 +63,9 @@ export interface CommitSyncEntry {
   readonly depth: number;
   /** Human-readable hover label ("ethics · call-llm"). */
   readonly label: string;
+  /** Scope keys this commit CHANGED (footprintjs commits are change-only). Empty
+   *  for a no-op commit. Drives the "light only the slots that changed" highlight. */
+  readonly overwriteKeys: readonly string[];
 }
 
 /** Build the per-commit sync map from a populated `LensRecorder`.
@@ -94,6 +97,7 @@ export function buildCommitSyncMap(
       subflowPath: group?.subflowPath ?? [],
       depth: group?.depth ?? 0,
       label: labelFor(rid, group, c.stageId),
+      overwriteKeys: c.overwriteKeys ?? [],
     });
   }
   return result;

@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import type { Group } from './Group.js';
 import type { CommitSyncEntry } from './buildCommitSyncMap.js';
-import { cursorPositionsAtDrill, type MilestoneClassifier } from './cursorPositionsAtDrill.js';
+import { cursorPositionsAtDrill, type MilestoneClassifier, type ExecOrderEntry } from './cursorPositionsAtDrill.js';
 
 function group(
   runtimeGroupId: string,
@@ -34,10 +34,11 @@ function commit(
   runtimeGroupId: string,
   depth: number,
   label: string,
+  overwriteKeys: readonly string[] = [],
 ): CommitSyncEntry {
   return {
     runtimeStageId, commitIdx, runtimeGroupId,
-    subflowPath: [], depth, label,
+    subflowPath: [], depth, label, overwriteKeys,
   };
 }
 
@@ -160,17 +161,58 @@ describe('cursorPositionsAtDrill — parallel slot collapse', () => {
     return null;
   };
 
-  it('collapses the 3 parallel slots into ONE Context stop carrying all branch ids', () => {
-    const positions = cursorPositionsAtDrill([pRoot, sp, msg, tools], pCommits, [], classifySlots);
+  // Commits where ALL 3 slots changed (turn 1) — context-mount commit carries
+  // all three injection keys, so all three light.
+  const allChangedCommits: readonly CommitSyncEntry[] = [
+    commit(0, 'seed#0', '__root__#0', 0, 'seed'),
+    commit(2, 'context#2', '__root__#0', 0, 'context', [
+      'systemPromptInjections', 'messagesInjections', 'toolsInjections',
+    ]),
+    commit(4, 'call-llm#4', '__root__#0', 0, 'call-llm'),
+  ];
+
+  it('collapses the 3 parallel slots into ONE Context stop; all 3 light when all changed', () => {
+    const positions = cursorPositionsAtDrill([pRoot, sp, msg, tools], allChangedCommits, [], classifySlots);
     expect(positions.map((p) => p.label)).toEqual(['Run · start', 'Context', 'LLM turn', 'Run · end']);
     const ctx = positions.find((p) => p.label === 'Context')!;
     expect(ctx.kind).toBe('parallel');
     expect([...(ctx.coActiveGroupIds ?? [])].sort()).toEqual([
       'sf-messages#2', 'sf-system-prompt#1', 'sf-tools#3',
     ]);
-    // canonical cursor = earliest-opening branch (one-cursor invariant)
-    expect(ctx.runtimeStageId).toBe('sf-system-prompt#1');
-    expect(ctx.commitIdx).toBe(1);
+  });
+
+  it('lights ONLY the slot whose contribution changed (commit-driven)', () => {
+    // A steady-state turn: only Messages changed (it grows); system-prompt +
+    // tools re-emitted identical content → committed empty → must NOT light.
+    const onlyMessagesChanged: readonly CommitSyncEntry[] = [
+      commit(0, 'seed#0', '__root__#0', 0, 'seed'),
+      commit(2, 'context#2', '__root__#0', 0, 'context', ['messagesInjections']),
+      commit(4, 'call-llm#4', '__root__#0', 0, 'call-llm'),
+    ];
+    const positions = cursorPositionsAtDrill([pRoot, sp, msg, tools], onlyMessagesChanged, [], classifySlots);
+    const ctx = positions.find((p) => p.label === 'Context')!;
+    expect(ctx.kind).toBe('parallel');
+    expect([...(ctx.coActiveGroupIds ?? [])]).toEqual(['sf-messages#2']); // ← only messages
+    expect(ctx.runtimeStageId).toBe('sf-messages#2'); // cursor anchors on the changed slot
+  });
+
+  it('lights the subset that changed when two slots change', () => {
+    const twoChanged: readonly CommitSyncEntry[] = [
+      commit(2, 'context#2', '__root__#0', 0, 'context', ['systemPromptInjections', 'toolsInjections']),
+    ];
+    const positions = cursorPositionsAtDrill([pRoot, sp, msg, tools], twoChanged, [], classifySlots);
+    const ctx = positions.find((p) => p.label === 'Context')!;
+    expect([...(ctx.coActiveGroupIds ?? [])].sort()).toEqual(['sf-system-prompt#1', 'sf-tools#3']);
+  });
+
+  it('falls back to lighting ALL slots when no commit-key data is present (safety)', () => {
+    // pCommits has no overwriteKeys → change cannot be attributed → light all
+    // (never light nothing at a Context stop).
+    const positions = cursorPositionsAtDrill([pRoot, sp, msg, tools], pCommits, [], classifySlots);
+    const ctx = positions.find((p) => p.label === 'Context')!;
+    expect([...(ctx.coActiveGroupIds ?? [])].sort()).toEqual([
+      'sf-messages#2', 'sf-system-prompt#1', 'sf-tools#3',
+    ]);
   });
 
   it('a single running slot (classic mode) stays an individual stop, NOT collapsed', () => {
@@ -654,5 +696,159 @@ describe('cursorPositionsAtDrill — load', () => {
     for (let i = 0; i < 100; i++) cursorPositionsAtDrill(many, [], []);
     const ms = performance.now() - start;
     expect(ms).toBeLessThan(1000);
+  });
+});
+
+// ─── OVERLAY-DERIVED DRILLED SUBFLOW INTERNALS ──────────────────────
+//
+// A subflow's internal stages run in the subflow's OWN memory scope, so their
+// commits never reach the parent commit log (footprintjs records the subflow as
+// ONE mount-boundary commit — verified). They DO appear in the runtime overlay's
+// executionOrder. When the user drills into such a subflow (e.g. the Injection
+// Engine), the milestone + structural paths find nothing, so the slider stops are
+// derived from the overlay. These tests pin that behaviour.
+
+// A run with the Injection Engine subflow looping twice. The IE's internals
+// (gather/evaluate/route/delta) are NOT groups and NOT in the commit log — they
+// exist only in the overlay's executionOrder, path-prefixed.
+const ovRoot = group('__root__#0', 'Run', 0, undefined, 0, 9, true);
+const ovInj1 = group('sf-injection-engine#1', 'Injection Engine', 1, '__root__#0', 1, 1);
+const ovInj2 = group('sf-injection-engine#23', 'Injection Engine', 1, '__root__#0', 5, 5);
+const ovGroups: readonly Group[] = [ovRoot, ovInj1, ovInj2];
+
+// Mirrors what `recorder.runtime.getOverlay().executionOrder` holds: the boundary
+// entry, the four internals, then the flow leaves the subflow — and a SECOND
+// iteration much later (separated by the parent's own stages).
+const ovExec: readonly ExecOrderEntry[] = [
+  { runtimeStageId: 'seed#0', stageId: 'seed', stageName: 'Initialize' },
+  { runtimeStageId: 'sf-injection-engine#1', stageId: 'sf-injection-engine', stageName: 'Injection Engine' },
+  { runtimeStageId: 'sf-injection-engine/gather#2', stageId: 'gather', stageName: 'Gather' },
+  { runtimeStageId: 'sf-injection-engine/evaluate#3', stageId: 'evaluate', stageName: 'Evaluate' },
+  { runtimeStageId: 'sf-injection-engine/route#4', stageId: 'route', stageName: 'Route' },
+  { runtimeStageId: 'sf-injection-engine/delta#5', stageId: 'delta', stageName: 'Delta' },
+  { runtimeStageId: 'context#6', stageId: 'context', stageName: 'Context' },
+  { runtimeStageId: 'call-llm#7', stageId: 'call-llm', stageName: 'Call LLM' },
+  // second iteration of the IE, far away in the order
+  { runtimeStageId: 'sf-injection-engine#23', stageId: 'sf-injection-engine', stageName: 'Injection Engine' },
+  { runtimeStageId: 'sf-injection-engine/gather#24', stageId: 'gather', stageName: 'Gather' },
+  { runtimeStageId: 'sf-injection-engine/evaluate#25', stageId: 'evaluate', stageName: 'Evaluate' },
+];
+
+describe('cursorPositionsAtDrill — drilled subflow internals (overlay-derived)', () => {
+  // ── Unit ──────────────────────────────────────────────────────────
+  it('drilling into the Injection Engine yields one stop per internal stage', () => {
+    const pos = cursorPositionsAtDrill(ovGroups, [], ['sf-injection-engine#1'], undefined, ovExec);
+    expect(pos.map((p) => p.label)).toEqual([
+      'Injection Engine · start',
+      'Gather',
+      'Evaluate',
+      'Route',
+      'Delta',
+    ]);
+  });
+
+  it('each internal stop carries the EXACT overlay runtimeStageId (so scrubIndex resolves)', () => {
+    const pos = cursorPositionsAtDrill(ovGroups, [], ['sf-injection-engine#1'], undefined, ovExec);
+    const internals = pos.filter((p) => p.kind === 'commit');
+    expect(internals.map((p) => p.runtimeStageId)).toEqual([
+      'sf-injection-engine/gather#2',
+      'sf-injection-engine/evaluate#3',
+      'sf-injection-engine/route#4',
+      'sf-injection-engine/delta#5',
+    ]);
+  });
+
+  // ── Functional — iteration scoping ────────────────────────────────
+  it('scopes to the DRILLED iteration only — turn 2 internals are not mixed in', () => {
+    const pos = cursorPositionsAtDrill(ovGroups, [], ['sf-injection-engine#1'], undefined, ovExec);
+    // gather appears once (turn 1), NOT twice (turn 2's gather#24 excluded).
+    expect(pos.filter((p) => p.label.startsWith('Gather'))).toHaveLength(1);
+    expect(pos.some((p) => p.runtimeStageId === 'sf-injection-engine/gather#24')).toBe(false);
+  });
+
+  it('drilling into the SECOND iteration scopes to its internals', () => {
+    const pos = cursorPositionsAtDrill(ovGroups, [], ['sf-injection-engine#23'], undefined, ovExec);
+    const internals = pos.filter((p) => p.kind === 'commit');
+    expect(internals.map((p) => p.runtimeStageId)).toEqual([
+      'sf-injection-engine/gather#24',
+      'sf-injection-engine/evaluate#25',
+    ]);
+  });
+
+  // ── Integration — nested subflow appears as ONE drillable boundary ─
+  it('a nested subflow surfaces as a single boundary stop; its grandchildren are skipped', () => {
+    const nestedExec: readonly ExecOrderEntry[] = [
+      { runtimeStageId: 'sf-outer#1', stageId: 'sf-outer', stageName: 'Outer' },
+      { runtimeStageId: 'sf-outer/a#2', stageId: 'a', stageName: 'A' },
+      { runtimeStageId: 'sf-outer/sf-inner#3', stageId: 'sf-inner', stageName: 'Inner' }, // boundary → kept
+      { runtimeStageId: 'sf-outer/sf-inner/x#4', stageId: 'x', stageName: 'X' }, // grandchild → skip
+      { runtimeStageId: 'sf-outer/sf-inner/y#5', stageId: 'y', stageName: 'Y' }, // grandchild → skip
+      { runtimeStageId: 'sf-outer/b#6', stageId: 'b', stageName: 'B' },
+      { runtimeStageId: 'after#7', stageId: 'after', stageName: 'After' }, // leaves sf-outer → stop
+    ];
+    const nestedGroups: readonly Group[] = [
+      group('__root__#0', 'Run', 0, undefined, 0, 9, true),
+      group('sf-outer#1', 'Outer', 1, '__root__#0', 1, 8),
+    ];
+    const pos = cursorPositionsAtDrill(nestedGroups, [], ['sf-outer#1'], undefined, nestedExec);
+    expect(pos.filter((p) => p.kind === 'commit').map((p) => p.label)).toEqual(['A', 'Inner', 'B']);
+  });
+
+  // ── Property — never throws, internals always within the subflow ───
+  it('every internal stop id belongs to the drilled subflow path', () => {
+    const pos = cursorPositionsAtDrill(ovGroups, [], ['sf-injection-engine#1'], undefined, ovExec);
+    for (const p of pos.filter((x) => x.kind === 'commit')) {
+      expect(p.runtimeStageId.startsWith('sf-injection-engine/')).toBe(true);
+    }
+  });
+
+  // ── Regression guards — no behaviour change off the new path ───────
+  it('without an overlay, a drilled internals-only subflow yields just the boundary (old behaviour)', () => {
+    const pos = cursorPositionsAtDrill(ovGroups, [], ['sf-injection-engine#1']);
+    expect(pos.map((p) => p.label)).toEqual(['Injection Engine · start']);
+  });
+
+  it('at top level (no drill) the overlay is ignored — internals never leak in', () => {
+    const pos = cursorPositionsAtDrill(ovGroups, [], [], undefined, ovExec);
+    expect(pos.some((p) => p.runtimeStageId.includes('/gather'))).toBe(false);
+  });
+
+  it('milestones still win when the domain classifies (overlay is the fallback, not an override)', () => {
+    // Drill into a group whose child classifies → milestone path produces stops,
+    // so the overlay fallback must NOT run.
+    const pos = cursorPositionsAtDrill(mGroups, mCommits, [], classify, ovExec);
+    expect(pos.some((p) => p.label === 'Iteration 1')).toBe(true);
+    expect(pos.some((p) => p.runtimeStageId.startsWith('sf-injection-engine/'))).toBe(false);
+  });
+
+  // ── Regression — the real browser bug ─────────────────────────────
+  // A subflow's mount produces boundary commits keyed by the subflow ITSELF
+  // (runtimeStageId === runtimeGroupId === sf-injection-engine#1). With the REAL
+  // classifier (sf-injection-engine → iteration), drilling INTO the IE used to
+  // surface those boundary commits as bogus "Iteration" stops — making the
+  // milestone path look non-empty so the overlay internals never showed. The
+  // fix skips `current`'s own-boundary commits in the milestone scan.
+  it("drilling into a classified subflow shows its internals, NOT its own boundary as 'Iteration'", () => {
+    const classifyInj: MilestoneClassifier = (id) =>
+      id.split('#')[0]!.split('/').pop() === 'sf-injection-engine'
+        ? { kind: 'iteration', label: 'Iteration' }
+        : null;
+    const boundaryCommits: readonly CommitSyncEntry[] = [
+      commit(1, 'sf-injection-engine#1', 'sf-injection-engine#1', 1, 'IE boundary', ['x']),
+      commit(1, 'sf-injection-engine#1', 'sf-injection-engine#1', 1, 'IE boundary', []),
+    ];
+    const pos = cursorPositionsAtDrill(
+      ovGroups, boundaryCommits, ['sf-injection-engine#1'], classifyInj, ovExec,
+    );
+    expect(pos.some((p) => /Iteration/.test(p.label))).toBe(false);
+    expect(pos.filter((p) => p.kind === 'commit').map((p) => p.label)).toEqual([
+      'Gather', 'Evaluate', 'Route', 'Delta',
+    ]);
+  });
+
+  it('a missing boundary entry in the overlay falls back to boundary-only (no throw)', () => {
+    const noBoundary = ovExec.filter((e) => e.runtimeStageId !== 'sf-injection-engine#1');
+    const pos = cursorPositionsAtDrill(ovGroups, [], ['sf-injection-engine#1'], undefined, noBoundary);
+    expect(pos.map((p) => p.label)).toEqual(['Injection Engine · start']);
   });
 });

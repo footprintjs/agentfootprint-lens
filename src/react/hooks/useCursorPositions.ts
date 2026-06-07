@@ -36,17 +36,29 @@ export function useCursorPositions(
   options?: SplitLensStoresOptions,
 ): readonly CursorPosition[] {
   const syncMap = useCommitSync(recorder, options);
+  // The runtime overlay's executionOrder is the ONLY place a drilled subflow's
+  // internal stages appear (their commits live in the subflow's own scope, not
+  // the parent commit log). Pass it so drilling into such a subflow gets
+  // stage-by-stage scrub stops. Key the memo on the overlay's monotonic
+  // `version()` (O(1), bumps once per overlay-mutating event) — NOT on a
+  // per-render `getOverlay()` (which deep-clones executionOrder every render).
+  // getOverlay() is called only INSIDE the memo, so the clone happens once per
+  // recompute, not once per render.
+  const overlayVersion = recorder.runtime.version();
 
   return useMemo(() => {
     try {
       const groups = buildGroups(recorder.boundary.boundaryIndex);
+      const overlay = recorder.runtime.getOverlay();
       // Pass the domain's milestone classifier so the slider stops stage-by-stage
       // (iteration → llm-turn → tool-call → decision). Falls back to structural
-      // child-group stops where the domain classifies nothing (multi-agent levels).
-      return cursorPositionsAtDrill(groups, syncMap, drillPath, milestoneFor);
+      // child-group stops where the domain classifies nothing (multi-agent levels),
+      // then to overlay-derived internal stops for drilled subflows whose stages
+      // are neither child groups nor parent-log commits (the Injection Engine).
+      return cursorPositionsAtDrill(groups, syncMap, drillPath, milestoneFor, overlay.executionOrder);
     } catch {
       return [];
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recorder, syncMap, drillPath]);
+  }, [recorder, syncMap, drillPath, overlayVersion]);
 }

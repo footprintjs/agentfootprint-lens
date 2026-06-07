@@ -73,17 +73,23 @@ describe('<Lens> engineer view', () => {
       <Lens recorder={recorder} runner={runner} chart={chartFor(runner)} view="engineer" />,
     );
 
-    // Summary card
+    // Summary card — operator metrics
     expect(container.textContent).toMatch(/LLM calls/i);
     expect(container.textContent).toMatch(/Tool calls/i);
-    expect(container.textContent).toMatch(/Iterations/i);
+    expect(container.textContent).toMatch(/Tokens in/i);
+    expect(container.textContent).toMatch(/Tokens out/i);
 
     // L4: the chart is the single LensFlow xyflow renderer. Detect by
     // xyflow's root class — present whenever <ReactFlow> mounts.
     expect(container.querySelector('.react-flow')).toBeTruthy();
 
-    // Commentary — humanized teaching narration (Chatbot/LLM verb discipline).
-    expect(container.textContent).toMatch(/Chatbot sent/);
+    // The "WHAT HAPPENED" timeline carries the humanized narration now (the
+    // bottom commentary strip starts collapsed). It renders draggable moments
+    // with humanized titles (Chatbot/LLM verb discipline).
+    expect(container.textContent).toMatch(/What happened/i);
+    expect(container.textContent).toMatch(/drag any dot to scrub/i);
+    // Terse moment titles (the verbose prose moved into the expanded card).
+    expect(container.textContent).toMatch(/LLM turn/);
   });
 
   it('shows an empty-state hint when no runner is attached', async () => {

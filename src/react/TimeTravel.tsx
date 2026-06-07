@@ -30,11 +30,12 @@ export interface TimeTravelProps {
   /** True when `focusSeq === total - 1`. Drives ⟳Live button visual. */
   readonly isLive: boolean;
   /**
-   * Optional label for the current step — shown in the middle of the
-   * slider track. Helps consumers see *what* they're scrubbed to (e.g.,
-   * "User → LLM" or "Tool: weather"). When omitted, no label renders.
+   * Compact mode — render ONLY the ◀ ▶ ⟳Live controls + position count, NOT the
+   * drag track. Used in the monitor where the "WHAT HAPPENED" timeline IS the
+   * scrubber, so a second draggable track would be redundant. Keyboard scrubbing
+   * + Live still work.
    */
-  readonly currentStepLabel?: string;
+  readonly compact?: boolean;
 }
 
 export const TimeTravel: React.FC<TimeTravelProps> = ({
@@ -42,7 +43,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
   focusSeq,
   onFocusChange,
   isLive,
-  currentStepLabel,
+  compact,
 }) => {
   const max = Math.max(0, total - 1);
 
@@ -122,6 +123,11 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
       >
         {isLive ? '● Live' : '⟳ Live'}
       </button>
+      {/* In compact mode the timeline is the scrubber — spacer keeps the count
+          right-aligned without a redundant drag track. */}
+      {compact ? (
+        <div style={{ flex: 1 }} />
+      ) : (
       <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
         <input
           type="range"
@@ -139,31 +145,8 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
           }}
           title={disabled ? 'Single-step run — nothing to scrub' : undefined}
         />
-        {currentStepLabel && (
-          <div
-            style={{
-              position: 'absolute',
-              left: '50%',
-              top: '50%',
-              transform: 'translate(-50%, -160%)',
-              fontSize: 10,
-              fontWeight: 500,
-              color: T.textSecondary,
-              background: `color-mix(in srgb, ${T.bgElevated} 88%, transparent)`,
-              padding: '1px 8px',
-              borderRadius: 999,
-              whiteSpace: 'nowrap',
-              pointerEvents: 'none',
-              maxWidth: '70%',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-            title={currentStepLabel}
-          >
-            {currentStepLabel}
-          </div>
-        )}
       </div>
+      )}
       <div
         style={{
           fontSize: 11,

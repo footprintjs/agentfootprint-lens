@@ -385,3 +385,21 @@ describe('teachingHumanizer — slot mechanics return null', () => {
     expect(out).toBeNull();
   });
 });
+
+describe('teachingHumanizer — commentary quality', () => {
+  it('hides the raw context.evaluated emit (low-signal internal tick)', () => {
+    expect(teachingHumanizer(evt('agentfootprint.context.evaluated', {}))).toBeNull();
+  });
+
+  it('an instruction injection shows its rule content — not an empty ": ."', () => {
+    const out = teachingHumanizer(
+      evt('agentfootprint.context.injected', {
+        slot: 'system-prompt',
+        source: 'instructions',
+        contentSummary: 'Never expose raw PII in your final answer',
+      }),
+    );
+    expect(out).toContain('Never expose raw PII');
+    expect(out).not.toMatch(/:\s*\.$/); // never the empty "added a rule: ."
+  });
+});

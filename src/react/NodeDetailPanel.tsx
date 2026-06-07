@@ -61,6 +61,25 @@ export interface NodeDetailPanelProps {
   /** Fatal error message when the run FAILED. At Run · failed this
    *  replaces the "Final answer" section so the WHY is front-and-center. */
   readonly runError?: string;
+  /**
+   * Lightweight detail for a DRILLED subflow's internal stage (e.g. the
+   * Injection Engine's Gather/Evaluate/Route/Delta). These stages run in the
+   * subflow's OWN memory scope, so they have no `StepNode` and no parent-log
+   * commit — `node` is undefined. We still want every drilled stage to show
+   * SOMETHING when scrubbed onto it, so the lens derives this from the chart
+   * node (name + description) + the runtime overlay (when it ran). Rich
+   * per-stage payloads arrive later, once each stage emits its own event.
+   */
+  readonly internalStage?: {
+    readonly name: string;
+    readonly description?: string;
+    /** ms since run start (from the overlay's executionOrder entry). */
+    readonly offsetMs?: number;
+  };
+  /** When true, render NOTHING (null) instead of the "Click a node to inspect"
+   *  placeholder when there's no detail. The timeline uses this so a moment with
+   *  only a description shows just that line — not an empty framed card. */
+  readonly hideEmptyState?: boolean;
   /** Optional close handler — when provided, renders an `×` close button. */
   readonly onClose?: () => void;
 }
@@ -73,8 +92,48 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
   runInput,
   runOutput,
   runError,
+  internalStage,
+  hideEmptyState,
   onClose,
 }) => {
+  // A DRILLED subflow's internal stage: no StepNode (subflow-scoped), but we
+  // still show its name + what it does so every stage you scrub onto has detail.
+  if (!node && internalStage) {
+    return (
+      <div style={panelStyle}>
+        <div style={headerStyle}>
+          <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
+            <span style={titleStyle}>{internalStage.name}</span>
+            <span style={pillStyle}>stage</span>
+          </div>
+          {onClose && (
+            <button onClick={onClose} style={closeButtonStyle} aria-label="Close detail panel" title="Close">
+              ×
+            </button>
+          )}
+        </div>
+        <div style={bodyStyle}>
+          {internalStage.description && (
+            <div style={sectionStyle}>
+              <div style={{ ...sectionLabelStyle, padding: '6px 8px' }}>What this stage does</div>
+              <div style={{ padding: 8, fontSize: 12, color: T.textPrimary, lineHeight: 1.5 }}>
+                {internalStage.description}
+              </div>
+            </div>
+          )}
+          {typeof internalStage.offsetMs === 'number' && (
+            <div style={{ fontSize: 11, color: T.textSecondary, padding: '0 2px' }}>
+              ran at +{Math.round(internalStage.offsetMs)}ms
+            </div>
+          )}
+          <div style={{ fontSize: 11, color: T.textSecondary, fontStyle: 'italic', padding: '4px 2px', lineHeight: 1.5 }}>
+            This stage runs inside the subflow's own scope, so its detailed
+            inputs/outputs aren't recorded at the parent level yet.
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (!node) {
     // No primary StepNode at the cursor (e.g. `__root__#0` — Run
     // boundaries have no StepNode of their own; the User node is a
@@ -143,6 +202,9 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
         </div>
       );
     }
+    // Nothing structured to show. In the timeline the moment's own description
+    // line is enough, so render nothing rather than an empty framed placeholder.
+    if (hideEmptyState) return null;
     return (
       <div style={emptyPanelStyle}>
         <div style={emptyHintStyle}>

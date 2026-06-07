@@ -93,6 +93,11 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
   // 3 slots) as a merge-tree by default — each slot → the join stage, the
   // selector's direct "skip" edge suppressed. This is the true topology, so no
   // flag is needed; the runtime overlay still matches node ids exactly.
+  // Collect each subflow's internal spec as we walk the top level, so we can
+  // materialise its internals INTO this graph below (tagged with subflowOf) —
+  // that's what lets eui's existing `filterGraphForDrill` show a subflow's
+  // stages on drill (hidden at top level, revealed when you click the box).
+  const subflowSpecs: { subflowId: string; spec: unknown; path: string }[] = [];
   for (const item of walkSubflowSpec(spec, '', { recurse: false })) {
     switch (item.kind) {
       case 'stage':
@@ -123,6 +128,16 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
           subflowSpec: item.subflowSpec,
           subflowPath: item.subflowPath,
         });
+        subflowSpecs.push({
+          subflowId: item.subflowId,
+          spec: item.subflowSpec,
+          // Strip any leading slash so qualified ids read `sf-x/stage`, matching
+          // the runtime overlay key (runtimeStageId minus #index has no leading /).
+          path: (typeof item.subflowPath === 'string' && item.subflowPath.length > 0
+            ? item.subflowPath
+            : item.subflowId
+          ).replace(/^\/+/, ''),
+        });
         break;
       case 'subflow-start':
         break;
@@ -133,8 +148,23 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
   // its semantic role. agentfootprint owns "which id is a hero" (stageRole);
   // this bridge translates that into the renderer's generic `data.emphasis` /
   // `data.icon` channel, so explainable-ui stays domain-agnostic.
-  const graph = trace.getGraph();
-  for (const node of graph.nodes) {
+  const baseGraph = trace.getGraph();
+  // Materialise each subflow's INTERNALS into the graph — path-qualified ids +
+  // `data.subflowOf` set — so eui's existing `filterGraphForDrill` reveals them
+  // when you drill the subflow box, and hides them at the top level (only
+  // `subflowOf === undefined` shows there, so the tuned merge-tree is untouched).
+  const internal = expandSubflowInternals(subflowSpecs);
+  // Dedupe by id when merging internals into the base graph. Today eui's own
+  // `walkSubflowSpecInto` emits nothing for footprintjs/trace's spec shape, so
+  // the internals come SOLELY from `expandSubflowInternals` (no overlap). This
+  // guard keeps it correct if eui ever learns to walk this shape — otherwise the
+  // same path-qualified node/edge would appear twice → duplicate xyflow ids.
+  const seenNodes = new Set(baseGraph.nodes.map((n) => n.id));
+  const seenEdges = new Set(baseGraph.edges.map((e) => e.id));
+  const nodes = [...baseGraph.nodes, ...internal.nodes.filter((n) => !seenNodes.has(n.id))];
+  const edges = [...baseGraph.edges, ...internal.edges.filter((e) => !seenEdges.has(e.id))];
+
+  for (const node of nodes) {
     const role = stageRole(node.id);
     const data = node.data as Record<string, unknown>;
     const { localStageId } = splitStageId(node.id);
@@ -163,5 +193,70 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
       if (slotKind !== undefined) data.slotKind = slotKind;
     }
   }
-  return graph;
+  return { ...baseGraph, nodes, edges };
+}
+
+/**
+ * Materialise the INTERNAL stages of each subflow into nodes/edges, path-
+ * qualified (`sf-injection-engine/gather`) and tagged with `data.subflowOf` =
+ * the subflow's id. One level deep per subflow (nested subflows stay boundary
+ * nodes, themselves drillable). Reuses the same walk + recorder machinery as the
+ * top-level graph, so node shapes match exactly.
+ */
+function expandSubflowInternals(
+  subflows: readonly { subflowId: string; spec: unknown; path: string }[],
+): { nodes: TraceGraph['nodes'][number][]; edges: TraceGraph['edges'][number][] } {
+  const nodes: TraceGraph['nodes'][number][] = [];
+  const edges: TraceGraph['edges'][number][] = [];
+
+  for (const { subflowId, spec, path } of subflows) {
+    const subTrace = createTraceStructureRecorder();
+    const subRec = subTrace.recorder as unknown as StructureRecorder;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    for (const item of walkSubflowSpec(spec as any, path, { recurse: false })) {
+      switch (item.kind) {
+        case 'stage':
+          subRec.onStageAdded?.({
+            stageId: item.stageId,
+            name: item.name,
+            type: item.type,
+            ...(item.isPausable !== undefined && { isPausable: item.isPausable }),
+            spec: item.spec,
+          });
+          break;
+        case 'edge':
+          subRec.onEdgeAdded?.({
+            from: item.from,
+            to: item.to,
+            kind: item.edgeKind,
+            ...(item.label !== undefined && { label: item.label }),
+          });
+          break;
+        case 'loop':
+          subRec.onLoopEdgeAdded?.({ from: item.from, to: item.to });
+          break;
+        case 'subflow':
+          subRec.onSubflowMounted?.({
+            subflowId: item.subflowId,
+            subflowName: item.subflowName,
+            rootStageId: item.mountStageId,
+            subflowSpec: item.subflowSpec,
+            subflowPath: item.subflowPath,
+          });
+          break;
+        case 'subflow-start':
+          break;
+      }
+    }
+    const sub = subTrace.getGraph();
+    const prefix = path.endsWith('/') ? path : `${path}/`;
+    const q = (id: string): string => (id.startsWith(prefix) ? id : `${prefix}${id}`);
+    for (const n of sub.nodes) {
+      nodes.push({ ...n, id: q(n.id), data: { ...n.data, subflowOf: subflowId } });
+    }
+    for (const e of sub.edges) {
+      edges.push({ ...e, id: `${q(e.source)}->${q(e.target)}`, source: q(e.source), target: q(e.target) });
+    }
+  }
+  return { nodes, edges };
 }

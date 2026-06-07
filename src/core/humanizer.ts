@@ -29,6 +29,11 @@ export type Humanizer = (event: AgentfootprintEvent) => string | null;
  * their own via `humanizeWith` (below).
  */
 export const defaultHumanizer: Humanizer = (event) => {
+  // Low-signal internal engine emits — hidden from prose. The surrounding
+  // injection / llm lines already narrate the OUTCOME, so the raw
+  // "context.evaluated" tick is noise. (These are $emit events, not part of the
+  // typed AgentfootprintEvent union, so we match the raw type string.)
+  if ((event.type as string) === 'agentfootprint.context.evaluated') return null;
   switch (event.type) {
     // Composition
     case 'agentfootprint.composition.enter':

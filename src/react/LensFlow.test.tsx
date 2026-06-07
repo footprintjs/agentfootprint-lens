@@ -61,8 +61,13 @@ describe('LensFlow — unit', () => {
   it('renders the chart nodes from the supplied graph', () => {
     const chart = chartFor(buildLLMCall());
     const { container } = render(<LensFlow chart={chart} />);
-    // Every node in the graph becomes a `.react-flow__node` in the DOM.
-    expect(container.querySelectorAll('.react-flow__node').length).toBe(chart.graph.nodes.length);
+    // The graph now also carries each subflow's INTERNAL stages (tagged with
+    // data.subflowOf) for drill-into; at the top level eui's drill filter hides
+    // them, rendering only the top-level nodes (subflowOf === undefined).
+    const topLevel = chart.graph.nodes.filter(
+      (n) => !(n.data as { subflowOf?: unknown }).subflowOf,
+    );
+    expect(container.querySelectorAll('.react-flow__node').length).toBe(topLevel.length);
   });
 });
 

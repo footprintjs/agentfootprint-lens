@@ -302,6 +302,13 @@ function milestonePositions(
   // current, so NOT inside a deeper child subflow) whose stage classifies.
   for (const c of commits) {
     if (c.runtimeGroupId !== current.runtimeGroupId) continue;
+    // Skip `current`'s OWN boundary commit(s): a subflow's mount commit shares
+    // its runtimeGroupId but represents the boundary, NOT an internal milestone.
+    // Without this, drilling INTO a classified subflow (e.g. the Injection
+    // Engine — classified as `iteration`) surfaces its OWN boundary as bogus
+    // "Iteration" stops, masking the subflow's internal stages (the overlay
+    // fallback below never runs because this path looks non-empty).
+    if (stripExecIndex(c.runtimeStageId) === stripExecIndex(current.runtimeGroupId)) continue;
     const m = classify(c.runtimeStageId);
     if (!m) continue;
     raw.push({
@@ -330,7 +337,23 @@ function milestonePositions(
       while (j < raw.length && raw[j]!.kind === 'slot') j++;
       const run = raw.slice(i, j);
       if (run.length >= 2) {
-        const anchor = run[0]!; // earliest-opening (raw is sorted by commitIdx)
+        // Light ONLY the slots whose contribution actually CHANGED this turn.
+        // A slot's change surfaces in the parent context-mount commit's overwrite,
+        // keyed by its injection key (the slot's own subflow commit is empty — it
+        // bubbles via outputMapper). footprintjs commits are change-only, so an
+        // unchanged slot's key is simply absent.
+        const changedKeys = changedSlotKeys(run, groups, commits);
+        const matched = run.filter((r) => {
+          const k = slotInjectionKey(r.runtimeGroupId);
+          return k !== null && changedKeys.has(k);
+        });
+        // Safety: if we couldn't attribute ANY change (no commit-key data, or a
+        // non-agentfootprint consumer), fall back to lighting ALL slots — never
+        // light nothing at a Context stop.
+        const changed = matched.length > 0 ? matched : run;
+        // Cursor anchors on the first CHANGED slot so the cursor's own group is a
+        // lit one (the highlight ORs the cursor group into the active set).
+        const anchor = changed[0]!;
         collapsed.push({
           runtimeStageId: anchor.runtimeStageId,
           runtimeGroupId: anchor.runtimeGroupId,
@@ -338,7 +361,7 @@ function milestonePositions(
           depth: anchor.depth,
           kind: 'parallel',
           label: 'Context',
-          coActiveGroupIds: run.map((r) => r.runtimeGroupId),
+          coActiveGroupIds: changed.map((r) => r.runtimeGroupId),
         });
       } else {
         collapsed.push(run[0]!); // single slot → keep individual ("Messages")
@@ -373,11 +396,153 @@ function milestonePositions(
   });
 }
 
+/**
+ * agentfootprint slot subflow id → its injection scope key. The lens IS the
+ * agentfootprint consumer, so this mapping is intentional + local. Returns null
+ * for a non-slot group.
+ */
+function slotInjectionKey(runtimeGroupId: string): string | null {
+  if (runtimeGroupId.includes('system-prompt')) return 'systemPromptInjections';
+  if (runtimeGroupId.includes('messages')) return 'messagesInjections';
+  if (runtimeGroupId.includes('tools')) return 'toolsInjections';
+  return null;
+}
+
+/**
+ * Which slot injection keys CHANGED across a slot run's commit span — i.e. which
+ * slots' contributions actually mutated this turn. A slot's change lands in the
+ * parent context-mount commit's (change-only) overwrite keys, which fire as the
+ * slot subflow exits — so we scan the commits spanning the run's open→close
+ * (plus a small margin for the exit/outputMapper commit).
+ */
+function changedSlotKeys(
+  run: readonly { readonly runtimeGroupId: string; readonly commitIdx: number }[],
+  groups: readonly Group[],
+  commits: readonly CommitSyncEntry[],
+): ReadonlySet<string> {
+  const SLOT_KEYS = new Set(['systemPromptInjections', 'messagesInjections', 'toolsInjections']);
+  let start = Infinity;
+  let end = -Infinity;
+  for (const r of run) {
+    const g = groups.find((gg) => gg.runtimeGroupId === r.runtimeGroupId);
+    start = Math.min(start, r.commitIdx, g?.opensAtCommitIdx ?? r.commitIdx);
+    end = Math.max(end, g?.closesAtCommitIdx ?? r.commitIdx);
+  }
+  // The context-mount (outputMapper) commit carrying each slot's injection key
+  // fires around the slot boundary — sometimes just BEFORE the slot's open,
+  // sometimes among the slots. Widen the window both sides to catch them.
+  // Only context-mount commits carry SLOT_KEYS, so a generous window can't
+  // pick up unrelated commits; iterations are far enough apart not to bleed.
+  const MARGIN = 4;
+  start -= MARGIN;
+  end += MARGIN;
+  const changed = new Set<string>();
+  for (const c of commits) {
+    if (c.commitIdx < start || c.commitIdx > end) continue;
+    for (const k of c.overwriteKeys) if (SLOT_KEYS.has(k)) changed.add(k);
+  }
+  return changed;
+}
+
+/**
+ * Minimal shape of a runtime-overlay execution-order entry the drilled-cursor
+ * logic needs. Mirrors explain-ui's `TraceRuntimeOverlay.executionOrder[i]`,
+ * kept local so this core module doesn't depend on the renderer's types.
+ */
+export interface ExecOrderEntry {
+  /** Full runtimeStageId WITH `#executionIndex` (e.g. `sf-injection-engine/gather#2`). */
+  readonly runtimeStageId: string;
+  /** Local stage id (e.g. `gather`). */
+  readonly stageId?: string;
+  /** Human display name (e.g. `Gather`). */
+  readonly stageName?: string;
+  /** ms since run start (mirrors eui's `RuntimeExecutionStep.timestampMs`) —
+   *  used as a timestamp fallback for timeline moments. */
+  readonly timestampMs?: number;
+}
+
+/** Strip the trailing `#executionIndex`, mirroring eui's overlay id match. */
+function stripExecIndex(id: string): string {
+  const i = id.lastIndexOf('#');
+  return i >= 0 ? id.slice(0, i) : id;
+}
+
+/**
+ * Cursor stops for a drilled subflow whose internal stages are NEITHER child
+ * groups NOR parent-log commits — e.g. the agent's Injection Engine, whose
+ * Gather/Evaluate/Route/Delta run in the subflow's OWN memory scope, so their
+ * commits never reach the parent commit log (verified: footprintjs records a
+ * subflow as ONE mount-boundary commit). They DO appear in the runtime overlay's
+ * `executionOrder` (the engine fires stage events globally, path-prefixed), so we
+ * derive the drill's scrub stops from there — the one source that actually has
+ * them. This is why a drilled subflow's internals now light as you scrub, where
+ * the commit-log-only path could never reach them.
+ *
+ * Scope = THIS drilled iteration only. From the drilled subflow's boundary entry,
+ * walk `executionOrder` FORWARD collecting the subflow's DIRECT internal stages
+ * (prefix-match, no deeper `/`), stopping at the first entry that LEAVES the
+ * subflow. A looping subflow's later iterations are separated by the parent's own
+ * stages, so the walk naturally ends at this iteration's boundary. Nested
+ * subflows surface as a single (drillable) boundary stop — their own internals
+ * are walked over here, revealed by drilling again.
+ *
+ * Each stop's `runtimeStageId` is the EXACT overlay id (WITH `#index`) so
+ * `LensFlow`'s `executionOrder.findIndex` resolves a scrubIndex and `TracedFlow`
+ * lights the matching node as the cursor reaches it.
+ */
+function subflowInternalPositions(
+  current: Group,
+  executionOrder: readonly ExecOrderEntry[],
+): CursorPosition[] {
+  const prefix = `${stripExecIndex(current.runtimeGroupId)}/`;
+  const boundaryIdx = executionOrder.findIndex(
+    (e) => e.runtimeStageId === current.runtimeGroupId,
+  );
+  if (boundaryIdx < 0) return [];
+
+  const raw: { runtimeStageId: string; label: string }[] = [];
+  for (let i = boundaryIdx + 1; i < executionOrder.length; i++) {
+    const e = executionOrder[i]!;
+    const stripped = stripExecIndex(e.runtimeStageId);
+    if (!stripped.startsWith(prefix)) break; // left the subflow → iteration done
+    const rest = stripped.slice(prefix.length);
+    if (rest.includes('/')) continue; // grandchild (inside a nested subflow) — skip
+    // Label from the stage's display name. The engine prefixes a subflow stage's
+    // name with its path (`sf-injection-engine/Gather`); strip ONLY that KNOWN
+    // prefix — not any `/`, which would mangle a legit name like `Read/Write` or
+    // `I/O` — and fall back to the already-prefix-free local id.
+    const name = e.stageName ?? e.stageId ?? rest;
+    const label = name.startsWith(prefix) ? name.slice(prefix.length) : name;
+    raw.push({ runtimeStageId: e.runtimeStageId, label });
+  }
+
+  // Ordinal repeated labels (a nested loop could re-run an internal stage).
+  const totals = new Map<string, number>();
+  for (const r of raw) totals.set(r.label, (totals.get(r.label) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return raw.map((r) => {
+    const n = (seen.get(r.label) ?? 0) + 1;
+    seen.set(r.label, n);
+    const label = (totals.get(r.label) ?? 0) > 1 ? `${r.label} ${n}` : r.label;
+    return {
+      runtimeStageId: r.runtimeStageId,
+      runtimeGroupId: r.runtimeStageId,
+      label,
+      kind: 'commit' as const,
+      depth: current.depth + 1,
+      // No per-internal commit exists (subflow-scoped); anchor the data view to
+      // the subflow's open commit so the details panel shows the subflow's state.
+      commitIdx: current.opensAtCommitIdx,
+    };
+  });
+}
+
 export function cursorPositionsAtDrill(
   groups: readonly Group[],
   commits: readonly CommitSyncEntry[],
   drillPath: readonly string[],
   milestoneFor?: MilestoneClassifier,
+  executionOrder?: readonly ExecOrderEntry[],
 ): readonly CursorPosition[] {
   if (groups.length === 0) return [];
   const current = currentGroup(groups, drillPath);
@@ -408,7 +573,26 @@ export function cursorPositionsAtDrill(
   if (middle.length > 0) {
     positions.push(...middle);
   } else {
-    positions.push(...structuralPositions(current, groups));
+    const structural = structuralPositions(current, groups);
+    if (structural.length > 0) {
+      positions.push(...structural);
+      // NOTE (exclusive-source assumption): structural and overlay-internal stops
+      // are mutually exclusive here. A MIXED subflow — plain stages PLUS a nested
+      // sub-subflow — would take this branch (the nested child group is structural)
+      // and its plain stages would get no scrub stops. No shipping subflow has that
+      // shape today (the Injection Engine is 4 plain stages → structural empty →
+      // overlay branch below). When a mixed shape ships, make these additive:
+      // merge structural child-group stops with overlay stops for plain stages not
+      // covered by a child group, sorted by executionOrder position.
+    } else if (drillPath.length > 0 && executionOrder && executionOrder.length > 0) {
+      // Drilled into a subflow whose internals are NEITHER child groups NOR
+      // parent-log commits (their commits live in the subflow's own memory
+      // scope) — e.g. the Injection Engine's Gather/Evaluate/Route/Delta. The
+      // milestone + structural paths above find nothing for it. Derive the
+      // scrub stops from the runtime overlay's executionOrder, which is the one
+      // place those stage executions DO appear, so the internals light on scrub.
+      positions.push(...subflowInternalPositions(current, executionOrder));
+    }
   }
 
   // 3) Emit the outer group's end position ONLY when the group has

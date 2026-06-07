@@ -38,20 +38,31 @@ function statusColor(s: RunNodeStatus): string | undefined {
   return undefined;
 }
 
+/** Compact USD format: 4 decimals for normal costs, 6 for sub-cent dust so a
+ *  tiny run never collapses to "$0.0000". Mirrors the mockup ($0.0027). */
+function formatCost(usd: number): string {
+  return `$${usd.toFixed(usd > 0 && usd < 0.0001 ? 6 : 4)}`;
+}
+
 export const SummaryCard: React.FC<SummaryCardProps> = ({ summary }) => {
+  // Throughput = output tokens per second over the run. Operator-facing metric
+  // (how fast the agent is producing) — derived, not stored. Guard div-by-zero.
+  const throughput =
+    summary.durationMs !== undefined && summary.durationMs > 0
+      ? Math.round(summary.totalTokens.output / (summary.durationMs / 1000))
+      : undefined;
+
   const items: readonly { label: string; value: string; color?: string }[] = [
     { label: 'Status', value: statusLabel(summary.status), color: statusColor(summary.status) },
-    { label: 'Duration', value: summary.durationMs !== undefined ? `${summary.durationMs}ms` : '—' },
+    { label: 'Latency', value: summary.durationMs !== undefined ? `${summary.durationMs}ms` : '—' },
     { label: 'LLM calls', value: String(summary.llmCallCount) },
     { label: 'Tool calls', value: String(summary.toolCallCount) },
-    { label: 'Iterations', value: String(summary.iterationCount) },
-    {
-      label: 'Tokens',
-      value: `${summary.totalTokens.input} in / ${summary.totalTokens.output} out`,
-    },
+    { label: 'Tokens in', value: summary.totalTokens.input.toLocaleString() },
+    { label: 'Tokens out', value: summary.totalTokens.output.toLocaleString() },
     ...(summary.totalUsd !== undefined
-      ? [{ label: 'Cost', value: `$${summary.totalUsd.toFixed(6)}` }]
+      ? [{ label: 'Cost', value: formatCost(summary.totalUsd) }]
       : []),
+    ...(throughput !== undefined ? [{ label: 'Throughput', value: `${throughput} tok/s` }] : []),
     ...(summary.permissionDenials > 0
       ? [{ label: 'Denials', value: String(summary.permissionDenials) }]
       : []),
@@ -60,10 +71,13 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ summary }) => {
   return (
     <div
       style={{
+        // Compact single row of stats. `auto-fit minmax(78px…)` packs all the
+        // metrics onto ONE line in the wide monitor (was wrapping to two with the
+        // old 120px min) while still wrapping gracefully in a narrow panel.
         display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
-        gap: 12,
-        padding: 12,
+        gridTemplateColumns: 'repeat(auto-fit, minmax(64px, 1fr))',
+        gap: '8px 12px',
+        padding: '10px 14px',
         background: T.bgElevated,
         border: `1px solid ${T.border}`,
         borderRadius: 6,
@@ -71,11 +85,11 @@ export const SummaryCard: React.FC<SummaryCardProps> = ({ summary }) => {
       }}
     >
       {items.map(({ label, value, color }) => (
-        <div key={label}>
-          <div style={{ fontSize: 11, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.4 }}>
+        <div key={label} style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 10, color: T.textMuted, textTransform: 'uppercase', letterSpacing: 0.4, whiteSpace: 'nowrap' }}>
             {label}
           </div>
-          <div style={{ fontSize: 14, fontWeight: color ? 700 : 500, color: color ?? T.textPrimary }}>
+          <div style={{ fontSize: 14, fontWeight: color ? 700 : 500, color: color ?? T.textPrimary, whiteSpace: 'nowrap' }}>
             {value}
           </div>
         </div>
