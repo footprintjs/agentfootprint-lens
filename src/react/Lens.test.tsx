@@ -92,6 +92,19 @@ describe('<Lens> engineer view', () => {
     expect(container.textContent).toMatch(/LLM turn/);
   });
 
+  it('auto-derives the chart from the runner when no chart prop is passed', async () => {
+    // DX: `<Lens recorder runner />` — no manual chart wiring. The Lens derives
+    // graph + layout + node types from the runner itself (findings 3 + 5).
+    const { recorder, runner } = await runAgent();
+    const { container } = render(
+      <Lens recorder={recorder} runner={runner} view="engineer" />,
+    );
+    // The chart still renders (xyflow root present)...
+    expect(container.querySelector('.react-flow')).toBeTruthy();
+    // ...and the misleading "No runner attached" empty-state is NOT shown.
+    expect(container.textContent).not.toMatch(/No runner attached/);
+  });
+
   it('shows an empty-state hint when no runner is attached', async () => {
     const { recorder } = await runAgent();
     const { container } = render(<Lens recorder={recorder} view="engineer" />);

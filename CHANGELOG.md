@@ -10,6 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The monitor becomes a self-explaining "chatbot monitor": a single cursor drives a
 **CONVERSATION | EXECUTION FLOW | WHAT HAPPENED** layout.
 
+### Developer experience — `<Lens recorder runner />` just works
+
+Surfaced rebuilding a real consumer app (Neo) on the library:
+
+- **The chart is now DERIVED from the runner** when no `chart` prop is passed —
+  `<Lens recorder runner view="engineer" />` renders the composition graph with
+  zero manual wiring. An explicit `chart` prop still wins (full override).
+- **`LENS_NODE_TYPES` is now exported** — the renderer map for the chart's custom
+  node types (`slotPill` / `groupContainer`). Consumers no longer hand-roll it,
+  and the Lens uses it for its derived chart, eliminating the React-Flow
+  "node type not found" warning flood.
+- **`LensChartBoundary` wraps the chart** — a malformed `chart` (or an internal
+  flow-graph error) shows a compact fallback instead of white-screening the whole
+  monitor. Also exported for consumers.
+
 ### Added
 
 - **WHAT HAPPENED timeline** (`WhatHappenedTimeline` + `buildTimelineMoments`): a

@@ -35,6 +35,10 @@ import type { LensRecorder } from "../core/LensRecorder.js";
 import type { EventLogEntry, RunTreeNode } from "../core/types.js";
 import type { Humanizer } from "../core/humanizer.js";
 import { makeTeachingHumanizer } from "../core/humanizer.js";
+import { structureGraphFromRunner } from "../core/collapser/structureGraphFromRunner.js";
+import { dagreTraceLayout } from "footprint-explainable-ui/flowchart";
+import { LENS_NODE_TYPES } from "./lensNodeTypes.js";
+import { LensChartBoundary } from "./LensChartBoundary.js";
 import {
   selectAgentInstances,
   selectHops,
@@ -171,6 +175,25 @@ export const Lens: React.FC<LensProps> = ({
   const tree = recorder.selectRunTree();
   const log = recorder.selectEventLog();
   const summary = recorder.selectSummary();
+
+  // DX: a consumer can pass just `runner` — the chart is then DERIVED from it
+  // (real runtime-stage node ids + slot pills via the built-in node types), so
+  // `<Lens recorder runner />` renders the composition graph with no manual
+  // chart wiring. An explicit `chart` prop still wins (full override).
+  const effectiveChart = useMemo(
+    () =>
+      chart ??
+      (runner
+        ? {
+            graph: structureGraphFromRunner(
+              runner as unknown as Parameters<typeof structureGraphFromRunner>[0],
+            ),
+            layout: dagreTraceLayout,
+            nodeTypes: LENS_NODE_TYPES,
+          }
+        : undefined),
+    [chart, runner],
+  );
 
   // Single source of structural truth: agentfootprint's ReAct StepGraph,
   // exposed by `recorder.getStepGraph()` (the live `enable.flowchart()`
@@ -315,7 +338,7 @@ export const Lens: React.FC<LensProps> = ({
     <EngineerView
       recorder={recorder}
       {...(runner ? { runner } : {})}
-      {...(chart ? { chart } : {})}
+      {...(effectiveChart ? { chart: effectiveChart } : {})}
       stepGraph={effectiveStepGraph}
       summary={summary}
       log={log}
@@ -1080,11 +1103,13 @@ const EngineerView: React.FC<{
             }}
           >
             {runner && chart ? (
-              // Single-pipeline renderer over the consumer-supplied chart (built
-              // with `structureGraphFromRunner` — real runtime-stage node ids +
-              // hero/plumbing emphasis). One canonical chart path; the cursor
-              // overlay lights the executed path as the slider scrubs.
-              // See `memory/lens_v0_1_one_cursor_architecture.md`.
+              // Single-pipeline renderer over the chart — `chart` here is the
+              // effectiveChart from <Lens> (consumer-supplied, or DERIVED from the
+              // runner). Node ids are the real runtime-stage ids, so the cursor
+              // overlay lights the executed path as the slider scrubs. Wrapped in
+              // an error boundary so a malformed chart never white-screens the
+              // whole monitor. See `memory/lens_v0_1_one_cursor_architecture.md`.
+              <LensChartBoundary>
               <LensFlow
                 chart={chart}
                 selectedRuntimeStageId={cursorRuntimeStageId}
@@ -1107,6 +1132,7 @@ const EngineerView: React.FC<{
                 }}
                 traceRuntimeOverlay={traceOverlay}
               />
+              </LensChartBoundary>
             ) : (
               <div style={{ padding: 24, color: T.textMuted, fontSize: 12 }}>
                 No runner attached — pass the agentfootprint Runner via
