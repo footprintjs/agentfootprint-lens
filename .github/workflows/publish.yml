@@ -1,0 +1,37 @@
+name: Publish to npm
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
+
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+
+      # Trusted publishing requires npm >= 11.5.1, but newer npm
+      # changes optional peer-dep resolution in ways that break our
+      # test suite. Upgrade ONLY for the publish step, AFTER tests.
+      - run: npm install -g npm@latest
+
+      # Trusted publishing: no NODE_AUTH_TOKEN set. npm CLI authenticates
+      # to the registry via the GitHub OIDC token (granted by id-token:
+      # write permission above). npm verifies the publish is from a
+      # trusted GitHub workflow per the package's trusted-publisher config.
+      - name: Publish to npm
+        run: npm publish --provenance --access public
