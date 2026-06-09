@@ -690,8 +690,10 @@ export class LensRecorder {
 
   /**
    * Pop the top node IF its kind matches, applying finalization fields.
-   * Mismatched kinds (indicating malformed event ordering) are logged
-   * but don't throw — Lens prefers partial correctness to crashes.
+   * Mismatched kinds (indicating malformed event ordering) are SILENTLY
+   * skipped — nothing is logged today (deliberate: no console noise in
+   * well-formed runs) and Lens prefers partial correctness to crashes.
+   * A dev-mode warning/counter is backlog item U4.
    */
   private popIfKind(
     kind: RunNodeKind,
