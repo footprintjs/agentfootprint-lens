@@ -46,7 +46,11 @@ describe('<SkillGraphFlow>', () => {
   it('clicking a skill node selects it and shows its detail (description + tools + body)', () => {
     const detailFor = (node: { id: string }) =>
       node.id === 'io-profile'
-        ? { description: 'Profile the IO pattern.', tools: ['get_io'], body: 'STEP 1: pull counters' }
+        ? {
+            description: 'Profile the IO pattern.',
+            tools: ['get_io'],
+            body: 'STEP 1: pull counters',
+          }
         : undefined;
     render(<SkillGraphFlow graph={graph} detailFor={detailFor} height={400} />);
 
@@ -69,7 +73,9 @@ describe('<SkillGraphFlow>', () => {
 
   it('fires onSelectNode with the clicked id (controlled mode)', () => {
     const onSelectNode = vi.fn();
-    render(<SkillGraphFlow graph={graph} selectedId={null} onSelectNode={onSelectNode} height={400} />);
+    render(
+      <SkillGraphFlow graph={graph} selectedId={null} onSelectNode={onSelectNode} height={400} />,
+    );
     fireEvent.click(screen.getByText('triage'));
     expect(onSelectNode).toHaveBeenCalledWith('triage');
   });
@@ -103,8 +109,24 @@ describe('<SkillGraphFlow>', () => {
 
   it('defaultSelectedId pre-selects a node on mount', () => {
     const detailFor = () => ({ description: 'preselected detail' });
-    render(<SkillGraphFlow graph={graph} defaultSelectedId="triage" detailFor={detailFor} height={400} />);
+    render(
+      <SkillGraphFlow
+        graph={graph}
+        defaultSelectedId="triage"
+        detailFor={detailFor}
+        height={400}
+      />,
+    );
     const panel = screen.getByTestId('skill-graph-detail');
     expect(within(panel).getByText('preselected detail')).toBeTruthy();
+  });
+
+  it('shows the decision path ("REACHED WHEN") for a selected tree leaf', () => {
+    render(<SkillGraphFlow graph={graph} defaultSelectedId="triage" height={400} />);
+    const panel = screen.getByTestId('skill-graph-detail');
+    expect(within(panel).getByText('REACHED WHEN')).toBeTruthy();
+    // triage is the all-'no' default leaf: "io intent? no".
+    expect(within(panel).getByText('io intent?')).toBeTruthy();
+    expect(within(panel).getAllByText('no').length).toBeGreaterThan(0);
   });
 });

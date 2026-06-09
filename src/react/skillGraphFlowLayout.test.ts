@@ -5,6 +5,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   layoutSkillGraph,
+  routingPathTo,
   sizeFor,
   SKILL_GRAPH_START_ID,
   type SkillGraphInput,
@@ -119,5 +120,46 @@ describe('layoutSkillGraph', () => {
     const { nodes, edges } = layoutSkillGraph({ nodes: [], edges: [] });
     expect(nodes).toEqual([]);
     expect(edges).toEqual([]);
+  });
+});
+
+describe('routingPathTo', () => {
+  it('returns the root→leaf decision path for a tree leaf', () => {
+    expect(routingPathTo(tree, 'sfp-audit')).toEqual([
+      { predicate: 'io intent?', branch: 'no' },
+      { predicate: 'sfp intent?', branch: 'yes' },
+    ]);
+    expect(routingPathTo(tree, 'io-profile')).toEqual([{ predicate: 'io intent?', branch: 'yes' }]);
+    expect(routingPathTo(tree, 'triage')).toEqual([
+      { predicate: 'io intent?', branch: 'no' },
+      { predicate: 'sfp intent?', branch: 'no' },
+    ]);
+  });
+
+  it('returns the path to a predicate node too (stops at START)', () => {
+    expect(routingPathTo(tree, 'd1')).toEqual([{ predicate: 'io intent?', branch: 'no' }]);
+    expect(routingPathTo(tree, 'd0')).toEqual([]); // root predicate — reached from START
+  });
+
+  it('a flat entry skill (reached from START) → empty path', () => {
+    const flat: SkillGraphInput = {
+      nodes: [{ id: 'a', kind: 'skill', label: 'a' }],
+      edges: [{ from: null, to: 'a', kind: 'entry' }],
+    };
+    expect(routingPathTo(flat, 'a')).toEqual([]);
+  });
+
+  it('is cycle-guarded (loop edges do not hang)', () => {
+    const cyclic: SkillGraphInput = {
+      nodes: [
+        { id: 'a', kind: 'skill', label: 'a' },
+        { id: 'b', kind: 'skill', label: 'b' },
+      ],
+      edges: [
+        { from: 'b', to: 'a', label: 'x' },
+        { from: 'a', to: 'b', label: 'y' },
+      ],
+    };
+    expect(() => routingPathTo(cyclic, 'a')).not.toThrow();
   });
 });

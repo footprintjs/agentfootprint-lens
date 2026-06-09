@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.19.0]
+
+`<SkillGraphFlow>` now shows the **decision path** to a selected skill.
+
+### Added
+
+- **"REACHED WHEN" path in the detail panel.** Clicking a skill (or predicate)
+  now shows the root→leaf decision path that reaches it — each predicate + the
+  `yes`/`no` branch taken — so you can read *why* a skill is reachable, not just
+  *that* it exists. Derived purely from the graph's edges (no extra data needed
+  from the consumer); the matched `yes` branches are accented.
+- **`routingPathTo(graph, nodeId)`** — the pure, exported helper behind it (walks
+  the drawn edges backward to START, cycle-guarded), plus the `SkillRoutingPathStep`
+  type. Use it to build your own routing UI. Complements agentfootprint 6.5.0's
+  runtime `context.evaluated.routing` (which provenance actually fired at run time);
+  this is the design-time view of the same paths.
+
+### Tests
+
+- `skillGraphFlowLayout` — `routingPathTo`: tree-leaf paths (incl. the all-`no`
+  default leaf), path to a predicate node, flat-entry empty path, cycle guard.
+- `<SkillGraphFlow>` — the "REACHED WHEN" path renders for a selected leaf.
+
 ## [0.18.0]
 
 Adds `<SkillGraphFlow>` — an interactive, two-panel view of an agentfootprint

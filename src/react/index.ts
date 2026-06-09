@@ -35,12 +35,14 @@ export {
 } from './SkillGraphFlow.js';
 export {
   layoutSkillGraph,
+  routingPathTo,
   SKILL_GRAPH_START_ID,
   type SkillGraphNodeView,
   type SkillGraphEdgeView,
   type SkillGraphInput,
   type SkillFlowNode,
   type SkillFlowEdge,
+  type SkillRoutingPathStep,
 } from './skillGraphFlowLayout.js';
 export { SummaryCard } from './SummaryCard.js';
 export { TimeTravel, type TimeTravelProps } from './TimeTravel.js';

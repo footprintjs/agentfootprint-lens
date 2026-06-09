@@ -117,13 +117,24 @@ export function layoutSkillGraph(
     if (!g.hasNode(source) || !g.hasNode(e.to)) continue; // skip dangling endpoints
     const id = `sge${i++}:${source}->${e.to}`;
     g.setEdge(source, e.to, {}, id);
-    flowEdges.push({ id, source, target: e.to, label: e.label, dashed: e.kind === 'model' });
+    flowEdges.push({
+      id,
+      source,
+      target: e.to,
+      label: e.label,
+      dashed: e.kind === 'model',
+    });
   }
 
   dagre.layout(g);
 
   const toFlow = (id: string, kind: FlowNodeKind, label: string): SkillFlowNode => {
-    const p = g.node(id) as { x: number; y: number; width: number; height: number };
+    const p = g.node(id) as {
+      x: number;
+      y: number;
+      width: number;
+      height: number;
+    };
     return {
       id,
       kind,
@@ -140,4 +151,41 @@ export function layoutSkillGraph(
   for (const n of graph.nodes) nodes.push(toFlow(n.id, n.kind, n.label ?? n.id));
 
   return { nodes, edges: flowEdges };
+}
+
+/** One predicate on the path that reaches a node, and the branch taken. */
+export interface SkillRoutingPathStep {
+  /** The predicate node's caption. */
+  readonly predicate: string;
+  /** The branch (edge caption) taken to descend toward the target. */
+  readonly branch: string;
+}
+
+/**
+ * Walk the graph backwards from `nodeId` to START, collecting the decision path
+ * that reaches it — each predicate + the branch taken — in root→leaf order. For a
+ * decision tree this is the conjunction that activates the skill; for a flat
+ * entry it's empty (reached directly), for a route it's the single edge. Pure +
+ * derived from the drawn edges (no agentfootprint dependency); cycle-guarded.
+ */
+export function routingPathTo(graph: SkillGraphInput, nodeId: string): SkillRoutingPathStep[] {
+  const labelById = new Map(graph.nodes.map((n) => [n.id, n.label ?? n.id] as const));
+  const incoming = new Map<string, { from: string | null; branch?: string }>();
+  for (const e of graph.edges) incoming.set(e.to, { from: e.from, branch: e.label });
+
+  const steps: SkillRoutingPathStep[] = [];
+  const seen = new Set<string>([nodeId]);
+  let cur: string | null = nodeId;
+  while (cur) {
+    const edge = incoming.get(cur);
+    if (!edge || edge.from === null) break; // reached START (entry) or a root
+    if (seen.has(edge.from)) break; // cycle guard
+    seen.add(edge.from);
+    steps.push({
+      predicate: labelById.get(edge.from) ?? edge.from,
+      branch: edge.branch ?? '',
+    });
+    cur = edge.from;
+  }
+  return steps.reverse(); // root → leaf
 }

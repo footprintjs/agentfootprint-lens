@@ -35,9 +35,11 @@ import '@xyflow/react/dist/style.css';
 import { T } from './theme/index.js';
 import {
   layoutSkillGraph,
+  routingPathTo,
   sizeFor,
   type SkillGraphNodeView,
   type SkillGraphEdgeView,
+  type SkillRoutingPathStep,
 } from './skillGraphFlowLayout.js';
 
 /** The graph structure to draw — matches agentfootprint's `SkillGraph`. */
@@ -57,7 +59,10 @@ export interface SkillNodeDetail {
   /** Tool names the skill unlocks. */
   readonly tools?: readonly string[];
   /** Extra label/value rows (e.g. trigger kind). */
-  readonly meta?: ReadonlyArray<{ readonly label: string; readonly value: string }>;
+  readonly meta?: ReadonlyArray<{
+    readonly label: string;
+    readonly value: string;
+  }>;
 }
 
 export interface SkillGraphFlowProps {
@@ -155,7 +160,13 @@ const SkillBoxNode: React.FC<NodeProps> = ({ data }) => {
           background: T.srcSkill,
         }}
       />
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+      <span
+        style={{
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}
+      >
         {d.label}
       </span>
       <Handle type="source" position={Position.Bottom} style={HANDLE_STYLE} isConnectable={false} />
@@ -210,13 +221,43 @@ const NODE_TYPES: NodeTypes = {
   sgSkill: SkillBoxNode,
 };
 
+function RoutingPath({ steps }: { steps: readonly SkillRoutingPathStep[] }): React.ReactElement {
+  return (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>REACHED WHEN</div>
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 6,
+        }}
+      >
+        {steps.map((s, i) => (
+          <React.Fragment key={`${s.predicate}-${i}`}>
+            {i > 0 && <span style={{ color: T.textMuted }}>→</span>}
+            <span style={{ fontSize: 12, color: T.textSecondary }}>
+              {s.predicate}{' '}
+              <strong style={{ color: s.branch === 'yes' ? T.srcSkill : T.textMuted }}>
+                {s.branch}
+              </strong>
+            </span>
+          </React.Fragment>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function DetailPanel({
   node,
   detail,
+  routingPath,
   width,
 }: {
   node: SkillGraphNodeView | null;
   detail: SkillNodeDetail | undefined;
+  routingPath: readonly SkillRoutingPathStep[];
   width: number;
 }): React.ReactElement {
   const panel: React.CSSProperties = {
@@ -235,8 +276,8 @@ function DetailPanel({
     return (
       <aside style={panel} data-testid="skill-graph-detail">
         <p style={{ color: T.textMuted, fontSize: 13, margin: 0 }}>
-          Click a node to inspect it. Diamonds are decision predicates; boxes are
-          skills that load just-in-time when their path is chosen.
+          Click a node to inspect it. Diamonds are decision predicates; boxes are skills that load
+          just-in-time when their path is chosen.
         </p>
       </aside>
     );
@@ -246,7 +287,14 @@ function DetailPanel({
   const accent = isPredicate ? T.edgeDecision : T.srcSkill;
   return (
     <aside style={panel} data-testid="skill-graph-detail">
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 8,
+          marginBottom: 4,
+        }}
+      >
         <span
           style={{
             fontSize: 11,
@@ -263,8 +311,8 @@ function DetailPanel({
 
       {isPredicate && !detail && (
         <p style={{ color: T.textSecondary, fontSize: 13, margin: 0 }}>
-          Routes to its <strong>yes</strong> / <strong>no</strong> subtree based on
-          this predicate, evaluated every iteration.
+          Routes to its <strong>yes</strong> / <strong>no</strong> subtree based on this predicate,
+          evaluated every iteration.
         </p>
       )}
 
@@ -273,6 +321,8 @@ function DetailPanel({
           {detail.description}
         </p>
       )}
+
+      {routingPath.length > 0 && <RoutingPath steps={routingPath} />}
 
       {detail?.meta?.map((row) => (
         <div key={row.label} style={{ fontSize: 12, marginBottom: 6 }}>
@@ -284,7 +334,8 @@ function DetailPanel({
       {detail?.tools && detail.tools.length > 0 && (
         <div style={{ marginTop: 12 }}>
           <div style={{ fontSize: 11, color: T.textMuted, marginBottom: 6 }}>
-            UNLOCKS {detail.tools.length} TOOL{detail.tools.length === 1 ? '' : 'S'}
+            UNLOCKS {detail.tools.length} TOOL
+            {detail.tools.length === 1 ? '' : 'S'}
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
             {detail.tools.map((tool) => (
@@ -388,7 +439,10 @@ export const SkillGraphFlow: React.FC<SkillGraphFlowProps> = ({
       height: n.height,
       draggable: false,
       selectable: n.kind !== 'start',
-      data: { label: n.label, isSelected: n.id === selectedId } satisfies FlowNodeData,
+      data: {
+        label: n.label,
+        isSelected: n.id === selectedId,
+      } satisfies FlowNodeData,
     }));
     const rfEdges: Edge[] = laid.edges.map((e) => ({
       id: e.id,
@@ -402,7 +456,12 @@ export const SkillGraphFlow: React.FC<SkillGraphFlowProps> = ({
       },
       labelStyle: { fill: T.textMuted, fontFamily: T.fontSans, fontSize: 11 },
       labelBgStyle: { fill: T.bgPrimary, fillOpacity: 0.85 },
-      markerEnd: { type: MarkerType.ArrowClosed, color: T.edgeDefault, width: 16, height: 16 },
+      markerEnd: {
+        type: MarkerType.ArrowClosed,
+        color: T.edgeDefault,
+        width: 16,
+        height: 16,
+      },
     }));
     return { rfNodes, rfEdges };
   }, [graph, showStart, selectedId]);
@@ -412,6 +471,10 @@ export const SkillGraphFlow: React.FC<SkillGraphFlowProps> = ({
     [graph.nodes, selectedId],
   );
   const detail = selectedNode && detailFor ? detailFor(selectedNode) : undefined;
+  const routingPath = useMemo(
+    () => (selectedNode ? routingPathTo(graph, selectedNode.id) : []),
+    [graph, selectedNode],
+  );
 
   return (
     <div
@@ -465,7 +528,12 @@ export const SkillGraphFlow: React.FC<SkillGraphFlowProps> = ({
               transition: dragging ? undefined : 'background 120ms',
             }}
           />
-          <DetailPanel node={selectedNode} detail={detail} width={panelWidth} />
+          <DetailPanel
+            node={selectedNode}
+            detail={detail}
+            routingPath={routingPath}
+            width={panelWidth}
+          />
         </>
       )}
     </div>
