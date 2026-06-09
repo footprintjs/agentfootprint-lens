@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.18.0]
+
+Adds `<SkillGraphFlow>` — an interactive, two-panel view of an agentfootprint
+skill graph (the richer companion to `graph.toMermaid()`).
+
+### Added
+
+- **`<SkillGraphFlow graph={...} detailFor={...} />`** — renders a built
+  `skillGraph()` (flat entry/route OR a `decide(...)` decision tree) as a
+  pannable/zoomable React Flow diagram: predicate **diamonds** route to skill
+  **boxes**. **Click a node** → its detail (a skill's description, the tools it
+  unlocks, and its full procedure; or a predicate's yes/no routing) shows in a
+  side panel. The panel is **resizable** — drag the divider to widen it for long
+  skill bodies (`defaultPanelWidth`, default 320). Controlled or uncontrolled
+  selection (`selectedId` / `defaultSelectedId` / `onSelectNode`),
+  `hideDetailPanel`, `showStart`, themeable via the existing `--lens-*` / `--fp-*`
+  tokens.
+- **`layoutSkillGraph(graph, opts)`** — the pure, framework-free dagre layout
+  behind the component (exported for consumers building their own renderer), plus
+  `SKILL_GRAPH_START_ID` and the structural prop types (`SkillGraphView`,
+  `SkillNodeDetail`, `SkillGraphNodeView`, `SkillGraphEdgeView`, `SkillFlowNode`,
+  `SkillFlowEdge`). Decoupled from agentfootprint by structural typing — a built
+  `graph` passes straight in; the lens takes no hard dependency on the exact
+  agentfootprint types.
+
+### Tests
+
+- `skillGraphFlowLayout` (pure): node/edge derivation, top-to-bottom ranking,
+  `showStart`, dashed `model` edges, dangling-edge skip, empty graph, and a
+  regression guard that same-kind sibling nodes never share a position (dagre
+  mutates the label object passed to `setNode`).
+- `<SkillGraphFlow>` (render/interaction): node labels, empty-state hint, click →
+  skill detail (description + tools + body), predicate detail, `onSelectNode`,
+  `hideDetailPanel`, `defaultSelectedId`, and the resizer (present/hidden +
+  drag widens the panel).
+
 ## [0.17.0]
 
 The monitor becomes a self-explaining "chatbot monitor": a single cursor drives a
