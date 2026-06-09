@@ -44,8 +44,15 @@
  * getEntryRanges, entryCount) so consumers who used them keep working.
  */
 
+import { isDevMode } from 'footprintjs';
 import { SequenceStore } from 'footprintjs/trace';
-import { type AgentfootprintEvent, type FlowchartHandle, type Runner, type Unsubscribe } from 'agentfootprint';
+import {
+  ALL_EVENT_TYPES,
+  type AgentfootprintEvent,
+  type FlowchartHandle,
+  type Runner,
+  type Unsubscribe,
+} from 'agentfootprint';
 import { LiveStateRecorder, BoundaryRecorder, type StepGraph } from 'agentfootprint/observe';
 import {
   createTraceRuntimeOverlay,
@@ -101,6 +108,43 @@ interface BuildingNode {
   pause?: PauseDetails;
   composition?: { compositionKind: 'Sequence' | 'Parallel' | 'Conditional' | 'Loop'; childCount: number };
 }
+
+/** Construction options for `LensRecorder` / `lensRecorder()`. */
+export interface LensRecorderOptions {
+  /**
+   * Dev-mode diagnostics switch (backlog item U4).
+   *
+   * - `true`  — `console.warn` once per unknown event type and on every
+   *             bracket mismatch, regardless of the global dev-mode flag.
+   * - `false` — never warn, even when footprintjs dev mode is on.
+   * - unset   — follow footprintjs's global `isDevMode()` flag (the
+   *             lens convention — consumers flip it centrally via
+   *             `enableDevMode()` / `disableDevMode()`).
+   *
+   * Counters (`getDiagnostics()`) are ALWAYS maintained — `debug` only
+   * controls console output.
+   */
+  readonly debug?: boolean;
+}
+
+/** Health counters maintained by `LensRecorder` — see `getDiagnostics()`. */
+export interface LensDiagnostics {
+  /** Per-type count of events whose `type` is not a registered
+   *  agentfootprint event type. Empty object on a well-formed run. */
+  readonly unknownEventTypes: Record<string, number>;
+  /** Number of close events (`*_end` / `*.exit`) that did not match the
+   *  kind on top of the build stack. 0 on a well-formed run. */
+  readonly bracketMismatches: number;
+}
+
+/**
+ * Every registered agentfootprint event type — the recorder's vocabulary.
+ * Sourced from agentfootprint's own registry so the set stays in lockstep
+ * with the version of agentfootprint the consumer installed: an event the
+ * lens merely attaches (no structural handler) is still KNOWN; only types
+ * outside the registry count as unknown in `getDiagnostics()`.
+ */
+const KNOWN_EVENT_TYPES: ReadonlySet<string> = new Set<string>(ALL_EVENT_TYPES);
 
 export class LensRecorder {
   /** Stable id for idempotent attach. */
@@ -204,7 +248,20 @@ export class LensRecorder {
    */
   private readonly notifier = new ChangeNotifier();
 
-  constructor(rootLabel = 'Run') {
+  /** Explicit debug override from options; `undefined` = follow the
+   *  global footprintjs `isDevMode()` flag. See `LensRecorderOptions`. */
+  private readonly debug: boolean | undefined;
+  /** Per-type count of events outside the agentfootprint registry.
+   *  Always maintained (debug only gates console output). */
+  private readonly unknownEventTypes = new Map<string, number>();
+  /** Count of `popIfKind` bracket mismatches. Always maintained. */
+  private bracketMismatchCount = 0;
+  /** Unknown types already warned about — warn ONCE per type, not per
+   *  event, so a chatty unknown emitter can't flood the console. */
+  private readonly warnedUnknownTypes = new Set<string>();
+
+  constructor(rootLabel = 'Run', options: LensRecorderOptions = {}) {
+    this.debug = options.debug;
     this.root = {
       id: 'run-root',
       kind: 'run',
@@ -232,10 +289,45 @@ export class LensRecorder {
     this.finalStatus = 'running';
     this.runError = undefined;
     this.lastRunId = undefined;
+    this.unknownEventTypes.clear();
+    this.bracketMismatchCount = 0;
+    this.warnedUnknownTypes.clear();
     this.liveState.clear();
     this.boundary.clear();
     this.runtime.reset();
     this.bumpVersion();
+  }
+
+  /**
+   * Health counters for the observed event stream (backlog item U4).
+   * Always maintained — no debug flag needed — so UIs and tests can
+   * assert stream health without scraping the console:
+   *
+   *   - `unknownEventTypes` — per-type counts of events whose `type` is
+   *     not in agentfootprint's event registry (e.g. a newer
+   *     agentfootprint emitting types this lens doesn't know, or a
+   *     custom dispatcher leaking foreign events). These events are
+   *     still attached to the current top node — counted, not dropped.
+   *   - `bracketMismatches` — close events (`llm_end`, `tool_end`,
+   *     `composition.exit`, ...) whose kind didn't match the top of the
+   *     build stack (malformed ordering). The close is skipped; the
+   *     tree stays partially structured rather than crashing.
+   *
+   * Both are `{}` / `0` on a well-formed run. Reset by `clear()`.
+   * Returns a fresh snapshot object on every call.
+   */
+  getDiagnostics(): LensDiagnostics {
+    return {
+      unknownEventTypes: Object.fromEntries(this.unknownEventTypes),
+      bracketMismatches: this.bracketMismatchCount,
+    };
+  }
+
+  /** Whether diagnostic warnings go to the console: explicit option
+   *  wins; otherwise follow footprintjs's global dev-mode flag
+   *  (evaluated per event so `enableDevMode()` mid-run takes effect). */
+  private debugEnabled(): boolean {
+    return this.debug ?? isDevMode();
   }
 
   /**
@@ -463,6 +555,11 @@ export class LensRecorder {
     // inside this LLM call's slot pipeline").
     this.top().events.push(entry);
 
+    // U4 diagnostics: an event type outside agentfootprint's registry
+    // still lands on the current node (above) — but it's counted, and
+    // warned about once per type when debug is on.
+    this.noteUnknownType(event.type);
+
     this.dispatch(event, runOffsetMs, entry);
 
     // Progressive rendering contract: every event bumps the version
@@ -476,6 +573,24 @@ export class LensRecorder {
   /** Notify all subscribers + bump version. Delegated to ChangeNotifier. */
   private bumpVersion(): void {
     this.notifier.notify();
+  }
+
+  /**
+   * U4 diagnostics — count (and, in debug, warn ONCE per type about)
+   * event types outside agentfootprint's registry. One Set lookup per
+   * event on the happy path.
+   */
+  private noteUnknownType(type: string): void {
+    if (KNOWN_EVENT_TYPES.has(type)) return;
+    this.unknownEventTypes.set(type, (this.unknownEventTypes.get(type) ?? 0) + 1);
+    if (this.debugEnabled() && !this.warnedUnknownTypes.has(type)) {
+      this.warnedUnknownTypes.add(type);
+      console.warn(
+        `[lens] LensRecorder: unknown event type '${type}' — not in agentfootprint's event registry. ` +
+          `Attached to the current node without structural handling. (Warned once per type; ` +
+          `counts in getDiagnostics().unknownEventTypes.)`,
+      );
+    }
   }
 
   /**
@@ -504,10 +619,14 @@ export class LensRecorder {
     }
     if (type === 'agentfootprint.composition.exit') {
       const p = event.payload;
-      this.popIfKind('composition', {
-        endOffsetMs: runOffsetMs,
-        status: p.status === 'ok' ? 'ok' : p.status === 'budget_exhausted' ? 'budget_exhausted' : 'err',
-      });
+      this.popIfKind(
+        'composition',
+        {
+          endOffsetMs: runOffsetMs,
+          status: p.status === 'ok' ? 'ok' : p.status === 'budget_exhausted' ? 'budget_exhausted' : 'err',
+        },
+        entry.runtimeStageId,
+      );
       return;
     }
 
@@ -528,11 +647,15 @@ export class LensRecorder {
     }
     if (type === 'agentfootprint.composition.iteration_exit') {
       const p = event.payload;
-      this.popIfKind('iteration', {
-        endOffsetMs: runOffsetMs,
-        status: p.reason === 'budget' ? 'budget_exhausted' : 'ok',
-        iterationExit: p.reason,
-      });
+      this.popIfKind(
+        'iteration',
+        {
+          endOffsetMs: runOffsetMs,
+          status: p.reason === 'budget' ? 'budget_exhausted' : 'ok',
+          iterationExit: p.reason,
+        },
+        entry.runtimeStageId,
+      );
       return;
     }
 
@@ -551,7 +674,7 @@ export class LensRecorder {
       return;
     }
     if (type === 'agentfootprint.agent.turn_end') {
-      this.popIfKind('iteration', { endOffsetMs: runOffsetMs, status: 'ok' });
+      this.popIfKind('iteration', { endOffsetMs: runOffsetMs, status: 'ok' }, entry.runtimeStageId);
       return;
     }
     if (type === 'agentfootprint.agent.iteration_start') {
@@ -569,7 +692,7 @@ export class LensRecorder {
       return;
     }
     if (type === 'agentfootprint.agent.iteration_end') {
-      this.popIfKind('iteration', { endOffsetMs: runOffsetMs, status: 'ok' });
+      this.popIfKind('iteration', { endOffsetMs: runOffsetMs, status: 'ok' }, entry.runtimeStageId);
       return;
     }
 
@@ -598,16 +721,20 @@ export class LensRecorder {
     }
     if (type === 'agentfootprint.stream.llm_end') {
       const p = event.payload;
-      this.popIfKind('llm-call', {
-        endOffsetMs: runOffsetMs,
-        status: 'ok',
-        llmEnd: {
-          content: p.content,
-          toolCallCount: p.toolCallCount,
-          usage: p.usage,
-          stopReason: p.stopReason,
+      this.popIfKind(
+        'llm-call',
+        {
+          endOffsetMs: runOffsetMs,
+          status: 'ok',
+          llmEnd: {
+            content: p.content,
+            toolCallCount: p.toolCallCount,
+            usage: p.usage,
+            stopReason: p.stopReason,
+          },
         },
-      });
+        entry.runtimeStageId,
+      );
       return;
     }
 
@@ -634,11 +761,15 @@ export class LensRecorder {
     }
     if (type === 'agentfootprint.stream.tool_end') {
       const p = event.payload;
-      this.popIfKind('tool-call', {
-        endOffsetMs: runOffsetMs,
-        status: p.error === true ? 'err' : 'ok',
-        toolEnd: { result: p.result, error: p.error ?? false },
-      });
+      this.popIfKind(
+        'tool-call',
+        {
+          endOffsetMs: runOffsetMs,
+          status: p.error === true ? 'err' : 'ok',
+          toolEnd: { result: p.result, error: p.error ?? false },
+        },
+        entry.runtimeStageId,
+      );
       return;
     }
 
@@ -674,7 +805,9 @@ export class LensRecorder {
     }
 
     // Every other event is just attached to the current top node's
-    // events list (already done above). No structural change.
+    // events list (already done above). No structural change. Types
+    // outside agentfootprint's registry were already counted in
+    // `noteUnknownType` (handleEvent) — see `getDiagnostics()`.
   }
 
   // ─── Stack helpers ────────────────────────────────────────────
@@ -690,10 +823,13 @@ export class LensRecorder {
 
   /**
    * Pop the top node IF its kind matches, applying finalization fields.
-   * Mismatched kinds (indicating malformed event ordering) are SILENTLY
-   * skipped — nothing is logged today (deliberate: no console noise in
-   * well-formed runs) and Lens prefers partial correctness to crashes.
-   * A dev-mode warning/counter is backlog item U4.
+   * Mismatched kinds (indicating malformed event ordering) are SKIPPED,
+   * never thrown — Lens prefers partial correctness to crashes. Every
+   * mismatch increments `getDiagnostics().bracketMismatches` (U4), and
+   * when debug is on (`LensRecorderOptions.debug` or footprintjs
+   * `isDevMode()`) each mismatch logs a `console.warn` with the
+   * expected vs found kind plus the closing event's `runtimeStageId`.
+   * Well-formed runs stay console-silent either way.
    */
   private popIfKind(
     kind: RunNodeKind,
@@ -709,12 +845,23 @@ export class LensRecorder {
       };
       toolEnd?: { result: unknown; error: boolean };
     },
+    /** `runtimeStageId` of the closing event — included in the
+     *  dev-mode mismatch warning so the bad bracket is locatable. */
+    runtimeStageId?: string,
   ): void {
     const top = this.top();
     if (top.kind !== kind) {
-      // Malformed ordering — skip without throwing. A real recorder
-      // debugging story would surface this, but for v2.0 we keep it
-      // quiet to avoid noisy console output in well-formed runs.
+      // Malformed ordering — skip without throwing, but COUNT it so
+      // UIs/tests can assert stream health, and warn in debug mode.
+      this.bracketMismatchCount += 1;
+      if (this.debugEnabled()) {
+        console.warn(
+          `[lens] LensRecorder: bracket mismatch — tried to close a '${kind}' node but the top ` +
+            `of the stack is '${top.kind}'` +
+            (runtimeStageId !== undefined ? ` (runtimeStageId: ${runtimeStageId})` : '') +
+            `. Close event skipped; the tree stays partially structured.`,
+        );
+      }
       return;
     }
     top.endOffsetMs = finalize.endOffsetMs;
@@ -907,6 +1054,6 @@ function buildDetails(n: BuildingNode): RunTreeNode['details'] {
 }
 
 /** Convenience factory for consumers who prefer not to `new` the class. */
-export function lensRecorder(rootLabel?: string): LensRecorder {
-  return new LensRecorder(rootLabel);
+export function lensRecorder(rootLabel?: string, options?: LensRecorderOptions): LensRecorder {
+  return new LensRecorder(rootLabel, options);
 }

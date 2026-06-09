@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+`LensRecorder` now tells you when the event stream it observed was unhealthy
+(backlog item U4) — counters always, console warnings opt-in.
+
+### Added
+
+- **`recorder.getDiagnostics()`** — always-on health counters, no debug flag
+  needed: `{ unknownEventTypes: Record<string, number>; bracketMismatches: number }`.
+  `unknownEventTypes` counts events whose `type` is outside agentfootprint's
+  event registry (`ALL_EVENT_TYPES`) — e.g. a newer agentfootprint emitting
+  types this lens doesn't know. `bracketMismatches` counts close events
+  (`llm_end`, `tool_end`, `composition.exit`, ...) that didn't match the top
+  of the build stack. Both are zero on a well-formed run; reset by `clear()`.
+  UIs and tests can assert stream health without scraping the console.
+- **`LensRecorderOptions.debug`** — opt-in dev-mode warnings:
+  `lensRecorder('Run', { debug: true })`. When on, `console.warn` fires ONCE
+  PER unknown event TYPE (not per event — no spam from a chatty emitter) and
+  on EVERY `popIfKind` bracket mismatch (expected vs found kind, plus the
+  closing event's `runtimeStageId`). Unset, it follows footprintjs's global
+  `isDevMode()` flag (the existing lens convention — flip centrally via
+  `enableDevMode()`); `debug: false` forces silence even in dev mode.
+  Exported types: `LensRecorderOptions`, `LensDiagnostics`.
+
+### Fixed
+
+- `popIfKind`'s JSDoc now describes the real behavior (count + dev-mode warn);
+  previously mismatches were swallowed with no trace at all.
+
+### Tests
+
+- `LensRecorder.diagnostics` — unknown types counted per event / warned once
+  per type, silent-by-default with counters intact, bracket mismatch counter +
+  warning content, `isDevMode()` fallback + `debug: false` override, a real
+  Agent run (turn/iteration/llm/tool brackets) produces zero diagnostics and
+  zero `[lens]` console output, `clear()` resets counters and the warned-once
+  set.
+- `useLensRecorder` — first coverage for the hook: returns the given recorder
+  instance; an observed event bumps the version, re-renders, and accumulates
+  in `selectEventLog()`.
+
 ## [0.19.0]
 
 `<SkillGraphFlow>` now shows the **decision path** to a selected skill.

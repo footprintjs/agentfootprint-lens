@@ -20,7 +20,12 @@
  */
 
 export * from './types.js';
-export { LensRecorder, lensRecorder } from './LensRecorder.js';
+export {
+  LensRecorder,
+  lensRecorder,
+  type LensRecorderOptions,
+  type LensDiagnostics,
+} from './LensRecorder.js';
 export { ChangeNotifier } from './ChangeNotifier.js';
 export { buildStepGraphFromSnapshot } from './buildStepGraphFromSnapshot.js';
 export {
