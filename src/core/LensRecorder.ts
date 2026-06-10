@@ -9,6 +9,11 @@
  *                         keyed-by-runtimeStageId storage with
  *                         `.aggregate()`, `.accumulate()`,
  *                         `.getByKey()`, `.getEntryRanges()`.
+ *                         BOUNDED by default (U3): a `maxEvents` FIFO
+ *                         cap (default 50K) evicts oldest entries in
+ *                         batches; evictions are counted in
+ *                         `getDiagnostics().droppedEvents` — never
+ *                         silent. See `LensRecorderOptions.maxEvents`.
  *
  *   - **OBSERVER source**: subscribes to the v2 Runner's EventDispatcher
  *                          (typed events).
@@ -125,7 +130,38 @@ export interface LensRecorderOptions {
    * controls console output.
    */
   readonly debug?: boolean;
+  /**
+   * FIFO cap on the event log (backlog item U3). When the number of
+   * stored entries exceeds this cap, the OLDEST entries are evicted in
+   * batches (~10% of the cap per eviction, amortized O(1) per event)
+   * from BOTH the flat event log AND the per-node `events` lists on the
+   * run tree — so memory is genuinely released, not just hidden.
+   *
+   * Eviction is honest, never silent:
+   *   - `getDiagnostics().droppedEvents` counts every evicted entry.
+   *   - In debug mode (see `debug`) a `console.warn` fires ONCE when
+   *     eviction first kicks in.
+   *   - Retained entries keep their original `seq`, so consumers see
+   *     the gap at the front of the log.
+   *
+   * What eviction does NOT touch: run-tree STRUCTURE (iteration /
+   * llm-call / tool-call nodes — bounded by run shape, not event
+   * volume), `selectSummary()`'s `startedAt` / `durationMs` (anchored
+   * to the true first event), and the most recent entries. Aggregations
+   * over the log (`selectSummary` counts/tokens, `aggregate`,
+   * `getEntries`) reflect only RETAINED events once `droppedEvents > 0`.
+   *
+   * Default: `50_000` (generous — typical debug runs never evict).
+   * Pass `Number.POSITIVE_INFINITY` to opt out of the cap entirely.
+   * Must be a positive integer (or `Infinity`); anything else throws a
+   * `RangeError` at construction.
+   */
+  readonly maxEvents?: number;
 }
+
+/** Default `maxEvents` cap — generous enough that typical debug runs
+ *  never evict (REVIEW.md measured ~72 MB at 360K events; 50K ≈ 10 MB). */
+export const DEFAULT_MAX_EVENTS = 50_000;
 
 /** Health counters maintained by `LensRecorder` — see `getDiagnostics()`. */
 export interface LensDiagnostics {
@@ -135,6 +171,11 @@ export interface LensDiagnostics {
   /** Number of close events (`*_end` / `*.exit`) that did not match the
    *  kind on top of the build stack. 0 on a well-formed run. */
   readonly bracketMismatches: number;
+  /** Number of entries evicted by the `maxEvents` FIFO cap (U3).
+   *  0 until the cap is exceeded; when non-zero, the event log and every
+   *  log-derived view (summary counts, EventStream, commentary) cover
+   *  only the retained tail of the run. Reset by `clear()`. */
+  readonly droppedEvents: number;
 }
 
 /**
@@ -259,9 +300,22 @@ export class LensRecorder {
   /** Unknown types already warned about — warn ONCE per type, not per
    *  event, so a chatty unknown emitter can't flood the console. */
   private readonly warnedUnknownTypes = new Set<string>();
+  /** FIFO cap on the event log — see `LensRecorderOptions.maxEvents`. */
+  private readonly maxEvents: number;
+  /** Entries evicted by the cap so far. Surfaced via `getDiagnostics()`. */
+  private droppedEventCount = 0;
+  /** Eviction already warned about — warn ONCE per run, not per batch. */
+  private warnedEviction = false;
 
   constructor(rootLabel = 'Run', options: LensRecorderOptions = {}) {
     this.debug = options.debug;
+    const cap = options.maxEvents ?? DEFAULT_MAX_EVENTS;
+    if (cap !== Number.POSITIVE_INFINITY && (!Number.isInteger(cap) || cap < 1)) {
+      throw new RangeError(
+        `LensRecorder: maxEvents must be a positive integer or Infinity, got ${cap}`,
+      );
+    }
+    this.maxEvents = cap;
     this.root = {
       id: 'run-root',
       kind: 'run',
@@ -292,6 +346,8 @@ export class LensRecorder {
     this.unknownEventTypes.clear();
     this.bracketMismatchCount = 0;
     this.warnedUnknownTypes.clear();
+    this.droppedEventCount = 0;
+    this.warnedEviction = false;
     this.liveState.clear();
     this.boundary.clear();
     this.runtime.reset();
@@ -312,14 +368,18 @@ export class LensRecorder {
    *     `composition.exit`, ...) whose kind didn't match the top of the
    *     build stack (malformed ordering). The close is skipped; the
    *     tree stays partially structured rather than crashing.
+   *   - `droppedEvents` — entries evicted by the `maxEvents` FIFO cap
+   *     (U3). When non-zero, log-derived views cover only the retained
+   *     tail of the run.
    *
-   * Both are `{}` / `0` on a well-formed run. Reset by `clear()`.
-   * Returns a fresh snapshot object on every call.
+   * All are `{}` / `0` on a well-formed run that stayed under the cap.
+   * Reset by `clear()`. Returns a fresh snapshot object on every call.
    */
   getDiagnostics(): LensDiagnostics {
     return {
       unknownEventTypes: Object.fromEntries(this.unknownEventTypes),
       bracketMismatches: this.bracketMismatchCount,
+      droppedEvents: this.droppedEventCount,
     };
   }
 
@@ -562,12 +622,65 @@ export class LensRecorder {
 
     this.dispatch(event, runOffsetMs, entry);
 
+    // U3 — FIFO cap. AFTER dispatch so the entry's structural handling
+    // (node attach, bracket close) sees the full pre-eviction state.
+    this.enforceCap();
+
     // Progressive rendering contract: every event bumps the version
     // and notifies subscribers synchronously. React's
     // `useSyncExternalStore` sees a new version → re-renders → Lens
     // re-reads selectors → the next frame paints the new node / chip.
     // No 100ms polling, no final-flush debt.
     this.bumpVersion();
+  }
+
+  /**
+   * U3 — enforce the `maxEvents` FIFO cap. When the store exceeds the
+   * cap, evict the oldest entries down to ~90% of the cap in ONE batch
+   * (amortized O(1) per event: one O(retained) rebuild per ~10%-of-cap
+   * pushes), then prune the SAME evicted entries from every run-tree
+   * node's `events` list — entry objects are shared references, so
+   * skipping the tree would hide the memory, not release it.
+   *
+   * `SequenceStore` is append-only by design (no removal API), so the
+   * batch rebuild (clear + re-push retained) is the supported eviction
+   * path; the per-step key + range indices rebuild correctly during
+   * re-push.
+   */
+  private enforceCap(): void {
+    if (this.store.size <= this.maxEvents) return;
+    const all = this.store.getAll();
+    const evictBatch = Math.max(1, Math.floor(this.maxEvents / 10));
+    const retainCount = Math.max(1, this.maxEvents - evictBatch);
+    const dropCount = all.length - retainCount;
+    const retained = all.slice(dropCount);
+    this.store.clear();
+    for (const e of retained) this.store.push(e);
+    this.droppedEventCount += dropCount;
+    // Release the evicted entries from the run tree's per-node lists.
+    this.pruneNodeEvents(this.root, retained[0]!.seq);
+    if (this.debugEnabled() && !this.warnedEviction) {
+      this.warnedEviction = true;
+      console.warn(
+        `[lens] LensRecorder: maxEvents cap (${this.maxEvents}) reached — evicting oldest ` +
+          `events (FIFO, ~10% per batch). Log-derived views now cover only the retained ` +
+          `tail; evicted total in getDiagnostics().droppedEvents. Raise the cap via ` +
+          `lensRecorder('Run', { maxEvents }) or pass Infinity to disable. (Warned once.)`,
+      );
+    }
+  }
+
+  /** Drop entries with `seq < minSeq` from a node's `events` list (and
+   *  its descendants'). Per-node lists are seq-ordered, so this is a
+   *  prefix splice — in place, preserving the node object identity the
+   *  build stack may still hold. */
+  private pruneNodeEvents(node: BuildingNode, minSeq: number): void {
+    if (node.events.length > 0 && node.events[0]!.seq < minSeq) {
+      let keepFrom = 0;
+      while (keepFrom < node.events.length && node.events[keepFrom]!.seq < minSeq) keepFrom++;
+      node.events.splice(0, keepFrom);
+    }
+    for (const child of node.children) this.pruneNodeEvents(child, minSeq);
   }
 
   /** Notify all subscribers + bump version. Delegated to ChangeNotifier. */
@@ -938,7 +1051,13 @@ export class LensRecorder {
 
   /** Summary stats — computed lazily via `store.aggregate()`.
    *  Single-pass fold; types derived from the AgentfootprintEvent
-   *  discriminated union. */
+   *  discriminated union.
+   *
+   *  U3 caveat: once the `maxEvents` cap has evicted entries
+   *  (`getDiagnostics().droppedEvents > 0`), the folded counts/tokens
+   *  reflect only RETAINED events. `startedAt` / `durationMs` stay
+   *  anchored to the true first event of the run (tracked outside the
+   *  store), so the time axis never shifts. */
   selectSummary(): RunSummary {
     type Acc = {
       llmCallCount: number;
@@ -992,7 +1111,10 @@ export class LensRecorder {
     }, init);
 
     const entries = this.store.getAll();
-    const startedAt = entries[0]?.wallClockMs ?? 0;
+    // Anchor to the FIRST EVER event (runStartMs), not entries[0] —
+    // identical pre-eviction; stable once the maxEvents cap evicts the
+    // front of the log (U3).
+    const startedAt = this.runStartMs ?? entries[0]?.wallClockMs ?? 0;
     const endedAt = entries[entries.length - 1]?.wallClockMs;
     return {
       startedAt,

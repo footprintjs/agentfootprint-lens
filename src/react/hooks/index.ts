@@ -18,3 +18,9 @@ export {
 } from './useCommentarySlider.js';
 // Lens v0.1 render pipeline — turns a Runner into a laid-out xyflow graph.
 export { useLensRenderGraph } from './useLensRenderGraph.js';
+// U3 — minimal fixed-row windowing for long lists (EventStream, RunTreeView).
+export {
+  useWindowedList,
+  type UseWindowedListOptions,
+  type UseWindowedListResult,
+} from './useWindowedList.js';

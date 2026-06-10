@@ -7,6 +7,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The lens now scales to long runs (backlog item U3): the event log is BOUNDED
+by default, and the long-list surfaces render windowed — honest about both
+(evictions are counted and announced; truncated feeds say what they cut).
+
+### Added
+
+- **`LensRecorderOptions.maxEvents`** — FIFO cap on the event log (default
+  `50_000`, exported as `DEFAULT_MAX_EVENTS`; pass `Infinity` to opt out;
+  anything else must be a positive integer or construction throws a
+  `RangeError`). Past the cap the OLDEST entries are evicted in ~10%-of-cap
+  batches (amortized O(1) per event) from BOTH the flat `SequenceStore` AND
+  the run tree's per-node `events` lists — entry objects are shared
+  references, so pruning both is what actually releases memory. Run-tree
+  STRUCTURE (iteration / llm / tool nodes) is never evicted — it is bounded
+  by run shape, not event volume. Honest, never silent:
+  - `getDiagnostics().droppedEvents` counts every evicted entry (new field).
+  - Debug mode (`debug: true` / footprintjs `enableDevMode()`) warns ONCE
+    when the cap first engages.
+  - Retained entries keep their original `seq` — the gap at the front of the
+    log is visible.
+  - `selectSummary()` counts/tokens cover only retained events once
+    `droppedEvents > 0` (documented); `startedAt` / `durationMs` stay
+    anchored to the TRUE first event, so the time axis never shifts.
+- **`useWindowedList`** (exported hook) — minimal fixed-row-height list
+  windowing, no new dependency: spacer-based, threshold-gated (below the
+  threshold it is a no-op and the DOM is byte-identical to the unwindowed
+  render).
+- **`EventStream` windowing** — past `virtualizeThreshold` rows (default 300)
+  the firehose renders only the scrolled-to window (`rowHeight` default 24,
+  pinned with ellipsis overflow while windowed; full content reachable via
+  `onSelect`). New `droppedCount` prop (wire
+  `recorder.getDiagnostics().droppedEvents`) renders an explicit
+  "N earliest events evicted" notice above the stream.
+- **`RunTreeView` virtualization** — rewritten from recursive render to
+  flatten-then-window: visible rows (respecting expand/collapse) are
+  flattened each render, and past `virtualizeThreshold` rows (default 300)
+  only the window is mounted inside a `maxHeight` (default 480) scroll
+  container. Props/markup unchanged below the threshold. Expansion is now an
+  id-keyed override map with a DERIVED depth<3 default — a node that gains
+  children mid-run now auto-expands (the old mount-time `useState` froze it
+  closed).
+- **Commentary tail-window** — both commentary surfaces (engineer panel +
+  analyst card) render at most the newest 500 lines
+  (`MAX_COMMENTARY_LINES`), with an explicit "… N earlier moments hidden"
+  leader when anything is cut. The focused line is always the cutoff (the
+  last visible row), so focus highlight / scroll-into-view behavior is
+  unchanged, and scrubbing back slides the window back with the cursor.
+
+### Fixed
+
+- `RunTreeView` indentation: the row style mixed `paddingLeft: depth * 16`
+  with a later `padding` SHORTHAND, which silently reset the indent to 6px
+  for every depth (and React warns on shorthand/longhand mixes). Rows now
+  use longhand padding and actually indent per depth.
+
+### Tests
+
+- `LensRecorder.cap` — 7 patterns: option validation; FIFO drop-oldest with
+  conservation (`entryCount + droppedEvents === total`, newest always
+  retained, original seqs preserved); run-tree pruning reaches root + nested
+  nodes; keyed/range indices rebuild consistently; `selectSummary` time-axis
+  anchor; randomized cap/volume invariants; warn-once honesty (+ `clear()`
+  re-arms); default 50K cap at scale within budget; `Infinity` opt-out.
+- `useWindowedList` — threshold no-op, window geometry math, scroll updates,
+  shrink clamping, stable `onScroll` identity.
+- `EventStream` — small-log parity, windowed long log with spacer geometry,
+  filtered-list windowing, eviction notice on/off.
+- `RunTreeView` — behavior parity (default expansion, toggle, selection) +
+  windowed large tree.
+- `tailWindow` + Lens analyst view — bounded feed with exact hidden count.
+
 ## [0.20.0]
 
 - **footprintjs `^9` supported** (peer widened to `^8.0.0 || ^9.0.0`) — required

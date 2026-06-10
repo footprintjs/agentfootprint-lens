@@ -99,6 +99,7 @@ describe('LensRecorder diagnostics — pattern 1: unknown event types in debug m
     expect(rec.getDiagnostics()).toEqual({
       unknownEventTypes: { 'myapp.custom.thing': 2, 'myapp.other.thing': 1 },
       bracketMismatches: 0,
+      droppedEvents: 0,
     });
     // Once per TYPE, not per event — 3 events, 2 types, 2 warnings.
     expect(warn).toHaveBeenCalledTimes(2);
@@ -141,6 +142,7 @@ describe('LensRecorder diagnostics — pattern 2: silent by default', () => {
     expect(rec.getDiagnostics()).toEqual({
       unknownEventTypes: { 'myapp.custom.thing': 1 },
       bracketMismatches: 1,
+      droppedEvents: 0,
     });
   });
 });
@@ -225,6 +227,7 @@ describe('LensRecorder diagnostics — pattern 5: well-formed run is clean', () 
     expect(rec.getDiagnostics()).toEqual({
       unknownEventTypes: {},
       bracketMismatches: 0,
+      droppedEvents: 0,
     });
     const lensWarnings = warn.mock.calls.filter((c) =>
       String(c[0]).startsWith('[lens]'),
@@ -250,6 +253,7 @@ describe('LensRecorder diagnostics — pattern 6: clear() resets', () => {
     expect(rec.getDiagnostics()).toEqual({
       unknownEventTypes: {},
       bracketMismatches: 0,
+      droppedEvents: 0,
     });
 
     // Same unknown type after clear() → fresh run, fresh warning.

@@ -23,6 +23,7 @@ export * from './types.js';
 export {
   LensRecorder,
   lensRecorder,
+  DEFAULT_MAX_EVENTS,
   type LensRecorderOptions,
   type LensDiagnostics,
 } from './LensRecorder.js';

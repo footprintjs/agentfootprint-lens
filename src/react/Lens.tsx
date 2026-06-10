@@ -59,6 +59,7 @@ import {
   innerGroupSubflowPath,
   drillPathLabels,
 } from "../core/group/drillResolve.js";
+import { tailWindow, MAX_COMMENTARY_LINES } from "./tailWindow.js";
 import { T } from "./theme/index.js";
 
 export type LensView = "engineer" | "analyst" | "user";
@@ -1430,6 +1431,12 @@ const Commentary: React.FC<{
           );
         }
         const visible = log.slice(0, cutoff + 1);
+        // U3 — bound the feed to its newest rows. The focused line is
+        // always the LAST visible row (the cutoff), so a tail window
+        // keeps focus/scroll behavior intact; scrubbing back slides the
+        // window back with the cutoff. `hidden > 0` renders an explicit
+        // leader line — bounded, never silent.
+        const { hidden, shown } = tailWindow(visible, MAX_COMMENTARY_LINES);
         // Scope-fade — entries whose runtimeStageId is OUTSIDE the
         // cursor's subflow scope render dimmer so the user's eye
         // settles on the in-scope ones. Root scope (`__root__`) matches
@@ -1454,14 +1461,30 @@ const Commentary: React.FC<{
         let prevLine: string | null = null;
         return (
           <>
-            {visible.map((entry, i) => {
+            {hidden > 0 && (
+              <div
+                style={{
+                  padding: "3px 8px",
+                  borderBottom: `1px solid ${T.border}`,
+                  color: T.textSecondary,
+                  fontStyle: "italic",
+                }}
+              >
+                … {hidden.toLocaleString()} earlier moments hidden (showing the
+                latest {MAX_COMMENTARY_LINES} up to the cursor — scrub back to
+                bring them into the window)
+              </div>
+            )}
+            {shown.map((entry, i) => {
               const line = humanizer(entry.event);
               if (line === null) return null;
               if (line === prevLine) return null; // skip consecutive duplicate
               prevLine = line;
               const focused =
                 focusedSeq !== undefined && entry.seq === focusedSeq;
-              const isLastFocused = focused && i === cutoff;
+              // Index within `visible` (the tail window cut `hidden`
+              // rows off the front).
+              const isLastFocused = focused && hidden + i === cutoff;
               const entryInScope = inScope(entry);
               const dimOutOfScope = !entryInScope && !focused;
               return (
@@ -1861,24 +1884,46 @@ const AnalystView: React.FC<{
       />
       <Card title="Commentary">
         <div style={{ fontSize: 13, lineHeight: 1.6, fontFamily: T.fontSans }}>
-          {log.map((entry) => {
-            const line = humanizer(entry.event);
-            if (line === null) return null;
+          {(() => {
+            // U3 — tail-bound the feed (newest rows), with an explicit
+            // hidden-count leader so the cut is never silent.
+            const { hidden, shown } = tailWindow(log, MAX_COMMENTARY_LINES);
             return (
-              <div
-                key={entry.seq}
-                style={{
-                  padding: "4px 0",
-                  borderBottom: `1px solid ${T.border}`,
-                }}
-              >
-                <span style={{ opacity: 0.5, marginRight: 8 }}>
-                  +{Math.round(entry.runOffsetMs)}ms
-                </span>
-                {line}
-              </div>
+              <>
+                {hidden > 0 && (
+                  <div
+                    style={{
+                      padding: "4px 0",
+                      borderBottom: `1px solid ${T.border}`,
+                      color: T.textSecondary,
+                      fontStyle: "italic",
+                    }}
+                  >
+                    … {hidden.toLocaleString()} earlier moments hidden (showing
+                    the latest {MAX_COMMENTARY_LINES})
+                  </div>
+                )}
+                {shown.map((entry) => {
+                  const line = humanizer(entry.event);
+                  if (line === null) return null;
+                  return (
+                    <div
+                      key={entry.seq}
+                      style={{
+                        padding: "4px 0",
+                        borderBottom: `1px solid ${T.border}`,
+                      }}
+                    >
+                      <span style={{ opacity: 0.5, marginRight: 8 }}>
+                        +{Math.round(entry.runOffsetMs)}ms
+                      </span>
+                      {line}
+                    </div>
+                  );
+                })}
+              </>
             );
-          })}
+          })()}
           {liveStreamLine !== null && <LiveStreamLine line={liveStreamLine} />}
         </div>
       </Card>
