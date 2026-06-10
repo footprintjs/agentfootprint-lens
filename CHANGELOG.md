@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.20.0]
+
+- **footprintjs `^9` supported** (peer widened to `^8.0.0 || ^9.0.0`) — required
+  by agentfootprint 6.15.0+; footprintjs 9's trampoline changes no API the lens
+  consumes.
+- **LensRecorder diagnostics (backlog U4):** always-on health counters via
+  `getDiagnostics()` (`unknownEventTypes` per-type counts + `bracketMismatches`),
+  with dev-gated warnings (`debug` option; unset follows footprintjs
+  `isDevMode()`; explicit `false` wins). Unknown = outside agentfootprint's own
+  `ALL_EVENT_TYPES` registry. `runtimeStageId` included in bracket-mismatch
+  warnings. First test coverage for `useLensRecorder`.
+
 `LensRecorder` now tells you when the event stream it observed was unhealthy
 (backlog item U4) — counters always, console warnings opt-in.
 

@@ -1,7 +1,7 @@
 {
   "name": "agentfootprint-lens",
-  "version": "0.19.0",
-  "description": "See through your agent's decisions. React components for debugging agentfootprint runs — messages, prompts, tool calls, decision scope, cost.",
+  "version": "0.20.0",
+  "description": "See through your agent's decisions. React components for debugging agentfootprint runs \u2014 messages, prompts, tool calls, decision scope, cost.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -57,7 +57,7 @@
     "@xyflow/react": "^12.0.0",
     "agentfootprint": "^6.0.0",
     "footprint-explainable-ui": "^0.22.0",
-    "footprintjs": "^7.0.0 || ^8.0.0",
+    "footprintjs": "^8.0.0 || ^9.0.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   },
@@ -73,7 +73,7 @@
     "@xyflow/react": "^12.10.2",
     "agentfootprint": "^6.0.0",
     "footprint-explainable-ui": "^0.22.0",
-    "footprintjs": "^7.0.0 || ^8.0.0",
+    "footprintjs": "^8.0.0 || ^9.0.0",
     "jsdom": "^29.0.2",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
