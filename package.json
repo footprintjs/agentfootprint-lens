@@ -1,7 +1,7 @@
 {
   "name": "agentfootprint-lens",
-  "version": "0.20.0",
-  "description": "See through your agent's decisions. React components for debugging agentfootprint runs \u2014 messages, prompts, tool calls, decision scope, cost.",
+  "version": "0.21.0",
+  "description": "See through your agent's decisions. React components for debugging agentfootprint runs — messages, prompts, tool calls, decision scope, cost.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
