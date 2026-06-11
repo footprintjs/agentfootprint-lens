@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+The "Tool choice" panel (RFC-002 block C7) — per-iteration visualization of
+the `toolChoiceRecorder` margins shipped in agentfootprint 6.25.0.
+
+### Added
+
+- **`LensProps.toolChoice`** — pass the `toolChoiceRecorder` handle from
+  `agentfootprint/observe` (or any `ToolChoiceSource` with the two async
+  getters) and the engineer view mounts a collapsible "Tool choice" strip
+  below Commentary. Omit the prop → the panel does not mount; zero impact.
+  The collapsed pill's detail line already carries the run summary
+  (`N flagged · M scored`).
+- **`<ToolChoicePanel>`** (exported for consumer-built shells) — one
+  LLM call at a time: horizontal bars of the offered-tool scores (ranked,
+  normalized to the top score so a close call LOOKS close), the chosen
+  tool highlighted, a margin badge, and the ⚠ NARROW /
+  ⚠ PROXY-DISAGREEMENT flags. Skipped calls explain themselves
+  (`nothing-chosen` / `chosen-not-offered`); unscored entries list the
+  offered menu with a "not scored yet" note. A permanent caption keeps the
+  recorder's honest-claim discipline IN the UI: margins are
+  embedding-geometry proxies (choice context ↔ tool descriptions) — not
+  model internals. Long tool catalogs window through `useWindowedList`
+  (same U3 threshold contract as EventStream, default 300).
+- **`selectToolChoiceCall`** (headless, exported from `/core`) — resolves
+  the ONE Lens cursor to the visible call: exact `runtimeStageId` match →
+  within-subflow (`sf-llm-call#5` → the call it contains) →
+  nearest-previous call. Root/synthetic bookends map to "nothing yet"
+  (Run · start) / "the whole run" (Run · end). No second cursor, no
+  parallel data path — the one-cursor law holds.
+- **`useToolChoice`** (exported hook) — bridges the recorder's LAZY async
+  read API (`getCalls()` / `getSummary()` run the embedder on first read,
+  memoized per entry) into React state: reads serialize, stale queued
+  reads skip ("latest wins"), a failed read surfaces its message next to
+  the last good data instead of swallowing it. Re-reads as the event log
+  ticks; each entry scores exactly once.
+
 ## [0.21.0] - 2026-06-11
 
 The lens now scales to long runs (backlog item U3): the event log is BOUNDED

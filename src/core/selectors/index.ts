@@ -65,3 +65,6 @@ export {
   type CommentaryAtCommit,
   type CommentaryRange,
 } from './selectCommentary.js';
+// RFC-002 C7 — resolve the ONE Lens cursor to a tool-choice call
+// (exact → within-subflow → nearest-previous).
+export { selectToolChoiceCall } from './selectToolChoiceCall.js';

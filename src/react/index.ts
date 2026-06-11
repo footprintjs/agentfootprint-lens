@@ -46,6 +46,14 @@ export {
 } from './skillGraphFlowLayout.js';
 export { SummaryCard } from './SummaryCard.js';
 export { TimeTravel, type TimeTravelProps } from './TimeTravel.js';
+// RFC-002 C7 — per-iteration tool-choice margins panel (offered-tool
+// score bars, chosen highlight, margin badge, ⚠ flags). The <Lens>
+// engineer view mounts it via the `toolChoice` prop; exported for
+// consumer-built shells.
+export {
+  ToolChoicePanel,
+  type ToolChoicePanelProps,
+} from './components/ToolChoicePanel.js';
 
 // Hooks — composable building blocks for consumer-built Lens layouts.
 export * from './hooks/index.js';

@@ -24,3 +24,10 @@ export {
   type UseWindowedListOptions,
   type UseWindowedListResult,
 } from './useWindowedList.js';
+// RFC-002 C7 — async reader for the agentfootprint/observe
+// toolChoiceRecorder handle (lazy scoring tolerated; latest-wins reads).
+export {
+  useToolChoice,
+  type ToolChoiceSource,
+  type UseToolChoiceResult,
+} from './useToolChoice.js';

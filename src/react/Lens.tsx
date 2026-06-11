@@ -53,6 +53,12 @@ import { useLensRecorder } from "./hooks/useLensRecorder.js";
 import { useDrillPath } from "./hooks/useDrillPath.js";
 import { useCommitSync } from "./hooks/useCommitSync.js";
 import { useCursorPositions } from "./hooks/useCursorPositions.js";
+import {
+  useToolChoice,
+  type ToolChoiceSource,
+  type UseToolChoiceResult,
+} from "./hooks/useToolChoice.js";
+import { ToolChoicePanel } from "./components/ToolChoicePanel.js";
 import { buildGroups } from "../core/group/buildGroups.js";
 import {
   resolveDrillChain,
@@ -158,6 +164,21 @@ export interface LensProps {
    */
   readonly commentaryTemplates?: Partial<CommentaryTemplates>;
 
+  /**
+   * Optional — the `toolChoiceRecorder` handle from
+   * `agentfootprint/observe` (RFC-002 C4–C6). When provided, the
+   * engineer view mounts the "Tool choice" panel: per-iteration bars of
+   * the offered-tool scores (chosen highlighted), margin badge,
+   * ⚠ NARROW / ⚠ PROXY-DISAGREEMENT flags, and a flagged-call run
+   * summary. The visible call derives from the ONE Lens cursor (exact →
+   * within-subflow → nearest-previous) — no second cursor.
+   *
+   * The recorder scores LAZILY (the embedder runs on first read,
+   * memoized per entry) — the Lens reads asynchronously as the log
+   * ticks; entries score once each. Omitted → the panel does not mount;
+   * zero impact.
+   */
+  readonly toolChoice?: ToolChoiceSource;
 }
 
 export const Lens: React.FC<LensProps> = ({
@@ -169,6 +190,7 @@ export const Lens: React.FC<LensProps> = ({
   humanizer,
   appName,
   commentaryTemplates,
+  toolChoice,
 }) => {
   // Subscribe to the recorder so React re-renders on EVERY event
   // (progressive). No 100ms poll, no setInterval in the consumer.
@@ -176,6 +198,11 @@ export const Lens: React.FC<LensProps> = ({
   const tree = recorder.selectRunTree();
   const log = recorder.selectEventLog();
   const summary = recorder.selectSummary();
+
+  // Tool-choice margins (RFC-002 C7) — async lazy-scoring read keyed on
+  // the log tick. No-ops entirely when the consumer didn't pass the
+  // recorder handle.
+  const toolChoiceData = useToolChoice(toolChoice, log.length);
 
   // DX: a consumer can pass just `runner` — the chart is then DERIVED from it
   // (real runtime-stage node ids + slot pills via the built-in node types), so
@@ -356,6 +383,7 @@ export const Lens: React.FC<LensProps> = ({
       syncMap={syncMap}
       cursorPositions={cursorPositions}
       cursorRuntimeStageId={cursorRuntimeStageId}
+      {...(toolChoice ? { toolChoice: toolChoiceData } : {})}
     />
   );
 };
@@ -508,6 +536,9 @@ const EngineerView: React.FC<{
   /** runtimeStageId of the current slider position. Drives chart-box
    *  highlight + commentary cutoff. */
   cursorRuntimeStageId: string;
+  /** Tool-choice margins data (RFC-002 C7) — present only when the
+   *  consumer passed `LensProps.toolChoice`. The panel mounts iff set. */
+  toolChoice?: UseToolChoiceResult;
 }> = ({
   recorder,
   runner,
@@ -528,6 +559,7 @@ const EngineerView: React.FC<{
   syncMap,
   cursorPositions,
   cursorRuntimeStageId,
+  toolChoice,
 }) => {
   // `syncMap` and the slider's compound-position list (`cursorPositions`)
   // are read directly by the slider/commentary cutoff logic farther
@@ -948,6 +980,9 @@ const EngineerView: React.FC<{
   // narration, so the bottom commentary strip starts COLLAPSED — it's available
   // (click to expand the full prose) but out of the way for the clean layout.
   const [bottomExpanded, setBottomExpanded] = useState(false);
+  // Tool choice (RFC-002 C7) starts collapsed like Commentary — the
+  // pill's detail line carries the flagged-call count even collapsed.
+  const [toolChoiceExpanded, setToolChoiceExpanded] = useState(false);
   // Agent / LLMCall boundaries surface in the left "Agents" list.
   // For Swarm / multi-agent runs this enumerates every Agent (Triage,
   // Billing, …); for a Sequence-of-LLMCalls run it enumerates each
@@ -1245,6 +1280,53 @@ const EngineerView: React.FC<{
               : {})}
           />
         </div>
+      )}
+
+      {/* TOOL CHOICE (RFC-002 C7) — per-iteration margins from the
+          agentfootprint/observe toolChoiceRecorder. Mounts ONLY when the
+          consumer passed `toolChoice`; the visible call derives from the
+          same single cursor that drives chart/commentary/details. */}
+      {toolChoice && (
+        <>
+          <HLinePill
+            label="Tool choice"
+            detail={
+              toolChoice.summary
+                ? `${toolChoice.summary.flagged} flagged · ${toolChoice.summary.scored} scored`
+                : toolChoice.pending
+                  ? "scoring…"
+                  : `${toolChoice.calls.length} calls`
+            }
+            expanded={toolChoiceExpanded}
+            onClick={() => setToolChoiceExpanded((v) => !v)}
+          />
+          {toolChoiceExpanded && (
+            <div
+              style={{
+                height: 200,
+                flexShrink: 0,
+                borderTop: `1px solid ${T.border}`,
+                overflow: "hidden",
+                display: "flex",
+                flexDirection: "column",
+                background: T.bgElevated,
+              }}
+            >
+              <ToolChoicePanel
+                calls={toolChoice.calls}
+                {...(toolChoice.summary ? { summary: toolChoice.summary } : {})}
+                cursorRuntimeStageId={cursorRuntimeStageId}
+                {...(cursorPositions[focusStep]?.kind
+                  ? { cursorKind: cursorPositions[focusStep]!.kind }
+                  : {})}
+                pending={toolChoice.pending}
+                {...(toolChoice.error !== undefined
+                  ? { error: toolChoice.error }
+                  : {})}
+              />
+            </div>
+          )}
+        </>
       )}
     </div>
   );
