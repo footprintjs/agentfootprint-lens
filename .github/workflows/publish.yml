@@ -17,16 +17,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
           registry-url: https://registry.npmjs.org
+          # No `cache: npm` — it requires a committed lockfile, and we deliberately
+          # don't commit one (see below).
 
-      # `npm install` (not `npm ci`): vitest 4.x pulls rolldown's platform-native
-      # binding as an OPTIONAL dep, and a lockfile generated on one OS doesn't list
-      # the other OS's binding (npm bug #4828) — so `npm ci` (strict) fails on the
-      # linux runner with "Cannot find @rolldown/binding-linux-x64-gnu". `npm install`
-      # reconciles per-platform (adds the linux binding) while honoring the lock's
-      # pinned agentfootprint. (This silently blocked the publish indirectly: the lock
-      # had also gone stale at af 6.2.0 — regenerated to 6.44.0 in 0.23.3.)
+      # NO committed lockfile + `npm install` (fresh per-platform resolve). Two reasons:
+      #  1) vitest 4.x pulls rolldown's native binding as a PLATFORM optional dep; a
+      #     lockfile generated on one OS omits the other OS's binding (npm #4828), so any
+      #     committed lock breaks the linux runner ("Cannot find @rolldown/binding-linux-x64-gnu").
+      #  2) The old committed lock had also gone stale at af 6.2.0 (pre-toolChoiceRecorder),
+      #     which is what actually blocked the publish since v0.22.0.
+      # A library's publish CI SHOULD test against the deps a consumer resolves (latest
+      # compatible peer) — a fresh install does exactly that, on the correct platform.
       - run: npm install
       - run: npm test
       - run: npm run build

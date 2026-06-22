@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.5] - 2026-06-22
+
+Publish CI: drop the committed lockfile + `cache: npm`. A committed lock can't carry
+rolldown's per-OS native binding (npm #4828), so even `npm install` kept failing on the
+linux runner. A fresh `npm install` (no lock) resolves the correct platform binding AND
+current af. THIS completes the publish-unblock chain (0.23.0's <Replay> finally reaches npm).
+
 ## [0.23.4] - 2026-06-22
 
 Publish CI: `npm ci` → `npm install`. vitest 4.x pulls rolldown's platform-native binding
