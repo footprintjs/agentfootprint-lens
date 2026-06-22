@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.7] - 2026-06-22
+
+Type-resolution + peer correctness (no runtime change):
+
+- **Fixed the dual CJS/ESM types.** The `exports` map pointed every consumer (including the
+  `require`/CJS condition) at `index.d.ts` (ESM-flavored), so TypeScript under `node16`/
+  `nodenext` got the wrong types — a CJS-types masquerade. tsup already emits `.d.cts`, so
+  the fix splits `types` per condition (`import`→`.d.ts`, `require`→`.d.cts`) and adds
+  `typesVersions` for the `/core` subpath (node10). Now all green across node10 /
+  node16-CJS / node16-ESM / bundler. A publint + `@arethetypeswrong/cli` gate is wired into
+  CI + publish so this can't silently regress.
+- **Narrowed the `footprintjs` peer `^8.0.0 || ^9.0.0` → `^9.0.0`.** The `^8` branch was
+  always unreachable — lens requires `agentfootprint ^6`, and af's footprintjs peer went
+  `^7` (6.0.0) → `^9` (6.20+), never 8. Not a breaking change; the dropped branch was
+  unsatisfiable.
+- Added `engines.node >=18` and a `git+` repository URL (publint).
+
 ## [0.23.6] - 2026-06-22
 
 Two non-code fixes (the published bundle is byte-identical to 0.23.5):
