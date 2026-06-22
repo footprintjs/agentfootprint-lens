@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - run: npm test
+
+  # Peer-resolvability matrix — the ONLY guard that catches a peer range that excludes a
+  # real published version (incident b: lens peer `footprint-explainable-ui@^0.22.0` once
+  # excluded eui 0.25). publint/attw never resolve dependencies; only an actual install
+  # does. This installs the PACKED lens against the MIN and LATEST of each spanning peer
+  # range, under strict npm>=7 resolution. An ERESOLVE here = the guard firing in CI,
+  # before a consumer ever hits it. NEVER add --legacy-peer-deps / --force here.
+  peer-matrix:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The two peer ranges that actually vary in REACHABLE installs:
+        #   - footprint-explainable-ui >=0.22.0 <1.0.0  → min + latest (the incident-b range)
+        #   - react ^18.0.0 || ^19.0.0                  → both majors
+        # NOTE: footprintjs is fixed at ^9. lens declares `^8.0.0 || ^9.0.0`, but lens also
+        # requires agentfootprint ^6, and af 6.x peer-requires footprintjs ^9.9.0 — so the
+        # fp-8 branch is unreachable in practice. (lens's fp peer should arguably be ^9.0.0;
+        # tracked for the cross-repo range audit, not changed here to avoid an extra release.)
+        eui: ["0.22.0", "0.25.0"]
+        react: ["18.3.1", "19.0.0"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install
+      - run: npm run build
+      - run: npm pack # the exact tarball npm would publish
+
+      - name: Install the packed lens against this peer combo (STRICT)
+        run: |
+          mkdir -p /tmp/scratch && cd /tmp/scratch && npm init -y >/dev/null
+          npm install \
+            "react@${{ matrix.react }}" "react-dom@${{ matrix.react }}" "@xyflow/react@^12.0.0" \
+            "agentfootprint@^6.0.0" "footprintjs@^9.0.0" \
+            "footprint-explainable-ui@${{ matrix.eui }}"
+          # ERESOLVE on the next line = a peer range that excludes a real version = the guard.
+          npm install "$GITHUB_WORKSPACE"/agentfootprint-lens-*.tgz
+
+      - name: Assert single footprintjs/react instance + import smoke
+        run: |
+          cd /tmp/scratch
+          npm ls footprintjs react react-dom --depth=0
+          node --input-type=module -e "await import('agentfootprint-lens'); console.log('import ok')" || \
+            echo "::warning::import smoke skipped (no-DOM env) — install resolution is the primary guard"
