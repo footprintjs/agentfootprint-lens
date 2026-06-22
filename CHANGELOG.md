@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.4] - 2026-06-22
+
+Publish CI: `npm ci` → `npm install`. vitest 4.x pulls rolldown's platform-native binding
+as an optional dep; a lockfile generated on one OS omits the other OS's binding (npm
+#4828), so strict `npm ci` failed on the linux runner with "Cannot find
+@rolldown/binding-linux-x64-gnu". `npm install` reconciles per-platform while honoring
+the lock's pinned af. Final piece of the publish-unblock chain (with 0.23.3's lockfile bump).
+
 ## [0.23.3] - 2026-06-22
 
 **The actual publish-blocker fix.** Root cause (found by checking the exact CI error +

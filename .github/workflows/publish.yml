@@ -20,7 +20,14 @@ jobs:
           cache: npm
           registry-url: https://registry.npmjs.org
 
-      - run: npm ci
+      # `npm install` (not `npm ci`): vitest 4.x pulls rolldown's platform-native
+      # binding as an OPTIONAL dep, and a lockfile generated on one OS doesn't list
+      # the other OS's binding (npm bug #4828) — so `npm ci` (strict) fails on the
+      # linux runner with "Cannot find @rolldown/binding-linux-x64-gnu". `npm install`
+      # reconciles per-platform (adds the linux binding) while honoring the lock's
+      # pinned agentfootprint. (This silently blocked the publish indirectly: the lock
+      # had also gone stale at af 6.2.0 — regenerated to 6.44.0 in 0.23.3.)
+      - run: npm install
       - run: npm test
       - run: npm run build
 
