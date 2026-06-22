@@ -4,12 +4,16 @@ on:
   release:
     types: [published]
 
+# Least privilege at the top level: NO id-token here. The OIDC publish token is
+# granted ONLY to the `publish` job below, which consumes a pre-built artifact and
+# performs ZERO dependency resolution — so unpinned `npm install` (needed because
+# rolldown's native binding is a platform optional dep, npm #4828) never shares a
+# runtime with the registry token or `npm publish --provenance`.
 permissions:
   contents: read
-  id-token: write
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -17,30 +21,50 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          registry-url: https://registry.npmjs.org
-          # No `cache: npm` — it requires a committed lockfile, and we deliberately
-          # don't commit one (see below).
 
-      # NO committed lockfile + `npm install` (fresh per-platform resolve). Two reasons:
-      #  1) vitest 4.x pulls rolldown's native binding as a PLATFORM optional dep; a
-      #     lockfile generated on one OS omits the other OS's binding (npm #4828), so any
-      #     committed lock breaks the linux runner ("Cannot find @rolldown/binding-linux-x64-gnu").
-      #  2) The old committed lock had also gone stale at af 6.2.0 (pre-toolChoiceRecorder),
-      #     which is what actually blocked the publish since v0.22.0.
-      # A library's publish CI SHOULD test against the deps a consumer resolves (latest
-      # compatible peer) — a fresh install does exactly that, on the correct platform.
+      # Fresh per-platform install (no committed lockfile — rolldown's native binding
+      # is a platform optional dep; a one-OS lock breaks the other, npm #4828). This
+      # job has NO publish power, so an unpinned/compromised dep here cannot reach the
+      # registry token. A library's CI SHOULD test against the deps a consumer resolves.
       - run: npm install
       - run: npm test
       - run: npm run build
 
-      # Trusted publishing requires npm >= 11.5.1, but newer npm
-      # changes optional peer-dep resolution in ways that break our
-      # test suite. Upgrade ONLY for the publish step, AFTER tests.
+      # Stage EXACTLY the published files for the privileged job. package.json `files`
+      # is ["dist","README.md"]; npm always adds package.json + LICENSE.
+      - name: Stage published package
+        run: |
+          mkdir -p pkg
+          cp -R dist package.json README.md LICENSE pkg/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: package
+          path: pkg/
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # OIDC trusted publishing — granted to THIS job only
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: package
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          registry-url: https://registry.npmjs.org
+
+      # Upgrade npm ITSELF (trusted publishing needs >= 11.5.1). This is the npm CLI,
+      # not the project's dependencies — no project resolution happens in this job.
       - run: npm install -g npm@latest
 
-      # Trusted publishing: no NODE_AUTH_TOKEN set. npm CLI authenticates
-      # to the registry via the GitHub OIDC token (granted by id-token:
-      # write permission above). npm verifies the publish is from a
-      # trusted GitHub workflow per the package's trusted-publisher config.
+      # Publishes the pre-built, verified artifact. No node_modules, no dependency
+      # resolution — the privileged step only packs the dist + package.json that the
+      # build job produced. Provenance is attested from the GitHub OIDC context.
       - name: Publish to npm
         run: npm publish --provenance --access public
