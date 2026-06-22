@@ -103,7 +103,7 @@ describe('translateLLMCall — performance', () => {
     const m = meta();
     const t0 = performance.now();
     for (let i = 0; i < 1000; i++) translateLLMCall(m);
-    expect(performance.now() - t0).toBeLessThan(30);
+    expect(performance.now() - t0).toBeLessThan(150);
   });
 });
 

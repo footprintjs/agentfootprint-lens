@@ -311,7 +311,7 @@ describe('LensSnapshotRecorder — performance', () => {
     const start = performance.now();
     for (let i = 0; i < 1000; i++) r.getStepGraph();
     const ms = performance.now() - start;
-    expect(ms).toBeLessThan(5);
+    expect(ms).toBeLessThan(50);
   });
 });
 

@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.2] - 2026-06-22
+
+Publish reliability (RCA-driven). Root cause was test flakiness under parallel CI
+workers (async render settling + tight wall-clock perf budgets), NOT a module-instance
+hazard (a workflow RCA reproduced two af copies and confirmed the kind-check — virtual
+method dispatch returning a string literal — is module-identity-agnostic). Fixes:
+(1) bumped the toolChoice waitFor timeout to 5s (the async lazy-scoring read can exceed
+1s on a loaded runner); (2) loosened the tightest perf budgets (1µs/op-class); retry:2
+stays as a backstop. Also externalized `agentfootprint` in the tsup build so a consumer
+of the published lens never gets a 2nd bundled af instance. Carries 0.23.0's <Replay>.
+
 ## [0.23.1] - 2026-06-22
 
 CI publish fix. The flaky test suite (timing-sensitive perf budgets + a render-order

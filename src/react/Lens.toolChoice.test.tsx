@@ -77,13 +77,17 @@ describe('<Lens toolChoice> wiring', () => {
     // Pill label renders immediately…
     expect(screen.getByText('Tool choice')).toBeTruthy();
     // …and the async lazy-scoring read fills the summary detail.
-    await waitFor(() => expect(screen.getByText(/flagged · 1 scored/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/flagged · 1 scored/)).toBeTruthy(), {
+      timeout: 5000,
+    });
   });
 
   it('expanding the pill reveals the cursor-derived panel + honest caption', async () => {
     const { recorder, choices } = await runAgentWithToolChoice();
     render(<Lens recorder={recorder} view="engineer" toolChoice={choices} />);
-    await waitFor(() => expect(screen.getByText(/flagged · 1 scored/)).toBeTruthy());
+    await waitFor(() => expect(screen.getByText(/flagged · 1 scored/)).toBeTruthy(), {
+      timeout: 5000,
+    });
 
     fireEvent.click(screen.getByText('Tool choice'));
     const panel = within(screen.getByRole('region', { name: 'Tool choice' }));

@@ -155,7 +155,7 @@ describe('parseRoleFromDescription — performance', () => {
 // ─── 7. LOAD ────────────────────────────────────────────────────────
 
 describe('parseRoleFromDescription — load', () => {
-  it('1 million invocations in under 200ms', () => {
+  it('1 million invocations in under 600ms', () => {
     const start = performance.now();
     for (let i = 0; i < 1_000_000; i++) {
       parseRoleFromDescription('Parallel: 3-way fanout');

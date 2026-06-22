@@ -28,6 +28,11 @@ export default defineConfig({
     "footprint-explainable-ui",
     "@xyflow/react",
     /^footprintjs(\/|$)/,
+    // agentfootprint (+ subpaths /observe, /trace) is a peerDependency — it MUST be
+    // external. Bundling a copy would give a CONSUMER of the published lens two
+    // distinct agentfootprint instances at runtime (cross-instance `instanceof` /
+    // brand checks then silently fail). Matches the footprintjs rule above.
+    /^agentfootprint(\/|$)/,
   ],
   esbuildOptions(options) {
     options.jsx = "automatic";
