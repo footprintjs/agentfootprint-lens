@@ -30,6 +30,11 @@ jobs:
       - run: npm test
       - run: npm run build
 
+      # Packaging-correctness gate — block a publish that would ship a types masquerade /
+      # broken subpath export.
+      - run: npx publint
+      - run: npx @arethetypeswrong/cli --pack
+
       # Stage EXACTLY the published files for the privileged job. package.json `files`
       # is ["dist","README.md"]; npm always adds package.json + LICENSE.
       - name: Stage published package

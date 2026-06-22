@@ -20,6 +20,10 @@ jobs:
       - run: npm install
       - run: npm run build
       - run: npm test
+      # Packaging-correctness gate (dual CJS/ESM types + exports). attw exits non-zero on a
+      # types masquerade / broken subpath; publint on a packaging error.
+      - run: npx publint
+      - run: npx @arethetypeswrong/cli --pack
 
   # Peer-resolvability matrix — the ONLY guard that catches a peer range that excludes a
   # real published version (incident b: lens peer `footprint-explainable-ui@^0.22.0` once
