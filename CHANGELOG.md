@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.6] - 2026-06-22
+
+Two non-code fixes (the published bundle is byte-identical to 0.23.5):
+
+- **Dependency fix — widened the `footprint-explainable-ui` peer.** It was pinned
+  `^0.22.0` and never bumped as eui reached 0.25.0; 0.x carets don't cross minors, so
+  every consumer on current eui hit `ERESOLVE`. Now `>=0.22.0 <1.0.0` — eui is an
+  externalized peer and the lens consumes a stable slice of it, so the range opens across
+  the 0.x line (co-released; no churn per eui minor). Proven safe: the full suite
+  (91 files / 1076 tests) runs green against eui 0.25.0.
+- **CI security — split publishing into two jobs.** OIDC `id-token: write` previously
+  shared a runtime with an unpinned `npm install` and `npm publish --provenance`. Now an
+  unprivileged `build` job installs/tests/builds and uploads a staged artifact (dist +
+  package.json + README + LICENSE), and an isolated `publish` job (the only holder of
+  `id-token: write`) consumes that artifact and publishes with **zero dependency
+  resolution**. First release to run through the split.
+
 ## [0.23.5] - 2026-06-22
 
 Publish CI: drop the committed lockfile + `cache: npm`. A committed lock can't carry

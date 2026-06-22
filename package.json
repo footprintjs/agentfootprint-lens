@@ -1,6 +1,6 @@
 {
   "name": "agentfootprint-lens",
-  "version": "0.23.5",
+  "version": "0.23.6",
   "description": "See through your agent's decisions. React components for debugging agentfootprint runs — messages, prompts, tool calls, decision scope, cost.",
   "type": "module",
   "main": "./dist/index.cjs",
