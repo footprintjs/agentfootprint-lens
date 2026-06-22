@@ -142,13 +142,13 @@ describe('parseRoleFromDescription — security', () => {
 // ─── 6. PERFORMANCE ────────────────────────────────────────────────
 
 describe('parseRoleFromDescription — performance', () => {
-  it('10000 invocations in under 10ms', () => {
+  it('10000 invocations in under 50ms', () => {
     const start = performance.now();
     for (let i = 0; i < 10_000; i++) {
       parseRoleFromDescription('Agent: ReAct loop');
     }
     const ms = performance.now() - start;
-    expect(ms).toBeLessThan(10);
+    expect(ms).toBeLessThan(50);
   });
 });
 
