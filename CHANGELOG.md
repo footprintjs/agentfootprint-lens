@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.3] - 2026-06-22
+
+**The actual publish-blocker fix.** Root cause (found by checking the exact CI error +
+install command, after an RCA pass that ruled out dual-instance/flakiness): the committed
+`package-lock.json` pinned **agentfootprint 6.2.0**, and `publish.yml` runs **`npm ci`** —
+so CI installed af 6.2.0, which predates `toolChoiceRecorder` (added in af 6.25.0). Every
+toolChoice test then failed with `TypeError: toolChoiceRecorder is not a function`,
+silently blocking the npm publish since v0.22.0 (exactly when the toolChoice panel landed).
+It passed locally only because a fresh `npm install` pulled current af. Fix: regenerated
+the lockfile to af 6.44.0 (verified via `npm ci` → tests green). The 0.23.1/0.23.2
+de-flake + tsup-external changes stay as genuine hardening.
+
 ## [0.23.2] - 2026-06-22
 
 Publish reliability (RCA-driven). Root cause was test flakiness under parallel CI
