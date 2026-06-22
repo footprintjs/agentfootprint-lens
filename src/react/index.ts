@@ -12,18 +12,20 @@
  * Or compose individual view components directly.
  */
 
-export { Lens, type LensProps, type LensView } from './Lens.js';
+export { Lens, type LensProps, type LensView } from "./Lens.js";
+// <Replay> — render a persisted agentfootprint Trace OFFLINE (no live runner).
+export { Replay, type ReplayProps } from "./Replay.js";
 // Lens v0.1 — single-pipeline xyflow renderer driven by the L2
 // translator. The canonical chart for v0.1.
-export { LensFlow, type LensFlowProps } from './LensFlow.js';
+export { LensFlow, type LensFlowProps } from "./LensFlow.js";
 // Renderer map for the chart's custom node types (slot pills / subflow boxes).
 // Exported so consumers don't hand-roll it. The Lens uses it for its
 // auto-derived chart when only `runner` is passed.
-export { LENS_NODE_TYPES } from './lensNodeTypes.js';
+export { LENS_NODE_TYPES } from "./lensNodeTypes.js";
 // Error boundary the Lens wraps its chart in (a bad chart won't white-screen).
-export { LensChartBoundary } from './LensChartBoundary.js';
-export { RunTreeView } from './RunTreeView.js';
-export { EventStream } from './EventStream.js';
+export { LensChartBoundary } from "./LensChartBoundary.js";
+export { RunTreeView } from "./RunTreeView.js";
+export { EventStream } from "./EventStream.js";
 // Interactive skill-graph view — the richer companion to `graph.toMermaid()`.
 // Predicate diamonds → skill boxes (decision tree) or entry/route edges, with a
 // click-to-inspect detail panel. Consumes an agentfootprint `skillGraph().build()`.
@@ -32,7 +34,7 @@ export {
   type SkillGraphFlowProps,
   type SkillGraphView,
   type SkillNodeDetail,
-} from './SkillGraphFlow.js';
+} from "./SkillGraphFlow.js";
 export {
   layoutSkillGraph,
   routingPathTo,
@@ -43,9 +45,9 @@ export {
   type SkillFlowNode,
   type SkillFlowEdge,
   type SkillRoutingPathStep,
-} from './skillGraphFlowLayout.js';
-export { SummaryCard } from './SummaryCard.js';
-export { TimeTravel, type TimeTravelProps } from './TimeTravel.js';
+} from "./skillGraphFlowLayout.js";
+export { SummaryCard } from "./SummaryCard.js";
+export { TimeTravel, type TimeTravelProps } from "./TimeTravel.js";
 // RFC-002 C7 — per-iteration tool-choice margins panel (offered-tool
 // score bars, chosen highlight, margin badge, ⚠ flags). The <Lens>
 // engineer view mounts it via the `toolChoice` prop; exported for
@@ -53,7 +55,7 @@ export { TimeTravel, type TimeTravelProps } from './TimeTravel.js';
 export {
   ToolChoicePanel,
   type ToolChoicePanelProps,
-} from './components/ToolChoicePanel.js';
+} from "./components/ToolChoicePanel.js";
 
 // Hooks — composable building blocks for consumer-built Lens layouts.
-export * from './hooks/index.js';
+export * from "./hooks/index.js";

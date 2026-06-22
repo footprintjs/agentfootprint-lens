@@ -19,46 +19,52 @@
  * adapter snippets. The React adapter lives in `../react/hooks/`.
  */
 
-export * from './types.js';
+export * from "./types.js";
 export {
   LensRecorder,
   lensRecorder,
   DEFAULT_MAX_EVENTS,
   type LensRecorderOptions,
   type LensDiagnostics,
-} from './LensRecorder.js';
-export { ChangeNotifier } from './ChangeNotifier.js';
-export { buildStepGraphFromSnapshot } from './buildStepGraphFromSnapshot.js';
+} from "./LensRecorder.js";
+export { ChangeNotifier } from "./ChangeNotifier.js";
+export { buildStepGraphFromSnapshot } from "./buildStepGraphFromSnapshot.js";
 export {
   buildSpecTreeFromBoundary,
   type SpecNode,
-} from './buildSpecTreeFromBoundary.js';
+} from "./buildSpecTreeFromBoundary.js";
 export {
   LensSnapshotRecorder,
   lensSnapshotRecorder,
   type LensSnapshotRecorderOptions,
   type LensSnapshotRunnerLike,
-} from './LensSnapshotRecorder.js';
+} from "./LensSnapshotRecorder.js";
 export {
   defaultHumanizer,
   humanizeWith,
   teachingHumanizer,
   type Humanizer,
-} from './humanizer.js';
-export * from './selectors/index.js';
-export { buildLLMText, type BuildLLMTextArgs } from './copyForLLM.js';
+} from "./humanizer.js";
+export * from "./selectors/index.js";
+export { buildLLMText, type BuildLLMTextArgs } from "./copyForLLM.js";
 
 // Lens v0.1 translator pipeline — Runner → LensGroupOutput (UI-agnostic
 // graph of nodes + edges). The L3 React renderer consumes this; Vue / D3
 // consumers can swap in their own renderer.
-export * from './translate/index.js';
+export * from "./translate/index.js";
 
 // structureGraphFromRunner — the build-time chart for the lens. Walks a runner's
 // footprintjs build-time spec into an explainable-ui TraceGraph whose node ids ARE
 // the real runtime stage ids (so the runtime overlay lights the executed path) and
 // whose roles map to hero/plumbing emphasis. This is the SOLE runner→graph path;
 // consumers pass the result to `<Lens chart={{ graph, layout, nodeTypes }} />`.
-export { structureGraphFromRunner } from './collapser/structureGraphFromRunner.js';
+// `structureGraphFromSpec` is the same builder from a serialized
+// `buildTimeStructure` directly (no runner) — used by `<Replay>` to rebuild the
+// flowchart from an offline `Trace.structure`.
+export {
+  structureGraphFromRunner,
+  structureGraphFromSpec,
+} from "./collapser/structureGraphFromRunner.js";
 // Render adapters — pure mappers from LensGroupOutput to xyflow shape +
 // dagre layout orchestrator. The React component layer composes these.
 export {
@@ -67,9 +73,9 @@ export {
   type LensReactFlowNodeData,
   type LensReactFlowEdgeData,
   type ToReactFlowResult,
-} from './render/toReactFlow.js';
+} from "./render/toReactFlow.js";
 export {
   layoutLensGraph,
   type LayoutLensGraphOptions,
   type LayoutLensGraphResult,
-} from './render/layoutLensGraph.js';
+} from "./render/layoutLensGraph.js";

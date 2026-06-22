@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.0] - 2026-06-22
+
+`<Replay trace>` — render a persisted agentfootprint `Trace` OFFLINE (no live
+runner). Rebuilds the flowchart from `trace.structure` via the new
+`structureGraphFromSpec(buildTimeStructure)` (extracted from
+`structureGraphFromRunner`, which now delegates to it — behaviour-preserving) and
+renders it via `<LensFlow>`, with a self-describing redaction banner when
+`trace.redaction === 'none'`. Pairs with agentfootprint 6.44.0
+`enable.localObservability().getTrace()`. 14 tests added.
+
 ## [0.22.0] - 2026-06-11
 
 The "Tool choice" panel (RFC-002 block C7) — per-iteration visualization of

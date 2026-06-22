@@ -19,20 +19,21 @@
  * the structure here stays faithful to the run.
  */
 
-import { walkSubflowSpec, splitStageId } from 'footprintjs/trace';
-import { createTraceStructureRecorder } from 'footprint-explainable-ui/flowchart';
-import type { TraceGraph } from 'footprint-explainable-ui/flowchart';
-import type { StructureRecorder } from 'footprintjs';
-import { stageRole, type StageRole } from 'agentfootprint';
+import { walkSubflowSpec, splitStageId } from "footprintjs/trace";
+import { createTraceStructureRecorder } from "footprint-explainable-ui/flowchart";
+import type { TraceGraph } from "footprint-explainable-ui/flowchart";
+import type { StructureRecorder } from "footprintjs";
+import { stageRole, type StageRole } from "agentfootprint";
 
 interface RunnerLike {
   readonly getSpec: () => { readonly buildTimeStructure: unknown };
 }
 
 /** Map a semantic role to the renderer's generic emphasis hint. */
-function emphasisForRole(role: StageRole): 'hero' | 'muted' | undefined {
-  if (role === 'hero-slot' || role === 'hero-llm' || role === 'hero-action') return 'hero';
-  if (role === 'plumbing') return 'muted';
+function emphasisForRole(role: StageRole): "hero" | "muted" | undefined {
+  if (role === "hero-slot" || role === "hero-llm" || role === "hero-action")
+    return "hero";
+  if (role === "plumbing") return "muted";
   return undefined; // boundary → normal
 }
 
@@ -43,12 +44,12 @@ function emphasisForRole(role: StageRole): 'hero' | 'muted' | undefined {
  * renderer (which must not know agent ids).
  */
 function iconForRole(localId: string, role: StageRole): string | undefined {
-  if (role === 'hero-llm') return 'llm';
-  if (role === 'hero-action') return 'tool';
-  if (role === 'hero-slot') {
-    if (localId === 'sf-system-prompt') return 'system-prompt';
-    if (localId === 'sf-messages') return 'messages';
-    if (localId === 'sf-tools') return 'tool';
+  if (role === "hero-llm") return "llm";
+  if (role === "hero-action") return "tool";
+  if (role === "hero-slot") {
+    if (localId === "sf-system-prompt") return "system-prompt";
+    if (localId === "sf-messages") return "messages";
+    if (localId === "sf-tools") return "tool";
   }
   return undefined;
 }
@@ -58,29 +59,41 @@ function iconForRole(localId: string, role: StageRole): string | undefined {
  * (lg), plumbing recedes (sm), everything else is normal (md, returned as
  * undefined). Slots are rendered as pills (own size) so they're not scaled here.
  */
-function sizeForRole(role: StageRole): 'sm' | 'lg' | undefined {
-  if (role === 'hero-llm') return 'lg';
-  if (role === 'plumbing') return 'sm';
+function sizeForRole(role: StageRole): "sm" | "lg" | undefined {
+  if (role === "hero-llm") return "lg";
+  if (role === "plumbing") return "sm";
   return undefined;
 }
 
 /** Slot subflow local id → ContextSlot kind (for the SlotPillNode). */
 function slotKindForLocalId(localId: string): string | undefined {
-  if (localId === 'sf-system-prompt') return 'system-prompt';
-  if (localId === 'sf-messages') return 'messages';
-  if (localId === 'sf-tools') return 'tools';
+  if (localId === "sf-system-prompt") return "system-prompt";
+  if (localId === "sf-messages") return "messages";
+  if (localId === "sf-tools") return "tools";
   return undefined;
 }
 
 /** Build the fine-grained (uncollapsed) real-id TraceGraph from a Runner. */
 export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
+  return structureGraphFromSpec(runner.getSpec().buildTimeStructure);
+}
+
+/**
+ * Build the fine-grained TraceGraph from a serialized `buildTimeStructure`
+ * DIRECTLY (not a live runner) — so an offline `Trace` (Replay Option A, which
+ * stores `trace.structure`) can rebuild the same flowchart the live `<Lens>`
+ * shows, with no runner present. `structureGraphFromRunner` delegates here.
+ */
+export function structureGraphFromSpec(
+  buildTimeStructure: unknown,
+): TraceGraph {
   const trace = createTraceStructureRecorder();
   // Cast to the loose footprintjs StructureRecorder (same as viaStructureRecorder
   // + collapserFromRunner) so the walker's payloads — typed against the
   // serialized spec — feed the recorder without per-field re-typing.
   const recorder = trace.recorder as unknown as StructureRecorder;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const spec = runner.getSpec().buildTimeStructure as any;
+  const spec = buildTimeStructure as any;
 
   // `{ recurse: false }` — emit ONLY top-level stages + subflow-MOUNT events
   // (each carrying its full `subflowSpec`). `createTraceStructureRecorder`
@@ -98,9 +111,9 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
   // that's what lets eui's existing `filterGraphForDrill` show a subflow's
   // stages on drill (hidden at top level, revealed when you click the box).
   const subflowSpecs: { subflowId: string; spec: unknown; path: string }[] = [];
-  for (const item of walkSubflowSpec(spec, '', { recurse: false })) {
+  for (const item of walkSubflowSpec(spec, "", { recurse: false })) {
     switch (item.kind) {
-      case 'stage':
+      case "stage":
         recorder.onStageAdded?.({
           stageId: item.stageId,
           name: item.name,
@@ -109,7 +122,7 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
           spec: item.spec,
         });
         break;
-      case 'edge':
+      case "edge":
         recorder.onEdgeAdded?.({
           from: item.from,
           to: item.to,
@@ -117,10 +130,10 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
           ...(item.label !== undefined && { label: item.label }),
         });
         break;
-      case 'loop':
+      case "loop":
         recorder.onLoopEdgeAdded?.({ from: item.from, to: item.to });
         break;
-      case 'subflow':
+      case "subflow":
         recorder.onSubflowMounted?.({
           subflowId: item.subflowId,
           subflowName: item.subflowName,
@@ -133,13 +146,14 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
           spec: item.subflowSpec,
           // Strip any leading slash so qualified ids read `sf-x/stage`, matching
           // the runtime overlay key (runtimeStageId minus #index has no leading /).
-          path: (typeof item.subflowPath === 'string' && item.subflowPath.length > 0
+          path: (typeof item.subflowPath === "string" &&
+          item.subflowPath.length > 0
             ? item.subflowPath
             : item.subflowId
-          ).replace(/^\/+/, ''),
+          ).replace(/^\/+/, ""),
         });
         break;
-      case 'subflow-start':
+      case "subflow-start":
         break;
     }
   }
@@ -161,8 +175,14 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
   // same path-qualified node/edge would appear twice → duplicate xyflow ids.
   const seenNodes = new Set(baseGraph.nodes.map((n) => n.id));
   const seenEdges = new Set(baseGraph.edges.map((e) => e.id));
-  const nodes = [...baseGraph.nodes, ...internal.nodes.filter((n) => !seenNodes.has(n.id))];
-  const edges = [...baseGraph.edges, ...internal.edges.filter((e) => !seenEdges.has(e.id))];
+  const nodes = [
+    ...baseGraph.nodes,
+    ...internal.nodes.filter((n) => !seenNodes.has(n.id)),
+  ];
+  const edges = [
+    ...baseGraph.edges,
+    ...internal.edges.filter((e) => !seenEdges.has(e.id)),
+  ];
 
   for (const node of nodes) {
     const role = stageRole(node.id);
@@ -187,8 +207,8 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
     // type to the slot-pill renderer (MAIN_CHART_NODE_TYPES maps it). Scoped
     // to hero-slot ONLY (keying on isSubflow would catch every subflow). Do
     // NOT set data.selected — let the runtime overlay light pills per turn.
-    if (role === 'hero-slot') {
-      (node as { type?: string }).type = 'slotPill';
+    if (role === "hero-slot") {
+      (node as { type?: string }).type = "slotPill";
       const slotKind = slotKindForLocalId(localStageId);
       if (slotKind !== undefined) data.slotKind = slotKind;
     }
@@ -205,9 +225,12 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
  */
 function expandSubflowInternals(
   subflows: readonly { subflowId: string; spec: unknown; path: string }[],
-): { nodes: TraceGraph['nodes'][number][]; edges: TraceGraph['edges'][number][] } {
-  const nodes: TraceGraph['nodes'][number][] = [];
-  const edges: TraceGraph['edges'][number][] = [];
+): {
+  nodes: TraceGraph["nodes"][number][];
+  edges: TraceGraph["edges"][number][];
+} {
+  const nodes: TraceGraph["nodes"][number][] = [];
+  const edges: TraceGraph["edges"][number][] = [];
 
   for (const { subflowId, spec, path } of subflows) {
     const subTrace = createTraceStructureRecorder();
@@ -215,16 +238,18 @@ function expandSubflowInternals(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     for (const item of walkSubflowSpec(spec as any, path, { recurse: false })) {
       switch (item.kind) {
-        case 'stage':
+        case "stage":
           subRec.onStageAdded?.({
             stageId: item.stageId,
             name: item.name,
             type: item.type,
-            ...(item.isPausable !== undefined && { isPausable: item.isPausable }),
+            ...(item.isPausable !== undefined && {
+              isPausable: item.isPausable,
+            }),
             spec: item.spec,
           });
           break;
-        case 'edge':
+        case "edge":
           subRec.onEdgeAdded?.({
             from: item.from,
             to: item.to,
@@ -232,10 +257,10 @@ function expandSubflowInternals(
             ...(item.label !== undefined && { label: item.label }),
           });
           break;
-        case 'loop':
+        case "loop":
           subRec.onLoopEdgeAdded?.({ from: item.from, to: item.to });
           break;
-        case 'subflow':
+        case "subflow":
           subRec.onSubflowMounted?.({
             subflowId: item.subflowId,
             subflowName: item.subflowName,
@@ -244,18 +269,28 @@ function expandSubflowInternals(
             subflowPath: item.subflowPath,
           });
           break;
-        case 'subflow-start':
+        case "subflow-start":
           break;
       }
     }
     const sub = subTrace.getGraph();
-    const prefix = path.endsWith('/') ? path : `${path}/`;
-    const q = (id: string): string => (id.startsWith(prefix) ? id : `${prefix}${id}`);
+    const prefix = path.endsWith("/") ? path : `${path}/`;
+    const q = (id: string): string =>
+      id.startsWith(prefix) ? id : `${prefix}${id}`;
     for (const n of sub.nodes) {
-      nodes.push({ ...n, id: q(n.id), data: { ...n.data, subflowOf: subflowId } });
+      nodes.push({
+        ...n,
+        id: q(n.id),
+        data: { ...n.data, subflowOf: subflowId },
+      });
     }
     for (const e of sub.edges) {
-      edges.push({ ...e, id: `${q(e.source)}->${q(e.target)}`, source: q(e.source), target: q(e.target) });
+      edges.push({
+        ...e,
+        id: `${q(e.source)}->${q(e.target)}`,
+        source: q(e.source),
+        target: q(e.target),
+      });
     }
   }
   return { nodes, edges };
