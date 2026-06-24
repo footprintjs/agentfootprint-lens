@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.24.0] - 2026-06-24
+
+### Added
+
+- **`decorate` option on `structureGraphFromRunner` / `structureGraphFromSpec`**
+  (+ exported `StructureGraphOptions`). Default `true` keeps the agent `<Lens>`
+  decoration (hero/plumbing emphasis, the 3 context slots as pills, role
+  icons/sizes). Pass `{ decorate: false }` for a **footprintjs-LEVEL view** of the
+  SAME chart: the raw subflow tree (`sf-injection-engine`, `sf-system-prompt` ∥
+  `sf-messages` ∥ `sf-tools`, `sf-cache`, …) with NO agent vocabulary — every box
+  a plain stage, the three slots drawn as the real parallel fan-out, lit purely by
+  the runtime overlay. The "it's just footprintjs subflows underneath" view.
+
+### Changed
+
+- **`NodeDetailPanel` now surfaces the WHY behind each context injection.** The
+  "Context engineering" list adds each injection's `reason` (e.g. the `post-pii`
+  reminder's _"fires the step after redact_pii returned"_) when it adds something
+  beyond the content summary. The same per-step provenance now also renders inside
+  the related-step cards, so drilling an Agent/LLM boundary shows which injection
+  fired — and why — on each step in scope, not just on the primary node.
+
 ## [0.23.10] - 2026-06-24
 
 ### Added

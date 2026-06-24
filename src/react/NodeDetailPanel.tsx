@@ -390,7 +390,10 @@ const RelatedStepCard: React.FC<{ node: StepNode }> = ({ node }) => {
     payloads.push({ label: 'Tool result', value: node.toolResult });
   }
 
-  const hasContent = rows.length > 0 || payloads.length > 0;
+  const hasInjections = (node.injections ?? []).some(
+    (inj) => !BASELINE_SOURCES.has(inj.source),
+  );
+  const hasContent = rows.length > 0 || payloads.length > 0 || hasInjections;
 
   return (
     <div style={sectionStyle}>
@@ -404,6 +407,7 @@ const RelatedStepCard: React.FC<{ node: StepNode }> = ({ node }) => {
           ))}
         </div>
       )}
+      <ContextEngineeringSection injections={node.injections} />
       {payloads.map((p) => (
         <div key={p.label} style={{ borderTop: `1px solid ${T.border}` }}>
           <div style={{ ...sectionLabelStyle, padding: '4px 8px' }}>{p.label}</div>
@@ -541,34 +545,7 @@ const ReActStepBody: React.FC<{ node: StepNode }> = ({ node }) => {
             ))}
           </div>
         )}
-        {(() => {
-          // Context engineering = engineered injections ONLY. Baseline
-          // sources are LLM-API natives, not engineering decisions.
-          // Hidden when nothing is engineered — adaptive rendering: only
-          // surface fields that have meaningful UPDATE / ADD content.
-          const engineered = (node.injections ?? []).filter(
-            (inj) => !BASELINE_SOURCES.has(inj.source),
-          );
-          if (engineered.length === 0) return null;
-          return (
-            <div style={{ padding: '0 8px 8px' }}>
-              <div style={sectionLabelStyle}>Context engineering</div>
-              <ul style={{ margin: '4px 0 0', paddingLeft: 14, fontSize: 11, color: T.textSecondary }}>
-                {engineered.map((inj, i) => (
-                  <li key={i} style={{ padding: '2px 0' }}>
-                    <code style={{ fontSize: 11 }}>
-                      [{inj.slot}] {inj.source}
-                      {inj.sourceId ? `:${inj.sourceId}` : ''}
-                    </code>
-                    {inj.contentSummary && (
-                      <span style={{ opacity: 0.7, marginLeft: 6 }}>· {inj.contentSummary}</span>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          );
-        })()}
+        <ContextEngineeringSection injections={node.injections} />
       </div>
       {ioSections.map((s) => (
         <PayloadSection key={s.label} label={s.label} payload={s.payload} emptyHint="(none)" />
@@ -637,6 +614,56 @@ const BASELINE_SOURCES: ReadonlySet<string> = new Set([
   'base',          // static system-prompt declared at build time
   'registry',      // tool from the static tool registry
 ]);
+
+/** One engineered context injection (element type off StepNode). */
+type StepInjection = NonNullable<StepNode['injections']>[number];
+
+/**
+ * Context engineering section — the WHICH + WHY of every engineered injection
+ * active for this LLM step. Baseline LLM-API channels (current user message,
+ * tool result, static system prompt, registry tools) are filtered out so only
+ * deliberate context-engineering decisions (skills, instructions, steering,
+ * RAG, memory) show. Each row says which slot it landed in, its source/id, a
+ * content summary, and the `reason` it fired — the answer to "why is THIS here
+ * on THIS step?" (e.g. the `post-pii` reminder appears only the step after
+ * `redact_pii` returned). Shared by the primary panel and the related cards so
+ * drilling an Agent/LLM boundary shows the same per-step provenance.
+ */
+const ContextEngineeringSection: React.FC<{
+  injections?: readonly StepInjection[];
+}> = ({ injections }) => {
+  const engineered = (injections ?? []).filter((inj) => !BASELINE_SOURCES.has(inj.source));
+  if (engineered.length === 0) return null;
+  return (
+    <div style={{ padding: '0 8px 8px' }}>
+      <div style={sectionLabelStyle}>Context engineering</div>
+      <ul style={{ margin: '4px 0 0', paddingLeft: 14, fontSize: 11, color: T.textSecondary }}>
+        {engineered.map((inj, i) => {
+          // Show `reason` (the WHY) only when it adds something beyond the
+          // content summary — avoids a duplicate line for injections whose
+          // reason IS their summary.
+          const why = inj.reason && inj.reason !== inj.contentSummary ? inj.reason : undefined;
+          return (
+            <li key={i} style={{ padding: '2px 0' }}>
+              <code style={{ fontSize: 11 }}>
+                [{inj.slot}] {inj.source}
+                {inj.sourceId ? `:${inj.sourceId}` : ''}
+              </code>
+              {inj.contentSummary && (
+                <span style={{ opacity: 0.7, marginLeft: 6 }}>· {inj.contentSummary}</span>
+              )}
+              {why && (
+                <div style={{ opacity: 0.6, marginLeft: 2, marginTop: 1, fontStyle: 'italic' }}>
+                  why: {why}
+                </div>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+};
 
 const Field: React.FC<{ label: string; children: React.ReactNode }> = ({ label, children }) => (
   <div style={{ display: 'flex', gap: 8 }}>

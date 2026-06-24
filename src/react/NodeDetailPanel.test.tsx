@@ -159,6 +159,44 @@ describe('NodeDetailPanel — pattern 5: ReAct step (user→llm)', () => {
     // Per the "no update, don't render" rule, the section is hidden.
     expect(screen.queryByText(/Context engineering/i)).toBeNull();
   });
+
+  it('surfaces the reason ("why this fired") when it adds beyond the summary', () => {
+    const node = mkNode({
+      id: 'step-2',
+      kind: 'tool->llm',
+      label: 'tool → llm',
+      subflowPath: [],
+      iterationIndex: 3,
+      injections: [
+        {
+          slot: 'system-prompt',
+          source: 'instruction',
+          sourceId: 'post-pii',
+          contentSummary: 'Use the redacted text…',
+          reason: 'fires the step after redact_pii returned',
+        },
+      ],
+    });
+    render(<NodeDetailPanel node={node} />);
+    expect(screen.getByText(/Context engineering/i)).toBeDefined();
+    expect(screen.getByText(/why:/i)).toBeDefined();
+    expect(screen.getByText(/fires the step after redact_pii returned/)).toBeDefined();
+  });
+
+  it('does not duplicate the reason line when reason equals the content summary', () => {
+    const node = mkNode({
+      id: 'step-3',
+      kind: 'user->llm',
+      label: 'user → llm',
+      subflowPath: [],
+      injections: [
+        { slot: 'tools', source: 'skill', sourceId: 'billing', contentSummary: 'same', reason: 'same' },
+      ],
+    });
+    render(<NodeDetailPanel node={node} />);
+    expect(screen.getByText(/Context engineering/i)).toBeDefined();
+    expect(screen.queryByText(/why:/i)).toBeNull();
+  });
 });
 
 // ─── Pattern 6: primitiveKind pill ──────────────────────────────────────
@@ -262,6 +300,38 @@ describe('NodeDetailPanel — pattern 8: cursor-scoped related steps', () => {
     // ReAct final-answer assistantText labeled appropriately
     expect(screen.getByText(/Final answer/i)).toBeDefined();
     expect(screen.getAllByText(/hello/).length).toBeGreaterThan(0);
+  });
+
+  it('surfaces per-step Context engineering provenance inside the scoped cards', () => {
+    const primary = mkNode({
+      id: 'sf-llm-call#1',
+      kind: 'subflow',
+      label: 'LLMCall',
+      subflowPath: ['__root__', 'sf-llm-call'],
+      primitiveKind: 'LLMCall',
+    });
+    const relatedNodes = [
+      mkNode({
+        id: 'tool->llm-1',
+        kind: 'tool->llm',
+        label: 'tool → llm',
+        subflowPath: ['__root__', 'sf-llm-call'],
+        llmModel: 'mock-gpt',
+        injections: [
+          { slot: 'messages', source: 'tool-result', contentSummary: 'redacted text' }, // baseline → filtered
+          {
+            slot: 'system-prompt',
+            source: 'instruction',
+            sourceId: 'post-pii',
+            reason: 'fires the step after redact_pii returned',
+          },
+        ],
+      }),
+    ];
+    render(<NodeDetailPanel node={primary} relatedNodes={relatedNodes} />);
+    expect(screen.getByText(/Context engineering/i)).toBeDefined();
+    expect(screen.getByText(/post-pii/)).toBeDefined();
+    expect(screen.getByText(/fires the step after redact_pii returned/)).toBeDefined();
   });
 
   it('omits the related-steps section when relatedNodes is empty', () => {

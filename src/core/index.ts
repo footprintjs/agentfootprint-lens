@@ -65,6 +65,7 @@ export {
   structureGraphFromRunner,
   structureGraphFromSpec,
 } from "./collapser/structureGraphFromRunner.js";
+export type { StructureGraphOptions } from "./collapser/structureGraphFromRunner.js";
 // Render adapters — pure mappers from LensGroupOutput to xyflow shape +
 // dagre layout orchestrator. The React component layer composes these.
 export {

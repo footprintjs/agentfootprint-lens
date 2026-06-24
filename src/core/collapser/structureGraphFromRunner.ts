@@ -74,8 +74,28 @@ function slotKindForLocalId(localId: string): string | undefined {
 }
 
 /** Build the fine-grained (uncollapsed) real-id TraceGraph from a Runner. */
-export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
-  return structureGraphFromSpec(runner.getSpec().buildTimeStructure);
+/** Options shared by `structureGraphFromRunner` / `structureGraphFromSpec`. */
+export interface StructureGraphOptions {
+  /**
+   * Apply the agent-vocabulary decoration — hero/plumbing emphasis, the 3 context
+   * slots rendered as pills, role icons + sizes. Default `true`: the agent
+   * `<Lens>` wants it.
+   *
+   * Pass `false` for a footprintjs-LEVEL view of the SAME chart: the raw subflow
+   * tree (`sf-injection-engine`, `sf-system-prompt` ∥ `sf-messages` ∥ `sf-tools`,
+   * `sf-cache`, …) with NO agent semantics — every box a plain stage/subflow, the
+   * 3 slots shown as the real parallel fan-out they are, lit purely by the runtime
+   * overlay. Same structure, no decoration — the "it's just footprintjs subflows
+   * underneath" view.
+   */
+  readonly decorate?: boolean;
+}
+
+export function structureGraphFromRunner(
+  runner: RunnerLike,
+  opts?: StructureGraphOptions,
+): TraceGraph {
+  return structureGraphFromSpec(runner.getSpec().buildTimeStructure, opts);
 }
 
 /**
@@ -86,6 +106,7 @@ export function structureGraphFromRunner(runner: RunnerLike): TraceGraph {
  */
 export function structureGraphFromSpec(
   buildTimeStructure: unknown,
+  opts?: StructureGraphOptions,
 ): TraceGraph {
   const trace = createTraceStructureRecorder();
   // Cast to the loose footprintjs StructureRecorder (same as viaStructureRecorder
@@ -184,33 +205,39 @@ export function structureGraphFromSpec(
     ...internal.edges.filter((e) => !seenEdges.has(e.id)),
   ];
 
-  for (const node of nodes) {
-    const role = stageRole(node.id);
-    const data = node.data as Record<string, unknown>;
-    const { localStageId } = splitStageId(node.id);
+  // Decoration is the ONLY agent-specific layer — everything above is the raw
+  // footprintjs subflow graph. Skip it for `decorate: false` (the footprintjs-
+  // level view): no emphasis, no role icons/sizes, no slot pills — just the plain
+  // subflow tree, lit by the runtime overlay alone.
+  if (opts?.decorate !== false) {
+    for (const node of nodes) {
+      const role = stageRole(node.id);
+      const data = node.data as Record<string, unknown>;
+      const { localStageId } = splitStageId(node.id);
 
-    const emphasis = emphasisForRole(role);
-    if (emphasis !== undefined) data.emphasis = emphasis;
+      const emphasis = emphasisForRole(role);
+      if (emphasis !== undefined) data.emphasis = emphasis;
 
-    // Only supply an icon when the stage didn't already declare one.
-    if (data.icon === undefined) {
-      const icon = iconForRole(localStageId, role);
-      if (icon !== undefined) data.icon = icon;
-    }
+      // Only supply an icon when the stage didn't already declare one.
+      if (data.icon === undefined) {
+        const icon = iconForRole(localStageId, role);
+        if (icon !== undefined) data.icon = icon;
+      }
 
-    // Size hierarchy (LLM biggest, plumbing smallest) — the renderer's
-    // node-size resolver reads data.size and the StageNode scales its card.
-    const size = sizeForRole(role);
-    if (size !== undefined) data.size = size;
+      // Size hierarchy (LLM biggest, plumbing smallest) — the renderer's
+      // node-size resolver reads data.size and the StageNode scales its card.
+      const size = sizeForRole(role);
+      if (size !== undefined) data.size = size;
 
-    // Render the 3 context slots as PILLS (distinct shape) — flip the node
-    // type to the slot-pill renderer (MAIN_CHART_NODE_TYPES maps it). Scoped
-    // to hero-slot ONLY (keying on isSubflow would catch every subflow). Do
-    // NOT set data.selected — let the runtime overlay light pills per turn.
-    if (role === "hero-slot") {
-      (node as { type?: string }).type = "slotPill";
-      const slotKind = slotKindForLocalId(localStageId);
-      if (slotKind !== undefined) data.slotKind = slotKind;
+      // Render the 3 context slots as PILLS (distinct shape) — flip the node
+      // type to the slot-pill renderer (MAIN_CHART_NODE_TYPES maps it). Scoped
+      // to hero-slot ONLY (keying on isSubflow would catch every subflow). Do
+      // NOT set data.selected — let the runtime overlay light pills per turn.
+      if (role === "hero-slot") {
+        (node as { type?: string }).type = "slotPill";
+        const slotKind = slotKindForLocalId(localStageId);
+        if (slotKind !== undefined) data.slotKind = slotKind;
+      }
     }
   }
   return { ...baseGraph, nodes, edges };

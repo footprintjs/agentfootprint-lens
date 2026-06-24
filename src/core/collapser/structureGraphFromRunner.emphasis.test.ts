@@ -57,3 +57,31 @@ describe('structureGraphFromRunner — hero/plumbing emphasis', () => {
     expect(iconOf('sf-tools')).toBe('tool');
   });
 });
+
+describe('structureGraphFromRunner — footprintjs-level view (decorate: false)', () => {
+  const raw = structureGraphFromRunner(buildAgentRunner(), { decorate: false });
+  const decorated = structureGraphFromRunner(buildAgentRunner());
+
+  const byLocal = (g: typeof raw, local: string) =>
+    g.nodes.find((n) => n.id === local || n.id.endsWith('/' + local));
+
+  it('keeps the SAME raw subflow structure as the decorated graph (same node ids)', () => {
+    expect(raw.nodes.map((n) => n.id).sort()).toEqual(decorated.nodes.map((n) => n.id).sort());
+    // The real request-assembly subflows are present as plain boxes.
+    expect(byLocal(raw, 'sf-system-prompt')).toBeDefined();
+    expect(byLocal(raw, 'sf-messages')).toBeDefined();
+    expect(byLocal(raw, 'sf-tools')).toBeDefined();
+  });
+
+  it('drops ALL agent decoration — no emphasis, no slot pills', () => {
+    for (const n of raw.nodes) {
+      const data = (n.data ?? {}) as { emphasis?: string; slotKind?: string };
+      expect(data.emphasis).toBeUndefined();
+      expect(data.slotKind).toBeUndefined();
+      expect((n as { type?: string }).type).not.toBe('slotPill');
+    }
+    // Sanity: the DECORATED graph DOES flip the slots to pills — proving the
+    // flag is what suppresses it, not a missing role.
+    expect((byLocal(decorated, 'sf-system-prompt') as { type?: string }).type).toBe('slotPill');
+  });
+});
