@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.23.8] - 2026-06-24
+## [0.23.9] - 2026-06-24
+
+### Added
+
+- **Clickable step strip in the compact scrubber.** The compact `TimeTravel`
+  (`◀ ▶ ⟳Live` + count, used in the engineer view / embeds) now renders a strip
+  of ticks — one per event, EVERY step visible in a row — that you click to jump
+  to any moment, including BACKWARD to earlier steps; the focused tick stands
+  out, done steps fill in. New `stepStrip` prop on `<Lens>` / `TimeTravel`
+  (default `true`; pass `false` to hide it).
+
+### Changed
+
+- **Renamed the right-side `Details` pill → `Inspect`.** Clearer that it opens
+  the selected step's detail panel (pairs with the `Topology` pill on the left).
 
 ### Fixed
 

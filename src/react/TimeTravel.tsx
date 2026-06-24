@@ -36,6 +36,13 @@ export interface TimeTravelProps {
    * + Live still work.
    */
   readonly compact?: boolean;
+  /**
+   * In compact mode, render a clickable STEP STRIP — one tick per event, every
+   * step visible in a row, click any to jump (and the focused tick stands out).
+   * A lightweight all-steps overview + scrubber when the drag track is omitted.
+   * ON by default; pass `false` for just ◀ ▶ ⟳Live + the count.
+   */
+  readonly stepStrip?: boolean;
 }
 
 export const TimeTravel: React.FC<TimeTravelProps> = ({
@@ -44,6 +51,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
   onFocusChange,
   isLive,
   compact,
+  stepStrip = true,
 }) => {
   const max = Math.max(0, total - 1);
 
@@ -123,10 +131,44 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
       >
         {isLive ? '● Live' : '⟳ Live'}
       </button>
-      {/* In compact mode the timeline is the scrubber — spacer keeps the count
-          right-aligned without a redundant drag track. */}
+      {/* Compact mode: a clickable STEP STRIP (every step visible, click to jump
+          — including BACKWARD to any earlier step), or just a spacer if disabled. */}
       {compact ? (
-        <div style={{ flex: 1 }} />
+        stepStrip && total > 1 ? (
+          <div
+            role="group"
+            aria-label="Steps"
+            style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 2, minWidth: 120, padding: '0 4px' }}
+          >
+            {Array.from({ length: total }, (_, i) => {
+              const done = i < focusSeq;
+              const here = i === focusSeq;
+              return (
+                <button
+                  key={i}
+                  onClick={() => onFocusChange(i)}
+                  disabled={disabled}
+                  title={`Step ${i + 1} / ${total}`}
+                  aria-label={`Go to step ${i + 1}`}
+                  aria-current={here ? 'step' : undefined}
+                  style={{
+                    flex: 1,
+                    minWidth: 3,
+                    height: here ? 16 : 9,
+                    padding: 0,
+                    border: 'none',
+                    borderRadius: 3,
+                    cursor: disabled ? 'default' : 'pointer',
+                    background: here ? T.warning : done ? T.success : T.border,
+                    transition: 'height 0.12s ease, background 0.12s ease',
+                  }}
+                />
+              );
+            })}
+          </div>
+        ) : (
+          <div style={{ flex: 1 }} />
+        )
       ) : (
       <div style={{ flex: 1, position: 'relative', display: 'flex', alignItems: 'center' }}>
         <input

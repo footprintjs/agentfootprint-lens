@@ -115,6 +115,12 @@ export interface LensProps {
   readonly chart?: LensFlowProps["chart"];
   /** Which audience view to render. Default: `engineer`. */
   readonly view?: LensView;
+  /**
+   * Show the clickable STEP STRIP in the compact scrubber — every step visible
+   * in a row, click any (incl. backward) to jump. Default `true`; set `false`
+   * for just ◀ ▶ ⟳Live + the count.
+   */
+  readonly stepStrip?: boolean;
   /** Optional humanizer override. Default: a `teachingHumanizer`
    *  configured with `appName` (below). Pass `defaultHumanizer` (or
    *  your own) for terse / customized prose. */
@@ -186,6 +192,7 @@ export const Lens: React.FC<LensProps> = ({
   stepGraph,
   chart,
   view = "engineer",
+  stepStrip = true,
   humanizer,
   appName,
   commentaryTemplates,
@@ -377,6 +384,7 @@ export const Lens: React.FC<LensProps> = ({
       focusStep={focusStep}
       onFocusChange={handleFocusChange}
       isLive={isLive}
+      stepStrip={stepStrip}
       liveStreamLine={liveStreamLine}
       drillPath={drillPath}
       onDrillInto={drillInto}
@@ -519,6 +527,8 @@ const EngineerView: React.FC<{
   focusStep: number;
   onFocusChange: (seq: number) => void;
   isLive: boolean;
+  /** Show the clickable step strip in the compact scrubber (default true). */
+  stepStrip?: boolean;
   /** Live "thinking / responding" line shown in Commentary while an
    *  LLM call is in flight. Null when no call is active. */
   liveStreamLine: string | null;
@@ -553,6 +563,7 @@ const EngineerView: React.FC<{
   focusStep,
   onFocusChange,
   isLive,
+  stepStrip,
   liveStreamLine,
   drillPath,
   onDrillInto,
@@ -1048,6 +1059,7 @@ const EngineerView: React.FC<{
           is the scrubber, so the drag track here would be redundant. */}
       <TimeTravel
         compact
+        stepStrip={stepStrip}
         total={total}
         focusSeq={focusStep}
         onFocusChange={onFocusChange}
@@ -1180,9 +1192,9 @@ const EngineerView: React.FC<{
           </div>
         </div>
 
-        {/* RIGHT: Details — collapsible, mirror of left. */}
+        {/* RIGHT: Inspect — the selected step's details; collapsible, mirror of left. */}
         <VLinePill
-          label="Details"
+          label="Inspect"
           expanded={rightExpanded}
           side="right"
           onClick={() => setRightExpanded((v) => !v)}
