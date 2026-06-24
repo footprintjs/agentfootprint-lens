@@ -93,7 +93,7 @@
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
     "agentfootprint": "^6.0.0",
-    "footprint-explainable-ui": "^0.25.0",
+    "footprint-explainable-ui": "^0.25.1",
     "footprintjs": "^9.0.0",
     "jsdom": "^29.0.2",
     "publint": "^0.3.0",
