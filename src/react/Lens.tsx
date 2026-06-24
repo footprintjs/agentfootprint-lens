@@ -121,6 +121,11 @@ export interface LensProps {
    * for just ◀ ▶ ⟳Live + the count.
    */
   readonly stepStrip?: boolean;
+  /**
+   * Show the STATUS / metrics summary bar (status · latency · LLM/tool calls ·
+   * tokens · throughput). Default `true`; pass `false` to hide it entirely.
+   */
+  readonly showSummary?: boolean;
   /** Optional humanizer override. Default: a `teachingHumanizer`
    *  configured with `appName` (below). Pass `defaultHumanizer` (or
    *  your own) for terse / customized prose. */
@@ -193,6 +198,7 @@ export const Lens: React.FC<LensProps> = ({
   chart,
   view = "engineer",
   stepStrip = true,
+  showSummary = true,
   humanizer,
   appName,
   commentaryTemplates,
@@ -385,6 +391,7 @@ export const Lens: React.FC<LensProps> = ({
       onFocusChange={handleFocusChange}
       isLive={isLive}
       stepStrip={stepStrip}
+      showSummary={showSummary}
       liveStreamLine={liveStreamLine}
       drillPath={drillPath}
       onDrillInto={drillInto}
@@ -529,6 +536,8 @@ const EngineerView: React.FC<{
   isLive: boolean;
   /** Show the clickable step strip in the compact scrubber (default true). */
   stepStrip?: boolean;
+  /** Show the status/metrics summary bar (default true). */
+  showSummary?: boolean;
   /** Live "thinking / responding" line shown in Commentary while an
    *  LLM call is in flight. Null when no call is active. */
   liveStreamLine: string | null;
@@ -564,6 +573,7 @@ const EngineerView: React.FC<{
   onFocusChange,
   isLive,
   stepStrip,
+  showSummary,
   liveStreamLine,
   drillPath,
   onDrillInto,
@@ -1023,7 +1033,7 @@ const EngineerView: React.FC<{
       {/* Toolbar: SummaryCard + CopyForLLM + Slider, compact at top. */}
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <SummaryCard summary={summary} />
+          {showSummary && <SummaryCard summary={summary} />}
         </div>
         <CopyForLLMButton
           recorder={recorder}
