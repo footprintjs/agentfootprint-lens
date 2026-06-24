@@ -36,7 +36,6 @@ import type { EventLogEntry, RunTreeNode } from "../core/types.js";
 import type { Humanizer } from "../core/humanizer.js";
 import { makeTeachingHumanizer } from "../core/humanizer.js";
 import { structureGraphFromRunner } from "../core/collapser/structureGraphFromRunner.js";
-import { dagreTraceLayout } from "footprint-explainable-ui/flowchart";
 import { LENS_NODE_TYPES } from "./lensNodeTypes.js";
 import { LensChartBoundary } from "./LensChartBoundary.js";
 import {
@@ -216,7 +215,9 @@ export const Lens: React.FC<LensProps> = ({
             graph: structureGraphFromRunner(
               runner as unknown as Parameters<typeof structureGraphFromRunner>[0],
             ),
-            layout: dagreTraceLayout,
+            // No `layout` → TracedFlow uses its built-in measure-then-layout
+            // pipeline (content-exact sizing + fork-centering + straight spines),
+            // and inherits every future eui layout improvement automatically.
             nodeTypes: LENS_NODE_TYPES,
           }
         : undefined),

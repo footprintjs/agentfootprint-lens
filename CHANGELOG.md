@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.23.8] - 2026-06-24
+
+### Fixed
+
+- **Stop forcing the raw `dagreTraceLayout` — use TracedFlow's built-in
+  measure-then-layout pipeline.** `Lens` and `Replay` were wiring
+  `layout: dagreTraceLayout` into the chart, which made `<TracedFlow>` use that
+  raw layout *instead of* its internal pipeline (content-exact measured sizing +
+  fork-centering + straight spines). So the lens silently rendered with
+  estimated fallback widths and never picked up any of explainable-ui's layout
+  improvements — including the 0.25.1 content-exact fix. The chart's `layout` is
+  now OPTIONAL and omitted by default, so the lens inherits eui's canonical
+  pipeline (and every future layout fix) for free. Charts render content-exact:
+  centered forks, straight decision spines. No API break — passing an explicit
+  `layout` still works for deliberate overrides.
+
 ## [0.23.7] - 2026-06-22
 
 Type-resolution + peer correctness (no runtime change):

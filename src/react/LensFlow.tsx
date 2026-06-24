@@ -35,7 +35,14 @@ export interface LensFlowProps {
    */
   readonly chart: {
     readonly graph: TraceGraph;
-    readonly layout: TraceFlowLayout;
+    /**
+     * OPTIONAL layout override. Omit it (the norm) to use TracedFlow's built-in
+     * measure-then-layout pipeline — content-exact sizing + fork-centering +
+     * straight spines. Pass the RAW `dagreTraceLayout` ONLY to deliberately
+     * bypass that pipeline; doing so silently forfeits every layout improvement
+     * eui ships (this is exactly what once made the lens render stale).
+     */
+    readonly layout?: TraceFlowLayout;
     readonly nodeTypes?: NodeTypes;
   };
   /**
@@ -118,7 +125,7 @@ export const LensFlow: React.FC<LensFlowProps> = ({
   return (
     <TracedFlow
       graph={chart.graph}
-      layout={chart.layout}
+      {...(chart.layout && { layout: chart.layout })}
       {...(traceRuntimeOverlay && { overlay: traceRuntimeOverlay })}
       {...(scrubIndex !== undefined && { scrubIndex })}
       {...(onNodeClick && { onNodeClick })}

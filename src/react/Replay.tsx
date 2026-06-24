@@ -22,7 +22,6 @@
 import React, { useMemo } from "react";
 
 import type { Trace } from "agentfootprint/observe";
-import { dagreTraceLayout } from "footprint-explainable-ui/flowchart";
 
 import { structureGraphFromSpec } from "../core/collapser/structureGraphFromRunner.js";
 import { LensFlow } from "./LensFlow.js";
@@ -54,7 +53,8 @@ export const Replay: React.FC<ReplayProps> = ({
         ? undefined
         : {
             graph: structureGraphFromSpec(trace.structure),
-            layout: dagreTraceLayout,
+            // No `layout` → use TracedFlow's built-in measure-then-layout pipeline
+            // (content-exact + fork-centering); inherits eui layout fixes for free.
             nodeTypes: LENS_NODE_TYPES,
           },
     [trace.structure],
