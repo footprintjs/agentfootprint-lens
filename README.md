@@ -1,5 +1,7 @@
 # agentfootprint-lens
 
+_Part of the **[footprintjs ecosystem](https://footprintjs.github.io/)** — the self-explaining stack._
+
 > **See the context engineering as it happens.**
 >
 > React components for watching agents built on [`agentfootprint`](https://www.npmjs.com/package/agentfootprint). Every injection into the Agent's slots (RAG, Memory, Skills, Instructions, Tools) is tagged inline — students and engineers see exactly what was put into the prompt, by whom, on which iteration. No hidden abstractions.
@@ -293,6 +295,20 @@ This is the observer pattern, applied consistently across every agentfootprint r
 - **Zero coupling** — the agent doesn't know Lens exists
 - **Composable** — Lens + your telemetry + your logger all watch the same agent with no conflict
 - **Uniform** — any runner works with any observer
+
+---
+
+## The footprintjs ecosystem
+
+The self-explaining stack — from backend pipelines to AI agents. → **[overview](https://footprintjs.github.io/)**
+
+| Project | Role |
+|---|---|
+| [footprintjs](https://footprintjs.github.io/footPrint/) | the flowchart pattern (core engine) |
+| [agentfootprint](https://footprintjs.github.io/agentfootprint/) | build self-explaining AI agents |
+| [Explainable UI](https://footprintjs.github.io/explainable-ui/) | visualize a footprintjs run |
+| **Lens** ← you are here | debug an agentfootprint run |
+| [Thinking UI](https://footprintjs.github.io/agentThinkingUI/) | replay an agent run for non-devs |
 
 ---
 
