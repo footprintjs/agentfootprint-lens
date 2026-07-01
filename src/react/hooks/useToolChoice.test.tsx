@@ -13,7 +13,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { EmitEvent } from 'footprintjs';
-import { mockEmbedder } from 'agentfootprint';
+import { mockEmbedder } from 'agentfootprint/memory';
 import { toolChoiceRecorder } from 'agentfootprint/observe';
 import type { ToolChoiceCall, ToolChoiceSummary } from 'agentfootprint/observe';
 import { useToolChoice, type ToolChoiceSource } from './useToolChoice.js';

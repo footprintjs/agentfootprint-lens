@@ -21,13 +21,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  Agent,
-  LLMCall,
-  Parallel,
-  MockProvider,
-  type LLMProvider,
-} from 'agentfootprint';
+import { Agent, LLMCall, Parallel, type LLMProvider } from 'agentfootprint'
+import { MockProvider } from 'agentfootprint/llm-providers';
 import { CommitRangeIndex } from 'footprintjs/trace';
 import { lensRecorder } from '../LensRecorder.js';
 import { timingRecorder } from '../TimingRecorder.js';

@@ -25,11 +25,8 @@ import type {
   TraversalContext,
 } from 'footprintjs';
 import type { StepGraph, StepNode, StepEdge } from 'agentfootprint/observe';
-import type {
-  AgentfootprintEvent,
-  AgentfootprintEventType,
-} from 'agentfootprint';
-import type { Unsubscribe } from 'agentfootprint';
+import type { AgentfootprintEvent, AgentfootprintEventType } from 'agentfootprint/events';
+import type { Unsubscribe } from 'agentfootprint/events';
 
 /**
  * Internal mutable mirror of StepNode. The public type is fully

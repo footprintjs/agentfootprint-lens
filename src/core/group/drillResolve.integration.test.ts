@@ -9,7 +9,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { LLMCall, Sequence, MockProvider } from 'agentfootprint';
+import { LLMCall, Sequence } from 'agentfootprint'
+import { MockProvider } from 'agentfootprint/llm-providers';
 import { LensRecorder } from '../LensRecorder.js';
 import { buildGroups } from './buildGroups.js';
 import { buildCommitSyncMap } from './buildCommitSyncMap.js';

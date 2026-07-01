@@ -66,6 +66,14 @@ export {
   structureGraphFromSpec,
 } from "./collapser/structureGraphFromRunner.js";
 export type { StructureGraphOptions } from "./collapser/structureGraphFromRunner.js";
+// explainableShellPropsFromRunner — the ONE typed call a consumer makes to drive
+// eui's <ExplainableShell> from an Agent + LensRecorder. Returns the full prop
+// bundle (no casts, no `spec`), so the consumer just spreads it and cannot
+// mis-wire the data→UI seam. See ./explainableShellProps.ts.
+export {
+  explainableShellPropsFromRunner,
+  type ExplainableShellInputs,
+} from "./explainableShellProps.js";
 // Render adapters — pure mappers from LensGroupOutput to xyflow shape +
 // dagre layout orchestrator. The React component layer composes these.
 export {

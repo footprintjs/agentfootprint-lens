@@ -15,7 +15,7 @@ import { render } from '@testing-library/react';
 import { tailWindow, MAX_COMMENTARY_LINES } from './tailWindow.js';
 import { Lens } from './Lens.js';
 import { LensRecorder } from '../core/LensRecorder.js';
-import type { AgentfootprintEvent } from 'agentfootprint';
+import type { AgentfootprintEvent } from 'agentfootprint/events';
 
 describe('tailWindow — pure helper', () => {
   it('passes short lists through untouched', () => {

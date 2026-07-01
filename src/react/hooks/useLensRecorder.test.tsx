@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
-import type { AgentfootprintEvent } from 'agentfootprint';
+import type { AgentfootprintEvent } from 'agentfootprint/events';
 import { LensRecorder, lensRecorder } from '../../core/LensRecorder.js';
 import { useLensRecorder } from './useLensRecorder.js';
 

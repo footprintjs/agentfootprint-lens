@@ -13,7 +13,7 @@ import { describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
 import { EventStream } from './EventStream.js';
 import type { EventLogEntry } from '../core/types.js';
-import type { AgentfootprintEvent } from 'agentfootprint';
+import type { AgentfootprintEvent } from 'agentfootprint/events';
 
 function makeLog(n: number, type = 'agentfootprint.cost.tick'): EventLogEntry[] {
   const entries: EventLogEntry[] = [];

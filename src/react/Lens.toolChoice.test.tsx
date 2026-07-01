@@ -13,7 +13,8 @@
 import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { Agent, mockEmbedder, type LLMProvider } from 'agentfootprint';
+import { Agent, type LLMProvider } from 'agentfootprint'
+import { mockEmbedder } from 'agentfootprint/memory';
 import { toolChoiceRecorder } from 'agentfootprint/observe';
 import { lensRecorder } from '../core/LensRecorder.js';
 import { Lens } from './Lens.js';

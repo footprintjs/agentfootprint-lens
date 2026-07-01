@@ -2,9 +2,9 @@
  * <SkillGraphFlow> — an interactive, two-panel view of a skill graph.
  *
  *   import { SkillGraphFlow } from 'agentfootprint-lens';
- *   import { skillGraph, decide } from 'agentfootprint';
+ *   import { skillGraph, decideSkill } from 'agentfootprint/injection-engine';
  *
- *   const graph = skillGraph().tree(decide(isIo, ioSkill, triageSkill, 'io?')).build();
+ *   const graph = skillGraph().tree(decideSkill(isIo, ioSkill, triageSkill, 'io?')).build();
  *   <SkillGraphFlow graph={graph} detailFor={(node) => describe(node.id)} />
  *
  * The richer companion to `graph.toMermaid()`: predicate **diamonds** route to

@@ -8,7 +8,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { Agent, MockProvider, defineTool } from 'agentfootprint';
+import { Agent, defineTool } from 'agentfootprint'
+import { MockProvider } from 'agentfootprint/llm-providers';
 import { structureGraphFromRunner } from './structureGraphFromRunner.js';
 
 function buildAgentRunner() {

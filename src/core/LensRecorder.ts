@@ -51,13 +51,8 @@
 
 import { isDevMode } from 'footprintjs';
 import { SequenceStore } from 'footprintjs/trace';
-import {
-  ALL_EVENT_TYPES,
-  type AgentfootprintEvent,
-  type FlowchartHandle,
-  type Runner,
-  type Unsubscribe,
-} from 'agentfootprint';
+import { type FlowchartHandle, type Runner } from 'agentfootprint'
+import { ALL_EVENT_TYPES, type AgentfootprintEvent, type Unsubscribe } from 'agentfootprint/events';
 import { LiveStateRecorder, BoundaryRecorder, type StepGraph } from 'agentfootprint/observe';
 import {
   createTraceRuntimeOverlay,
@@ -500,8 +495,13 @@ export class LensRecorder {
    * Returns an unsubscribe for the consumer — calling it detaches the
    * recorder (useful for cleanup after post-run rendering is done).
    */
-  observe(runner: Runner): Unsubscribe {
-    this.currentRunner = runner;
+  observe<TIn = unknown, TOut = unknown>(runner: Runner<TIn, TOut>): Unsubscribe {
+    // The consumer passes a concrete Agent (Runner<AgentInput, AgentOutput>) with
+    // NO cast — the generic param absorbs the run-input variance. We store it as
+    // the base Runner (a Runner<TIn, TOut> IS a Runner at runtime): this single
+    // library-side cast replaces what used to be an `as unknown as` cast in every
+    // consumer of `observe`.
+    this.currentRunner = runner as Runner;
     const offEvent = runner.on('*', (event: AgentfootprintEvent) => {
       this.handleEvent(event);
     });

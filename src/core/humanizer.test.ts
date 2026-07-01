@@ -26,7 +26,7 @@ import {
   makeTeachingHumanizer,
   teachingHumanizer,
 } from './humanizer.js';
-import type { AgentfootprintEvent } from 'agentfootprint';
+import type { AgentfootprintEvent } from 'agentfootprint/events';
 
 function evt(type: string, payload: Record<string, unknown>): AgentfootprintEvent {
   return {

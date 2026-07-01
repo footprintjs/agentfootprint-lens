@@ -12,7 +12,7 @@
  * unknown event is rendered as a terse `[type]` fallback.
  */
 
-import type { AgentfootprintEvent } from 'agentfootprint';
+import type { AgentfootprintEvent } from 'agentfootprint/events';
 import {
   defaultCommentaryTemplates,
   extractCommentaryVars,

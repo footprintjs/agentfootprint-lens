@@ -21,7 +21,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { Agent, defineTool, MockProvider } from 'agentfootprint';
+import { Agent, defineTool } from 'agentfootprint'
+import { MockProvider } from 'agentfootprint/llm-providers';
 import { LensRecorder } from './LensRecorder.js';
 
 function build2IterationAgent() {

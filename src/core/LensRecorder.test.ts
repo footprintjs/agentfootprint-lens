@@ -8,15 +8,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  Agent,
-  LLMCall,
-  Sequence,
-  Loop,
-  MockProvider,
-  type LLMProvider,
-  type PricingTable,
-} from 'agentfootprint';
+import { Agent, LLMCall, Sequence, Loop, type LLMProvider, type PricingTable } from 'agentfootprint'
+import { MockProvider } from 'agentfootprint/llm-providers';
 import { LensRecorder, lensRecorder } from './LensRecorder.js';
 import { defaultHumanizer } from './humanizer.js';
 import { SequenceStore } from 'footprintjs/trace';

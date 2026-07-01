@@ -23,7 +23,7 @@ import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import { Lens } from './Lens.js';
 import { LensRecorder } from '../core/LensRecorder.js';
-import type { AgentfootprintEvent } from 'agentfootprint';
+import type { AgentfootprintEvent } from 'agentfootprint/events';
 
 // Helper: build a recorder pre-populated with events at known runtimeStageIds.
 function recorderWith(events: Array<{ type: string; runtimeStageId: string }>): LensRecorder {

@@ -12,11 +12,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  LLMCall,
-  Sequence,
-  MockProvider,
-} from 'agentfootprint';
+import { LLMCall, Sequence } from 'agentfootprint'
+import { MockProvider } from 'agentfootprint/llm-providers';
 import { lensStructureRecorder } from './viaStructureRecorder.js';
 import { lensGroupTranslator } from './lensGroupTranslator.js';
 

@@ -8,7 +8,9 @@
  * Route/Delta" work by reusing eui's drill, with no custom chart-swap.
  */
 import { describe, it, expect } from 'vitest';
-import { Agent, defineTool, defineInstruction, mock } from 'agentfootprint';
+import { Agent, defineTool } from 'agentfootprint'
+import { defineInstruction } from 'agentfootprint/injection-engine'
+import { mock } from 'agentfootprint/llm-providers';
 import { structureGraphFromRunner } from './structureGraphFromRunner.js';
 
 function buildAgent() {

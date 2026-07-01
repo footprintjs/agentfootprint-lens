@@ -26,7 +26,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import type { AgentfootprintEvent } from 'agentfootprint';
+import type { AgentfootprintEvent } from 'agentfootprint/events';
 import { disableDevMode } from 'footprintjs';
 import { LensRecorder, lensRecorder, DEFAULT_MAX_EVENTS } from './LensRecorder.js';
 

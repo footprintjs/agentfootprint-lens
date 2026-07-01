@@ -18,11 +18,8 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import {
-  Agent,
-  type AgentfootprintEvent,
-  type LLMProvider,
-} from 'agentfootprint';
+import { Agent, type LLMProvider } from 'agentfootprint'
+import { type AgentfootprintEvent } from 'agentfootprint/events';
 import { enableDevMode, disableDevMode } from 'footprintjs';
 import { LensRecorder, lensRecorder } from './LensRecorder.js';
 

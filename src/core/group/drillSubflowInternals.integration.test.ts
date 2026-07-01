@@ -12,7 +12,9 @@
  * bug this fixes.)
  */
 import { describe, it, expect } from 'vitest';
-import { Agent, defineTool, defineInstruction, mock, milestoneFor } from 'agentfootprint';
+import { Agent, defineTool, milestoneFor } from 'agentfootprint'
+import { defineInstruction } from 'agentfootprint/injection-engine'
+import { mock } from 'agentfootprint/llm-providers';
 import { LensRecorder } from '../LensRecorder.js';
 import { buildGroups } from './buildGroups.js';
 import { buildCommitSyncMap } from './buildCommitSyncMap.js';

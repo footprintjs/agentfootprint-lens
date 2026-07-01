@@ -5,6 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.0] - 2026-06-30
+
+Coordinated release with agentfootprint 7.0.0 + footprint-explainable-ui 0.26.0.
+Bundles the v7 alignment (staged as 0.25.0) with the new consumer→UI boundary helper.
+
+### Added
+
+- **`explainableShellPropsFromRunner(agent, recorder)`** (+ the `ExplainableShellInputs`
+  type) — the ONE typed call a consumer makes to drive eui's `<ExplainableShell>`
+  from an agentfootprint `Agent` + a `LensRecorder`. Returns the full prop bundle
+  (`runtimeSnapshot`, `narrativeEntries`, `traceGraph`, `runtimeOverlay`) with
+  **zero casts and no `spec`**, so `<ExplainableShell {...explainableShellPropsFromRunner(agent, recorder)} />`
+  cannot mis-wire the data→UI seam (the class of bug that silently blanked the
+  drilled chart). The return type is `Pick<ExplainableShellProps, …>` from eui's
+  own contract — an eui change breaks THIS helper's build, not the consumer at runtime.
+
+### Changed
+
+- **`LensRecorder.observe` is now generic** — `observe<TIn, TOut>(runner: Runner<TIn, TOut>)`.
+  A concrete `Agent` (`Runner<AgentInput, AgentOutput>`) now flows in with **no
+  cast**; the run-input variance is absorbed by a single library-side cast
+  instead of an `as unknown as` in every consumer.
+
+### Changed (v7 alignment — previously staged as 0.25.0)
+
+- **Peer `agentfootprint` bumped to `^7.0.0`** and imports updated to
+  agentfootprint 7's subpaths (e.g. the event types now come from
+  `agentfootprint/events`), so lens lands on the clean v7 surface alongside
+  agentfootprint 7.0.0 and footprint-explainable-ui 0.26.0.
+
 ## [0.24.0] - 2026-06-24
 
 ### Added

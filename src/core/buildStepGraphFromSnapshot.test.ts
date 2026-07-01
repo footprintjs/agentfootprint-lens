@@ -10,7 +10,7 @@ import { Parallel } from 'agentfootprint';
 import { Sequence } from 'agentfootprint';
 import { Conditional } from 'agentfootprint';
 import { Loop } from 'agentfootprint';
-import { MockProvider } from 'agentfootprint';
+import { MockProvider } from 'agentfootprint/llm-providers';
 import { buildStepGraphFromSnapshot } from './buildStepGraphFromSnapshot.js';
 
 function llm(reply: string) {

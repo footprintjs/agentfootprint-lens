@@ -4,7 +4,7 @@
  * EventDispatcher stream. Same shape across every framework adapter.
  */
 
-import type { AgentfootprintEvent } from 'agentfootprint';
+import type { AgentfootprintEvent } from 'agentfootprint/events';
 
 // ─── RunTreeNode ─────────────────────────────────────────────────────
 //

@@ -15,17 +15,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import {
-  LLMCall,
-  Agent,
-  Sequence,
-  Parallel,
-  Loop,
-  Conditional,
-  MockProvider,
-  defineTool,
-  type LLMProvider,
-} from 'agentfootprint';
+import { LLMCall, Agent, Sequence, Parallel, Loop, Conditional, defineTool, type LLMProvider } from 'agentfootprint'
+import { MockProvider } from 'agentfootprint/llm-providers';
 import { lensStructureRecorder } from './viaStructureRecorder.js';
 
 function mockReply(reply: string): LLMProvider {

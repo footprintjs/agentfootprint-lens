@@ -11,7 +11,8 @@
  */
 
 import { describe, it } from 'vitest';
-import { LLMCall, Parallel, MockProvider } from 'agentfootprint';
+import { LLMCall, Parallel } from 'agentfootprint'
+import { MockProvider } from 'agentfootprint/llm-providers';
 import { lensSnapshotRecorder } from './LensSnapshotRecorder.js';
 
 function llm(reply: string) {
