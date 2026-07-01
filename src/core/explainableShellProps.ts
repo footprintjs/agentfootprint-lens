@@ -44,26 +44,27 @@ export type ExplainableShellInputs = Pick<
  * Assemble the full, typed `<ExplainableShell>` input bundle from a finished
  * (or paused) run. Call AFTER `recorder.observe(runner)` + `runner.run(...)`,
  * so the runtime overlay has been captured.
+ *
+ * The `traceGraph` is ALWAYS the plain, undecorated view. This is not a knob:
+ * `<ExplainableShell>` IS the footprintjs-level renderer — plain stages/subflows
+ * lit purely by the runtime overlay (visited + current). The agent-semantic
+ * (decorated) rendering is a DIFFERENT renderer, `<Lens>`, whose whole job is
+ * the decorated view. Baking plain-vs-decorated into which renderer you pick —
+ * rather than a hidden default on this helper — keeps the boundary enforceable:
+ * the shell can never accidentally carry agent decoration.
+ *
+ * Escape hatch: if you deliberately want a decorated graph inside the shell,
+ * build it explicitly with `structureGraphFromRunner(agent, { decorate: true })`
+ * and pass it as `traceGraph` yourself — a visible, non-default choice.
  */
 export function explainableShellPropsFromRunner(
   agent: Agent,
   recorder: LensRecorder,
-  opts?: {
-    /**
-     * Apply the agent-vocabulary decoration (hero/plumbing emphasis, the 3
-     * context slots as pills, role icons). Default `false`: the ExplainableShell
-     * Trace is the FOOTPRINTJS-LEVEL view — plain stages/subflows lit purely by
-     * the runtime overlay (visited + current). The agent-semantic (decorated)
-     * rendering is `<Lens>`'s job, not the shell's. Pass `true` only if you
-     * deliberately want the agent decoration inside the shell.
-     */
-    decorate?: boolean;
-  },
 ): ExplainableShellInputs {
   return {
     runtimeSnapshot: agent.getLastSnapshot() ?? null,
     narrativeEntries: [...agent.getLastNarrativeEntries()],
-    traceGraph: structureGraphFromRunner(agent, { decorate: opts?.decorate ?? false }),
+    traceGraph: structureGraphFromRunner(agent, { decorate: false }),
     runtimeOverlay: recorder.runtime.getOverlay(),
   };
 }
