@@ -80,6 +80,11 @@ export interface LensFlowProps {
    * into every chart node's `data`.
    */
   readonly traceRuntimeOverlay?: TraceRuntimeOverlay;
+  /**
+   * Node colours forwarded to `<TracedFlow>`: `done` (visited), `active`
+   * (current), `default` (ground / unvisited). Set by `<Lens theme={…}>`.
+   */
+  readonly colors?: { default?: string; done?: string; active?: string; error?: string; loop?: string };
 }
 
 export const LensFlow: React.FC<LensFlowProps> = ({
@@ -92,6 +97,7 @@ export const LensFlow: React.FC<LensFlowProps> = ({
   showBackground = true,
   traceRuntimeOverlay,
   coActiveStageIds,
+  colors,
 }) => {
   // Map the cursor's runtimeStageId → scrubIndex into the overlay's executionOrder.
   // TracedFlow uses this to compute the active/done slice it injects per node.
@@ -131,6 +137,7 @@ export const LensFlow: React.FC<LensFlowProps> = ({
       {...(onNodeClick && { onNodeClick })}
       {...(coActiveStageIds && coActiveStageIds.size > 0 && { coActiveStageIds })}
       {...(mergedNodeTypes && { nodeTypes: mergedNodeTypes })}
+      {...(colors && { colors })}
     >
       {showBackground && <Background />}
       {showControls && <Controls />}

@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.26.1] - 2026-07-01
+
+### Added
+
+- **`theme` prop on `<Lens>`** — the agentfootprint-level **three-colour** chart
+  theme: `{ mode?: 'dark' | 'light'; ground?; visited?; current? }`. `ground`
+  colours the base/unvisited nodes, `visited` the executed nodes, `current` the
+  cursor node — forwarded through `LensFlow` to `<TracedFlow>`'s
+  `default`/`done`/`active`. New `LensTheme` type exported, and `LensFlow` gained
+  a `colors` passthrough. (Complements eui's footprintjs-level 2-colour
+  `traceTheme`; the two stay separate.)
+
+### Changed
+
+- **`explainableShellPropsFromRunner` now builds the Trace graph with
+  `decorate: false` by default.** The `<ExplainableShell>` Trace is the
+  footprintjs-LEVEL view — plain stages/subflows lit purely by the overlay — so
+  it no longer carries the agent decoration (hero/plumbing emphasis, context-slot
+  pills). The agent-semantic decorated rendering is `<Lens>`'s job. Pass
+  `explainableShellPropsFromRunner(agent, recorder, { decorate: true })` to opt
+  back in.
+
 ## [0.26.0] - 2026-06-30
 
 Coordinated release with agentfootprint 7.0.0 + footprint-explainable-ui 0.26.0.

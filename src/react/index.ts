@@ -12,7 +12,7 @@
  * Or compose individual view components directly.
  */
 
-export { Lens, type LensProps, type LensView } from "./Lens.js";
+export { Lens, type LensProps, type LensTheme, type LensView } from "./Lens.js";
 // <Replay> — render a persisted agentfootprint Trace OFFLINE (no live runner).
 export { Replay, type ReplayProps } from "./Replay.js";
 // Lens v0.1 — single-pipeline xyflow renderer driven by the L2

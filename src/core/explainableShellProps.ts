@@ -48,11 +48,22 @@ export type ExplainableShellInputs = Pick<
 export function explainableShellPropsFromRunner(
   agent: Agent,
   recorder: LensRecorder,
+  opts?: {
+    /**
+     * Apply the agent-vocabulary decoration (hero/plumbing emphasis, the 3
+     * context slots as pills, role icons). Default `false`: the ExplainableShell
+     * Trace is the FOOTPRINTJS-LEVEL view — plain stages/subflows lit purely by
+     * the runtime overlay (visited + current). The agent-semantic (decorated)
+     * rendering is `<Lens>`'s job, not the shell's. Pass `true` only if you
+     * deliberately want the agent decoration inside the shell.
+     */
+    decorate?: boolean;
+  },
 ): ExplainableShellInputs {
   return {
     runtimeSnapshot: agent.getLastSnapshot() ?? null,
     narrativeEntries: [...agent.getLastNarrativeEntries()],
-    traceGraph: structureGraphFromRunner(agent),
+    traceGraph: structureGraphFromRunner(agent, { decorate: opts?.decorate ?? false }),
     runtimeOverlay: recorder.runtime.getOverlay(),
   };
 }

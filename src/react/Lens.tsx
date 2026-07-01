@@ -79,10 +79,32 @@ export type LensView = "engineer" | "analyst" | "user";
  */
 export type LensRunnerLike = import("agentfootprint").Runner;
 
+/**
+ * The Lens chart's three-colour theme (agentfootprint level). `mode` selects
+ * the neutral base for dark/light; `ground` is the base (unvisited) colour,
+ * `visited` and `current` the executed + cursor colours. All optional.
+ */
+export interface LensTheme {
+  mode?: 'dark' | 'light';
+  /** Base / unvisited nodes. */
+  ground?: string;
+  /** Executed / done nodes. */
+  visited?: string;
+  /** The node at the current cursor ("now"). */
+  current?: string;
+}
+
 export interface LensProps {
   /** The recorder that was observing the run. Drives EventStream +
    *  Summary + selected-node detail. */
   readonly recorder: LensRecorder;
+  /**
+   * Chart node colours (agentfootprint-level 3-colour theme): `ground`
+   * (base/unvisited) + `visited` + `current`, plus `mode` for the neutral
+   * default. The footprintjs-level 2-colour theme is `<ExplainableShell>`'s
+   * `traceTheme`. Omit to use the defaults.
+   */
+  readonly theme?: LensTheme;
   /**
    * Optional — when provided, Lens reads the static flowchart blueprint
    * from `runner.getSpec().buildTimeStructure` and renders the FULL
@@ -193,6 +215,7 @@ export interface LensProps {
 
 export const Lens: React.FC<LensProps> = ({
   recorder,
+  theme,
   runner,
   stepGraph,
   chart,
@@ -379,6 +402,7 @@ export const Lens: React.FC<LensProps> = ({
   return (
     <EngineerView
       recorder={recorder}
+      {...(theme ? { theme } : {})}
       {...(runner ? { runner } : {})}
       {...(effectiveChart ? { chart: effectiveChart } : {})}
       stepGraph={effectiveStepGraph}
@@ -519,6 +543,8 @@ function sliceTreeByOffset(root: RunTreeNode, cutoffMs: number): RunTreeNode {
 
 const EngineerView: React.FC<{
   recorder: LensRecorder;
+  /** Chart node colours (3-colour theme) forwarded to LensFlow. */
+  theme?: LensTheme;
   /** Optional runner — when provided, Lens reads the static spec from
    *  `runner.getSpec().buildTimeStructure` (full chart visible at t=0).
    *  Otherwise falls back to the live-built spec from the recorder. */
@@ -561,6 +587,7 @@ const EngineerView: React.FC<{
   toolChoice?: UseToolChoiceResult;
 }> = ({
   recorder,
+  theme,
   runner,
   chart,
   stepGraph,
@@ -1171,6 +1198,11 @@ const EngineerView: React.FC<{
               <LensChartBoundary>
               <LensFlow
                 chart={chart}
+                {...(theme ? { colors: {
+                  default: theme.ground ?? (theme.mode === 'dark' ? '#94a3b8' : '#64748b'),
+                  ...(theme.visited !== undefined && { done: theme.visited }),
+                  ...(theme.current !== undefined && { active: theme.current }),
+                } } : {})}
                 selectedRuntimeStageId={cursorRuntimeStageId}
                 selectedCursorKind={cursorPositions[focusStep]?.kind}
                 {...(coActiveStageIds ? { coActiveStageIds } : {})}
