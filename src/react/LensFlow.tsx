@@ -74,6 +74,10 @@ export interface LensFlowProps {
    * (strip `#index`). The single canonical cursor still governs the panels.
    */
   readonly coActiveStageIds?: ReadonlySet<string>;
+  /** Dependency-cone overlay (chart node id → BFS depth) — pass-through to
+   *  `<TracedFlow>`: members re-light staggered by depth, non-members dim.
+   *  Fed by `<WhereFrom>`'s active slice via the engineer view. */
+  readonly sliceCone?: ReadonlyMap<string, number>;
   /**
    * Explain-ui's authoritative runtime overlay (`lensRecorder.runtime.getOverlay()`).
    * `<TracedFlow>` slices it at `scrubIndex` and injects active/done/error state
@@ -97,6 +101,7 @@ export const LensFlow: React.FC<LensFlowProps> = ({
   showBackground = true,
   traceRuntimeOverlay,
   coActiveStageIds,
+  sliceCone,
   colors,
 }) => {
   // Map the cursor's runtimeStageId → scrubIndex into the overlay's executionOrder.
@@ -136,6 +141,7 @@ export const LensFlow: React.FC<LensFlowProps> = ({
       {...(scrubIndex !== undefined && { scrubIndex })}
       {...(onNodeClick && { onNodeClick })}
       {...(coActiveStageIds && coActiveStageIds.size > 0 && { coActiveStageIds })}
+      {...(sliceCone && sliceCone.size > 0 && { sliceCone })}
       {...(mergedNodeTypes && { nodeTypes: mergedNodeTypes })}
       {...(colors && { colors })}
     >

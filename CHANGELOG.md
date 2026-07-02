@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.28.0] - 2026-07-02
+
+### Added
+
+- **The cone reaches the Lens chart.** `<WhereFrom>`'s active slice now paints
+  eui 0.28.0's dependency cone on the composition chart: pick a key chip and
+  the chart dims to exactly the frames the panel lists, members re-lighting
+  staggered by depth (causality walks backwards). New `onSliceChange` on
+  `WhereFrom` (reports the cone, clears on unmount — never stale) and a
+  `sliceCone` pass-through on `LensFlow`. One source of truth: the panel's
+  frames ARE the cone.
+
+### Changed
+
+- Peer floor: `footprint-explainable-ui >=0.28.0` (the `sliceCone` prop).
+
 ## [0.27.0] - 2026-07-02
 
 ### Added

@@ -1060,6 +1060,11 @@ const EngineerView: React.FC<{
   // by stage part (grouped charts address sf-* groups); ids inside isolated
   // subflow logs may have no position — the click no-ops rather than
   // spawning a second cursor (the locked v0.1 rule).
+  // The cone WhereFrom's active slice paints on the chart (node id → depth).
+  // One source of truth: the panel's frames ARE the cone — LensFlow forwards
+  // it to eui's TracedFlow (members re-light staggered, non-members dim).
+  const [sliceCone, setSliceCone] = useState<ReadonlyMap<string, number> | undefined>(undefined);
+
   const jumpToRuntimeStageId = useCallback(
     (runtimeStageId: string) => {
       const exact = cursorPositions.findIndex((p) => p.runtimeStageId === runtimeStageId);
@@ -1243,6 +1248,7 @@ const EngineerView: React.FC<{
               <LensChartBoundary>
               <LensFlow
                 chart={chart}
+                {...(sliceCone && { sliceCone })}
                 {...(theme ? { colors: {
                   default: theme.ground ?? (theme.mode === 'dark' ? '#94a3b8' : '#64748b'),
                   ...(theme.visited !== undefined && { done: theme.visited }),
@@ -1340,6 +1346,7 @@ const EngineerView: React.FC<{
                             runner={runner}
                             cursorRuntimeStageId={cursorRuntimeStageId}
                             onJumpTo={jumpToRuntimeStageId}
+                            onSliceChange={setSliceCone}
                           />
                         )}
                       </>

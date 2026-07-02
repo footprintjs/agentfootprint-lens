@@ -18,7 +18,7 @@
  * consumer-built shells; mounted by the engineer view's detail slot.
  */
 
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import { cursorProvenance } from "../core/cursorProvenance.js";
 import { T } from "./theme/index.js";
@@ -35,6 +35,14 @@ export interface WhereFromProps {
    * subflow internals) may no-op.
    */
   readonly onJumpTo?: (runtimeStageId: string) => void;
+  /**
+   * The active slice as a chart CONE (node id → BFS depth; ids are stage
+   * parts — runtimeStageIds with `#N` stripped). Fired whenever the picked
+   * key's slice changes; `undefined` when there is nothing to paint
+   * (missing slice, or on unmount). The engineer view forwards it to the
+   * chart so the panel's frames and the lit cone can never disagree.
+   */
+  readonly onSliceChange?: (cone: ReadonlyMap<string, number> | undefined) => void;
 }
 
 const MISSING_TEXT: Record<string, string> = {
@@ -43,20 +51,39 @@ const MISSING_TEXT: Record<string, string> = {
   "empty-log": "the commit log is empty — nothing executed.",
 };
 
-export function WhereFrom({ runner, cursorRuntimeStageId, onJumpTo }: WhereFromProps): React.ReactElement | null {
+export function WhereFrom({ runner, cursorRuntimeStageId, onJumpTo, onSliceChange }: WhereFromProps): React.ReactElement | null {
   const provenance = useMemo(
     () => cursorProvenance(runner, cursorRuntimeStageId),
     [runner, cursorRuntimeStageId],
   );
   const [pickedKey, setPickedKey] = useState<string | undefined>(undefined);
 
-  if (!provenance) return null;
   const activeKey =
-    pickedKey !== undefined && provenance.writtenKeys.includes(pickedKey)
+    provenance && pickedKey !== undefined && provenance.writtenKeys.includes(pickedKey)
       ? pickedKey
-      : provenance.writtenKeys[0];
-  if (activeKey === undefined) return null;
-  const slice = provenance.sliceFor(activeKey);
+      : provenance?.writtenKeys[0];
+  const slice = provenance && activeKey !== undefined ? provenance.sliceFor(activeKey) : undefined;
+
+  // Report the cone up (and clear it when there is nothing to paint or on
+  // unmount) — a slice of ≥2 frames is a cone; a lone anchor is not.
+  useEffect(() => {
+    if (!onSliceChange) return;
+    if (!slice || slice.frames.length < 2) {
+      onSliceChange(undefined);
+      return () => onSliceChange(undefined);
+    }
+    const cone = new Map<string, number>();
+    for (const f of slice.frames) {
+      const stagePart = f.runtimeStageId.split("#")[0];
+      const prev = cone.get(stagePart);
+      if (prev === undefined || f.depth < prev) cone.set(stagePart, f.depth);
+    }
+    onSliceChange(cone);
+    return () => onSliceChange(undefined);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onSliceChange, cursorRuntimeStageId, activeKey, slice?.frames.length]);
+
+  if (!provenance || activeKey === undefined || slice === undefined) return null;
 
   return (
     <div style={{ marginTop: 10, borderTop: `1px solid ${T.border}`, paddingTop: 8 }}>
