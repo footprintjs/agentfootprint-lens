@@ -66,6 +66,10 @@ import {
 } from "../core/group/drillResolve.js";
 import { tailWindow, MAX_COMMENTARY_LINES } from "./tailWindow.js";
 import { T } from "./theme/index.js";
+import { WhereFrom } from "./WhereFrom.js";
+// eui's light/dark presets — applied to the chart area from `theme.mode` so the
+// eui-rendered nodes follow dark/light without the consumer hand-setting `--fp-*`.
+import { tokensToCSSVars, coolLight, coolDark } from "footprint-explainable-ui";
 
 export type LensView = "engineer" | "analyst" | "user";
 
@@ -80,9 +84,13 @@ export type LensView = "engineer" | "analyst" | "user";
 export type LensRunnerLike = import("agentfootprint").Runner;
 
 /**
- * The Lens chart's three-colour theme (agentfootprint level). `mode` selects
- * the neutral base for dark/light; `ground` is the base (unvisited) colour,
- * `visited` and `current` the executed + cursor colours. All optional.
+ * The Lens chart's three-colour theme (agentfootprint level).
+ *
+ * `mode` is the COARSE switch: it applies eui's full light/dark preset as
+ * `--fp-*` variables on the chart area, so the eui-rendered nodes (stages, slot
+ * pills, subflow boxes) follow dark/light from this one field — no hand-setting
+ * `--fp-*`. `ground` is the base (unvisited) colour, `visited` and `current` the
+ * executed + cursor colours, layered on top. All optional.
  */
 export interface LensTheme {
   mode?: 'dark' | 'light';
@@ -1046,9 +1054,46 @@ const EngineerView: React.FC<{
         (n.primitiveKind === "Agent" || n.primitiveKind === "LLMCall"),
     );
   }, [stepGraph]);
+
+  // "Where did this come from?" frame click → move THE one cursor. A slice
+  // frame's runtimeStageId maps to a slider position exactly (root steps) or
+  // by stage part (grouped charts address sf-* groups); ids inside isolated
+  // subflow logs may have no position — the click no-ops rather than
+  // spawning a second cursor (the locked v0.1 rule).
+  const jumpToRuntimeStageId = useCallback(
+    (runtimeStageId: string) => {
+      const exact = cursorPositions.findIndex((p) => p.runtimeStageId === runtimeStageId);
+      if (exact >= 0) {
+        onFocusChange(exact);
+        return;
+      }
+      const stagePart = runtimeStageId.split("#")[0];
+      const byStage = cursorPositions.findIndex((p) => p.runtimeStageId.split("#")[0] === stagePart);
+      if (byStage >= 0) onFocusChange(byStage);
+    },
+    [cursorPositions, onFocusChange],
+  );
+
+  // `theme.mode` applies eui's full light/dark preset as `--fp-*` vars on the
+  // chart area, so the eui-rendered nodes (StageNode / slot pills / subflow
+  // boxes) follow dark/light from one field — the consumer doesn't hand-set the
+  // `--fp-*` palette. `visited`/`current` layer node-fill overrides on top.
+  const chartThemeVars = useMemo<React.CSSProperties>(() => {
+    if (!theme) return {};
+    const base = theme.mode
+      ? (tokensToCSSVars(theme.mode === "light" ? coolLight : coolDark) as React.CSSProperties)
+      : {};
+    return {
+      ...base,
+      ...(theme.visited !== undefined && { ["--fp-node-visited" as string]: theme.visited }),
+      ...(theme.current !== undefined && { ["--fp-node-cursor" as string]: theme.current }),
+    } as React.CSSProperties;
+  }, [theme]);
+
   return (
     <div
       style={{
+        ...chartThemeVars,
         display: "flex",
         flexDirection: "column",
         gap: 0,
@@ -1275,17 +1320,29 @@ const EngineerView: React.FC<{
                     // bare milestone (Iteration / Context) shows just its tight
                     // description line — no empty framed "Click a node" box.
                     detail: (
-                      <NodeDetailPanel
-                        hideEmptyState
-                        {...(cursorFocusedNode ? { node: cursorFocusedNode } : {})}
-                        relatedNodes={cursorRelatedNodes}
-                        cursorRuntimeStageId={cursorRuntimeStageId}
-                        {...(rootPhase ? { rootPhase } : {})}
-                        {...(runInput !== undefined ? { runInput } : {})}
-                        {...(runOutput !== undefined ? { runOutput } : {})}
-                        {...(runError !== undefined ? { runError } : {})}
-                        {...(cursorInternalStage ? { internalStage: cursorInternalStage } : {})}
-                      />
+                      <>
+                        <NodeDetailPanel
+                          hideEmptyState
+                          {...(cursorFocusedNode ? { node: cursorFocusedNode } : {})}
+                          relatedNodes={cursorRelatedNodes}
+                          cursorRuntimeStageId={cursorRuntimeStageId}
+                          {...(rootPhase ? { rootPhase } : {})}
+                          {...(runInput !== undefined ? { runInput } : {})}
+                          {...(runOutput !== undefined ? { runOutput } : {})}
+                          {...(runError !== undefined ? { runError } : {})}
+                          {...(cursorInternalStage ? { internalStage: cursorInternalStage } : {})}
+                        />
+                        {/* Variable provenance for the cursor stage — the
+                            developer's "why is this value what it is?"
+                            (canonical fp slice; frame click = cursor jump). */}
+                        {runner && cursorRuntimeStageId && (
+                          <WhereFrom
+                            runner={runner}
+                            cursorRuntimeStageId={cursorRuntimeStageId}
+                            onJumpTo={jumpToRuntimeStageId}
+                          />
+                        )}
+                      </>
                     ),
                   }
                 : {})}

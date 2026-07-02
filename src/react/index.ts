@@ -48,6 +48,11 @@ export {
 } from "./skillGraphFlowLayout.js";
 export { SummaryCard } from "./SummaryCard.js";
 export { TimeTravel, type TimeTravelProps } from "./TimeTravel.js";
+// WhereFrom — "Where did this come from?": the cursor stage's written keys
+// as chips → backward slice frames → one-cursor jump. Canonical fp slice
+// (same queries as the backtrack LLM tool + eui's Data Trace). The engineer
+// view mounts it in the detail slot; exported for consumer-built shells.
+export { WhereFrom, type WhereFromProps } from "./WhereFrom.js";
 // RFC-002 C7 — per-iteration tool-choice margins panel (offered-tool
 // score bars, chosen highlight, margin badge, ⚠ flags). The <Lens>
 // engineer view mounts it via the `toolChoice` prop; exported for

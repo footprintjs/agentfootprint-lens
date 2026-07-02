@@ -70,6 +70,15 @@ export type { StructureGraphOptions } from "./collapser/structureGraphFromRunner
 // eui's <ExplainableShell> from an Agent + LensRecorder. Returns the full prop
 // bundle (no casts, no `spec`), so the consumer just spreads it and cannot
 // mis-wire the data→UI seam. See ./explainableShellProps.ts.
+// cursorProvenance — "where did this come from?" for the ONE cursor: the
+// canonical footprintjs variable slice (sliceForKey), cursor-anchored, with
+// honest missing/reads-warning states. Feeds <WhereFrom>.
+export {
+  cursorProvenance,
+  type CursorProvenance,
+  type KeyProvenance,
+  type ProvenanceFrame,
+} from './cursorProvenance.js';
 export {
   explainableShellPropsFromRunner,
   type ExplainableShellInputs,

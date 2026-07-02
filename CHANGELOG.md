@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.27.0] - 2026-07-02
+
+### Added
+
+- **`<WhereFrom>` — "Where did this come from?"** in the engineer view's
+  detail panel (also exported for consumer shells): the cursor stage's
+  written state keys render as chips; picking one shows the backward slice
+  that produced its value AS OF the cursor — who wrote it, what those writers
+  read, transitively. Clicking a frame moves THE one cursor (exact
+  runtimeStageId match, stage-part fallback for grouped charts) — navigation,
+  never a second cursor. Honesty in the UI: never-written keys explain the
+  blind spot (initial state / frozen args / a closure); reads-less snapshots
+  render "⚠ reads were not recorded — unknowable, not absent".
+- **`cursorProvenance(runner, cursorRuntimeStageId)`** (core) — the query
+  behind the panel: a thin, canonical composition over footprintjs 9.10.0's
+  slice layer (`sliceForKey` + `keysReadFromExecutionTree`), cursor-anchored.
+  The SAME queries agentfootprint's `backtrack` LLM tool and eui's Data Trace
+  run — the three surfaces cannot disagree.
+- **`theme.mode` now applies eui's full light/dark preset** as `--fp-*` vars
+  on the chart area — the eui-rendered nodes (stages, slot pills, subflow
+  boxes) follow dark/light from this one field; no hand-setting `--fp-*`.
+  `visited`/`current` layer on top.
+
+### Changed
+
+- Peer floors: `footprintjs ^9.10.0` (slice layer), `footprint-explainable-ui
+  >=0.27.0` (honest Data Trace + preset exports).
+
 ## [0.26.2] - 2026-06-30
 
 ### Changed
