@@ -279,6 +279,18 @@ stop();
 
 The standard agentfootprint introspection methods. `<Lens for={...}>` reads these automatically. You only call them yourself if you're building a custom UI.
 
+### `<WhereFrom>` — walk any value's causes on the one cursor
+
+In the engineer view's detail panel, the cursor stage's written keys render
+as chips; picking one shows the backward slice that produced its value
+(footprintjs `sliceForKey` — the same query the `backtrack` LLM tool runs).
+**◀ Walk the causes** freezes that slice as reverse-time stops and steps the
+ONE cursor through them ("◀ earlier cause / toward result ▶") — both parents
+of a fork are always visited, the chart cone follows the walk, and
+**[Copy story]** emits the exact `formatSlice` text the LLM tool returns.
+Honest absence stays honest: "never written — initial state / args / a
+closure", and reads-off runs say "unknowable, not absent".
+
 ### `useLiveTimeline()` (escape hatch)
 
 Returns `{ timeline, ingest, startTurn, reset, builder }`. Use when you want to feed Lens from a non-runner source (replayed logs, server-sent events, etc.).

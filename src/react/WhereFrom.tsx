@@ -21,7 +21,29 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import { cursorProvenance } from "../core/cursorProvenance.js";
+import type { ProvenanceFrame } from "../core/cursorProvenance.js";
 import { T } from "./theme/index.js";
+
+/**
+ * SAME-RAIL REWIND (the walk): "Walk the causes" FREEZES the picked key's
+ * slice as an ordered stop list (commitIdx DESCENDING — reverse time is a
+ * valid topological order because every dependency commits earlier than its
+ * dependent) and steps THE one cursor through it with "◀ earlier cause /
+ * toward result ▶". The walk session is a LENS, not a cursor: the position
+ * within the walk is DERIVED from the host's cursor every render — if the
+ * host scrubs elsewhere mid-walk, the panel says "the cursor left the walk"
+ * and offers resume/end instead of inventing a second position. Freezing is
+ * what makes walking possible here at all: WhereFrom re-anchors its
+ * provenance on every cursor move, so an unfrozen walk would dissolve on
+ * the first step.
+ */
+interface WalkSession {
+  readonly key: string;
+  /** Walk order: newest first (commitIdx descending). */
+  readonly stops: readonly ProvenanceFrame[];
+  /** footprintjs `formatSlice` output, frozen at entry — [Copy story]. */
+  readonly story: string;
+}
 
 export interface WhereFromProps {
   /** The runner whose last snapshot holds the commit log + reads (any
@@ -57,6 +79,8 @@ export function WhereFrom({ runner, cursorRuntimeStageId, onJumpTo, onSliceChang
     [runner, cursorRuntimeStageId],
   );
   const [pickedKey, setPickedKey] = useState<string | undefined>(undefined);
+  const [walk, setWalk] = useState<WalkSession | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const activeKey =
     provenance && pickedKey !== undefined && provenance.writtenKeys.includes(pickedKey)
@@ -66,14 +90,17 @@ export function WhereFrom({ runner, cursorRuntimeStageId, onJumpTo, onSliceChang
 
   // Report the cone up (and clear it when there is nothing to paint or on
   // unmount) — a slice of ≥2 frames is a cone; a lone anchor is not.
+  // While WALKING, the frozen walk's cone wins: the chart must keep showing
+  // the walked question even though the panel re-anchors at every stop.
   useEffect(() => {
     if (!onSliceChange) return;
-    if (!slice || slice.frames.length < 2) {
+    const frames = walk ? walk.stops : slice && slice.frames.length >= 2 ? slice.frames : undefined;
+    if (!frames || frames.length < 2) {
       onSliceChange(undefined);
       return () => onSliceChange(undefined);
     }
     const cone = new Map<string, number>();
-    for (const f of slice.frames) {
+    for (const f of frames) {
       const stagePart = f.runtimeStageId.split("#")[0];
       const prev = cone.get(stagePart);
       if (prev === undefined || f.depth < prev) cone.set(stagePart, f.depth);
@@ -81,12 +108,31 @@ export function WhereFrom({ runner, cursorRuntimeStageId, onJumpTo, onSliceChang
     onSliceChange(cone);
     return () => onSliceChange(undefined);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onSliceChange, cursorRuntimeStageId, activeKey, slice?.frames.length]);
+  }, [onSliceChange, cursorRuntimeStageId, activeKey, slice?.frames.length, walk]);
 
-  if (!provenance || activeKey === undefined || slice === undefined) return null;
+  // The walk survives cursor moves; it renders even when the CURRENT cursor
+  // stage has no provenance of its own (e.g. a read-only stop).
+  const walkBox = walk ? (
+    <WalkBox
+      walk={walk}
+      cursorRuntimeStageId={cursorRuntimeStageId}
+      onJumpTo={onJumpTo}
+      copied={copied}
+      onCopy={() => {
+        void navigator.clipboard?.writeText(walk.story).then(() => {
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1600);
+        });
+      }}
+      onEnd={() => setWalk(null)}
+    />
+  ) : null;
+
+  if (!provenance || activeKey === undefined || slice === undefined) return walkBox;
 
   return (
     <div style={{ marginTop: 10, borderTop: `1px solid ${T.border}`, paddingTop: 8 }}>
+      {walkBox}
       <div
         style={{
           fontSize: 10,
@@ -174,8 +220,117 @@ export function WhereFrom({ runner, cursorRuntimeStageId, onJumpTo, onSliceChang
               {frame.depth === 0 && <span style={{ color: T.textMuted, fontSize: 10 }}> (writer)</span>}
             </button>
           ))}
+          {walk === null && slice.frames.length >= 2 && onJumpTo && (
+            <button
+              type="button"
+              data-lens="walk-start"
+              onClick={() => {
+                const stops = [...slice.frames].sort((a, b) => b.commitIdx - a.commitIdx);
+                setWalk({ key: activeKey, stops, story: slice.story });
+                onJumpTo(stops[0].runtimeStageId);
+              }}
+              style={{
+                marginTop: 6,
+                fontSize: 10,
+                fontWeight: 700,
+                padding: "3px 10px",
+                borderRadius: 999,
+                cursor: "pointer",
+                border: `1px solid ${T.primary}`,
+                background: `color-mix(in srgb, ${T.primary} 14%, transparent)`,
+                color: T.textPrimary,
+              }}
+            >
+              ◀ Walk the causes
+            </button>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * The walk header — position DERIVES from the host cursor; the buttons only
+ * ever call onJumpTo (the one-cursor rule survives by construction).
+ */
+function WalkBox({
+  walk,
+  cursorRuntimeStageId,
+  onJumpTo,
+  copied,
+  onCopy,
+  onEnd,
+}: {
+  walk: WalkSession;
+  cursorRuntimeStageId: string;
+  onJumpTo?: (runtimeStageId: string) => void;
+  copied: boolean;
+  onCopy: () => void;
+  onEnd: () => void;
+}): React.ReactElement {
+  const pos = walk.stops.findIndex((st) => st.runtimeStageId === cursorRuntimeStageId);
+  const offWalk = pos < 0;
+  // Walk order is newest-first: "earlier cause" advances IN the array.
+  const earlier = !offWalk && pos + 1 < walk.stops.length ? walk.stops[pos + 1] : undefined;
+  const later = !offWalk && pos > 0 ? walk.stops[pos - 1] : undefined;
+
+  const pill = (label: string, onClick: (() => void) | undefined, disabled: boolean): React.ReactElement => (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        fontSize: 10,
+        fontWeight: 700,
+        padding: "2px 8px",
+        borderRadius: 999,
+        cursor: disabled ? "default" : "pointer",
+        border: `1px solid ${disabled ? T.border : T.primary}`,
+        background: "transparent",
+        color: disabled ? T.textMuted : T.textPrimary,
+        opacity: disabled ? 0.6 : 1,
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div
+      data-lens="walk-box"
+      style={{
+        marginBottom: 8,
+        padding: "6px 8px",
+        borderRadius: 6,
+        border: `1px solid ${T.primary}`,
+        background: `color-mix(in srgb, ${T.primary} 8%, transparent)`,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+        <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: T.textMuted }}>
+          Walking
+        </span>
+        <span style={{ fontFamily: "ui-monospace, monospace", fontSize: 11, color: T.textPrimary, fontWeight: 700 }}>
+          {walk.key}
+        </span>
+        <span data-lens="walk-position" style={{ fontSize: 10, color: T.textMuted }}>
+          {offWalk ? "· the cursor left the walk" : `· stop ${pos + 1} of ${walk.stops.length}`}
+        </span>
+        <span style={{ flex: 1 }} />
+        {pill(copied ? "Copied ✓" : "Copy story", onCopy, false)}
+        {pill("End ✕", onEnd, false)}
+      </div>
+      <div style={{ display: "flex", gap: 6, marginTop: 6 }}>
+        {offWalk ? (
+          pill("Resume at stop 1", onJumpTo && (() => onJumpTo(walk.stops[0].runtimeStageId)), !onJumpTo)
+        ) : (
+          <>
+            {pill("◀ earlier cause", earlier && onJumpTo ? () => onJumpTo(earlier.runtimeStageId) : undefined, !earlier || !onJumpTo)}
+            {pill("toward result ▶", later && onJumpTo ? () => onJumpTo(later.runtimeStageId) : undefined, !later || !onJumpTo)}
+          </>
+        )}
+      </div>
     </div>
   );
 }

@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.29.0] - 2026-07-02
+
+### Added
+
+- **Same-Rail Rewind in `<WhereFrom>` — "◀ Walk the causes".** Picking a key
+  and clicking the walk button FREEZES its backward slice as an ordered stop
+  list (commit index descending — reverse time is a valid topological order
+  of the slice DAG, so both parents of a fork are always visited) and steps
+  THE one cursor through it with "◀ earlier cause / toward result ▶". The
+  walk session is a lens, never a second cursor: the position derives from
+  the host's cursor every render, and a cursor that scrubs off the walk gets
+  an explicit "the cursor left the walk · Resume/End", not silence. While
+  walking, the chart cone stays the FROZEN walk's cone even as the panel
+  re-anchors per stop.
+- **[Copy story]** emits footprintjs' own `formatSlice` string, frozen at
+  walk entry — byte-identical to what the trace toolpack's `backtrack` LLM
+  tool returns (honesty envelope included). `KeyProvenance` gains `story`;
+  `ProvenanceFrame` gains `commitIdx` (the walk-order key).
+
 ## [0.28.0] - 2026-07-02
 
 ### Added

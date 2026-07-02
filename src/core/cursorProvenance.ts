@@ -23,7 +23,7 @@
  * (readTracking 'off') — the UI must say "unknowable", not "independent".
  */
 
-import { flattenCausalDAG, keysReadFromExecutionTree, sliceForKey } from 'footprintjs/trace';
+import { flattenCausalDAG, formatSlice, keysReadFromExecutionTree, sliceForKey } from 'footprintjs/trace';
 import type { MissingSliceReason } from 'footprintjs/trace';
 
 /** One frame of the backward slice, in BFS order (depth 0 = the writer). */
@@ -35,6 +35,11 @@ export interface ProvenanceFrame {
   /** The read key whose write linked this frame to its child ('' = anchor). */
   readonly linkedBy: string;
   readonly depth: number;
+  /** The frame's last commit index within the anchored range — its position
+   *  on the run timeline. Sorting frames by this DESCENDING is the Same-Rail
+   *  Rewind walk order (every dependency commits earlier than its dependent,
+   *  so reverse time is a valid topological order of the slice DAG). */
+  readonly commitIdx: number;
 }
 
 export interface KeyProvenance {
@@ -44,6 +49,10 @@ export interface KeyProvenance {
   readonly missing?: MissingSliceReason;
   /** True when the snapshot carries NO read tracking — edges unknowable. */
   readonly readsWarning: boolean;
+  /** THE parity artifact: footprintjs' own `formatSlice` string — the SAME
+   *  text the trace toolpack's `backtrack` LLM tool returns (honesty
+   *  envelope included). [Copy story] emits this verbatim. */
+  readonly story: string;
 }
 
 export interface CursorProvenance {
@@ -99,6 +108,10 @@ export function cursorProvenance(
     >[0],
   );
 
+  // rsid → last commit index within the anchored range (for walk ordering).
+  const lastCommitIdxOf = new Map<string, number>();
+  for (let i = 0; i <= lastIdx; i++) lastCommitIdxOf.set(log[i].runtimeStageId, i);
+
   const sliceFor = (key: string): KeyProvenance => {
     // Anchor: the value AS OF the cursor — include the cursor's own write
     // (exclusive bound = its last commit index + 1).
@@ -109,8 +122,9 @@ export function cursorProvenance(
       slice.readsCoverage !== undefined &&
       slice.readsCoverage.steps > 1 &&
       slice.readsCoverage.stepsWithReads === 0;
+    const story = formatSlice(slice);
     if (!slice.root) {
-      return { key, frames: [], readsWarning, ...(slice.missing !== undefined && { missing: slice.missing }) };
+      return { key, frames: [], readsWarning, story, ...(slice.missing !== undefined && { missing: slice.missing }) };
     }
     const frames: ProvenanceFrame[] = flattenCausalDAG(slice.root).map((n) => ({
       runtimeStageId: n.runtimeStageId,
@@ -119,8 +133,9 @@ export function cursorProvenance(
       keysWritten: n.keysWritten,
       linkedBy: n.linkedBy,
       depth: n.depth,
+      commitIdx: lastCommitIdxOf.get(n.runtimeStageId) ?? -1,
     }));
-    return { key, frames, readsWarning };
+    return { key, frames, readsWarning, story };
   };
 
   return { writtenKeys: [...written], sliceFor };

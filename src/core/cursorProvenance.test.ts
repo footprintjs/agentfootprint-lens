@@ -73,4 +73,35 @@ describe('cursorProvenance — real runner', () => {
     expect(cursorProvenance(seq, 'ghost#99')).toBeUndefined();
     expect(cursorProvenance(seq, '')).toBeUndefined();
   });
+
+  it('frames carry commitIdx (reverse-time sortable) and story is the fp formatSlice parity string', async () => {
+    const seq = Sequence.create({ name: 'p5' })
+      .step('draft', llm('a draft'))
+      .step('polish', llm('polished'))
+      .build();
+    await seq.run({ message: 'go' });
+    const snap = seq.getLastSnapshot() as { commitLog: Array<{ runtimeStageId: string; trace: Array<{ path: string }> }> };
+    const anchor = [...snap.commitLog].reverse().find((b) => b.trace.length > 0)!;
+    const prov = cursorProvenance(seq, anchor.runtimeStageId)!;
+    const key = prov.writtenKeys[0];
+    const slice = prov.sliceFor(key);
+    // Every frame has its timeline position; the newest is the anchor —
+    // sorting by commitIdx DESC is exactly the Same-Rail walk order.
+    for (const f of slice.frames) expect(f.commitIdx).toBeGreaterThanOrEqual(0);
+    const sorted = [...slice.frames].sort((a, b) => b.commitIdx - a.commitIdx);
+    expect(sorted[0].runtimeStageId).toBe(anchor.runtimeStageId);
+    expect(slice.story).toContain(key); // formatSlice names the traced key
+  });
+
+  it('story renders the honesty envelope even for a missing slice', async () => {
+    const seq = Sequence.create({ name: 'p6' }).step('one', llm('x')).build();
+    await seq.run({ message: 'go' });
+    const snap = seq.getLastSnapshot() as { commitLog: Array<{ runtimeStageId: string; trace: Array<{ path: string }> }> };
+    const anchor = [...snap.commitLog].reverse().find((b) => b.trace.length > 0)!;
+    const prov = cursorProvenance(seq, anchor.runtimeStageId)!;
+    const ghost = prov.sliceFor('definitely-not-a-key');
+    expect(ghost.missing).toBe('never-written');
+    expect(typeof ghost.story).toBe('string');
+    expect(ghost.story.length).toBeGreaterThan(0); // absence is an ANSWER, not an empty string
+  });
 });
