@@ -64,9 +64,9 @@ jobs:
           node-version: 22
           registry-url: https://registry.npmjs.org
 
-      # Upgrade npm ITSELF (trusted publishing needs >= 11.5.1). This is the npm CLI,
-      # not the project's dependencies — no project resolution happens in this job.
-      - run: npm install -g npm@latest
+      # Pinned to the 11.x line: npm 12.0.0 went `latest` on 2026-07-08 with a broken
+      # provenance path (MODULE_NOT_FOUND: sigstore) that fails `npm publish --provenance`.
+      - run: npm install -g npm@11
 
       # Publishes the pre-built, verified artifact. No node_modules, no dependency
       # resolution — the privileged step only packs the dist + package.json that the
