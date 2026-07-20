@@ -1,0 +1,15 @@
+cff-version: 1.2.0
+message: "If you use this software in your research, please cite it as below."
+type: software
+title: "agentfootprint-lens: the agent debugging lens for agentfootprint runs"
+authors:
+  - family-names: "Anbalagan"
+    given-names: "Sanjay Krishna"
+license: MIT
+repository-code: "https://github.com/footprintjs/agentfootprint-lens"
+url: "https://github.com/footprintjs/agentfootprint-lens"
+keywords:
+  - "agent debugging"
+  - "explainable AI agents"
+  - "trace visualization"
+  - "React components"
