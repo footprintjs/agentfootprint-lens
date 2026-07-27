@@ -19,11 +19,99 @@
  * the structure here stays faithful to the run.
  */
 
-import { walkSubflowSpec, splitStageId } from "footprintjs/trace";
+import { walkSubflowSpec, splitStageId, type WalkerItem } from "footprintjs/trace";
 import { createTraceStructureRecorder } from "footprint-explainable-ui/flowchart";
 import type { TraceGraph } from "footprint-explainable-ui/flowchart";
 import type { StructureRecorder } from "footprintjs";
 import { stageRole, type StageRole } from "agentfootprint";
+
+/** The payload `onSubflowMounted` takes — held until its node exists. */
+type MountEvent = Parameters<NonNullable<StructureRecorder["onSubflowMounted"]>>[0];
+
+/**
+ * Replay one walk into a structure recorder, in the order the recorder needs.
+ *
+ * The walker announces a nested subflow BEFORE it yields that mount node's own
+ * stage item (`walkSubflowSpec` yields the mount marker, then falls through to
+ * the stage) — but a structure recorder can only stamp a mount onto a node it
+ * already holds. Firing them in walk order makes the recorder warn about an
+ * unknown `rootStageId` and drop everything the mount carried. So each mount is
+ * held until its stage lands, and only then announced.
+ *
+ * The mount is announced WITHOUT its `subflowSpec`: this bridge materialises a
+ * subflow's internals itself (`expandSubflowInternals`), path-qualified so the
+ * ids match the runtime overlay. Handing the spec over as well would have the
+ * recorder walk it a second time under its own id scheme — a duplicate of every
+ * inner node, under a path the overlay never lights.
+ *
+ * @param onSubflowSeen  called for each mount, in walk order (before the mount
+ *   is announced) — the caller collects the internals to expand.
+ */
+function replayWalkInto(
+  recorder: StructureRecorder,
+  items: Iterable<WalkerItem>,
+  onSubflowSeen?: (item: Extract<WalkerItem, { kind: "subflow" }>) => void,
+): void {
+  // Mounts held until their stage lands, keyed by that stage. A LIST per stage,
+  // not one mount: two subflows mounting on the same stage id would have the
+  // second overwrite the first, and a mount that vanishes with no warning is
+  // the exact failure this whole hold-and-announce dance exists to fix. Not
+  // reachable with today's walker — which is why it has to be structurally
+  // impossible rather than remembered.
+  const heldMounts = new Map<string, MountEvent[]>();
+
+  const announceMount = (stageId: string): void => {
+    const mounts = heldMounts.get(stageId);
+    if (mounts === undefined) return;
+    heldMounts.delete(stageId);
+    for (const mount of mounts) recorder.onSubflowMounted?.(mount);
+  };
+
+  for (const item of items) {
+    switch (item.kind) {
+      case "stage":
+        recorder.onStageAdded?.({
+          stageId: item.stageId,
+          name: item.name,
+          type: item.type,
+          ...(item.isPausable !== undefined && { isPausable: item.isPausable }),
+          spec: item.spec,
+        });
+        announceMount(item.stageId);
+        break;
+      case "edge":
+        recorder.onEdgeAdded?.({
+          from: item.from,
+          to: item.to,
+          kind: item.edgeKind,
+          ...(item.label !== undefined && { label: item.label }),
+        });
+        break;
+      case "loop":
+        recorder.onLoopEdgeAdded?.({ from: item.from, to: item.to });
+        break;
+      case "subflow": {
+        onSubflowSeen?.(item);
+        const waiting = heldMounts.get(item.mountStageId) ?? [];
+        waiting.push({
+          subflowId: item.subflowId,
+          subflowName: item.subflowName,
+          rootStageId: item.mountStageId,
+          subflowPath: item.subflowPath,
+        });
+        heldMounts.set(item.mountStageId, waiting);
+        break;
+      }
+      case "subflow-start":
+        break;
+    }
+  }
+
+  // A mount whose stage never arrived is a walker that stopped behaving the way
+  // this bridge reads it. Announce it anyway so the recorder's own "unknown
+  // rootStageId" warning fires — silently dropping it would hide the change.
+  for (const stageId of [...heldMounts.keys()]) announceMount(stageId);
+}
 
 interface RunnerLike {
   readonly getSpec: () => { readonly buildTimeStructure: unknown };
@@ -116,13 +204,13 @@ export function structureGraphFromSpec(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const spec = buildTimeStructure as any;
 
-  // `{ recurse: false }` — emit ONLY top-level stages + subflow-MOUNT events
-  // (each carrying its full `subflowSpec`). `createTraceStructureRecorder`
-  // expands those via `walkSubflowSpecInto`, which PATH-QUALIFIES every inner
-  // node id (`compose` → `sf-system-prompt/compose`). That qualification is
-  // what makes node ids match the runtime overlay's path-qualified stage ids
-  // (so time-travel lights the path). Walking with full recursion instead would
-  // emit inner stages as bare top-level ids (local) — which never match.
+  // `{ recurse: false }` — emit ONLY top-level stages + subflow-MOUNT events.
+  // The inner nodes are materialised below by `expandSubflowInternals`, which
+  // PATH-QUALIFIES every id (`compose` → `sf-system-prompt/compose`). That
+  // qualification is what makes node ids match the runtime overlay's
+  // path-qualified stage ids (so time-travel lights the path). Walking with full
+  // recursion instead would emit inner stages as bare top-level ids (local) —
+  // which never match.
   // walkSubflowSpec now renders fan-outs (the agent's Context selector over its
   // 3 slots) as a merge-tree by default — each slot → the join stage, the
   // selector's direct "skip" edge suppressed. This is the true topology, so no
@@ -132,52 +220,18 @@ export function structureGraphFromSpec(
   // that's what lets eui's existing `filterGraphForDrill` show a subflow's
   // stages on drill (hidden at top level, revealed when you click the box).
   const subflowSpecs: { subflowId: string; spec: unknown; path: string }[] = [];
-  for (const item of walkSubflowSpec(spec, "", { recurse: false })) {
-    switch (item.kind) {
-      case "stage":
-        recorder.onStageAdded?.({
-          stageId: item.stageId,
-          name: item.name,
-          type: item.type,
-          ...(item.isPausable !== undefined && { isPausable: item.isPausable }),
-          spec: item.spec,
-        });
-        break;
-      case "edge":
-        recorder.onEdgeAdded?.({
-          from: item.from,
-          to: item.to,
-          kind: item.edgeKind,
-          ...(item.label !== undefined && { label: item.label }),
-        });
-        break;
-      case "loop":
-        recorder.onLoopEdgeAdded?.({ from: item.from, to: item.to });
-        break;
-      case "subflow":
-        recorder.onSubflowMounted?.({
-          subflowId: item.subflowId,
-          subflowName: item.subflowName,
-          rootStageId: item.mountStageId,
-          subflowSpec: item.subflowSpec,
-          subflowPath: item.subflowPath,
-        });
-        subflowSpecs.push({
-          subflowId: item.subflowId,
-          spec: item.subflowSpec,
-          // Strip any leading slash so qualified ids read `sf-x/stage`, matching
-          // the runtime overlay key (runtimeStageId minus #index has no leading /).
-          path: (typeof item.subflowPath === "string" &&
-          item.subflowPath.length > 0
-            ? item.subflowPath
-            : item.subflowId
-          ).replace(/^\/+/, ""),
-        });
-        break;
-      case "subflow-start":
-        break;
-    }
-  }
+  replayWalkInto(recorder, walkSubflowSpec(spec, "", { recurse: false }), (item) => {
+    subflowSpecs.push({
+      subflowId: item.subflowId,
+      spec: item.subflowSpec,
+      // Strip any leading slash so qualified ids read `sf-x/stage`, matching
+      // the runtime overlay key (runtimeStageId minus #index has no leading /).
+      path: (typeof item.subflowPath === "string" && item.subflowPath.length > 0
+        ? item.subflowPath
+        : item.subflowId
+      ).replace(/^\/+/, ""),
+    });
+  });
 
   // Enrich each node with a VISUAL emphasis hint (+ a hero icon) derived from
   // its semantic role. agentfootprint owns "which id is a hero" (stageRole);
@@ -189,11 +243,11 @@ export function structureGraphFromSpec(
   // when you drill the subflow box, and hides them at the top level (only
   // `subflowOf === undefined` shows there, so the tuned merge-tree is untouched).
   const internal = expandSubflowInternals(subflowSpecs);
-  // Dedupe by id when merging internals into the base graph. Today eui's own
-  // `walkSubflowSpecInto` emits nothing for footprintjs/trace's spec shape, so
-  // the internals come SOLELY from `expandSubflowInternals` (no overlap). This
-  // guard keeps it correct if eui ever learns to walk this shape — otherwise the
-  // same path-qualified node/edge would appear twice → duplicate xyflow ids.
+  // Dedupe by id when merging internals into the base graph. The mount events
+  // carry no `subflowSpec` (see `replayWalkInto`), so the internals come SOLELY
+  // from `expandSubflowInternals` and there is nothing to collide with today.
+  // The guard is what keeps a second source of inner nodes from producing the
+  // same path-qualified node/edge twice → duplicate xyflow ids.
   const seenNodes = new Set(baseGraph.nodes.map((n) => n.id));
   const seenEdges = new Set(baseGraph.edges.map((e) => e.id));
   const nodes = [
@@ -263,43 +317,7 @@ function expandSubflowInternals(
     const subTrace = createTraceStructureRecorder();
     const subRec = subTrace.recorder as unknown as StructureRecorder;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    for (const item of walkSubflowSpec(spec as any, path, { recurse: false })) {
-      switch (item.kind) {
-        case "stage":
-          subRec.onStageAdded?.({
-            stageId: item.stageId,
-            name: item.name,
-            type: item.type,
-            ...(item.isPausable !== undefined && {
-              isPausable: item.isPausable,
-            }),
-            spec: item.spec,
-          });
-          break;
-        case "edge":
-          subRec.onEdgeAdded?.({
-            from: item.from,
-            to: item.to,
-            kind: item.edgeKind,
-            ...(item.label !== undefined && { label: item.label }),
-          });
-          break;
-        case "loop":
-          subRec.onLoopEdgeAdded?.({ from: item.from, to: item.to });
-          break;
-        case "subflow":
-          subRec.onSubflowMounted?.({
-            subflowId: item.subflowId,
-            subflowName: item.subflowName,
-            rootStageId: item.mountStageId,
-            subflowSpec: item.subflowSpec,
-            subflowPath: item.subflowPath,
-          });
-          break;
-        case "subflow-start":
-          break;
-      }
-    }
+    replayWalkInto(subRec, walkSubflowSpec(spec as any, path, { recurse: false }));
     const sub = subTrace.getGraph();
     const prefix = path.endsWith("/") ? path : `${path}/`;
     const q = (id: string): string =>

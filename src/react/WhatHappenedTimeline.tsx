@@ -39,6 +39,13 @@ export interface WhatHappenedTimelineProps {
   /** Rich detail for the focused moment (NodeDetailPanel content), rendered
    *  inline under it. */
   readonly detail?: React.ReactNode;
+  /**
+   * Is this a finished recording rather than a live run? Only the empty state
+   * changes: "run a sample" is advice for someone watching an idle agent and
+   * nonsense for someone looking at a run that is already over — that reader
+   * needs to know what the RECORDING is missing, not to go start something.
+   */
+  readonly isReplay?: boolean;
 }
 
 function fmtOffset(ms?: number): string {
@@ -51,6 +58,7 @@ export const WhatHappenedTimeline: React.FC<WhatHappenedTimelineProps> = ({
   focusStep,
   onFocusChange,
   detail,
+  isReplay = false,
 }) => {
   const focusedRef = useRef<HTMLDivElement | null>(null);
 
@@ -65,7 +73,11 @@ export const WhatHappenedTimeline: React.FC<WhatHappenedTimelineProps> = ({
 
   if (moments.length === 0) {
     return (
-      <div style={emptyStyle}>No moments yet — run a sample to see what happened.</div>
+      <div style={emptyStyle}>
+        {isReplay
+          ? 'This recording has no moments to walk. The strip is built from the run’s recorded step boundaries — this one carried none.'
+          : 'No moments yet — run a sample to see what happened.'}
+      </div>
     );
   }
 

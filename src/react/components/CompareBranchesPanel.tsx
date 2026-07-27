@@ -20,6 +20,7 @@
  */
 
 import React from 'react';
+import { ensureLensStyles } from '../lensStyles.js';
 import type { BranchColumn } from '../hooks/useCompareBranches.js';
 
 export interface CompareBranchesPanelProps {
@@ -39,6 +40,7 @@ export const CompareBranchesPanel: React.FC<CompareBranchesPanelProps> = ({
   pinnedColumnId,
   onPin,
 }) => {
+  ensureLensStyles();
   if (columns.length === 0) return null;
 
   return (

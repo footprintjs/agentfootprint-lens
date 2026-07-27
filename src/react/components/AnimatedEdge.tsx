@@ -25,6 +25,7 @@
  */
 
 import React from 'react';
+import { ensureLensStyles } from '../lensStyles.js';
 import { BaseEdge, getBezierPath, type EdgeProps } from '@xyflow/react';
 
 export interface AnimatedEdgeData {
@@ -43,6 +44,7 @@ export const AnimatedEdge: React.FC<EdgeProps> = ({
   markerEnd,
   style,
 }) => {
+  ensureLensStyles();
   const [edgePath] = getBezierPath({
     sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition,
   });

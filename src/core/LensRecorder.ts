@@ -346,6 +346,10 @@ export class LensRecorder {
     this.liveState.clear();
     this.boundary.clear();
     this.runtime.reset();
+    // Notes describe the run being shown, so they go with it. `replaying` does
+    // NOT — it describes how this recorder was filled, which a reset of the run
+    // state doesn't change.
+    this.noteList.length = 0;
     this.bumpVersion();
   }
 
@@ -383,6 +387,48 @@ export class LensRecorder {
    *  (evaluated per event so `enableDevMode()` mid-run takes effect). */
   private debugEnabled(): boolean {
     return this.debug ?? isDevMode();
+  }
+
+  // ─── Which rail is this? ──────────────────────────────────────────
+  //
+  // A recorder filled from a finished recording (`observeRecording`) looks
+  // exactly like a live one from the outside — same events, same tree, same
+  // selectors. The difference only shows up in EMPTY STATES: "run a sample to
+  // see what happened" is a sensible thing to say to someone watching an idle
+  // agent and a nonsense thing to say to someone looking at a run that is
+  // already over. The views ask this rather than guessing from a full log.
+
+  /** True once `markReplay()` was called. */
+  private replaying = false;
+
+  /** Mark this recorder as filled from a recording, not from a live run. */
+  markReplay(): void {
+    this.replaying = true;
+  }
+
+  /** Is this recorder showing a finished recording rather than a live run? */
+  isReplay(): boolean {
+    return this.replaying;
+  }
+
+  /**
+   * One-line notes about what this view can honestly show — "this recording
+   * carried no chart", "3 events could not be read". Views render them; a
+   * consumer never has to remember to. Deduped, in the order added; cleared by
+   * `clear()`.
+   */
+  private readonly noteList: string[] = [];
+
+  /** Add a note (no-op if the exact line is already there). */
+  addNote(text: string): void {
+    if (this.noteList.includes(text)) return;
+    this.noteList.push(text);
+    this.bumpVersion();
+  }
+
+  /** The notes, in the order they were added. */
+  getNotes(): readonly string[] {
+    return this.noteList;
   }
 
   /**

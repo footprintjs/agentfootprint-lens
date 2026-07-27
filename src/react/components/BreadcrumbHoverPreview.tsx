@@ -13,6 +13,7 @@
  */
 
 import React from 'react';
+import { ensureLensStyles } from '../lensStyles.js';
 
 export interface BreadcrumbEntryShape {
   readonly label: string;
@@ -28,6 +29,7 @@ export const BreadcrumbHoverPreview: React.FC<BreadcrumbHoverPreviewProps> = ({
   entry,
   nodeCount,
 }) => {
+  ensureLensStyles();
   return (
     <div
       role="tooltip"

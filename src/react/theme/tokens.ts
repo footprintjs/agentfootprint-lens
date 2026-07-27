@@ -112,20 +112,23 @@ export const T = {
   error: v('color-error', RAW_DEFAULTS.error),
   warning: v('color-warning', RAW_DEFAULTS.warning),
 
-  // Edge kinds (no `--fp-` cousin — lens-only)
-  edgeUser: `var(--lens-edge-user, ${RAW_DEFAULTS.edgeUser})`,
-  edgeTool: `var(--lens-edge-tool, ${RAW_DEFAULTS.edgeTool})`,
-  edgeDecision: `var(--lens-edge-decision, ${RAW_DEFAULTS.edgeDecision})`,
-  edgeDefault: `var(--lens-edge-default, ${RAW_DEFAULTS.textMuted})`,
+  // Edge kinds — lens-only NAMES, but the same three-tier chain as the rest.
+  // eui ships no `--fp-edge-*`, so the middle tier is free for `theme.mode` to
+  // stamp a light variant into (see MODE_PALETTES) without ever outranking a
+  // consumer's `--lens-edge-*`.
+  edgeUser: v('edge-user', RAW_DEFAULTS.edgeUser),
+  edgeTool: v('edge-tool', RAW_DEFAULTS.edgeTool),
+  edgeDecision: v('edge-decision', RAW_DEFAULTS.edgeDecision),
+  edgeDefault: v('edge-default', RAW_DEFAULTS.textMuted),
 
-  // Injection-source chips (lens-only)
-  srcRag: `var(--lens-src-rag, ${RAW_DEFAULTS.srcRag})`,
-  srcSkill: `var(--lens-src-skill, ${RAW_DEFAULTS.srcSkill})`,
-  srcMemory: `var(--lens-src-memory, ${RAW_DEFAULTS.srcMemory})`,
-  srcInstruction: `var(--lens-src-instruction, ${RAW_DEFAULTS.srcInstruction})`,
-  srcUser: `var(--lens-src-user, ${RAW_DEFAULTS.srcUser})`,
-  srcTool: `var(--lens-src-tool, ${RAW_DEFAULTS.srcTool})`,
-  srcDefault: `var(--lens-src-default, ${RAW_DEFAULTS.srcDefault})`,
+  // Injection-source chips — same three-tier chain, same reason.
+  srcRag: v('src-rag', RAW_DEFAULTS.srcRag),
+  srcSkill: v('src-skill', RAW_DEFAULTS.srcSkill),
+  srcMemory: v('src-memory', RAW_DEFAULTS.srcMemory),
+  srcInstruction: v('src-instruction', RAW_DEFAULTS.srcInstruction),
+  srcUser: v('src-user', RAW_DEFAULTS.srcUser),
+  srcTool: v('src-tool', RAW_DEFAULTS.srcTool),
+  srcDefault: v('src-default', RAW_DEFAULTS.srcDefault),
 
   // Typography
   fontSans: v('font-sans', RAW_DEFAULTS.fontSans),
@@ -133,3 +136,76 @@ export const T = {
 } as const;
 
 export type LensTokens = typeof T;
+
+/**
+ * One agent = one swatch colour, by index. The strip reads
+ * `--lens-agent-color-N`; these are what it paints when nobody defined them.
+ *
+ * Eight hues that stay distinguishable on BOTH a dark and a light surface
+ * (mid-tone, similar luminance) — the strip is the only place a run's agents
+ * are told apart at a glance, and "the consumer's design tokens own the
+ * palette" was, in practice, "the swatches paint nothing".
+ */
+export const AGENT_COLORS = [
+  '#6366f1', // indigo
+  '#059669', // emerald
+  '#db2777', // pink
+  '#d97706', // amber
+  '#0891b2', // cyan
+  '#7c3aed', // violet
+  '#dc2626', // red
+  '#65a30d', // lime
+] as const;
+
+/** The swatch colour for one agent row: consumer override, else the palette. */
+export function agentColor(index: number): string {
+  const fallback = AGENT_COLORS[index % AGENT_COLORS.length] ?? AGENT_COLORS[0];
+  return `var(--lens-agent-color-${index}, ${fallback})`;
+}
+
+/**
+ * The lens-only palettes, per mode — what `<Lens theme={{ mode }}>` stamps into
+ * the `--fp-*` tier.
+ *
+ * Edge colours and injection-source chips have no eui cousin, so a preset can
+ * never reach them: `mode: 'light'` re-themed everything eui draws and left
+ * these at their dark-tuned defaults, on a white background. These are the same
+ * hues, darkened for light surfaces (dark mode keeps `RAW_DEFAULTS` exactly, so
+ * nothing moves for existing users).
+ *
+ * They go into `--fp-*`, never `--lens-*`: a consumer who set `--lens-edge-tool`
+ * on a parent must still win.
+ */
+export const MODE_PALETTES: Record<'dark' | 'light', Readonly<Record<string, string>>> = {
+  dark: {
+    '--fp-bg-elevated': RAW_DEFAULTS.bgElevated,
+    '--fp-edge-user': RAW_DEFAULTS.edgeUser,
+    '--fp-edge-tool': RAW_DEFAULTS.edgeTool,
+    '--fp-edge-decision': RAW_DEFAULTS.edgeDecision,
+    '--fp-edge-default': RAW_DEFAULTS.textMuted,
+    '--fp-src-rag': RAW_DEFAULTS.srcRag,
+    '--fp-src-skill': RAW_DEFAULTS.srcSkill,
+    '--fp-src-memory': RAW_DEFAULTS.srcMemory,
+    '--fp-src-instruction': RAW_DEFAULTS.srcInstruction,
+    '--fp-src-user': RAW_DEFAULTS.srcUser,
+    '--fp-src-tool': RAW_DEFAULTS.srcTool,
+    '--fp-src-default': RAW_DEFAULTS.srcDefault,
+  },
+  light: {
+    // The card surface Lens's own panels sit on. eui's presets stop at
+    // bg-primary/secondary/tertiary, so this is the one surface token the mode
+    // switch has to supply itself.
+    '--fp-bg-elevated': '#f9fafb',
+    '--fp-edge-user': '#0369a1',
+    '--fp-edge-tool': '#047857',
+    '--fp-edge-decision': '#be185d',
+    '--fp-edge-default': '#71717a',
+    '--fp-src-rag': '#0369a1',
+    '--fp-src-skill': '#6d28d9',
+    '--fp-src-memory': '#a16207',
+    '--fp-src-instruction': '#be185d',
+    '--fp-src-user': '#047857',
+    '--fp-src-tool': '#0e7490',
+    '--fp-src-default': '#52525b',
+  },
+};

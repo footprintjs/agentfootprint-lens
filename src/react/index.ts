@@ -13,6 +13,21 @@
  */
 
 export { Lens, type LensProps, type LensTheme, type LensView } from "./Lens.js";
+// Lens's own stylesheet. It injects itself on first render, so there is nothing
+// to import in an app — this export is for SSR / strict-CSP consumers who want
+// to place it in their own <style> instead.
+export { LENS_STYLESHEET, ensureLensStyles } from "./lensStyles.js";
+// Theme tokens: the `var()` chain every component paints through, the raw
+// fallbacks behind it, the agent swatch palette, and what `theme={{ mode }}`
+// stamps. Exported so a consumer can build a matching sheet without guessing.
+export {
+  T,
+  RAW_DEFAULTS,
+  AGENT_COLORS,
+  MODE_PALETTES,
+  agentColor,
+  type LensTokens,
+} from "./theme/index.js";
 // <Replay> — render a persisted agentfootprint Trace OFFLINE (no live runner).
 export { Replay, type ReplayProps } from "./Replay.js";
 // Lens v0.1 — single-pipeline xyflow renderer driven by the L2

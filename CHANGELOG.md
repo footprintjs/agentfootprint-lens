@@ -5,6 +5,134 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`observeRecording({ snapshot, events, structure })` — Lens over a frozen
+  recording, with no app-side glue.** The offline twin of
+  `recorder.observe(runner)`: hand it a run's snapshot + typed event log (+ the
+  agent's build-time chart, when the recording kept one) and it returns
+  `{ recorder, runner }` ready for `<Lens recorder runner />`. Nothing re-runs;
+  every byte comes out of the recording. Replay keeps the live rail's isolation
+  invariant — a handler that throws costs that one event and nothing else, and
+  the count comes back as `eventsSkipped` instead of being swallowed — and it
+  hands events over the way the live dispatcher does: typed bucket, then the
+  domain wildcard, then `'*'`, with `{ once }` and `{ signal }` honoured. In dev
+  mode a throw names the listener and the event type, not just a tally.
+  The step strip's commit ranges are REBUILT from the run's own recorded
+  boundary events (`BoundaryEvents` in `snapshot.recorders`) and never derived
+  from the commit log: the log cannot say WHEN a boundary opened — a fork's
+  branches all open at a moment it has no row for — and deriving them was
+  measured producing 20 stops on a run that had 17. A recording without that
+  entry reports `boundaryRanges: 0` and the strip stays quiet.
+  Also returned: `chart` (`'drawn' | 'absent'`), `eventsReplayed`,
+  `boundaryEvents`, and `notes`.
+- **A replay now rebuilds the STEP GRAPH, so an agent turn is not an empty
+  graph.** The graph Lens renders is a fold over one flat domain-event list that
+  is fed live by two channels — footprintjs's traversal and the typed dispatcher
+  — and offline only the second runs, so `getStepGraph()` fell through to the
+  subflow-only projection: measured, **0 nodes** on a recorded 4-iteration ReAct
+  turn, with the Agents list, the hops and the per-iteration detail all empty and
+  no warning. The traversal half is read back out of the recording's own
+  `BoundaryEvents` entry and merged with the replayed half in timestamp order.
+  Same turn, same recording: **21 nodes**, the four iterations among them. A
+  recording that captured both halves is replayed exactly as recorded.
+- **Lens says what it cannot honestly show, on screen.** `boundaryRanges === 0`,
+  `eventsSkipped > 0`, a recording with no chart, a `BoundaryEvents` entry that
+  is present but unreadable — each becomes a one-line note above the view, in
+  all three views. They used to be return values a consumer had to remember to
+  render, and a note nobody renders is a silent degradation. `recorder.getNotes()`
+  reads them; `recorder.addNote()` adds your own.
+- **Lens ships its own stylesheet, and injects it.** Eight components style
+  themselves with `lens-*` class names — `<Replay>`, `<AgentLegendStrip>`,
+  `<BreadcrumbHoverPreview>`, `<CompareBranchesPanel>`, `<CrossSubflowChip>`,
+  `<IterationScrubber>`, `<RuntimeIdInspector>`, `<TokenCostBadge>` — and the
+  package shipped no CSS for any of them, so every one rendered unstyled,
+  including `<Replay>`, an entry point. The sheet paints through the same token
+  chain as the inline half, so one token sheet themes both. Nothing to import;
+  `LENS_STYLESHEET` is exported as text for SSR / strict-CSP apps.
+- **An eight-colour agent palette behind `--lens-agent-color-N`.** The legend
+  read that variable with no fallback, so with nothing defined the swatch was an
+  invalid declaration and painted nothing — sold in the JSDoc as
+  "theme-portable". `AGENT_COLORS` / `agentColor(i)` are exported.
+- **A `--lens-*` drift catcher**, mirroring eui's token test: it greps the
+  source for every `var(--lens-…)` read and every `lens-*` class rendered, and
+  fails when one has neither a definition nor a fallback. It catches the agent
+  swatch hole automatically, and the next one.
+
+### Changed
+
+- **`<Replay trace>` is an adapter over `observeRecording`, not a second replay
+  path.** It drew `trace.structure` as a static chart and nothing else — no
+  slider, no moments rail, no detail — while the docs said an offline replay
+  "matches the live `<Lens>`". A `Trace` is a recording under different field
+  names, so `<Replay>` now maps them and renders the same `<Lens>`: chart, step
+  strip (rebuilt from `trace.events`, which ARE the boundary log), and detail.
+  A Trace carries no typed event log, so the commentary rail stays quiet — and
+  says why. `showControls` / `showBackground` are gone (the chart is Lens's now);
+  `theme` is forwarded.
+- **`observeRecording` reads `blueprint` as well as `structure`.** Every
+  recording in this ecosystem was frozen as `{ snapshot, events, blueprint }`,
+  and passing one straight in used to give `runner: undefined` and a chart that
+  silently never drew — the exact "partial input, no signal" failure this entry
+  point exists to remove.
+- **The README documents the API that exists.** The 30-second quick start used
+  `useLens(...)` and `<Lens for={agent} />` — neither is exported, so the
+  headline example never compiled; the event union and the three-column panel
+  description named a UI that was never shipped. Rewritten around
+  `lensRecorder()` / `recorder.observe(runner)` / `<Lens recorder runner />`,
+  with the record-then-render story end to end, `<Replay>`, and
+  `structureGraphFromSpec` (exported, previously undocumented). Every code block
+  was typechecked against the installed peers.
+
+### Fixed
+
+- **The honest-absence path no longer leaks invented ranges.** The boundary
+  rebuild cleared the index only when the recording HAD a `BoundaryEvents` entry
+  — but by then the typed replay had already run, and agentfootprint's live
+  `BoundaryRecorder` opens a composition range at whatever `getCommitCount()`
+  reports, which offline is the FINAL commit count for every event. So a
+  recording of any Parallel / Sequence / Loop / Conditional run WITHOUT that
+  entry ended up with exactly the artifact the code says it exists to prevent: a
+  zero-width slice at the end of the run, and a phantom step in the strip, while
+  the returned counts said `0`. The clear is unconditional now: the recording is
+  the sole source of these ranges on both arms.
+- **`theme={{ mode: 'light' }}` now reaches every surface, in every view.** Two
+  holes. (1) Lens's own panels — summary card, transport, moments rail, node
+  detail — paint with `--lens-bg-elevated`, which no eui preset sets, so they
+  stayed on the dark hardcoded fallback while the chart around them went light;
+  so did the edge colours and the injection-source chips, which have no `--fp-*`
+  cousin at all. The mode switch now stamps a full light/dark palette for them
+  (`MODE_PALETTES`) — in the `--fp-*` tier, never `--lens-*`, so a consumer's
+  own `--lens-*` on any ancestor still wins and the documented resolution order
+  (`--lens-*` → `--fp-*` → fallback) is genuinely unchanged. (2) The stamp lived
+  inside the engineer view, and `view="analyst"` / `view="user"` returned before
+  it — `<Lens theme={{ mode: 'light' }} view="analyst" />` rendered fully dark
+  with no error. It is applied at the Lens root now.
+- **The empty states no longer talk to a live run that is already over.** A
+  consumer who did exactly what `observeRecording` documents saw "No runner
+  attached — pass the agentfootprint Runner", which fires precisely when the
+  recording carried no chart; they have no runner to attach. That reader is now
+  told which piece is missing and how to capture it. Same for "run a sample to
+  see what happened" and "run a sample to see commentary" in front of a finished
+  recording.
+- **Partial and malformed recordings degrade loudly.** An `events` field that
+  survived storage as a JSON string used to be indistinguishable from "the run
+  had no events", and a `BoundaryEvents` entry whose `data` is not an array was
+  reported as "this run recorded no boundaries" — a false statement about a run
+  that recorded them. Both come back in `notes` (and on screen), with a dev-mode
+  console warning.
+- **Seven `unknown rootStageId` warnings per agent chart, gone.** The spec walker
+  announces a nested subflow BEFORE it yields that mount node's own stage, so
+  `structureGraphFromSpec` fired `onSubflowMounted` at a recorder that did not
+  hold the node yet, and the mount was dropped each time (consumers were
+  scope-filtering the noise). Each mount is now held until its stage lands, and
+  held as a LIST per stage so two subflows mounting on one stage cannot silently
+  overwrite each other. The emitted graph is byte-identical — verified node for
+  node and edge for edge on the real agent chart — so this is noise removal, not
+  recovered data: nothing downstream was reading what was dropped.
+
 ## [0.29.0] - 2026-07-02
 
 ### Added

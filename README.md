@@ -25,118 +25,214 @@ npm install agentfootprint agentfootprint-lens
 ```
 
 ```tsx
-import { Agent, anthropic } from 'agentfootprint';
-import { Lens, useLens } from 'agentfootprint-lens';
+import { useMemo } from 'react';
+import { Agent } from 'agentfootprint';
+import { mock } from 'agentfootprint/llm-providers';
+import { Lens, lensRecorder } from 'agentfootprint-lens';
 
 export function App() {
-  const agent = useLens(() =>
-    Agent.create({ provider: anthropic('claude-sonnet-4') })
+  // Build the agent and the recorder once, and point the recorder at it.
+  const { agent, recorder } = useMemo(() => {
+    const agent = Agent.create({ provider: mock({ reply: 'Hi!' }), model: 'mock' })
       .system('You are a helpful assistant.')
-      .build()
-  );
+      .build();
+    const recorder = lensRecorder();
+    recorder.observe(agent);
+    return { agent, recorder };
+  }, []);
 
   return (
     <>
-      <button onClick={() => agent.run('Hello!')}>Run</button>
-      <Lens for={agent} />
+      <button onClick={() => agent.run({ message: 'Hello!' })}>Run</button>
+      <Lens recorder={recorder} runner={agent} />
     </>
   );
 }
 ```
 
-That's it. Two lines — `useLens(...)` + `<Lens for={agent} />` — and you get:
+Three lines of wiring — `lensRecorder()`, `recorder.observe(agent)`, `<Lens recorder runner />`.
 
-- A live **Messages** view (everything the LLM saw and said, per turn)
-- An **Iteration Strip** (one cell per LLM call, tool call, or decision — scrubbable)
-- A **Tool Call Inspector** (args, result, timing for the currently selected step)
-- A **Decision Scope Ribbon** (which skill / decision rule was active)
-- An **Explainable Trace** tab (the full footprintjs stage-level view)
+- `recorder` is what Lens READS: the event log, the run tree, the summary.
+- `runner` is what Lens DRAWS: the composition chart, read from
+  `runner.getSpec().buildTimeStructure`. Pass it and the whole chart is visible
+  from t=0; leave it out and Lens says so instead of drawing an empty box.
 
-No event wiring, no timeline prop, no snapshot prop. Lens figures it out by watching the runner directly.
+Swap `mock(...)` for `anthropic(...)` / `openai(...)` / `ollama(...)` from
+`agentfootprint/llm-providers` — nothing else changes.
 
 ---
 
 ## What you actually see
 
-As the agent runs, the three columns of Lens fill in live:
+The default view (`view="engineer"`) is one screen:
 
-| Column | Shows |
+| Region | Shows |
 |---|---|
-| **Messages** | The conversation from the agent's perspective — system prompt, user turns, assistant replies, tool results |
-| **Iteration Strip** | One row per ReAct loop iteration. Each row lists the LLM call that ran it, the tool calls it picked, and the time each took |
-| **Context** | Whichever iteration or tool call is selected — shows the exact prompt the LLM saw, the tools it had available, and what it returned |
+| **Summary + transport** (top) | status · latency · LLM/tool calls · tokens, and ◀ ▶ ⟳Live with the clickable step strip |
+| **Agents** (left, when a run has 2+) | every Agent / LLMCall instance in the run — click to jump to it |
+| **The chart** (centre) | the composition that ran, lit up as the cursor moves. Click a box to drill into it |
+| **What happened** (right) | the moment-by-moment rail — click any moment to move the one cursor; the focused moment expands to the full detail (prompt, tool args, result, written keys, **Where did this come from?**) |
+| **Events** (bottom) | the raw typed event stream |
 
-When the run finishes, the second tab (**Explainable Trace**) lights up with the full stage-level flowchart — same surface `footprint-explainable-ui` ships, zero extra wiring.
+Two other audiences are one prop away: `view="analyst"` (summary + humanized
+commentary) and `view="user"` (status line + final answer).
+
+Lens watches agentfootprint's typed event stream — `agentfootprint.agent.*`,
+`agentfootprint.stream.*` (`llm_start` / `token` / `tool_start` / …),
+`agentfootprint.context.injected`, `agentfootprint.composition.*` and the rest
+of the 65-type registry. You never wire events yourself; `recorder.observe()`
+subscribes to all of them.
 
 ---
 
 ## Multiple watchers, one agent
 
-`Lens` doesn't own the agent. Anything can observe it — a Lens, a Datadog exporter, a custom logger, or three of them at once.
+Lens doesn't own the agent. Anything can watch it — a Lens, a telemetry
+exporter, a custom logger, or three at once.
 
-```tsx
-const agent = useLens(() => Agent.create(...).build());
-
+```ts
 // Lens in the sidebar
-<Lens for={agent} />
+<Lens recorder={recorder} runner={agent} />
 
 // At the same time — ship events to your telemetry backend
 useEffect(() => {
-  const stop = agent.observe((event) => {
-    if (event.type === 'llm_end') {
-      telemetry.record('llm.tokens', event.usage?.totalTokens);
-    }
+  const stop = agent.on('agentfootprint.stream.llm_end', (event) => {
+    telemetry.record('llm.tokens', event.payload.usage.input + event.payload.usage.output);
   });
   return stop;   // auto-unsubscribe on unmount
 }, [agent]);
 ```
 
-`agent.observe(handler)` is the single subscribe primitive. It returns a `() => void` unsubscribe function. Add as many observers as you want.
-
-Event shape:
-
-```ts
-type AgentEvent =
-  | { type: 'turn_start';  userMessage: string }
-  | { type: 'llm_start';   iteration: number }
-  | { type: 'llm_end';     iteration: number; content: string; toolCallCount: number; usage?: TokenUsage; latencyMs: number }
-  | { type: 'tool_start';  toolName: string; args: Record<string, unknown> }
-  | { type: 'tool_end';    toolName: string; result: { content: string }; latencyMs: number }
-  | { type: 'token';       content: string }                        // streaming
-  | { type: 'turn_end';    content: string; iterations: number };
-```
+`runner.on(type, handler)` is the single subscribe primitive. It returns a
+`() => void` unsubscribe. Subscribe to one type, a domain wildcard
+(`'agentfootprint.context.*'`), or `'*'` for everything.
 
 ---
 
 ## Works with every agentfootprint runner
 
-`<Lens for={...}>` accepts any agentfootprint runner — the same prop works for all of them, and they all light up Lens identically:
+The same two props work for all of them:
 
 ```tsx
-// Agent — a ReAct loop
-const agent = useLens(() => Agent.create(...).build());
+const caller = LLMCall.create({ provider, model }).build();          // one prompt in, one answer out
+const agent  = Agent.create({ provider, model }).build();            // a ReAct loop
+const chain  = Sequence.create({ name: 'Chain' })                    // …and Parallel / Conditional / Loop
+  .step('draft', caller)
+  .step('review', agent)
+  .build();
 
-// LLMCall — a single prompt-in, response-out
-const caller = useLens(() => LLMCall.create(...).build());
+const recorder = lensRecorder();
+recorder.observe(caller);
 
-// RAG — retrieve + augment + answer
-const rag = useLens(() => RAG.create(...).retriever(...).build());
-
-// Swarm — LLM-routed specialists
-const swarm = useLens(() => Swarm.create(...).build());
-
-// ...same pattern for FlowChart, Parallel, Conditional
-
-<Lens for={caller} />   // pick whichever
+<Lens recorder={recorder} runner={caller} />
 ```
 
 One mental model. The runner does the work; Lens watches.
 
 ---
 
+## Watching a run that already finished
+
+A recording is a run you kept. It is exactly THREE things — miss one and one
+surface goes dark, so save all three together.
+
+### Step 1 — record it (in the app that runs the agent)
+
+```ts
+const events = [];
+runner.on('*', (e) => events.push(e));
+
+await runner.run({ message });
+
+const recording = {
+  events,                                          // 1. the timeline
+  snapshot:  runner.getLastSnapshot(),             // 2. state + commit log + every recorder's data
+  structure: runner.getSpec().buildTimeStructure,  // 3. THE CHART. Nothing else can draw it.
+};
+fs.writeFileSync('run.json', JSON.stringify(recording));
+```
+
+`structure` is the one piece a run does not leave behind on its own —
+`getSnapshot()` never includes it — which is why so many stored runs replay
+without a chart.
+
+### Step 2 — render it
+
+```tsx
+import { useMemo } from 'react';
+import { observeRecording, Lens } from 'agentfootprint-lens';
+
+// One call = one replay: it builds a recorder and walks the whole event log.
+// Keep it out of the render body.
+const observed = useMemo(() => observeRecording(recording), [recording]);
+
+return <Lens recorder={observed.recorder} runner={observed.runner} />;
+```
+
+Nothing re-runs, no model is called, no network is touched. Anything the
+recording could not give back, Lens states on screen — you do not have to
+render the return values yourself.
+
+| piece | where it comes from | what it buys |
+|---|---|---|
+| `events` | `runner.on('*', …)` collected during the run | the messages, the moments rail, the commentary, the summary |
+| `snapshot` | the run's footprintjs `getSnapshot()` | the commit axis, `<WhereFrom>`'s provenance, and every attached recorder's data |
+| `structure` | `runner.getSpec().buildTimeStructure` | the chart — the composition that actually ran |
+
+Recordings frozen as `{ snapshot, events, blueprint }` work as-is: `blueprint`
+is read when `structure` is absent.
+
+**The step strip needs one more thing at RECORD time:** attach agentfootprint's
+`boundaryRecorder` (with commit tracking) while the run happens. Its snapshot
+entry stamps every subflow entry/exit with the commit index it crossed at, and
+that is what the strip is indexed by. A recording without it is still fully
+watchable — the strip stays quiet and says so. Lens will not guess the ranges
+from the commit log: the log cannot say *when* a boundary opened (a fork's
+branches all open at a moment it has no row for), and guessing produced 20 stops
+on a run that had 17.
+
+`observeRecording` also returns the counts, for code that wants to check before
+rendering: `chart` (`'drawn' | 'absent'`), `eventsReplayed`, `eventsSkipped`,
+`boundaryEvents`, `boundaryRanges`, and `notes` — one line per thing the
+recording carried that could not be READ, as opposed to was not there.
+
+### Replaying a `Trace`
+
+agentfootprint's `enable.localObservability().getTrace()` produces a `Trace` —
+a different transport for the same idea. `<Replay trace={trace} />` adapts it
+onto the same path:
+
+```tsx
+import { Replay } from 'agentfootprint-lens';
+
+const trace = JSON.parse(await fs.readFile('run.trace.json', 'utf8'));
+<Replay trace={trace} />
+```
+
+A `Trace` carries the boundary log rather than the typed event log, so it
+replays as chart + step strip + detail, with the commentary rail quiet — and
+Lens says so. For the full surface, record `{ snapshot, events, structure }` and
+use `observeRecording`.
+
+---
+
 ## Theming
 
-**As of v0.13.0 Lens inherits theme tokens from your app via CSS variables.** Set `--fp-*` (the same names `footprint-explainable-ui` uses) on any parent — Lens picks them up automatically. No `theme=` prop needed; no flash of unstyled content on theme switch.
+**Lens inherits theme tokens from your app via CSS variables.** Set `--fp-*`
+(the same names `footprint-explainable-ui` uses) on any parent and Lens picks
+them up — no `theme=` prop needed, no flash of unstyled content on a theme
+switch. Lens's stylesheet ships with the library and injects itself; there is
+no CSS file to import.
+
+### The one-line switch
+
+```tsx
+<Lens recorder={recorder} runner={agent} theme={{ mode: 'light' }} />
+```
+
+`mode` applies eui's full light/dark preset at the Lens root — so the chart, the
+panels, the edge colours and the injection-source chips all follow, in all three
+views, from that one word.
 
 ### The token contract — set these on `:root` (or any parent of `<Lens>`)
 
@@ -146,6 +242,7 @@ One mental model. The runner does the work; Lens watches.
   --fp-bg-primary:   #0f172a;
   --fp-bg-secondary: #1e293b;
   --fp-bg-tertiary:  #334155;
+  --fp-bg-elevated:  #1e293b;   /* the card fill behind Lens's own panels */
 
   /* Text */
   --fp-text-primary:   #f8fafc;
@@ -163,150 +260,136 @@ One mental model. The runner does the work; Lens watches.
 }
 ```
 
-Resolution order per token: **`--lens-X` → `--fp-X` → hardcoded fallback**. So Lens-specific overrides win over shared `--fp-*` design tokens, which win over the built-in defaults.
+Resolution order per token: **`--lens-X` → `--fp-X` → hardcoded fallback**. So
+Lens-specific overrides win over shared `--fp-*` design tokens, which win over
+the built-in defaults. `theme={{ mode }}` writes into the `--fp-*` tier only —
+your `--lens-*` still wins.
 
-### Light / dark theme switching
-
-If your app already toggles theme by mutating CSS variables on `:root`, `body`, or a wrapper, Lens follows automatically with no extra wiring:
-
-```tsx
-function App() {
-  const [dark, setDark] = useState(true);
-  return (
-    <div data-theme={dark ? 'dark' : 'light'}>
-      {/* your existing :root[data-theme=dark] { --fp-* … } CSS */}
-      <Lens for={agent} />
-    </div>
-  );
-}
-```
-
-### Lens-only overrides (when you want Lens to look different from the rest of the app)
-
-Set `--lens-*` on a parent of `<Lens>` only:
+### Lens-only overrides
 
 ```css
 .my-lens-container {
-  --lens-bg-primary:   #0a0e1a;     /* darker than the app */
-  --lens-color-primary: #f59e0b;     /* amber accent for Lens chips */
-  --lens-edge-decision: #ec4899;     /* edge color for decision arrows in the graph */
-  --lens-src-skill:     #7c3aed;     /* skill-injection chip color */
+  --lens-bg-primary:      #0a0e1a;   /* darker than the app */
+  --lens-color-primary:   #f59e0b;   /* amber accent for Lens chips */
+  --lens-edge-decision:   #ec4899;   /* decision arrows in the graph */
+  --lens-src-skill:       #7c3aed;   /* skill-injection chip */
+  --lens-agent-color-0:   #22d3ee;   /* first agent's swatch in the legend */
 }
 ```
 
-See `src/react/theme/tokens.ts` for the full token list (surfaces / text / border / accent / 4 edge kinds / 7 injection-source chips / typography).
+Every token has a built-in value, so nothing is ever unpainted. See
+`src/react/theme/tokens.ts` for the full list (surfaces / text / border /
+accent / 4 edge kinds / 7 injection-source chips / 8 agent swatches /
+typography), all of it exported as `T`, `RAW_DEFAULTS`, `AGENT_COLORS` and
+`MODE_PALETTES`.
 
-### Programmatic override (legacy `theme=` prop)
+### Server rendering
 
-The old `<Lens theme={tokens} />` API still works for back-compat, but the CSS-variable contract above is the new recommended path — it survives SSR, doesn't reflow on toggle, and themes both Lens and `footprint-explainable-ui` from the same token sheet.
+`LENS_STYLESHEET` is the stylesheet as a string — put it in your own `<style>`
+if a strict CSP blocks the automatic injection.
 
 ---
 
 ## Responsive
 
-Lens resizes to whatever space you give it. Below ~640px wide it stacks panels vertically (like `<ExplainableShell>` does). Drop it in a splitter, a drawer, or a full-screen tab — no config needed.
-
----
-
-## Escape hatches
-
-If you want to manage the timeline yourself (custom ingestion, recording to a file, replaying a stored run), the explicit path is still available:
-
-```tsx
-import { Lens, useLiveTimeline } from 'agentfootprint-lens';
-
-const lens = useLiveTimeline();
-
-// You control ingestion
-for (const event of storedEvents) lens.ingest(event);
-
-<Lens
-  timeline={lens.timeline}
-  runtimeSnapshot={storedSnapshot}
-/>
-```
-
----
-
-## Recorder pattern (power users)
-
-For advanced observability — multiple exporters, buffering, filtering before dispatch — agentfootprint's recorder system is still there:
-
-```ts
-import { createStreamEventRecorder } from 'agentfootprint';
-
-const myRec = createStreamEventRecorder(myHandler, 'my-telemetry');
-const agent = Agent.create(...).recorder(myRec).build();
-```
-
-`<Lens for={...}>` is just sugar over this internally — the recorder you'd write for Datadog is the same shape Lens uses.
+Lens resizes to whatever space you give it. Below ~640px wide it stacks panels
+vertically (like `<ExplainableShell>` does). Drop it in a splitter, a drawer, or
+a full-screen tab — no config needed.
 
 ---
 
 ## API reference
 
-### `useLens(factory)`
+### `lensRecorder(rootLabel?, options?)`
 
-Memoizes a runner across renders. Call `factory` exactly once on mount; reuses the same instance forever. Works for any agentfootprint runner — `Agent`, `LLMCall`, `RAG`, `Swarm`, `FlowChart`, `Parallel`, `Conditional`.
+Builds a `LensRecorder`. `options.maxEvents` caps the event log (default 50 000,
+oldest evicted, counted in `getDiagnostics().droppedEvents` — never silent);
+`options.debug` forces the dev-mode console diagnostics on or off.
 
-```ts
-const agent  = useLens(() => Agent.create(...).build());
-const caller = useLens(() => LLMCall.create(...).build());
-const rag    = useLens(() => RAG.create(...).build());
-```
+### `recorder.observe(runner)`
 
-### `<Lens for={runner} />`
+Subscribe to a runner's typed dispatcher, its recorder channel and its step
+graph in one call. Returns an unsubscribe. Call it once per run.
 
-The one-prop integration. Subscribes to the runner's events, watches its snapshot, renders both tabs.
+### `<Lens>`
 
 | Prop | Type | Description |
 |---|---|---|
-| `for` | `Runner` (any agentfootprint runner) | The agent / caller / swarm / etc. to watch. |
-| `theme` | `ThemeTokens?` | Optional — defaults to `coolDark`. |
-| `appName` | `string?` | Optional brand label in the tab strip. |
+| `recorder` | `LensRecorder` | **Required.** What Lens reads. |
+| `runner` | `Runner?` | The runner (or `observeRecording`'s) whose build-time structure Lens draws. Omit and the chart region says what is missing. |
+| `theme` | `LensTheme?` | `{ mode?: 'dark' \| 'light', ground?, visited?, current? }`. |
+| `view` | `'engineer' \| 'analyst' \| 'user'` | Default `'engineer'`. |
+| `stepStrip` | `boolean?` | Show the clickable step strip. Default `true`. |
+| `showSummary` | `boolean?` | Show the status/metrics bar. Default `true`. |
+| `appName` | `string?` | The name used as the active actor in every commentary line. Default `'Chatbot'`. |
+| `humanizer` | `Humanizer?` | Override the commentary function entirely. |
+| `commentaryTemplates` | `Partial<CommentaryTemplates>?` | Override individual lines (locale, brand voice). |
+| `chart` | `LensFlowProps['chart']?` | Render YOUR graph instead of the derived one. |
+| `stepGraph` | `StepGraph?` | Bring your own step graph; by default Lens uses the recorder's. |
+| `toolChoice` | `ToolChoiceSource?` | Mount the per-iteration tool-choice panel. |
 
-### `runner.observe(handler)`
+### `observeRecording(recording, options?)`
 
-Subscribe to live events. Returns `() => void` (unsubscribe).
+The offline twin of `recorder.observe(runner)`. Takes
+`{ snapshot, events, structure }` (or `blueprint`) — whatever the recording
+carries — and returns `{ recorder, runner, chart, eventsReplayed, eventsSkipped,
+boundaryEvents, boundaryRanges, notes }`. Hand `recorder` and `runner` straight
+to `<Lens>`. See
+[Watching a run that already finished](#watching-a-run-that-already-finished).
+
+### `<Replay trace={trace} />`
+
+The `Trace`-shaped door into the same replay path. See
+[Replaying a `Trace`](#replaying-a-trace).
+
+### `structureGraphFromRunner(runner)` / `structureGraphFromSpec(structure)`
+
+The runner → chart adapter, exported from `agentfootprint-lens/core`. It walks a
+footprintjs build-time spec into an `explainable-ui` `TraceGraph` whose node ids
+ARE the real runtime stage ids, so a runtime overlay lights the executed path.
+`<Lens runner>` calls it for you; call it yourself to render the chart in your
+own shell, or to feed `<ExplainableShell traceGraph={…} />`:
 
 ```ts
-const stop = agent.observe((event) => { /* ... */ });
-// later:
-stop();
+import { structureGraphFromSpec } from 'agentfootprint-lens/core';
+
+const graph = structureGraphFromSpec(recording.structure);
 ```
 
-### `runner.getSnapshot()`, `runner.getNarrativeEntries()`, `runner.getSpec()`
-
-The standard agentfootprint introspection methods. `<Lens for={...}>` reads these automatically. You only call them yourself if you're building a custom UI.
+`structureGraphFromRunner(runner)` is the same builder from a live runner.
 
 ### `<WhereFrom>` — walk any value's causes on the one cursor
 
-In the engineer view's detail panel, the cursor stage's written keys render
-as chips; picking one shows the backward slice that produced its value
-(footprintjs `sliceForKey` — the same query the `backtrack` LLM tool runs).
-**◀ Walk the causes** freezes that slice as reverse-time stops and steps the
-ONE cursor through them ("◀ earlier cause / toward result ▶") — both parents
-of a fork are always visited, the chart cone follows the walk, and
-**[Copy story]** emits the exact `formatSlice` text the LLM tool returns.
-Honest absence stays honest: "never written — initial state / args / a
-closure", and reads-off runs say "unknowable, not absent".
+In the engineer view's detail panel, the cursor stage's written keys render as
+chips; picking one shows the backward slice that produced its value (footprintjs
+`sliceForKey` — the same query the `backtrack` LLM tool runs). **◀ Walk the
+causes** freezes that slice as reverse-time stops and steps the ONE cursor
+through them ("◀ earlier cause / toward result ▶") — both parents of a fork are
+always visited, the chart cone follows the walk, and **[Copy story]** emits the
+exact `formatSlice` text the LLM tool returns. Honest absence stays honest:
+"never written — initial state / args / a closure", and reads-off runs say
+"unknowable, not absent".
 
-### `useLiveTimeline()` (escape hatch)
+### Headless core
 
-Returns `{ timeline, ingest, startTurn, reset, builder }`. Use when you want to feed Lens from a non-runner source (replayed logs, server-sent events, etc.).
+`agentfootprint-lens/core` is React-free: `LensRecorder`, `ChangeNotifier`,
+`observeRecording`, the selectors and the graph adapters. Build a Vue / Angular
+/ CLI view on the same primitives — see `ChangeNotifier`'s JSDoc for adapter
+snippets.
 
 ---
 
 ## Why this design
 
-**The runner is the single source of truth.** Agents fire events as they work. Lens subscribes to those events. Telemetry exporters subscribe to those events. CLI loggers subscribe to those events. Nobody owns the runner; everyone can watch it.
+**The runner is the single source of truth.** Agents fire events as they work.
+Lens subscribes to those events. Telemetry exporters subscribe to those events.
+CLI loggers subscribe to those events. Nobody owns the runner; everyone can
+watch it.
 
-This is the observer pattern, applied consistently across every agentfootprint runner. The outcome:
-
-- **One line to integrate** — `<Lens for={agent} />`
+- **Three lines to integrate** — `lensRecorder()` + `observe()` + `<Lens>`
 - **Zero coupling** — the agent doesn't know Lens exists
-- **Composable** — Lens + your telemetry + your logger all watch the same agent with no conflict
-- **Uniform** — any runner works with any observer
+- **Composable** — Lens + your telemetry + your logger all watch the same agent
+- **Uniform** — any runner works with any observer, live or replayed
 
 ---
 

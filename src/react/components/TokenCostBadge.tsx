@@ -17,6 +17,7 @@
  */
 
 import React from 'react';
+import { ensureLensStyles } from '../lensStyles.js';
 
 export interface TokenCostBadgeProps {
   readonly inputTokens: number;
@@ -43,6 +44,7 @@ export const TokenCostBadge: React.FC<TokenCostBadgeProps> = ({
   outputTokens,
   costUsd,
 }) => {
+  ensureLensStyles();
   const total = (inputTokens || 0) + (outputTokens || 0);
   if (total <= 0) return null;
 

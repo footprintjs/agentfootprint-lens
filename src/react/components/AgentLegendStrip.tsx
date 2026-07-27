@@ -10,18 +10,24 @@
  *
  * Visual contract
  * ───────────────
- *   - One color swatch per row (`data-color-idx={0..7}` so the
- *     consumer's design tokens own the palette).
+ *   - One color swatch per row (`data-color-idx={0..7}`).
  *   - `data-agent-id` attribute on each row for selector-based wiring.
  *   - `aria-pressed` reflects the highlight state (toggle button).
  *
- * NO design-token coupling here — colors come from CSS variables the
- * caller defines for `--lens-agent-color-N` (N = 0..7). This keeps the
- * component theme-portable.
+ * Colours come from `--lens-agent-color-N` (N = 0..7) so a consumer's design
+ * tokens can own the palette — but every one falls back to Lens's own
+ * `AGENT_COLORS`. Without that fallback the `var()` was invalid and the swatch
+ * painted NOTHING, which made "theme-portable" mean "blank until you happen to
+ * define eight variables nobody documented".
+ *
+ * The rest of the row (layout, hover, active outline) is class-styled; the
+ * stylesheet ships with the library and injects itself — see `ensureLensStyles`.
  */
 
 import React from 'react';
 import type { AgentLegendEntry } from '../../core/utils/extractAgentLegend.js';
+import { agentColor } from '../theme/index.js';
+import { ensureLensStyles } from '../lensStyles.js';
 
 export interface AgentLegendStripProps {
   readonly entries: readonly AgentLegendEntry[];
@@ -34,6 +40,7 @@ export const AgentLegendStrip: React.FC<AgentLegendStripProps> = ({
   highlightedAgentId,
   onHighlight,
 }) => {
+  ensureLensStyles();
   if (entries.length === 0) return null;
 
   return (
@@ -57,7 +64,7 @@ export const AgentLegendStrip: React.FC<AgentLegendStripProps> = ({
             <span
               aria-hidden
               className="lens-agent-swatch"
-              style={{ background: `var(--lens-agent-color-${entry.colorIdx})` }}
+              style={{ background: agentColor(entry.colorIdx) }}
             />
             <span className="lens-agent-name">{entry.name}</span>
             {entry.role.length > 0 && <span className="lens-agent-role">{entry.role}</span>}

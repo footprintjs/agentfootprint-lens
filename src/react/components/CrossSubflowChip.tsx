@@ -13,6 +13,7 @@
  */
 
 import React from 'react';
+import { ensureLensStyles } from '../lensStyles.js';
 
 export interface CrossSubflowChipProps {
   readonly writerRuntimeStageId: string;
@@ -33,6 +34,7 @@ export const CrossSubflowChip: React.FC<CrossSubflowChipProps> = ({
   writerSubflowPath,
   onFocus,
 }) => {
+  ensureLensStyles();
   const label = formatWriterLabel(writerSubflowPath, writerRuntimeStageId);
   return (
     <button

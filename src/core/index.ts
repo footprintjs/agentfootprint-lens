@@ -28,6 +28,16 @@ export {
   type LensDiagnostics,
 } from "./LensRecorder.js";
 export { ChangeNotifier } from "./ChangeNotifier.js";
+// observeRecording — the offline twin of `recorder.observe(runner)`: a frozen
+// recording in the runner's place, returning the recorder + chart-runner
+// `<Lens>` wants. See ./observeRecording.ts for what a recording is and what a
+// replay cannot give back.
+export {
+  observeRecording,
+  type Recording,
+  type RecordedSnapshot,
+  type ObservedRecording,
+} from "./observeRecording.js";
 export { buildStepGraphFromSnapshot } from "./buildStepGraphFromSnapshot.js";
 export {
   buildSpecTreeFromBoundary,

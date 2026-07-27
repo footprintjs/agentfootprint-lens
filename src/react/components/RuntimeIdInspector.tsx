@@ -14,6 +14,7 @@
  */
 
 import React, { useState } from 'react';
+import { ensureLensStyles } from '../lensStyles.js';
 
 export interface RuntimeIdInspectorProps {
   readonly runtimeStageId: string;
@@ -34,6 +35,7 @@ export const RuntimeIdInspector: React.FC<RuntimeIdInspectorProps> = ({
   runtimeStageId,
   commitIdx,
 }) => {
+  ensureLensStyles();
   const [copiedKey, setCopiedKey] = useState<'rid' | 'commit' | null>(null);
 
   const onCopy = async (text: string, key: 'rid' | 'commit'): Promise<void> => {

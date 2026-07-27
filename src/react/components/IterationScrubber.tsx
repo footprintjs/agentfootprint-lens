@@ -23,6 +23,7 @@
  */
 
 import React from 'react';
+import { ensureLensStyles } from '../lensStyles.js';
 
 export interface IterationScrubberProps {
   readonly current: number;
@@ -37,6 +38,7 @@ export const IterationScrubber: React.FC<IterationScrubberProps> = ({
   stageId,
   onJump,
 }) => {
+  ensureLensStyles();
   if (current <= 0 && (max === undefined || max <= 0)) return null;
 
   const total = max ?? current;

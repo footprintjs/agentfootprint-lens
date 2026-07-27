@@ -14,18 +14,6 @@
 
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-// One-time global stylesheet — keyframes for the streaming caret.
-// Injected on first import so consumers don't need to wire CSS.
-// Idempotent via the unique `data-lens-keyframes` marker.
-if (
-  typeof document !== "undefined" &&
-  !document.querySelector("style[data-lens-keyframes]")
-) {
-  const styleEl = document.createElement("style");
-  styleEl.setAttribute("data-lens-keyframes", "v2");
-  styleEl.textContent = `@keyframes lens-blink { 50% { opacity: 0; } }`;
-  document.head.appendChild(styleEl);
-}
 import {
   defaultCommentaryTemplates,
   renderCommentary,
@@ -65,7 +53,10 @@ import {
   drillPathLabels,
 } from "../core/group/drillResolve.js";
 import { tailWindow, MAX_COMMENTARY_LINES } from "./tailWindow.js";
-import { T } from "./theme/index.js";
+import { T, MODE_PALETTES } from "./theme/index.js";
+// Lens's own stylesheet (the `lens-*` classes + the caret / edge keyframes).
+// Injected on first render, once — consumers wire no CSS. See lensStyles.ts.
+import { ensureLensStyles } from "./lensStyles.js";
 import { WhereFrom } from "./WhereFrom.js";
 // eui's light/dark presets — applied to the chart area from `theme.mode` so the
 // eui-rendered nodes follow dark/light without the consumer hand-setting `--fp-*`.
@@ -87,10 +78,17 @@ export type LensRunnerLike = import("agentfootprint").Runner;
  * The Lens chart's three-colour theme (agentfootprint level).
  *
  * `mode` is the COARSE switch: it applies eui's full light/dark preset as
- * `--fp-*` variables on the chart area, so the eui-rendered nodes (stages, slot
- * pills, subflow boxes) follow dark/light from this one field — no hand-setting
- * `--fp-*`. `ground` is the base (unvisited) colour, `visited` and `current` the
- * executed + cursor colours, layered on top. All optional.
+ * `--fp-*` variables at the Lens root — so the eui-rendered nodes (stages, slot
+ * pills, subflow boxes) follow dark/light from this one field, in ALL THREE
+ * views, with no hand-setting of `--fp-*`. It also fills in the tokens eui's
+ * presets have no cousin for: the elevated surface Lens's own panels (summary,
+ * transport, moments rail, detail) sit on, the edge colours, and the
+ * injection-source chips — see `MODE_PALETTES`. Every one of those lands in the
+ * `--fp-*` tier, so the resolution order is unchanged and a consumer's own
+ * `--lens-*` on any ancestor still wins.
+ *
+ * `ground` is the base (unvisited) colour, `visited` and `current` the executed
+ * + cursor colours, layered on top. All optional.
  */
 export interface LensTheme {
   mode?: 'dark' | 'light';
@@ -235,6 +233,7 @@ export const Lens: React.FC<LensProps> = ({
   commentaryTemplates,
   toolChoice,
 }) => {
+  ensureLensStyles();
   // Subscribe to the recorder so React re-renders on EVERY event
   // (progressive). No 100ms poll, no setInterval in the consumer.
   useLensRecorder(recorder);
@@ -393,9 +392,51 @@ export const Lens: React.FC<LensProps> = ({
 
   const isLive = autoAdvance && focusStep >= maxStep;
 
-  if (view === "user") return <UserView tree={tree} summary={summary} />;
+  // `theme.mode` applies eui's full light/dark preset as `--fp-*` vars, plus
+  // the lens-only palettes eui has no cousin for (elevated surface, edge kinds,
+  // injection chips) — so every surface follows dark/light from one field.
+  // Stamped at the LENS ROOT, not inside the engineer view: `view="analyst"`
+  // renders the summary card and the transport too, and used to get none of it.
+  // Everything lands in the `--fp-*` tier, so a consumer's `--lens-*` still wins
+  // (resolution order is `--lens-X` → `--fp-X` → fallback, unchanged).
+  const themeVars = useMemo<React.CSSProperties>(() => {
+    if (!theme) return {};
+    const base: React.CSSProperties = theme.mode
+      ? ({
+          ...(tokensToCSSVars(theme.mode === "light" ? coolLight : coolDark) as React.CSSProperties),
+          ...MODE_PALETTES[theme.mode],
+        } as React.CSSProperties)
+      : {};
+    return {
+      ...base,
+      ...(theme.visited !== undefined && { ["--fp-node-visited" as string]: theme.visited }),
+      ...(theme.current !== undefined && { ["--fp-node-cursor" as string]: theme.current }),
+    } as React.CSSProperties;
+  }, [theme]);
+
+  // Anything the view cannot honestly show — "this recording carried no
+  // chart", "3 events could not be read". `observeRecording` puts them on the
+  // recorder so a consumer never has to remember to render them.
+  const notes = recorder.getNotes();
+
+  const inTheme = (content: React.ReactNode): React.ReactElement => (
+    <div
+      style={{
+        ...themeVars,
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+        height: "100%",
+      }}
+    >
+      <LensNotes notes={notes} />
+      <div style={{ flex: 1, minHeight: 0 }}>{content}</div>
+    </div>
+  );
+
+  if (view === "user") return inTheme(<UserView tree={tree} summary={summary} />);
   if (view === "analyst")
-    return (
+    return inTheme(
       <AnalystView
         summary={summary}
         log={log}
@@ -405,9 +446,9 @@ export const Lens: React.FC<LensProps> = ({
         onFocusChange={handleFocusChange}
         isLive={isLive}
         liveStreamLine={liveStreamLine}
-      />
+      />,
     );
-  return (
+  return inTheme(
     <EngineerView
       recorder={recorder}
       {...(theme ? { theme } : {})}
@@ -432,7 +473,44 @@ export const Lens: React.FC<LensProps> = ({
       cursorPositions={cursorPositions}
       cursorRuntimeStageId={cursorRuntimeStageId}
       {...(toolChoice ? { toolChoice: toolChoiceData } : {})}
-    />
+    />,
+  );
+};
+
+/**
+ * The one-line notes strip above every view.
+ *
+ * These are the things the view CANNOT honestly show — a recording with no
+ * chart, a step strip with no boundaries, events that could not be read. They
+ * used to be return values from `observeRecording` that the consumer had to
+ * remember to render; a note nobody renders is a silent degradation, which is
+ * the failure mode this whole entry point exists to remove. Renders nothing
+ * when there is nothing to say.
+ */
+const LensNotes: React.FC<{ notes: readonly string[] }> = ({ notes }) => {
+  if (notes.length === 0) return null;
+  return (
+    <div role="status" style={{ flexShrink: 0 }}>
+      {notes.map((note) => (
+        <div
+          key={note}
+          style={{
+            padding: "6px 12px",
+            fontSize: 12,
+            lineHeight: 1.5,
+            fontFamily: T.fontSans,
+            color: T.textSecondary,
+            background: T.bgElevated,
+            borderBottom: `1px solid ${T.border}`,
+          }}
+        >
+          <span aria-hidden style={{ marginRight: 6, color: T.warning }}>
+            ⚠
+          </span>
+          {note}
+        </div>
+      ))}
+    </div>
   );
 };
 
@@ -1079,26 +1157,9 @@ const EngineerView: React.FC<{
     [cursorPositions, onFocusChange],
   );
 
-  // `theme.mode` applies eui's full light/dark preset as `--fp-*` vars on the
-  // chart area, so the eui-rendered nodes (StageNode / slot pills / subflow
-  // boxes) follow dark/light from one field — the consumer doesn't hand-set the
-  // `--fp-*` palette. `visited`/`current` layer node-fill overrides on top.
-  const chartThemeVars = useMemo<React.CSSProperties>(() => {
-    if (!theme) return {};
-    const base = theme.mode
-      ? (tokensToCSSVars(theme.mode === "light" ? coolLight : coolDark) as React.CSSProperties)
-      : {};
-    return {
-      ...base,
-      ...(theme.visited !== undefined && { ["--fp-node-visited" as string]: theme.visited }),
-      ...(theme.current !== undefined && { ["--fp-node-cursor" as string]: theme.current }),
-    } as React.CSSProperties;
-  }, [theme]);
-
   return (
     <div
       style={{
-        ...chartThemeVars,
         display: "flex",
         flexDirection: "column",
         gap: 0,
@@ -1276,10 +1337,26 @@ const EngineerView: React.FC<{
               />
               </LensChartBoundary>
             ) : (
+              // Two different reasons the chart is missing, and they need
+              // different sentences. Live: nobody passed a runner. Replay: the
+              // recording never carried the chart — telling someone looking at
+              // a finished run to "pass the Runner" sends them looking for an
+              // object that no longer exists.
               <div style={{ padding: 24, color: T.textMuted, fontSize: 12 }}>
-                No runner attached — pass the agentfootprint Runner via
-                <code> &lt;Lens runner=&#123;runner&#125; /&gt;</code> to render
-                the composition graph.
+                {recorder.isReplay() ? (
+                  <>
+                    This recording carried no chart. Capture{" "}
+                    <code>runner.getSpec().buildTimeStructure</code> at record
+                    time and save it next to the snapshot and the events —
+                    nothing else can draw the composition.
+                  </>
+                ) : (
+                  <>
+                    No runner attached — pass the agentfootprint Runner via
+                    <code> &lt;Lens runner=&#123;runner&#125; /&gt;</code> to
+                    render the composition graph.
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -1315,6 +1392,7 @@ const EngineerView: React.FC<{
               moments={timelineMoments}
               focusStep={focusStep}
               onFocusChange={onFocusChange}
+              isReplay={recorder.isReplay()}
               {...(cursorFocusedNode ||
               cursorInternalStage ||
               runInput !== undefined ||
@@ -1384,6 +1462,7 @@ const EngineerView: React.FC<{
             log={log}
             humanizer={humanizer}
             liveStreamLine={liveStreamLine}
+            isReplay={recorder.isReplay()}
             focusedSeq={focusedSeq}
             cursorScopeBase={
               cursorRuntimeStageId
@@ -1535,7 +1614,18 @@ const Commentary: React.FC<{
    * each stage emits its own event (the "rich" phase). `null` when not on a
    * drilled internal stage. */
   syntheticCurrentLine?: string | null;
-}> = ({ log, humanizer, focusedSeq, cursorScopeBase, liveStreamLine, syntheticCurrentLine }) => {
+  /** Finished recording rather than a live run — changes only the empty state
+   *  (see `WhatHappenedTimelineProps.isReplay` for why). */
+  isReplay?: boolean;
+}> = ({
+  log,
+  humanizer,
+  focusedSeq,
+  cursorScopeBase,
+  liveStreamLine,
+  syntheticCurrentLine,
+  isReplay = false,
+}) => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const firstFocusRef = useRef<HTMLDivElement | null>(null);
   const syntheticRef = useRef<HTMLDivElement | null>(null);
@@ -1594,7 +1684,9 @@ const Commentary: React.FC<{
         if (log.length === 0) {
           return (
             <div style={{ color: T.textSecondary, fontStyle: "italic" }}>
-              No moments yet — run a sample to see commentary.
+              {isReplay
+                ? "This recording carried no events, so there is nothing to narrate. Collect them with runner.on('*', …) at record time."
+                : "No moments yet — run a sample to see commentary."}
             </div>
           );
         }
