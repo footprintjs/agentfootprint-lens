@@ -9,11 +9,21 @@ import { describe, it, expect } from 'vitest';
 import { Agent } from 'agentfootprint';
 import { MockProvider } from 'agentfootprint/llm-providers';
 
+import type { CombinedNarrativeEntry } from 'footprintjs';
+
 import { lensRecorder } from './LensRecorder.js';
 import {
   explainableShellPropsFromRunner,
+  toShellNarrativeEntries,
   type ExplainableShellInputs,
 } from './explainableShellProps.js';
+
+/** Every entry type `<ExplainableShell>` declares it understands. Anything
+ *  footprintjs emits outside this set must be folded, not leaked. */
+const SHELL_KNOWN_TYPES = [
+  'stage', 'step', 'condition', 'fork', 'selector', 'subflow',
+  'loop', 'break', 'error', 'pause', 'resume', 'emit',
+] as const;
 
 async function runAgent(opts: { withTool?: boolean } = {}) {
   let b = Agent.create({ provider: new MockProvider({ reply: 'done' }), model: 'mock' }).system('be helpful');
@@ -77,6 +87,62 @@ describe('explainableShellPropsFromRunner — any agent shape (PROPERTY)', () =>
       expect(props.runtimeOverlay).toBeTruthy();
     },
   );
+});
+
+describe('toShellNarrativeEntries — footprintjs 9.15 retry entries (REGRESSION)', () => {
+  const retry: CombinedNarrativeEntry = {
+    type: 'retry',
+    text: 'attempt 1 of 3 failed — retrying in 200ms',
+    depth: 1,
+    stageName: 'CallLLM',
+    stageId: 'call-llm',
+    runtimeStageId: 'call-llm#0',
+  };
+
+  it('renders a retry as a generic step line, keeping its own wording', () => {
+    const [out] = toShellNarrativeEntries([retry]);
+    expect(out!.type).toBe('step');
+    expect(out!.text).toBe('attempt 1 of 3 failed — retrying in 200ms');
+  });
+
+  it('keeps every other field (depth, stage ids) so time-travel sync still works', () => {
+    const [out] = toShellNarrativeEntries([retry]);
+    expect(out!.depth).toBe(1);
+    expect(out!.stageName).toBe('CallLLM');
+    expect(out!.stageId).toBe('call-llm');
+    expect(out!.runtimeStageId).toBe('call-llm#0');
+  });
+
+  it('does not drop the entry — count in equals count out, order preserved', () => {
+    const entries: CombinedNarrativeEntry[] = [
+      { type: 'stage', text: 'CallLLM', depth: 0 },
+      retry,
+      { type: 'step', text: 'wrote reply', depth: 1 },
+    ];
+    const out = toShellNarrativeEntries(entries);
+    expect(out.map((e) => e.text)).toEqual(entries.map((e) => e.text));
+  });
+});
+
+describe('toShellNarrativeEntries — eui vocabulary (PROPERTY)', () => {
+  it.each(SHELL_KNOWN_TYPES)('passes a %s entry through untouched', (type) => {
+    const [out] = toShellNarrativeEntries([{ type, text: 't', depth: 0 }]);
+    expect(out!.type).toBe(type);
+  });
+
+  it('every emitted type is one eui declares — for any input type', () => {
+    const inputs: CombinedNarrativeEntry['type'][] = [...SHELL_KNOWN_TYPES, 'retry'];
+    const out = toShellNarrativeEntries(inputs.map((type) => ({ type, text: 't', depth: 0 })));
+    for (const e of out) expect(SHELL_KNOWN_TYPES).toContain(e.type);
+  });
+});
+
+describe('explainableShellPropsFromRunner — narrative vocabulary on a real run (INTEGRATION)', () => {
+  it('no entry escapes with a type <ExplainableShell> cannot render', async () => {
+    const { agent, rec } = await runAgent({ withTool: true });
+    const props = explainableShellPropsFromRunner(agent, rec);
+    for (const e of props.narrativeEntries!) expect(SHELL_KNOWN_TYPES).toContain(e.type);
+  });
 });
 
 describe('explainableShellPropsFromRunner — no `spec` (BOUNDARY/REGRESSION)', () => {
