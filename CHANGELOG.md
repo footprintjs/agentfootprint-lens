@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.30.1] - 2026-08-05
+
+### Fixed
+
+- Widened the `agentfootprint` peer range to `^7.0.0 || ^8.0.0`. agentfootprint
+  8.0.0 is a packaging-only major — every 7.x import path still resolves,
+  unchanged, as a deprecated alias — so Lens keeps working against it
+  unmodified; only the peer declaration was blocking consumers from installing
+  the two side by side.
+
 ## [0.30.0] - 2026-07-28
 
 ### Added
