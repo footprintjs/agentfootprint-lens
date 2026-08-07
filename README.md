@@ -1,16 +1,22 @@
-# agentfootprint-lens
+# Why Lens
+
+<sub>npm package: <a href="https://www.npmjs.com/package/agentfootprint-lens"><code>agentfootprint-lens</code></a></sub>
+
+**grouped by what matters: pinpoint why this answer**
 
 _Part of the **[footprintjs ecosystem](https://footprintjs.github.io/)** — the self-explaining stack._
 
+_One causal trace. Replay it as every step ([**Flow Lens**](https://github.com/footprintjs/explainable-ui)), grouped steps (**Why Lens**), or the story ([**Story Lens**](https://github.com/footprintjs/agentThinkingUI))._
+
 > **See the context engineering as it happens.**
 >
-> React components for watching agents built on [`agentfootprint`](https://www.npmjs.com/package/agentfootprint). Every injection into the Agent's slots (RAG, Memory, Skills, Instructions, Tools) is tagged inline — students and engineers see exactly what was put into the prompt, by whom, on which iteration. No hidden abstractions.
+> **Why Lens** is the grouped view of a causal trace: React components for watching agents built on [`agentfootprint`](https://www.npmjs.com/package/agentfootprint). Every injection into the Agent's slots (RAG, Memory, Skills, Instructions, Tools) is tagged inline — students and engineers see exactly what was put into the prompt, by whom, on which iteration. No hidden abstractions.
 
 ---
 
 ### The pitch
 
-agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Parallel, Conditional) + N patterns (ReAct, Reflexion, Tree-of-Thoughts...) + cross-cutting context engineering.** Lens is the surface that makes the context engineering visible — not as a "RAG view" or a "Memory view," but as tagged injections inside the ONE Agent card. That's the whole pedagogy.
+agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Parallel, Conditional) + N patterns (ReAct, Reflexion, Tree-of-Thoughts...) + cross-cutting context engineering.** Why Lens is the surface that makes the context engineering visible — not as a "RAG view" or a "Memory view," but as tagged injections inside the ONE Agent card. That's the whole pedagogy.
 
 [![npm version](https://img.shields.io/npm/v/agentfootprint-lens.svg)](https://www.npmjs.com/package/agentfootprint-lens)
 <!-- coverage-badge --><img src="https://img.shields.io/badge/coverage-88%25-green.svg" alt="coverage: 88%"><!-- /coverage-badge -->
