@@ -52,11 +52,20 @@ type ShellNarrativeEntry = NonNullable<
  * lookup. Typed as a total `Record` over eui's union, so BOTH directions are
  * compiler-checked: drop a key (or eui adds one) and this fails to build.
  *
- * footprintjs's own narrative vocabulary is the SUPERSET and grows on its own
- * release cadence — 9.15 added `'retry'` ("attempt N of M failed — retrying in
- * Xms"). Lens is the bridge that owns both vocabularies, so translating is this
- * file's job; a footprintjs entry type eui has not learned yet must not break
- * the consumer's build (that is exactly what 9.15 did).
+ * That trap is not decoration — it fired for real when eui learned `'retry'`,
+ * with exactly the message it should have:
+ *
+ *   TS2741: Property 'retry' is missing ... but required in Record<... | "retry", true>
+ *
+ * It only fires if lens actually BUILDS against a current eui, which is why the
+ * `footprint-explainable-ui` devDependency is a floor-and-major range rather
+ * than a caret: a caret pinned lens to one eui minor, so eui widened its union
+ * three releases running and this file never heard about it.
+ *
+ * footprintjs's own narrative vocabulary is still the SUPERSET and still grows
+ * on its own cadence, so `toShellNarrativeEntries` keeps a fallback for the
+ * NEXT type eui has not learned yet. `'retry'` is no longer that case — eui
+ * renders it natively now, so it passes straight through.
  */
 const SHELL_ENTRY_TYPES: Record<ShellNarrativeEntry['type'], true> = {
   stage: true,
@@ -71,12 +80,16 @@ const SHELL_ENTRY_TYPES: Record<ShellNarrativeEntry['type'], true> = {
   pause: true,
   resume: true,
   emit: true,
+  // eui >= 0.32.0 renders retry with its own icon, label and warning-weight
+  // colour. Listing it here IS the passthrough — there is no separate branch.
+  retry: true,
 };
 
 /** Where an entry type eui does not know is rendered: the generic step line —
- *  a plain, indented sub-item at the entry's own depth, which is precisely
- *  where footprintjs places `'retry'` (depth-1, between the attempt's reads
- *  and writes). The entry's own `text` is what shows, verbatim. */
+ *  a plain, indented sub-item at the entry's own depth, which is where
+ *  footprintjs places its nested per-stage entries. The entry's own `text` is
+ *  what shows, verbatim. This is the bridge for the NEXT variant footprintjs
+ *  adds, not for any type in `SHELL_ENTRY_TYPES` above. */
 const GENERIC_ENTRY_TYPE = 'step' satisfies ShellNarrativeEntry['type'];
 
 function isShellEntryType(
@@ -87,14 +100,16 @@ function isShellEntryType(
 
 /**
  * Translate footprintjs narrative entries into the vocabulary
- * `<ExplainableShell>` declares. Entry types eui knows pass through untouched;
- * anything newer (9.15's `'retry'`) is rendered as a generic step line keeping
- * its own text — displayed honestly, never dropped, and never silently typed
- * as something eui would style differently (a heading, an error).
+ * `<ExplainableShell>` declares. Entry types eui knows pass through untouched —
+ * `'retry'` among them, as of eui 0.32.0, so the badge reads "retry" and the
+ * line carries retry's own icon instead of a generic step dot.
  *
- * The one thing folding costs: eui surfaces that print `entry.type` as a badge
- * show "step" rather than "retry". The wording still says it was a retry. The
- * real fix for the badge lives upstream — eui teaching its union the new type.
+ * A type eui has NOT learned yet is still rendered as a generic step line
+ * keeping its own text — displayed honestly, never dropped, and never silently
+ * typed as something eui would style differently (a heading, an error). Folding
+ * costs the badge its real name, which is why folding is the fallback and never
+ * the destination: the fix for a folded type is always upstream, eui teaching
+ * its union the new variant, exactly as it just did for retry.
  */
 export function toShellNarrativeEntries(
   entries: readonly CombinedNarrativeEntry[],

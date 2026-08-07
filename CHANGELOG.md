@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0] - 2026-08-07
+
+### Changed
+
+- Narrative retry entries now pass through to the shell untouched — footprint-explainable-ui 0.32.0
+  knows the word, so retry attempts wear their own badge instead of folding into a generic step.
+  The translator bridge stays for the NEXT unknown variant.
+- The eui devDependency floor moved to >=0.32.0 <1.0.0 (a caret had frozen lens builds at eui 0.28
+  while three eui releases shipped — the compiler-checked entry-type record never heard about them).
+
+### Stated plainly
+
+- The peer range still admits eui 0.28–0.31: on those versions a retry entry renders as a generic
+  step dot in StoryNarrative (CommentaryPanel's badge still reads "retry"). Graceful, and now said
+  out loud; upgrade eui to 0.32.0 for the full treatment.
+
 ## [0.30.1] - 2026-08-05
 
 ### Fixed

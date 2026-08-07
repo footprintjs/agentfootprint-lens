@@ -19,10 +19,11 @@ import {
 } from './explainableShellProps.js';
 
 /** Every entry type `<ExplainableShell>` declares it understands. Anything
- *  footprintjs emits outside this set must be folded, not leaked. */
+ *  footprintjs emits outside this set must be folded, not leaked.
+ *  `'retry'` joined the set in eui 0.32.0. */
 const SHELL_KNOWN_TYPES = [
   'stage', 'step', 'condition', 'fork', 'selector', 'subflow',
-  'loop', 'break', 'error', 'pause', 'resume', 'emit',
+  'loop', 'break', 'error', 'pause', 'resume', 'emit', 'retry',
 ] as const;
 
 async function runAgent(opts: { withTool?: boolean } = {}) {
@@ -99,9 +100,12 @@ describe('toShellNarrativeEntries — footprintjs 9.15 retry entries (REGRESSION
     runtimeStageId: 'call-llm#0',
   };
 
-  it('renders a retry as a generic step line, keeping its own wording', () => {
+  // eui 0.32.0 taught its union `'retry'` and gave it a real icon/label/colour,
+  // so the bridge must STOP folding it. Folding was always a stopgap that cost
+  // the badge its real name; passing through is what restores it.
+  it('passes a retry through as a retry — no longer folded to step', () => {
     const [out] = toShellNarrativeEntries([retry]);
-    expect(out!.type).toBe('step');
+    expect(out!.type).toBe('retry');
     expect(out!.text).toBe('attempt 1 of 3 failed — retrying in 200ms');
   });
 
@@ -121,6 +125,7 @@ describe('toShellNarrativeEntries — footprintjs 9.15 retry entries (REGRESSION
     ];
     const out = toShellNarrativeEntries(entries);
     expect(out.map((e) => e.text)).toEqual(entries.map((e) => e.text));
+    expect(out.map((e) => e.type)).toEqual(['stage', 'retry', 'step']);
   });
 });
 
@@ -131,9 +136,34 @@ describe('toShellNarrativeEntries — eui vocabulary (PROPERTY)', () => {
   });
 
   it('every emitted type is one eui declares — for any input type', () => {
-    const inputs: CombinedNarrativeEntry['type'][] = [...SHELL_KNOWN_TYPES, 'retry'];
+    const inputs: CombinedNarrativeEntry['type'][] = [...SHELL_KNOWN_TYPES];
     const out = toShellNarrativeEntries(inputs.map((type) => ({ type, text: 't', depth: 0 })));
     for (const e of out) expect(SHELL_KNOWN_TYPES).toContain(e.type);
+  });
+});
+
+describe('toShellNarrativeEntries — the bridge survives retry (BOUNDARY)', () => {
+  // Retry passing through must NOT be mistaken for "the bridge is retired".
+  // footprintjs's vocabulary is still the superset and will widen again; the
+  // next variant has to fold, not crash and not leak a type eui cannot style.
+  // Cast: this type deliberately does not exist in either union yet — that is
+  // the whole point of the test.
+  const futureType = 'checkpoint' as CombinedNarrativeEntry['type'];
+
+  it('folds a type neither union knows into the generic step line', () => {
+    const [out] = toShellNarrativeEntries([
+      { type: futureType, text: 'saved a checkpoint', depth: 1 },
+    ]);
+    expect(out!.type).toBe('step');
+    expect(out!.text).toBe('saved a checkpoint');
+  });
+
+  it('folds the unknown type WITHOUT disturbing the retry beside it', () => {
+    const out = toShellNarrativeEntries([
+      { type: 'retry', text: 'attempt 1 of 2 failed', depth: 1 },
+      { type: futureType, text: 'saved a checkpoint', depth: 1 },
+    ]);
+    expect(out.map((e) => e.type)).toEqual(['retry', 'step']);
   });
 });
 
