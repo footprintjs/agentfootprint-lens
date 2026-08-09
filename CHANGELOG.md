@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.1] - 2026-08-09
+
+### Changed
+
+- **Peer range widened to agentfootprint `^7.0.0 || ^8.0.0 || ^9.0.0`.** The 9.x
+  line removed nothing this package's bridge reads; the one consumed surface that
+  changed is handled below.
+- **`budget_pressure` humanizer reads both field eras.** agentfootprint 8.14 added
+  honest `cap`/`projected` (+ `unit`: chars vs tokens) beside the misnamed
+  `capTokens`/`projectedTokens`, and 9.0 removed the old pair. The humanizer now
+  reads new-first with the old names as fallback, and prints the payload's own
+  unit — a 9.x recording no longer renders "undefined/undefined tokens", and a
+  7.x/8.x recording renders exactly as before.
+
 ## [0.31.0] - 2026-08-07
 
 ### Changed

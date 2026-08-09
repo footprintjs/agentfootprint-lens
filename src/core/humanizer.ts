@@ -82,8 +82,19 @@ export const defaultHumanizer: Humanizer = (event) => {
       return `Slot "${event.payload.slot}" composed (iter ${event.payload.iteration}, ${event.payload.budget.used}/${event.payload.budget.cap} tokens).`;
     case 'agentfootprint.context.evicted':
       return `Evicted from "${event.payload.slot}" — ${event.payload.reason} (survived ${event.payload.survivalMs}ms).`;
-    case 'agentfootprint.context.budget_pressure':
-      return `Budget pressure on "${event.payload.slot}": ${event.payload.projectedTokens}/${event.payload.capTokens} tokens → plan: ${event.payload.planAction}.`;
+    case 'agentfootprint.context.budget_pressure': {
+      // agentfootprint 8.14 added honest `cap`/`projected` + `unit` and 9.0 removed
+      // the misnamed `capTokens`/`projectedTokens`; read new-first so both eras render.
+      const p = event.payload as typeof event.payload & {
+        cap?: number;
+        projected?: number;
+        unit?: string;
+      };
+      const cap = p.cap ?? p.capTokens;
+      const projected = p.projected ?? p.projectedTokens;
+      const unit = p.unit ?? 'tokens';
+      return `Budget pressure on "${p.slot}": ${projected}/${cap} ${unit} → plan: ${p.planAction}.`;
+    }
 
     // Cost
     case 'agentfootprint.cost.tick':
