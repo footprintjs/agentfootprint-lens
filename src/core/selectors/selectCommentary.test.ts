@@ -14,7 +14,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { LLMCall, Parallel } from 'agentfootprint'
-import { MockProvider } from 'agentfootprint/llm-providers';
+import { MockProvider } from 'agentfootprint/providers';
 import { boundaryRecorder } from 'agentfootprint/observe';
 import {
   selectCommentaryAt,

@@ -13,9 +13,10 @@
 
 import { describe, it, expect } from 'vitest';
 import { LLMCall, Sequence } from 'agentfootprint'
-import { MockProvider } from 'agentfootprint/llm-providers';
+import { MockProvider } from 'agentfootprint/providers';
 import { lensStructureRecorder } from './viaStructureRecorder.js';
 import { lensGroupTranslator } from './lensGroupTranslator.js';
+import type { LensGroupOutput } from './types.js';
 
 describe('viaStructureRecorder — bridge proof', () => {
   it('produces a non-empty TraceGraph when wired to LLMCall', () => {
@@ -80,7 +81,7 @@ describe('viaStructureRecorder — A/B gap measurement (LLMCall)', () => {
     const newGraph = lensRec.getGraph();
 
     // OLD path — collapses to 1 LLMCall node, 0 edges.
-    const oldOutput = llm.getUIGroupWith(lensGroupTranslator);
+    const oldOutput = llm.getUIGroupWith<LensGroupOutput>(lensGroupTranslator);
 
     // Architectural assertion #1 — old path collapses LLMCall to 1 node.
     expect(oldOutput).toBeDefined();

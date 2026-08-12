@@ -9,8 +9,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Agent, defineTool } from 'agentfootprint'
-import { defineInstruction } from 'agentfootprint/injection-engine'
-import { mock } from 'agentfootprint/llm-providers';
+import { defineInstruction } from 'agentfootprint/context'
+import { mock } from 'agentfootprint/providers';
 import { structureGraphFromRunner } from './structureGraphFromRunner.js';
 
 function buildAgent() {

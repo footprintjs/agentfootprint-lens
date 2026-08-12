@@ -12,8 +12,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Agent, defineTool, milestoneFor } from 'agentfootprint'
-import { defineInstruction } from 'agentfootprint/injection-engine'
-import { mock } from 'agentfootprint/llm-providers';
+import { defineInstruction } from 'agentfootprint/context'
+import { mock } from 'agentfootprint/providers';
 import { LensRecorder } from '../LensRecorder.js';
 import { buildGroups } from './buildGroups.js';
 import { buildCommitSyncMap } from './buildCommitSyncMap.js';

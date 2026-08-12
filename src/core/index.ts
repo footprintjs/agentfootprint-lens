@@ -107,3 +107,9 @@ export {
   type LayoutLensGraphOptions,
   type LayoutLensGraphResult,
 } from "./render/layoutLensGraph.js";
+// Bug report — the headless half of "Report a bug with this run": what is
+// ticked by default, how big that selection is, and the issue body + GitHub
+// URL that carry it. The evidence itself is agentfootprint's
+// (`describeBugReport` / `exportBugReport`); these render the offer and the
+// consent. `<BugReportButton>` composes them; a CLI or Vue shell can too.
+export * from "./bugReport/index.js";

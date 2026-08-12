@@ -12,7 +12,7 @@
 
 import { describe, it } from 'vitest';
 import { LLMCall, Parallel } from 'agentfootprint'
-import { MockProvider } from 'agentfootprint/llm-providers';
+import { MockProvider } from 'agentfootprint/providers';
 import { lensSnapshotRecorder } from './LensSnapshotRecorder.js';
 
 function llm(reply: string) {

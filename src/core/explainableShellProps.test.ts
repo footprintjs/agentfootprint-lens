@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { Agent } from 'agentfootprint';
-import { MockProvider } from 'agentfootprint/llm-providers';
+import { MockProvider } from 'agentfootprint/providers';
 
 import type { CombinedNarrativeEntry } from 'footprintjs';
 

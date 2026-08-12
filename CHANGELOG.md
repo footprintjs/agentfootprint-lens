@@ -5,6 +5,76 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.0] - 2026-08-11
+
+### Added
+
+- **`<BugReportButton>` — "Report a bug with this run", with the consent step in
+  the way.** A small button for a debug UI. Clicking it opens a dialog that shows
+  the reporter exactly what would leave their machine before any of it does: one
+  tickable row per conversation and per derived file, each with its size, event
+  and turn counts, plus the names of every state key that was already scrubbed.
+  The reporter's own account — title, steps to reproduce, expected, actual —
+  lives in the same dialog, because a report missing either half is not one.
+
+  - **Default selection is the 3 most recent conversations** (`defaultRecentConversations`),
+    older ones unticked. Derived files (transcript, narrative, environment) are
+    rebuilt over whatever survives, so unticking a conversation takes it out of
+    those too — said on screen, not left to be discovered.
+  - **A live size meter** recomputes on every toggle: `12.4 MB of 24.0 MB`, red
+    and submit-refused over the ceiling, and it names the way out —
+    *"Untick conv-3 (20.0 MB) to fit."* — using the same biggest-first rule
+    agentfootprint's own trim hints use, and rendering the library's hints
+    verbatim beside it. The number states that it is an estimate and which way it
+    errs (the real zip is that size or smaller).
+  - **Three submit modes, stacked by what you configured**, so a mode you did not
+    wire is simply not offered instead of failing at click time: **copy report +
+    download zip** (always — clipboard, zip, and the repo's new-issue form
+    prefilled, with an over-long body cut at a line break and pointed back at the
+    clipboard); **sign in with GitHub** (`deviceClientId` — the OAuth device flow
+    inside the modal, so the issue is filed as the REPORTER); **file
+    automatically** (`endpoint` — POSTs the finished bundle to your relay, which
+    holds the token).
+  - **Secrets never touch storage.** A device-flow token lives in component
+    memory for the life of the modal and is dropped when the flow ends or the
+    dialog closes: no `localStorage`, no cookie, no log line, no issue body. It
+    rides one `Authorization` header and appears nowhere else — pinned by a test.
+  - **Every failure is the library's own sentence, verbatim.** agentfootprint's
+    refusals teach what to do next; a paraphrase of a teaching message is a worse
+    teaching message.
+  - **Degradation stated:** the substrate shipped in agentfootprint 9.9.0
+    (`describeBugReport` / `exportBugReport` / `githubDeviceSignIn` on the
+    `/observe` door). On 7.x or 8.x the button does not render — a one-line hint
+    says which version it needs. Detection is a namespace read, never a named
+    import, so an older agentfootprint degrades this one button instead of
+    failing to link the bundle.
+
+- **The headless half, on `agentfootprint-lens/core`:** `defaultSelection`,
+  `measureSelection`, `trimHintFor`, `formatBytes`, `buildIssueBody`,
+  `buildNewIssueUrl`, `parseGithubRepo`, `encodeBase64` — a CLI or a Vue shell can
+  build the same consent dialog from the same answers. The manifest shapes are
+  mirrored structurally rather than imported, so the package still compiles for
+  consumers on agentfootprint 7 and 8, where those types do not exist.
+
+### Changed
+
+- The `agentfootprint` devDependency moved to `^9.9.0` (the peer range already
+  admitted `^9`), and three call sites the 9.x line renamed were migrated with
+  it: `agentfootprint/llm-providers` → `agentfootprint/providers`,
+  `agentfootprint/injection-engine` → `agentfootprint/context`, and
+  `AgentBuilder.recorder()` → `.watch()`. All in tests; no shipped source
+  imported a door 9.x removed.
+- The `budget_pressure` humanizer keeps reading the pre-9.0 field names
+  (`capTokens` / `projectedTokens`) — 9.0 deleted them from the TYPE as well as
+  the payload, and a 7.x/8.x recording still carries them.
+
+### Fixed
+
+- `npm run typecheck` was red before this release for a reason unrelated to it:
+  three `Array.prototype.at(-1)` reads in `WhereFrom.test.tsx` need `lib: es2022`
+  and the package targets ES2020. Rewritten as index arithmetic — same assertion,
+  green gate.
+
 ## [0.31.1] - 2026-08-09
 
 ### Changed

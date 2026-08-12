@@ -16,7 +16,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { LLMCall, Agent, Sequence, Parallel, Loop, Conditional, defineTool, type LLMProvider } from 'agentfootprint'
-import { MockProvider } from 'agentfootprint/llm-providers';
+import { MockProvider } from 'agentfootprint/providers';
 import { lensStructureRecorder } from './viaStructureRecorder.js';
 
 function mockReply(reply: string): LLMProvider {
@@ -144,7 +144,7 @@ describe('agentfootprint chart shape inventory — for two-primitive design', ()
     const noopTool = defineTool({
       name: 'noop',
       description: 'no-op',
-      parameters: { type: 'object' as const, properties: {} },
+      inputSchema: { type: 'object' as const, properties: {} },
       execute: () => 'ok',
     });
     Agent.create({

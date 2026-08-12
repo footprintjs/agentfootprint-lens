@@ -85,10 +85,14 @@ export const defaultHumanizer: Humanizer = (event) => {
     case 'agentfootprint.context.budget_pressure': {
       // agentfootprint 8.14 added honest `cap`/`projected` + `unit` and 9.0 removed
       // the misnamed `capTokens`/`projectedTokens`; read new-first so both eras render.
+      // The old pair is widened in too: agentfootprint 9 deleted it from the
+      // TYPE as well as the payload, and a 7.x/8.x recording still carries it.
       const p = event.payload as typeof event.payload & {
         cap?: number;
         projected?: number;
         unit?: string;
+        capTokens?: number;
+        projectedTokens?: number;
       };
       const cap = p.cap ?? p.capTokens;
       const projected = p.projected ?? p.projectedTokens;

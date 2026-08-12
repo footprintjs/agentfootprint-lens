@@ -8,7 +8,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { Sequence, LLMCall } from 'agentfootprint';
-import { MockProvider } from 'agentfootprint/llm-providers';
+import { MockProvider } from 'agentfootprint/providers';
 
 import { cursorProvenance } from './cursorProvenance.js';
 

@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { Agent, LLMCall, Sequence, Loop, type LLMProvider, type PricingTable } from 'agentfootprint'
-import { MockProvider } from 'agentfootprint/llm-providers';
+import { MockProvider } from 'agentfootprint/providers';
 import { LensRecorder, lensRecorder } from './LensRecorder.js';
 import { defaultHumanizer } from './humanizer.js';
 import { SequenceStore } from 'footprintjs/trace';

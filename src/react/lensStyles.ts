@@ -28,7 +28,7 @@ import { T } from './theme/index.js';
 
 /** Marker attribute on the injected `<style>` — bump when the sheet changes. */
 const STYLE_MARKER = 'data-lens-styles';
-const STYLE_VERSION = 'v1';
+const STYLE_VERSION = 'v2';
 
 /**
  * The whole Lens stylesheet, as text. Exported so a server renderer can inline
@@ -252,6 +252,164 @@ export const LENS_STYLESHEET = `
 }
 .lens-token-cost-badge__tokens { color: ${T.textPrimary}; }
 .lens-token-cost-badge__cost { color: ${T.success}; }
+
+/* ── Bug report button + consent modal ────────────────────────────── */
+.lens-bug-report__open {
+  padding: 3px 8px;
+  border: 1px solid ${T.border};
+  border-radius: 6px;
+  background: ${T.bgSecondary};
+  color: ${T.textSecondary};
+  font-family: ${T.fontSans};
+  font-size: 11px;
+  cursor: pointer;
+}
+.lens-bug-report__open:hover { color: ${T.textPrimary}; border-color: ${T.primary}; }
+.lens-bug-report__unsupported {
+  display: inline-block;
+  max-width: 46ch;
+  color: ${T.textMuted};
+  font-family: ${T.fontSans};
+  font-size: 11px;
+  line-height: 1.5;
+}
+.lens-bug-report__unsupported code { font-family: ${T.fontMono}; }
+.lens-bug-report__overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.55);
+}
+.lens-bug-report__dialog {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(680px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 14px 16px;
+  border: 1px solid ${T.border};
+  border-radius: 10px;
+  background: ${T.bgElevated};
+  color: ${T.textPrimary};
+  font-family: ${T.fontSans};
+  font-size: 12px;
+  line-height: 1.5;
+}
+.lens-bug-report__header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.lens-bug-report__header h2 { margin: 0; font-size: 14px; }
+.lens-bug-report__header button {
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: transparent;
+  color: ${T.textSecondary};
+  font: inherit;
+  cursor: pointer;
+}
+.lens-bug-report__header button:hover { color: ${T.textPrimary}; border-color: ${T.border}; }
+.lens-bug-report__body { display: flex; flex-direction: column; gap: 12px; }
+.lens-bug-report__fields { display: flex; flex-direction: column; gap: 8px; }
+.lens-bug-report__fields label { display: flex; flex-direction: column; gap: 3px; }
+.lens-bug-report__fields span { color: ${T.textSecondary}; font-size: 11px; }
+.lens-bug-report__fields input,
+.lens-bug-report__fields textarea {
+  padding: 5px 7px;
+  border: 1px solid ${T.border};
+  border-radius: 6px;
+  background: ${T.bgSecondary};
+  color: ${T.textPrimary};
+  font-family: inherit;
+  font-size: 12px;
+  resize: vertical;
+}
+.lens-bug-report__fields input:focus-visible,
+.lens-bug-report__fields textarea:focus-visible,
+.lens-bug-report__consent input:focus-visible,
+.lens-bug-report__modes button:focus-visible {
+  outline: 2px solid ${T.primary};
+  outline-offset: 1px;
+}
+.lens-bug-report__consent {
+  margin: 0;
+  padding: 8px 10px;
+  border: 1px solid ${T.border};
+  border-radius: 8px;
+  background: ${T.bgSecondary};
+}
+.lens-bug-report__consent legend { padding: 0 4px; color: ${T.textSecondary}; font-size: 11px; }
+.lens-bug-report__consent ul { margin: 0; padding: 0; list-style: none; }
+.lens-bug-report__consent li { padding: 2px 0; }
+.lens-bug-report__consent label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+}
+.lens-bug-report__unit-label { flex: 1; overflow-wrap: anywhere; }
+.lens-bug-report__unit-meta {
+  flex: none;
+  color: ${T.textMuted};
+  font-family: ${T.fontMono};
+  font-size: 11px;
+  white-space: nowrap;
+}
+.lens-bug-report__redacted {
+  margin: 6px 0 0;
+  color: ${T.warning};
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.lens-bug-report__caveat {
+  display: block;
+  margin: 4px 0 0;
+  color: ${T.textMuted};
+  font-size: 11px;
+}
+.lens-bug-report__meter {
+  padding: 6px 8px;
+  border: 1px solid ${T.border};
+  border-radius: 8px;
+  background: ${T.bgSecondary};
+  font-size: 11px;
+}
+.lens-bug-report__meter strong { font-family: ${T.fontMono}; font-size: 12px; }
+.lens-bug-report__meter[data-state="ready"] { border-color: ${T.success}; }
+.lens-bug-report__meter[data-state="over"] { border-color: ${T.error}; color: ${T.error}; }
+.lens-bug-report__library-hint { color: ${T.textSecondary}; }
+.lens-bug-report__device {
+  padding: 8px 10px;
+  border: 1px solid ${T.primary};
+  border-radius: 8px;
+  background: ${T.bgSecondary};
+}
+.lens-bug-report__device p { margin: 2px 0; }
+.lens-bug-report__device code { font-family: ${T.fontMono}; font-size: 14px; letter-spacing: 1px; }
+.lens-bug-report__device a,
+.lens-bug-report__result a { color: ${T.primary}; overflow-wrap: anywhere; }
+.lens-bug-report__modes { display: flex; flex-direction: column; gap: 4px; }
+.lens-bug-report__modes button {
+  padding: 6px 10px;
+  border: 1px solid ${T.border};
+  border-radius: 6px;
+  background: ${T.bgTertiary};
+  color: ${T.textPrimary};
+  font: inherit;
+  cursor: pointer;
+}
+.lens-bug-report__modes button:hover:not(:disabled) { border-color: ${T.primary}; }
+.lens-bug-report__modes button:disabled { opacity: 0.5; cursor: not-allowed; }
+.lens-bug-report__mode-note { margin: 0 0 6px; color: ${T.textMuted}; font-size: 11px; }
+.lens-bug-report__error { margin: 0; color: ${T.error}; font-size: 12px; }
+.lens-bug-report__result ul { margin: 4px 0; padding-left: 18px; color: ${T.textSecondary}; }
 `;
 
 /**

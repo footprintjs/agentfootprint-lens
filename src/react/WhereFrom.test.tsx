@@ -71,7 +71,7 @@ describe('<WhereFrom>', () => {
     const { unmount } = render(
       createElement(WhereFrom, { runner: stubRunner(), cursorRuntimeStageId: 'work#1', onSliceChange }),
     );
-    const last = onSliceChange.mock.calls.at(-1)![0] as Map<string, number>;
+    const last = onSliceChange.mock.calls[onSliceChange.mock.calls.length - 1]![0] as Map<string, number>;
     expect(last).toBeInstanceOf(Map);
     expect(last.get('work')).toBe(0);
     expect(last.get('seed')).toBe(1);
@@ -86,7 +86,7 @@ describe('<WhereFrom>', () => {
     render(
       createElement(WhereFrom, { runner: stubRunner(), cursorRuntimeStageId: 'seed#0', onSliceChange }),
     );
-    expect(onSliceChange.mock.calls.at(-1)![0]).toBeUndefined();
+    expect(onSliceChange.mock.calls[onSliceChange.mock.calls.length - 1]![0]).toBeUndefined();
   });
 
   it('renders nothing for cursors without commits', () => {
@@ -173,7 +173,7 @@ describe('<WhereFrom>', () => {
     );
     fireEvent.click(getByText('◀ Walk the causes'));
     rerender(createElement(WhereFrom, { runner: stubRunner(), cursorRuntimeStageId: 'seed#0', onJumpTo, onSliceChange }));
-    const last = onSliceChange.mock.calls.at(-1)![0] as Map<string, number> | undefined;
+    const last = onSliceChange.mock.calls[onSliceChange.mock.calls.length - 1]![0] as Map<string, number> | undefined;
     expect(last).toBeInstanceOf(Map); // still painting — seed#0 alone would have cleared it
     expect([...last!.keys()].sort()).toEqual(['seed', 'work']);
   });

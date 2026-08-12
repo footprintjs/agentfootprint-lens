@@ -222,6 +222,142 @@ use `observeRecording`.
 
 ---
 
+## Report a bug with this run
+
+A bug report about an agent is only worth reading with the run attached. A run
+carries prompts, tool arguments and retrieved documents — which is exactly why
+nobody should send one without seeing it first.
+
+`<BugReportButton>` puts the consent step in the way. Clicking it opens a dialog
+that shows every selectable unit of evidence — one row per conversation, one per
+derived file — with its size, its event and turn counts, and the names of every
+state key that was already scrubbed. The reporter's own account (title, steps,
+expected, actual) is in the same dialog, because a report missing either half is
+not one. Nothing leaves until a person ticks it.
+
+The evidence itself is agentfootprint's (9.9.0 or newer): `describeBugReport`
+measures the run, `exportBugReport` bundles the units that were kept. Lens
+renders the offer and hands the ids back — it never assembles a bundle and never
+decides what a unit is.
+
+```tsx
+import { BugReportButton } from 'agentfootprint-lens';
+
+// The whole integration. `source` is whatever this Lens is already showing.
+<BugReportButton
+  source={recording}                                // or a recordRun() handle, a Runner, or an array
+  issuesUrl="https://github.com/acme/agent/issues"  // owner + repo are read from this
+  labels={['bug', 'from-lens']}
+/>;
+```
+
+### What the reporter sees
+
+- **The consent manifest** — one checkbox per unit. The **3 most recent
+  conversations** start ticked, older ones do not (`defaultRecentConversations`
+  changes the number). Derived files — the readable transcript, the narrative,
+  the environment block — are rebuilt over the conversations that survive, so
+  unticking a conversation takes it out of those too.
+- **A live size meter** — `12.4 MB of 24.0 MB`, recomputed on every toggle. Over
+  the ceiling it turns red, submit is refused, and it names what to do about it:
+  *"Untick conv-3 (20.0 MB) to fit."* The number is an estimate and says so — the
+  derived files shrink as conversations come out, so the real zip is that size or
+  smaller.
+- **The redacted keys, by name.** footprintjs scrubbed the values upstream at
+  commit time; the manifest can therefore say *which* secrets were protected
+  without ever carrying one.
+
+### The three submit modes
+
+They stack by what you configured. The first is always there, so the button is
+never a dead end, and a mode you did not configure is simply not offered —
+nothing fails at click time.
+
+| mode | needs | who the issue is from | where the zip goes |
+|---|---|---|---|
+| **Copy report + download zip** | nothing | the reporter, by hand | their machine |
+| **Sign in with GitHub** | `deviceClientId` | the reporter, as themselves | their machine, attached by hand |
+| **File automatically** | `endpoint` | your application | wherever your relay puts it |
+
+**(a) Copy + download** copies the composed issue body to the clipboard, saves
+the evidence zip, and opens the repo's new-issue form prefilled. A body too long
+for a URL is cut at a line break with a sentence pointing at the clipboard,
+never silently shortened.
+
+**(b) Sign in with GitHub** runs the OAuth **device flow** inside the dialog:
+Lens shows the user code and the verification link, GitHub polls in the
+background, and on approval the issue is filed from the browser as *that person*
+— so a maintainer can ask them a follow-up.
+
+```tsx
+<BugReportButton
+  source={recording}
+  issuesUrl="https://github.com/acme/agent/issues"
+  deviceClientId="Iv1.0123456789abcdef"   // an OAuth App with Device Flow enabled
+/>;
+```
+
+The client id is public by design (the device flow has no client secret). The
+token it yields is not: Lens holds it in memory for the life of the modal and
+drops it — never `localStorage`, never a cookie, never a log line, never the
+issue body. Signing in does not give Lens anywhere to push the zip, so the zip
+downloads to the reporter's machine and the issue says plainly that it must be
+attached by hand.
+
+**(c) File automatically** POSTs the finished bundle to your own endpoint, which
+holds the token and files the report with `githubBugReporter`. One click for the
+reporter; nothing about your repository lives in the browser.
+
+```tsx
+<BugReportButton source={recording} issuesUrl={ISSUES} endpoint="/api/bug-report" />;
+```
+
+```ts
+// The server side, in full. The browser already built the bundle — the relay
+// only holds the credential.
+import { githubBugReporter } from 'agentfootprint/observe';
+
+const reporter = githubBugReporter({ issueRepo: 'acme/agent' }); // token: GITHUB_TOKEN
+
+app.post('/api/bug-report', async (req, res) => {
+  const { manifest, filename, zipBase64 } = req.body; // kind: 'agentfootprint-lens.bug-report'
+  const zip = Buffer.from(zipBase64, 'base64');
+  res.json(await reporter.file({ manifest, files: [], zip, filename }));
+});
+```
+
+The response Lens renders is `{ issueUrl, zipUrl }`; anything else — a non-2xx,
+an `error` string — is shown to the reporter exactly as the server wrote it.
+That is the rule for every failure in this flow: agentfootprint's refusals teach
+what to do next, so they are rendered verbatim rather than paraphrased.
+
+### On an older agentfootprint
+
+The substrate shipped in agentfootprint 9.9.0. On 7.x or 8.x the button does not
+render at all — a one-line hint says which version it needs. Lens will not send
+a run it cannot measure first.
+
+### Props
+
+| prop | | |
+|---|---|---|
+| `source` | required | a `Recording`, a `recordRun()` handle, a `Runner`, or an array of them |
+| `issuesUrl` | required | `https://github.com/OWNER/REPO/issues` — owner, repo and API root are read from it (GitHub Enterprise Server works unchanged) |
+| `endpoint` | | your relay URL — offers "File automatically" |
+| `deviceClientId` | | OAuth App client id — offers "Sign in with GitHub" |
+| `labels` | | labels applied to the issue |
+| `defaultRecentConversations` | `3` | how many of the most recent conversations start ticked |
+| `maxBytes` | 24 MB | the ceiling the meter measures against |
+| `appVersion` | | your app's version, for the environment block |
+| `label` | | the button's own text |
+| `api` | | the agentfootprint functions to call — defaults to the installed ones |
+
+The headless half is on `agentfootprint-lens/core` — `defaultSelection`,
+`measureSelection`, `trimHintFor`, `buildIssueBody`, `buildNewIssueUrl`,
+`parseGithubRepo` — so a CLI or a Vue shell can build the same dialog.
+
+---
+
 ## Theming
 
 **Lens inherits theme tokens from your app via CSS variables.** Set `--fp-*`
@@ -375,6 +511,16 @@ always visited, the chart cone follows the walk, and **[Copy story]** emits the
 exact `formatSlice` text the LLM tool returns. Honest absence stays honest:
 "never written — initial state / args / a closure", and reads-off runs say
 "unknowable, not absent".
+
+### `<BugReportButton>` — report a bug with the run attached, consent first
+
+A small button for a debug UI. The dialog it opens shows every selectable unit
+of evidence with its size and counts, meters the selection live against a 24 MB
+ceiling (naming the unit to untick when it is over), and offers whichever of the
+three submit modes you configured — copy + download, sign in with GitHub, or
+file through your own endpoint. Needs agentfootprint 9.9+; on anything older it
+renders a version hint instead of itself. See
+[Report a bug with this run](#report-a-bug-with-this-run).
 
 ### Headless core
 

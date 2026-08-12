@@ -9,7 +9,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { Agent, defineTool } from 'agentfootprint'
-import { MockProvider } from 'agentfootprint/llm-providers';
+import { MockProvider } from 'agentfootprint/providers';
 import { structureGraphFromRunner } from './structureGraphFromRunner.js';
 
 function buildAgentRunner() {

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { LLMCall } from 'agentfootprint'
-import { MockProvider } from 'agentfootprint/llm-providers';
+import { MockProvider } from 'agentfootprint/providers';
 import { lensSnapshotRecorder } from './LensSnapshotRecorder.js';
 import { LensRecorder } from './LensRecorder.js';
 

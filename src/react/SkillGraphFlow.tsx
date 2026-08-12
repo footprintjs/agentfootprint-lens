@@ -2,7 +2,7 @@
  * <SkillGraphFlow> — an interactive, two-panel view of a skill graph.
  *
  *   import { SkillGraphFlow } from 'agentfootprint-lens';
- *   import { skillGraph, decideSkill } from 'agentfootprint/injection-engine';
+ *   import { skillGraph, decideSkill } from 'agentfootprint/context';
  *
  *   const graph = skillGraph().tree(decideSkill(isIo, ioSkill, triageSkill, 'io?')).build();
  *   <SkillGraphFlow graph={graph} detailFor={(node) => describe(node.id)} />

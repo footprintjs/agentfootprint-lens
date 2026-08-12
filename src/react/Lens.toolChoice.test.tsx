@@ -62,7 +62,7 @@ async function runAgentWithToolChoice() {
       },
       execute: () => 'sent',
     })
-    .recorder(choices)
+    .watch(choices)
     .build();
   const recorder = lensRecorder();
   recorder.observe(agent);

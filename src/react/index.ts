@@ -79,3 +79,12 @@ export {
 
 // Hooks — composable building blocks for consumer-built Lens layouts.
 export * from "./hooks/index.js";
+// <BugReportButton> — "Report a bug with this run" with consent first: the
+// modal shows every selectable unit of evidence (sizes, event/turn counts, the
+// redacted key names) before anything leaves, meters the selection against the
+// 24 MB ceiling, and offers whichever of the three submit modes you configured.
+// Renders a version hint instead of itself on agentfootprint older than 9.9.
+export {
+  BugReportButton,
+  type BugReportButtonProps,
+} from "./components/BugReportButton.js";
