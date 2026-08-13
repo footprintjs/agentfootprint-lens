@@ -88,3 +88,20 @@ export {
   BugReportButton,
   type BugReportButtonProps,
 } from "./components/BugReportButton.js";
+
+// Render-by-ref artifacts — the screen's half of the claim-check handshake.
+// <ArtifactPane> redeems one `present` call through an ArtifactResolver and
+// renders the component REGISTERED for the artifact's kind (ids + props,
+// never model-generated markup); an expired/missing ref renders its stated
+// absence from the speak-time snapshot alone. Ships two built-ins: a rows
+// table for 'dataset/rows' and the honest metadata card every unknown kind
+// falls back to. Resolvers + transcript walkers live in `/core`.
+export { ArtifactPane, type ArtifactPaneProps } from "./artifacts/ArtifactPane.js";
+export {
+  registerArtifactComponent,
+  artifactComponentFor,
+  type ArtifactComponentProps,
+  type RegisterArtifactComponentArgs,
+} from "./artifacts/registry.js";
+export { ArtifactRowsTable } from "./artifacts/ArtifactRowsTable.js";
+export { ArtifactMetaCard } from "./artifacts/ArtifactMetaCard.js";

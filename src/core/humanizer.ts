@@ -30,6 +30,18 @@ import {
   type SkillRejectedLike,
   type TurnRoutedLike,
 } from './humanizeRouting.js';
+import {
+  humanizeArtifactExpired,
+  humanizeArtifactMinted,
+  humanizeArtifactPresented,
+  humanizeArtifactRefused,
+  humanizeArtifactResolved,
+  type ArtifactExpiredLike,
+  type ArtifactMintedLike,
+  type ArtifactPresentedLike,
+  type ArtifactRefusedLike,
+  type ArtifactResolvedLike,
+} from './humanizeArtifacts.js';
 
 export type Humanizer = (event: AgentfootprintEvent) => string | null;
 
@@ -59,6 +71,23 @@ export const defaultHumanizer: Humanizer = (event) => {
   }
   if ((event.type as string) === 'agentfootprint.skill.route_conflict') {
     return humanizeRouteConflict(event.payload as RouteConflictLike);
+  }
+  // Artifact lifecycle (agentfootprint 9.21–9.23) — the claim-check story:
+  // minted / resolved / expired / refused / presented. Newer than the event
+  // union this package compiles against, so matched by raw type string with
+  // structural payload mirrors (see humanizeArtifacts.ts). Payloads carry
+  // META ONLY by the artifacts law, so these lines never print payload bytes.
+  switch (event.type as string) {
+    case 'agentfootprint.artifacts.minted':
+      return humanizeArtifactMinted(event.payload as ArtifactMintedLike);
+    case 'agentfootprint.artifacts.resolved':
+      return humanizeArtifactResolved(event.payload as ArtifactResolvedLike);
+    case 'agentfootprint.artifacts.expired':
+      return humanizeArtifactExpired(event.payload as ArtifactExpiredLike);
+    case 'agentfootprint.artifacts.refused':
+      return humanizeArtifactRefused(event.payload as ArtifactRefusedLike);
+    case 'agentfootprint.artifacts.presented':
+      return humanizeArtifactPresented(event.payload as ArtifactPresentedLike);
   }
   switch (event.type) {
     // Composition

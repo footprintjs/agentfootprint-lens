@@ -113,3 +113,10 @@ export {
 // (`describeBugReport` / `exportBugReport`); these render the offer and the
 // consent. `<BugReportButton>` composes them; a CLI or Vue shell can too.
 export * from "./bugReport/index.js";
+// Artifacts (render-by-ref) — the headless half of redeeming claim tickets:
+// the ArtifactResolver abstraction (`httpArtifactResolver` over a served
+// agent's wire ops, `storeArtifactResolver` over a same-process store), the
+// walkers that lift `present` calls out of recordings/transcripts, and the
+// placeholder copy an expired ref renders from its speak-time snapshot alone.
+// `<ArtifactPane>` composes them; a Vue or CLI shell can too.
+export * from "./artifacts/index.js";

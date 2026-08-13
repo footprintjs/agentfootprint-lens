@@ -28,7 +28,7 @@ import { T } from './theme/index.js';
 
 /** Marker attribute on the injected `<style>` — bump when the sheet changes. */
 const STYLE_MARKER = 'data-lens-styles';
-const STYLE_VERSION = 'v2';
+const STYLE_VERSION = 'v3';
 
 /**
  * The whole Lens stylesheet, as text. Exported so a server renderer can inline
@@ -410,6 +410,89 @@ export const LENS_STYLESHEET = `
 .lens-bug-report__mode-note { margin: 0 0 6px; color: ${T.textMuted}; font-size: 11px; }
 .lens-bug-report__error { margin: 0; color: ${T.error}; font-size: 12px; }
 .lens-bug-report__result ul { margin: 4px 0; padding-left: 18px; color: ${T.textSecondary}; }
+
+/* ── Render-by-ref artifacts (pane, meta card, rows table) ───────────── */
+.lens-artifact__pane {
+  border: 1px solid ${T.border};
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: ${T.bgSecondary};
+  color: ${T.textPrimary};
+  font-family: ${T.fontSans};
+  font-size: 12px;
+  line-height: 1.5;
+}
+.lens-artifact__state { margin: 0; color: ${T.textSecondary}; }
+.lens-artifact__state[role="alert"] { color: ${T.error}; }
+.lens-artifact__state code { font-family: ${T.fontMono}; font-size: 11px; }
+.lens-artifact__card {
+  border: 1px solid ${T.border};
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: ${T.bgElevated};
+  font-family: ${T.fontSans};
+  font-size: 12px;
+}
+.lens-artifact__pane .lens-artifact__card { border: none; padding: 0; background: transparent; }
+.lens-artifact__card-title { font-weight: 600; margin-bottom: 4px; }
+.lens-artifact__meta {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 2px 10px;
+  margin: 0 0 6px;
+}
+.lens-artifact__meta dt { color: ${T.textMuted}; }
+.lens-artifact__meta dd { margin: 0; overflow-wrap: anywhere; }
+.lens-artifact__mono { font-family: ${T.fontMono}; font-size: 11px; }
+.lens-artifact__preview {
+  margin: 0;
+  padding: 6px 8px;
+  max-height: 240px;
+  overflow: auto;
+  border: 1px solid ${T.border};
+  border-radius: 6px;
+  background: ${T.bgPrimary};
+  color: ${T.textSecondary};
+  font-family: ${T.fontMono};
+  font-size: 11px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.lens-artifact__note { margin: 4px 0 0; color: ${T.textMuted}; font-size: 11px; }
+.lens-artifact__actions { display: flex; gap: 6px; margin-top: 6px; }
+.lens-artifact__actions button {
+  padding: 4px 8px;
+  border: 1px solid ${T.border};
+  border-radius: 6px;
+  background: ${T.bgTertiary};
+  color: ${T.textPrimary};
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.lens-artifact__actions button:hover { border-color: ${T.primary}; }
+.lens-artifact__table-wrap { max-height: 320px; overflow: auto; }
+.lens-artifact__table {
+  border-collapse: collapse;
+  width: 100%;
+  font-family: ${T.fontMono};
+  font-size: 11px;
+}
+.lens-artifact__table th,
+.lens-artifact__table td {
+  border: 1px solid ${T.border};
+  padding: 3px 6px;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+.lens-artifact__table th {
+  position: sticky;
+  top: 0;
+  background: ${T.bgTertiary};
+  color: ${T.textPrimary};
+}
+.lens-artifact__table td { color: ${T.textSecondary}; }
 `;
 
 /**

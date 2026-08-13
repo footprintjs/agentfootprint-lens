@@ -455,7 +455,15 @@ describe('routing — R24: teachingHumanizer / turn_routed precedence', () => {
     expect(out).toBeTruthy();
     expect(out).toContain('billing');
   });
-  it('renders route_conflict via the default sentences (agentfootprint has no teaching key for it)', () => {
+  it('renders route_conflict via whichever era agentfootprint ships (teaching key added in 9.23.0)', () => {
+    // Pre-9.23 agentfootprint had no teaching-voice key for route_conflict,
+    // so selectCommentaryKey returned undefined and teachingHumanizer fell
+    // through to defaultHumanizer's sentence (identifiers in straight
+    // quotes: `"shipping"`). 9.23.0 added agentfootprint's own
+    // `skill.route_conflict` commentary template (identifiers in
+    // backticks: `` `shipping` ``). Both are honest; assert the invariant
+    // that holds across both eras, same precedent as the turn_routed test
+    // above.
     const out = teachingHumanizer(
       evt(ROUTE_CONFLICT, {
         iteration: 1,
@@ -463,7 +471,13 @@ describe('routing — R24: teachingHumanizer / turn_routed precedence', () => {
         losers: [{ toolName: 'check_charge', target: 'billing' }],
       }),
     );
-    expect(out).toMatch(/get_order → "shipping" won/);
+    expect(out).toBeTruthy();
+    expect(out).toContain('get_order');
+    expect(out).toContain('shipping');
+    expect(out).toContain('won');
+    expect(out).toContain('check_charge');
+    expect(out).toContain('billing');
+    expect(out).toContain('suppressed');
   });
 });
 

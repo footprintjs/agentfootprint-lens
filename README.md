@@ -358,6 +358,84 @@ The headless half is on `agentfootprint-lens/core` — `defaultSelection`,
 
 ---
 
+## Render an artifact by its ref
+
+agentfootprint 9.21–9.23 taught tools to check large results into an **artifact
+store** and hand the model a ~30-token claim ticket (`art_…`) instead of the
+bytes; the model finishes with `present({ ref, as, label })`. The lens is the
+screen's half of that handshake: it **redeems the ref and renders a component
+the app registered for the artifact's kind** — ids + props, never markup the
+model wrote. The model can say *what* to show; only your registry says *how*.
+
+```tsx
+import {
+  ArtifactPane,
+  httpArtifactResolver,
+  presentedFromEvents,
+  registerArtifactComponent,
+} from 'agentfootprint-lens';
+
+// 1. Teach Lens your kinds, once at startup. ('dataset/rows' already ships.)
+registerArtifactComponent({
+  kind: 'chart/spec',
+  component: ({ meta, data }) => <MyBarChart title={meta.label} spec={data} />,
+});
+
+// 2. Point a resolver at the served agent — the SAME invoke path the
+//    conversation posts to. Session identity rides every redemption.
+const resolver = httpArtifactResolver({ url: '/invoke', sessionId });
+
+// 3. Render every artifact the run presented. On history reload, walk the
+//    stored transcript instead: readPresentedResult(toolMessage.content).
+{presentedFromEvents(recording.events).map((call) => (
+  <ArtifactPane key={call.toolCallId ?? call.ref} presented={call} resolver={resolver} />
+))}
+```
+
+`<ArtifactPane>` heads the ref first (the render decision), then gets the
+payload and mounts the registered component. A kind nothing is registered for
+falls back to an honest **metadata card** — ticket facts, a bounded payload
+preview, copy/download — plus one line naming the `registerArtifactComponent`
+call that closes the gap. Never a blank pane.
+
+### When the artifact is gone
+
+Refs expire — TTL, retention budgets, a restarted store. The `present` result
+carries a **description snapshot** at speak time, so a reloaded conversation
+can still say what stood there, from history alone:
+
+> Chart — "Q3 sales by region" (bar-chart, 41.0 KB) — expired; re-run to regenerate.
+
+That placeholder needs **no store round-trip beyond the failed head** — this is
+the spreadsheet's `#REF!`, taught manners. Missing, expired and
+another-session's ref all answer one indistinguishable not-found by design (a
+leaked ref probes nothing), and the pane renders the same stated absence for
+all three. A resolution *door* failure (no store attached, wire down) is a
+different sentence: the pane shows the server's own teaching refusal, verbatim.
+
+### The two resolvers
+
+```ts
+import { httpArtifactResolver, storeArtifactResolver } from 'agentfootprint-lens/core';
+
+// Over a served agent's wire ops (standingAgent / httpHost / nodeHost, or the
+// managed-runtime dialect): POST { op: 'artifact-head' | 'artifact-get', ref,
+// sessionId } to the invoke path. `userId`, extra `headers` and a custom
+// `fetch` are options.
+const overHttp = httpArtifactResolver({ url: 'https://host/invoke', sessionId: 's-1' });
+
+// Over a directly passed store, for same-process demos and tests. The scope is
+// REQUIRED — refs only resolve under the identity they were minted in.
+const inProcess = storeArtifactResolver({ store, scope: { conversationId } });
+```
+
+Both return `{ status: 'live' | 'absent' | 'failed' }` outcomes instead of
+throwing, so a pane can branch. In the EventStream, the whole artifact
+lifecycle — minted, resolved, expired, refused, presented — already reads as
+prose via the default humanizer.
+
+---
+
 ## Theming
 
 **Lens inherits theme tokens from your app via CSS variables.** Set `--fp-*`
@@ -521,6 +599,19 @@ three submit modes you configured — copy + download, sign in with GitHub, or
 file through your own endpoint. Needs agentfootprint 9.9+; on anything older it
 renders a version hint instead of itself. See
 [Report a bug with this run](#report-a-bug-with-this-run).
+
+### `<ArtifactPane>` — render by ref, with `#REF!` taught manners
+
+Takes one `present` call (`presented`) and an `ArtifactResolver` (`resolver`);
+heads the ref, then renders the component registered for the artifact's kind
+(`registerArtifactComponent({ kind, component })`) with `{ meta, data,
+presented }` as props. `'dataset/rows'` ships as a built-in table; every
+unregistered kind falls back to `<ArtifactMetaCard>` with the gap stated. An
+expired/missing ref renders its placeholder from the speak-time snapshot alone.
+The headless half — `httpArtifactResolver`, `storeArtifactResolver`,
+`presentedFromEvents`, `readPresentedResult`, `artifactPlaceholder` — is on
+`agentfootprint-lens/core`. See
+[Render an artifact by its ref](#render-an-artifact-by-its-ref).
 
 ### Headless core
 

@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.34.0] - 2026-08-13
+
+### Added
+
+- **Render by ref: the Why Lens redeems claim tickets.** ArtifactResolver
+  (over the agentfootprint 9.23 wire ops, or a directly-passed store), a
+  component registry keyed by artifact kind (registered components only —
+  never model markup), ArtifactPane rendering live artifacts through
+  registered components, a generic dataset table + an honest JSON/meta
+  fallback card, and the expired-ref placeholder rendered from the present
+  snapshot alone — a reloaded conversation re-draws its panes or says
+  exactly what's gone ("expired; re-run to regenerate"), never a blank
+  pane.
+
+### Fixed
+
+- routing R24 (`route_conflict`) hit the same class of drift as 0.33.1's
+  `turn_routed` fix: agentfootprint 9.23.0 added its own teaching-voice
+  commentary template for `skill.route_conflict` (previously it had none),
+  so `teachingHumanizer` now renders agentfootprint's sentence instead of
+  falling through to this package's default. Test made era-robust
+  (invariant assertion, not one era's exact text); no behavior change.
+
 ## [0.33.1] - 2026-08-12
 
 ### Fixed
