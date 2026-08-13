@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.35.0] - 2026-08-13
+
+### Added
+
+- **The Interact half of typed asks.** A decision component registry
+  (registered components only — never model markup), a built-in
+  OptionPicker (options inline or resolved from propsRef via the artifact
+  resolver), and the AwaitingPane — renders the ask's registered
+  component, degrades to an answerable plain-question fallback on unknown
+  components or expired props (a human is never dead-ended), and posts
+  the decision as a structured fact; the natural-language echo is
+  display, never the record.
+
 ## [0.34.0] - 2026-08-13
 
 ### Added

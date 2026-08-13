@@ -105,3 +105,23 @@ export {
 } from "./artifacts/registry.js";
 export { ArtifactRowsTable } from "./artifacts/ArtifactRowsTable.js";
 export { ArtifactMetaCard } from "./artifacts/ArtifactMetaCard.js";
+
+// Typed HITL — the screen's half of a paused run's typed question.
+// <AwaitingPane> reads `awaiting.component` (era-robust), redeems `propsRef`
+// through the SAME ArtifactResolver artifacts ride, renders the component the
+// app REGISTERED for the id (ids + props, never model markup — the no-eval
+// law), and hands the person's STRUCTURED decision to `onDecision` (the host
+// app owns the wire POST; `decisionRequestBody` in /core formats the body).
+// After answering, the pane renders the decision as one sentence — display
+// only; the structured decision is the record. Every broken path (unknown id,
+// expired ref, failed door, crashed component) states itself and falls back
+// to a live answer surface — a paused run is never a dead end for the human.
+// One built-in collector ships: 'option-picker'.
+export { AwaitingPane, type AwaitingPaneProps } from "./hitl/AwaitingPane.js";
+export {
+  registerDecisionComponent,
+  decisionComponentFor,
+  type DecisionComponentProps,
+  type RegisterDecisionComponentArgs,
+} from "./hitl/registry.js";
+export { OptionPicker } from "./hitl/OptionPicker.js";

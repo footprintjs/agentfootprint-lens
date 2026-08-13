@@ -28,7 +28,7 @@ import { T } from './theme/index.js';
 
 /** Marker attribute on the injected `<style>` — bump when the sheet changes. */
 const STYLE_MARKER = 'data-lens-styles';
-const STYLE_VERSION = 'v3';
+const STYLE_VERSION = 'v4';
 
 /**
  * The whole Lens stylesheet, as text. Exported so a server renderer can inline
@@ -493,6 +493,66 @@ export const LENS_STYLESHEET = `
   color: ${T.textPrimary};
 }
 .lens-artifact__table td { color: ${T.textSecondary}; }
+
+/* ── Typed HITL (awaiting pane, option picker, answer boxes) ─────────── */
+.lens-hitl__pane {
+  border: 1px solid ${T.border};
+  border-radius: 8px;
+  padding: 8px 10px;
+  background: ${T.bgSecondary};
+  color: ${T.textPrimary};
+  font-family: ${T.fontSans};
+  font-size: 12px;
+  line-height: 1.5;
+}
+.lens-hitl__question { margin: 0 0 6px; font-weight: 600; }
+.lens-hitl__state { margin: 0 0 6px; color: ${T.textSecondary}; }
+.lens-hitl__state[role="alert"] { color: ${T.error}; }
+.lens-hitl__state code { font-family: ${T.fontMono}; font-size: 11px; }
+.lens-hitl__sentence { margin: 0; font-weight: 600; }
+.lens-hitl__note { margin: 4px 0 0; color: ${T.textMuted}; font-size: 11px; }
+.lens-hitl__note code { font-family: ${T.fontMono}; font-size: 11px; overflow-wrap: anywhere; }
+.lens-hitl__picker { margin-top: 2px; }
+.lens-hitl__options {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 240px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.lens-hitl__options button,
+.lens-hitl__answer button {
+  padding: 4px 8px;
+  border: 1px solid ${T.border};
+  border-radius: 6px;
+  background: ${T.bgTertiary};
+  color: ${T.textPrimary};
+  font: inherit;
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+}
+.lens-hitl__options button { width: 100%; }
+.lens-hitl__options button:hover,
+.lens-hitl__answer button:hover:not(:disabled) { border-color: ${T.primary}; }
+.lens-hitl__answer button:disabled { opacity: 0.5; cursor: not-allowed; }
+.lens-hitl__answer { display: flex; gap: 6px; margin-top: 6px; flex-wrap: wrap; }
+.lens-hitl__answer--consent { flex-direction: column; align-items: stretch; }
+.lens-hitl__consent-buttons { display: flex; gap: 6px; }
+.lens-hitl__input {
+  flex: 1;
+  min-width: 160px;
+  padding: 4px 8px;
+  border: 1px solid ${T.border};
+  border-radius: 6px;
+  background: ${T.bgPrimary};
+  color: ${T.textPrimary};
+  font: inherit;
+  font-size: 11px;
+}
 `;
 
 /**

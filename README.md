@@ -436,6 +436,73 @@ prose via the default humanizer.
 
 ---
 
+## Answer a paused run with a real component (typed HITL)
+
+agentfootprint 9.24 taught every human-ask door (`askHuman`, the `ask`
+middleware, `defineTool({ checkInComponent })`) to carry an optional typed
+half beside the prose question: `{ componentId, props?, propsRef? }`. The id
+names a component **your screen registered** — ids + props, never markup the
+model wrote, the same no-eval law artifacts follow. Small props ride the ask
+inline; the big half (a 200-option picker's options) rides the **artifact
+store** as a `propsRef` claim ticket, redeemed through the same resolver and
+the same session identity as every other artifact.
+
+`<AwaitingPane>` is the screen's half:
+
+```tsx
+import {
+  AwaitingPane,
+  decisionRequestBody,
+  httpArtifactResolver,
+  registerDecisionComponent,
+} from 'agentfootprint-lens';
+
+// 1. Teach Lens your collectors, once at startup. ('option-picker' ships.)
+registerDecisionComponent({
+  componentId: 'refund-form',
+  component: ({ question, props, data, respond }) => (
+    <MyRefundForm limits={props} rows={data} onSubmit={(answer) => respond(answer)} />
+  ),
+});
+
+// 2. When a reply comes back awaiting, render the pane. The lens does NOT
+//    own the POST — your app does; decisionRequestBody formats the body.
+const resolver = httpArtifactResolver({ url: '/invoke', sessionId });
+<AwaitingPane
+  awaiting={reply.awaiting}
+  resolver={resolver}
+  onDecision={(decision) =>
+    fetch('/invoke', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(decisionRequestBody({ decision, sessionId })),
+    })
+  }
+/>
+```
+
+The person clicks; `onDecision` receives **the structured decision** — the
+option's id, or the approve/decline record (`approveDecision` /
+`declineDecision`, byte-compatible with agentfootprint's check-in
+vocabulary). After answering, the pane renders the decision as one sentence —
+*"Approved by alice@ops — 'verified'."* — which is **display only**: the
+structured decision is the record; the words are a rendering of it.
+
+Nothing on this road dead-ends the human. An unknown `componentId` falls back
+to the prose question plus a plain answer box and *says so*; an expired
+`propsRef` renders the honest placeholder plus the answer box; a crashed
+registered component is caught and stated; a consent gate (`checkIn` /
+middleware `ask`) falls back to Approve/Decline with a required "deciding as"
+field, because an audit record with no actor names nobody.
+
+The headless half is on `agentfootprint-lens/core` — `readAwaitingComponent`
+(era-robust: reads `awaiting.component` and the three `pauseData` homes),
+`approveDecision` / `declineDecision`, `decisionRequestBody`,
+`decisionSentence`, `isConsentAsk` — so a Vue or CLI shell can build the same
+pane.
+
+---
+
 ## Theming
 
 **Lens inherits theme tokens from your app via CSS variables.** Set `--fp-*`
@@ -612,6 +679,23 @@ The headless half — `httpArtifactResolver`, `storeArtifactResolver`,
 `presentedFromEvents`, `readPresentedResult`, `artifactPlaceholder` — is on
 `agentfootprint-lens/core`. See
 [Render an artifact by its ref](#render-an-artifact-by-its-ref).
+
+### `<AwaitingPane>` — answer a paused run with a real component
+
+Takes the `awaiting` payload a served agent replied with (`awaiting`), an
+optional `ArtifactResolver` (`resolver`, only needed when the ask ships a
+`propsRef`), and `onDecision` — which receives the person's STRUCTURED
+decision; your app posts it (`decisionRequestBody` formats the wire body).
+Renders the component registered for the ask's `componentId`
+(`registerDecisionComponent({ componentId, component })`) with `{ question,
+props, data, respond }`; `'option-picker'` ships as a built-in. Unknown id,
+expired ref, failed door and crashed component all state themselves and fall
+back to a live answer surface — never a dead end. After answering it renders
+the decision as one sentence (display only; the structured decision is the
+record). The headless half — `readAwaitingComponent`, `approveDecision` /
+`declineDecision`, `decisionRequestBody`, `decisionSentence`, `isConsentAsk`
+— is on `agentfootprint-lens/core`. See
+[Answer a paused run with a real component](#answer-a-paused-run-with-a-real-component-typed-hitl).
 
 ### Headless core
 

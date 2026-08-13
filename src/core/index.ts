@@ -120,3 +120,10 @@ export * from "./bugReport/index.js";
 // placeholder copy an expired ref renders from its speak-time snapshot alone.
 // `<ArtifactPane>` composes them; a Vue or CLI shell can too.
 export * from "./artifacts/index.js";
+// Typed HITL — the headless half of answering a paused run's typed question:
+// the era-robust reader for `awaiting.component`, the consent decision
+// vocabulary (approve/decline, mirrored by value), the wire-shaped decision
+// request body, and the display-only decision sentence ("Interact-to-NL" —
+// the words are display; the structured decision is the record).
+// `<AwaitingPane>` composes them; a Vue or CLI shell can too.
+export * from "./hitl/index.js";
