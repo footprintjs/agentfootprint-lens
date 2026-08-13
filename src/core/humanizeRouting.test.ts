@@ -29,7 +29,15 @@
  *       the menu clause stays silent (the pick was NOT on that menu)
  *   R22 cursorMove model-pick WITHOUT decorations — stays silent (old era)
  *   R23 context.evaluated without cursorMove — stays silent
- *   R24 teachingHumanizer — routing events fall through to these sentences
+ *   R24 teachingHumanizer / turn_routed precedence — teaching voice wins
+ *       when agentfootprint ships a commentary key for the event (9.16.0+
+ *       bundles one for `turn_routed by='entry'`); this package's sentence
+ *       is the FALLBACK for events agentfootprint has no teaching template
+ *       for (route_conflict has none as of 9.17.0). Both are era-dependent
+ *       facts about agentfootprint's bundled template set, not about this
+ *       package — so R24 asserts the precedence RULE (non-empty, names the
+ *       skill) rather than one era's exact wording; R24b pins the exact
+ *       default-humanizer sentence, which this package fully owns.
  *
  * House law under test: render ONLY what the event carries — absent field ⇒
  * the clause is omitted; unknown vocabulary ⇒ honest raw line, never a guess.
@@ -433,12 +441,21 @@ describe('routing — R23: context.evaluated without cursorMove', () => {
 
 // ─── teaching voice falls through ────────────────────────────────────────
 
-describe('routing — R24: teachingHumanizer falls through to routing sentences', () => {
-  it('renders turn_routed via the default sentences (no commentary key exists)', () => {
+describe('routing — R24: teachingHumanizer / turn_routed precedence', () => {
+  it('teaching voice wins when agentfootprint ships a key; we are the fallback', () => {
+    // agentfootprint 9.16.0+ bundles its own teaching-voice commentary
+    // template for turn_routed by='entry' (selectCommentaryKey returns a
+    // real key), so teachingHumanizer renders AGENTFOOTPRINT's sentence,
+    // not this package's. Pre-9.16 agentfootprint has no such key, so
+    // selectCommentaryKey returns undefined and teachingHumanizer falls
+    // through to defaultHumanizer's sentence instead. Both are honest;
+    // assert the invariant that holds across both eras — a non-empty
+    // sentence that names the routed-to skill — not one era's exact text.
     const out = teachingHumanizer(evt(TURN_ROUTED, { by: 'entry', to: 'billing' }));
-    expect(out).toBe('Turn started in "billing" — a rule matched (tier 1).');
+    expect(out).toBeTruthy();
+    expect(out).toContain('billing');
   });
-  it('renders route_conflict via the default sentences', () => {
+  it('renders route_conflict via the default sentences (agentfootprint has no teaching key for it)', () => {
     const out = teachingHumanizer(
       evt(ROUTE_CONFLICT, {
         iteration: 1,
@@ -447,5 +464,12 @@ describe('routing — R24: teachingHumanizer falls through to routing sentences'
       }),
     );
     expect(out).toMatch(/get_order → "shipping" won/);
+  });
+});
+
+describe('routing — R24b: defaultHumanizer turn_routed by=entry (era-independent, this package owns it)', () => {
+  it('renders the exact default sentence regardless of what agentfootprint bundles for teaching voice', () => {
+    const out = defaultHumanizer(evt(TURN_ROUTED, { by: 'entry', to: 'billing' }));
+    expect(out).toBe('Turn started in "billing" — a rule matched (tier 1).');
   });
 });

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.1] - 2026-08-12
+
+### Fixed
+
+- **0.33.0 never reached npm** — its publish failed CI because one test
+  (routing R24) asserted a stale premise: that `teachingHumanizer` always
+  falls through to this package's default sentence for `turn_routed`.
+  agentfootprint 9.17.0 ships its own bundled teaching-voice commentary
+  template for `turn_routed by='entry'`, so `selectCommentaryKey` now
+  returns a real key and `teachingHumanizer` correctly renders
+  agentfootprint's sentence instead. This patch makes the test era-robust
+  and states the precedence rule it was actually checking: **agentfootprint's
+  bundled teaching sentence wins when one exists; this package's narration
+  is the fallback for events agentfootprint has no teaching template for.**
+  No behavior change — reships 0.33.0's routing-narration feature as-is.
+
 ## [0.33.0] - 2026-08-12
 
 ### Added
