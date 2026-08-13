@@ -20,6 +20,16 @@ import {
   selectCommentaryKey,
   type CommentaryTemplates,
 } from 'agentfootprint';
+import {
+  humanizeCursorMovePick,
+  humanizeRouteConflict,
+  humanizeSkillRejected,
+  humanizeTurnRouted,
+  type CursorMoveLike,
+  type RouteConflictLike,
+  type SkillRejectedLike,
+  type TurnRoutedLike,
+} from './humanizeRouting.js';
 
 export type Humanizer = (event: AgentfootprintEvent) => string | null;
 
@@ -29,11 +39,27 @@ export type Humanizer = (event: AgentfootprintEvent) => string | null;
  * their own via `humanizeWith` (below).
  */
 export const defaultHumanizer: Humanizer = (event) => {
-  // Low-signal internal engine emits — hidden from prose. The surrounding
-  // injection / llm lines already narrate the OUTCOME, so the raw
-  // "context.evaluated" tick is noise. (These are $emit events, not part of the
-  // typed AgentfootprintEvent union, so we match the raw type string.)
-  if ((event.type as string) === 'agentfootprint.context.evaluated') return null;
+  // Low-signal internal engine emits — mostly hidden from prose. The
+  // surrounding injection / llm lines already narrate the OUTCOME, so the raw
+  // "context.evaluated" tick is noise — EXCEPT the iteration a model pick
+  // lands with its menu decorations (offered / declinedOffer, agentfootprint
+  // 9.17.0); that one sentence is the assist-posture record. (These are $emit
+  // events, not part of the typed AgentfootprintEvent union, so we match the
+  // raw type string.)
+  if ((event.type as string) === 'agentfootprint.context.evaluated') {
+    const cursorMove = (event.payload as { cursorMove?: CursorMoveLike }).cursorMove;
+    return humanizeCursorMovePick(cursorMove);
+  }
+  // Skill-graph routing events (agentfootprint 9.16.0 / 9.17.0) — newer than
+  // the event union this package compiles against, so matched by raw type
+  // string with structural payload mirrors (the budget_pressure both-eras
+  // precedent, applied at the type level; see humanizeRouting.ts).
+  if ((event.type as string) === 'agentfootprint.skill.turn_routed') {
+    return humanizeTurnRouted(event.payload as TurnRoutedLike);
+  }
+  if ((event.type as string) === 'agentfootprint.skill.route_conflict') {
+    return humanizeRouteConflict(event.payload as RouteConflictLike);
+  }
   switch (event.type) {
     // Composition
     case 'agentfootprint.composition.enter':
@@ -133,6 +159,11 @@ export const defaultHumanizer: Humanizer = (event) => {
       return `Skill "${event.payload.skillId}" activated — ${event.payload.reason}.`;
     case 'agentfootprint.skill.deactivated':
       return `Skill "${event.payload.skillId}" deactivated — ${event.payload.reason}.`;
+    case 'agentfootprint.skill.rejected':
+      // agentfootprint 9.17.0 widened the payload with `posture`
+      // ('guard' | 'rails') for posture refusals; older recordings carry no
+      // posture and render the reachability refusal (both eras handled).
+      return humanizeSkillRejected(event.payload as SkillRejectedLike);
 
     // Error
     case 'agentfootprint.error.fatal':

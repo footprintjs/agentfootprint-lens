@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0] - 2026-08-12
+
+### Added
+
+- **Why Lens narrates the skill-graph routing cascade** (agentfootprint
+  9.16/9.17): plain-language sentences for `turn_routed` verdicts (rule/intent
+  with ranked scores and runner-up, continuity + near-tie holds, menu picks
+  with "stay offered and declined", rails turns, dropped saved places),
+  `route_conflict` suppressed hops, and posture refusals. Renders only what
+  the event carries; unknown vocabulary falls back to an honest raw line;
+  old-era recordings read exactly as before (pinned).
+
 ## [0.32.0] - 2026-08-11
 
 ### Added
