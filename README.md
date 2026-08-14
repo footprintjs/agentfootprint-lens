@@ -561,6 +561,105 @@ a Vue or CLI shell.
 
 ---
 
+## Driving the cursor from your app
+
+**Omitting these props keeps the lens self-driving.** It holds the position
+itself, follows the live run, and needs nothing from you — that is the default
+and it has not changed.
+
+Pass `step` and you own the cursor. That is the difference between a lens that
+happens to be on your page and a lens that is part of your app: two tabs can
+show the same moment, a "jump to the failure" button in your own UI can move it,
+and switching tabs no longer loses the position.
+
+```tsx
+function Debugger({ recorder, runner }) {
+  // ONE cursor, held by you. Both lenses show the same moment.
+  const [step, setStep] = useState(0);
+
+  return (
+    <>
+      <Lens recorder={recorder} runner={runner} step={step} onStepChange={setStep} />
+      <Lens recorder={recorder} runner={runner} step={step} onStepChange={setStep} view="analyst" />
+      <button onClick={() => setStep(0)}>Back to the start</button>
+    </>
+  );
+}
+```
+
+Just want to *watch* the cursor? Pass `onStepChange` alone. The lens keeps
+owning the state and calls you on every move — the same contract
+`<TraceExplorerShell onSelectionChange>` has in `footprint-explainable-ui`.
+
+### The unit is a step, and the callback carries the rest
+
+A **step** is one stop on the lens's scrub axis — the same number the transport
+counts ("3 / 12"), the same one the WHAT HAPPENED rail dots. Valid values are
+`0 … totalSteps - 1`, and `totalSteps` **grows** while a run is live.
+
+Every call hands you the other two units of the same position, so you never
+invert the mapping yourself:
+
+```ts
+onStepChange(step, at)
+// at = { step, totalSteps, runtimeStageId, commitIdx, label, kind?, clamped }
+```
+
+- `at.runtimeStageId` — footprintjs's address, the string
+  `<TraceExplorerShell selectedRuntimeStageId>` and `<RunSlider cursorRuntimeStageId>` take.
+- `at.commitIdx` — the commit-log index the position anchors to.
+
+Why the step is the controlled unit and not one of those: it is the only one
+that is **one-to-one** with a position the lens can show. A group's start and
+its end are the same group, so "Run · start" and "Run · end" are both
+`__root__#0`; a parallel fork's branches open at the same commit. Address the
+cursor by either and the second of every such pair becomes unreachable — half
+the positions silently unselectable, which is the exact failure this prop
+exists to prevent.
+
+Move it out of range and the lens **clamps and says so**: it renders the nearest
+real position, calls `onStepChange(clamped, { clamped: true })`, and warns once
+on the console. It clamps rather than refuses because the axis grows under you —
+a step you stored from a finished run is a perfectly good value that the same
+run, earlier, does not have yet. Store what the callback hands back and the two
+cursors agree again.
+
+Every mover reports: the step strip, ◀ ▶ ⟳Live, the arrow keys, a chart node
+click, a WHAT HAPPENED moment, a provenance jump, and the auto-advance that
+follows a live run. One cursor, one funnel — a mover that moved without telling
+you would be a second cursor wearing the first one's clothes.
+
+---
+
+## Rendering your own detail pane
+
+`slots.detail` replaces the CONTENT of the shipped right column. The column
+itself — its width, its border, its collapse pill, its cursor — is unchanged.
+Omit `slots` and the built-in timeline renders exactly as before.
+
+```tsx
+const Detail: React.FC<LensDetailSlotProps> = ({ step, cursorRuntimeStageId, node, onNavigate }) => (
+  <div>
+    <h3>{node?.label ?? 'nothing focused'}</h3>
+    <code>{cursorRuntimeStageId}</code>
+    <button onClick={() => onNavigate(0)}>rewind</button>
+  </div>
+);
+
+<Lens recorder={recorder} runner={runner} slots={{ detail: Detail }} />
+```
+
+The slot receives the cursor in every unit (`step`, `totalSteps`,
+`cursorRuntimeStageId`, `commitIdx`, `label`, `kind`), the `StepNode` it sits on
+and the ones that ran inside its scope (`node`, `relatedNodes`), the `recorder`
+for anything else, and `onNavigate` — the same funnel every built-in mover uses,
+so your pane moves the ONE cursor rather than starting a second one.
+
+Keep the slots object stable across renders (module scope or `useMemo`), same as
+`<TraceExplorerShell slots>`.
+
+---
+
 ## Theming
 
 **Lens inherits theme tokens from your app via CSS variables.** Set `--fp-*`
@@ -637,9 +736,22 @@ if a strict CSP blocks the automatic injection.
 
 ## Responsive
 
-Lens resizes to whatever space you give it. Below ~640px wide it stacks panels
-vertically (like `<ExplainableShell>` does). Drop it in a splitter, a drawer, or
-a full-screen tab — no config needed.
+Lens resizes to whatever space you give it. The engineer view is a chart column
+beside an inspector with a 300px minimum, and below **`LENS_NARROW_BREAKPOINT`
+(690px of available row width)** that pair stops fitting — so the columns
+**stack** instead of clipping. Nothing is hidden and nothing is cut off; the
+same panes are read top to bottom instead of left to right. A split panel
+dragged down to 392px gets a readable lens, not a sliver of one.
+
+The threshold is exported, so a shell that lays out around Lens can use the same
+number rather than guessing it:
+
+```ts
+import { LENS_NARROW_BREAKPOINT, isNarrowRow } from 'agentfootprint-lens';
+```
+
+Drop it in a splitter, a drawer, or a full-screen tab — no config needed, both
+themes.
 
 ---
 
@@ -673,6 +785,9 @@ graph in one call. Returns an unsubscribe. Call it once per run.
 | `stepGraph` | `StepGraph?` | Bring your own step graph; by default Lens uses the recorder's. |
 | `toolChoice` | `ToolChoiceSource?` | Mount the per-iteration tool-choice panel. |
 | `granularity` | `'step' \| 'group'?` | Which ruler is scrubbing the chart. `'group'` paints the cursor's group as a named place. Default `'step'`. See [Scrubbing by group](#scrubbing-by-group--the-active-group-is-a-named-place). |
+| `step` | `number?` | Controlled cursor. **Omit it and the lens is self-driving, exactly as before.** Pass it and you own the position; out-of-range values are clamped and reported. See [Driving the cursor](#driving-the-cursor-from-your-app). |
+| `onStepChange` | `(step, at) => void?` | Fires on every cursor move — required for movement in controlled mode, an observation hook otherwise. `at` carries `runtimeStageId`, `commitIdx`, `label`, `kind` and `clamped`. |
+| `slots` | `LensSlots?` | Slot overrides. `slots.detail` renders your content in the shipped right column. Omit for the built-in timeline. See [Rendering your own detail pane](#rendering-your-own-detail-pane). |
 
 ### `<LensFlow>` — the chart canvas on its own
 

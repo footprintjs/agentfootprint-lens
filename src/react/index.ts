@@ -12,7 +12,34 @@
  * Or compose individual view components directly.
  */
 
-export { Lens, type LensProps, type LensTheme, type LensView } from "./Lens.js";
+export {
+  Lens,
+  type LensProps,
+  type LensTheme,
+  type LensView,
+  // Slot overrides for the engineer view: keep the shipped layout and the
+  // shipped cursor, render your own content in the right column.
+  type LensSlots,
+  type LensDetailSlotProps,
+} from "./Lens.js";
+// The controlled cursor. `<Lens step onStepChange>` is the standard
+// controlled/uncontrolled pair — omit both and the lens is self-driving exactly
+// as before. The hook is exported for shells that build their own transport
+// around the same one cursor.
+export {
+  useLensCursor,
+  clampStep,
+  type LensCursorAt,
+  type LensCursorPlace,
+  type UseLensCursorArgs,
+  type UseLensCursorResult,
+} from "./useLensCursor.js";
+// Where the engineer view stops being two columns and starts stacking them.
+export {
+  LENS_NARROW_BREAKPOINT,
+  isNarrowRow,
+  useNarrowRow,
+} from "./narrowLayout.js";
 // Lens's own stylesheet. It injects itself on first render, so there is nothing
 // to import in an app — this export is for SSR / strict-CSP consumers who want
 // to place it in their own <style> instead.

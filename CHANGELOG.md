@@ -5,6 +5,63 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.0] - 2026-08-14
+
+### Added
+
+- **A controlled cursor: `<Lens step onStepChange>`.** The lens computed both
+  cursor units internally and shipped neither, so a host could neither drive the
+  position nor follow it — and two lenses on one screen held two independent
+  cursors that lost each other on a tab switch. Now it is the standard
+  controlled/uncontrolled pair, modelled prop-for-prop on
+  `<TraceExplorerShell selectedRuntimeStageId / onSelectionChange>` so the
+  family reads as one API: pass `step` and you own the position, pass only
+  `onStepChange` and the lens still owns it but tells you every time it moves.
+  **Every** internal mover reports through the one funnel — the step strip,
+  ◀ ▶ ⟳Live, the arrow keys, a chart node click, a WHAT HAPPENED moment, a
+  provenance jump, and the auto-advance that follows a live run, which used to
+  set the position directly and tell nobody (a second cursor in disguise).
+  Exactly one call per move, and none for a move that resolves to the position
+  already showing.
+- **The unit is a STEP, and the callback carries the other two.**
+  `onStepChange(step, at)` hands back `at.runtimeStageId` (footprintjs's
+  address, the string `<TraceExplorerShell>` and `<RunSlider>` take) and
+  `at.commitIdx` alongside `label`, `kind` and `totalSteps`. The step is the
+  controlled unit because it is the only one that is one-to-one with a position
+  the lens can show: a group's start and end are the same `runtimeStageId`
+  (`__root__#0` is both "Run · start" and "Run · end") and a parallel fork's
+  branches share a `commitIdx`, so addressing by either would leave half the
+  stops silently unreachable.
+- **Out of range clamps AND says so** — never a silent clamp. Lens renders the
+  nearest real position, calls `onStepChange(clamped, { clamped: true })` and
+  warns once on the console, because the axis GROWS during a live run: a step
+  stored from a finished run is a legitimate value the same run, earlier, does
+  not have yet. Storing what the callback hands back reconciles the two cursors
+  in one round trip.
+- **`slots.detail` — your content in the shipped right column.** The column's
+  width, border, collapse pill and cursor are unchanged; only what it renders is
+  yours. The slot receives the cursor in every unit, the `StepNode` it sits on
+  and the ones inside its scope, the recorder, and `onNavigate` — the same
+  funnel every built-in mover uses, so a custom pane moves the ONE cursor rather
+  than starting a second one. Same shape and same stability advice as
+  `<TraceExplorerShell slots>`.
+- **A narrow degrade instead of a clip.** The engineer view is a chart column
+  beside an inspector with a 300px minimum; below `LENS_NARROW_BREAKPOINT`
+  (**690px** of available row width — exported, with the pure `isNarrowRow` and
+  the `useNarrowRow` hook) the columns now STACK. Nothing hidden, nothing cut
+  off: the same panes read top to bottom. A split panel measured at 392px gets a
+  readable lens, in both themes.
+
+### Unchanged
+
+- **With none of the three props, the rendered DOM is byte-identical and the
+  behaviour is the shipped behaviour** — pinned by tests that compare the markup
+  of `<Lens recorder runner />` against the same lens with `step`,
+  `onStepChange` and `slots` passed as `undefined`, assert no layout attribute
+  appears while the row is wide, and assert an observation-only `onStepChange`
+  changes nothing on screen. An unmeasured row (server render, no
+  `ResizeObserver`) keeps the two columns rather than guessing narrow.
+
 ## [0.36.0] - 2026-08-13
 
 ### Added

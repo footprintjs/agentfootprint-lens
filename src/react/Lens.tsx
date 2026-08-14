@@ -36,6 +36,12 @@ import { TimeTravel } from "./TimeTravel.js";
 import { NodeDetailPanel } from "./NodeDetailPanel.js";
 import { WhatHappenedTimeline } from "./WhatHappenedTimeline.js";
 import { buildTimelineMoments } from "./buildTimelineMoments.js";
+import {
+  useLensCursor,
+  type LensCursorAt,
+  type LensCursorPlace,
+} from "./useLensCursor.js";
+import { useNarrowRow } from "./narrowLayout.js";
 import { useLensRecorder } from "./hooks/useLensRecorder.js";
 import { useDrillPath } from "./hooks/useDrillPath.js";
 import { useCommitSync } from "./hooks/useCommitSync.js";
@@ -234,6 +240,115 @@ export interface LensProps {
    * recording.
    */
   readonly granularity?: 'step' | 'group';
+
+  /**
+   * Controlled cursor (omit for uncontrolled). Omit it and the lens is
+   * self-driving exactly as it has always been: it holds the position itself,
+   * follows the live edge, and needs nothing from you.
+   *
+   * Pass it and YOU own the cursor: the lens renders the step you give it and
+   * moves only when you change it. Every internal mover — the step strip, the
+   * ◀ ▶ ⟳Live buttons, the arrow keys, a chart node click, a "what happened"
+   * moment, a provenance jump, and the auto-advance that follows a live run —
+   * reports through `onStepChange` instead of moving itself, so there is still
+   * exactly ONE cursor and you are holding it.
+   *
+   * ### The unit: a STEP
+   *
+   * A step is one stop on the lens's scrub axis — the same number the transport
+   * counts ("3 / 12") and the same one the WHAT HAPPENED rail dots. Valid values
+   * are `0 … totalSteps - 1`, and `totalSteps` GROWS while a run is live.
+   *
+   * The lens knows two other units for the same position and hands you both on
+   * every callback, so you never have to invert the mapping yourself:
+   *
+   *   - `at.runtimeStageId` — footprintjs's address
+   *     (`[subflowPath/]stageId#executionIndex`), the same string
+   *     `<TraceExplorerShell selectedRuntimeStageId>` and
+   *     `<RunSlider cursorRuntimeStageId>` take.
+   *   - `at.commitIdx` — the commit-log index the position anchors to.
+   *
+   * Why the step and not one of those: the step axis is the only one that is
+   * ONE-TO-ONE with what the lens can show. Several stops legitimately share a
+   * `runtimeStageId` (a group's start and its end are the same group — "Run ·
+   * start" and "Run · end" are both `__root__#0`), and several share a
+   * `commitIdx` (a parallel fork's branches open together). A cursor addressed
+   * by either of those cannot reach the second of any such pair — half the
+   * positions would be silently unreachable in controlled mode, which is the
+   * one failure this prop exists to prevent. Steps address every stop exactly
+   * once, and the callback carries the other two units for free.
+   *
+   * Out of range: Lens CLAMPS to `[0, totalSteps - 1]` and says so — it calls
+   * `onStepChange(clamped, { clamped: true })` and warns once on the console.
+   * It clamps rather than refuses because the axis grows under you: a step you
+   * stored from a finished run is a legitimate value that the same run at an
+   * earlier moment simply does not have yet. Store the value the callback hands
+   * back and the two cursors agree again.
+   */
+  readonly step?: number;
+
+  /**
+   * Fires on every cursor move. In controlled mode, required for movement to
+   * take effect. In uncontrolled mode, fires as an observation hook
+   * (logging / analytics / keeping a sibling view in sync) — the lens still
+   * owns the state.
+   *
+   * Called exactly once per move, with the new step and its address; never
+   * called when a move resolves to the position already showing.
+   *
+   * Memoize via `useCallback` to avoid downstream re-renders.
+   */
+  readonly onStepChange?: (step: number, at: LensCursorAt) => void;
+
+  /**
+   * Optional slot overrides. Should be stable across renders (define at module
+   * scope or `useMemo`). Omit and the shipped panes render unchanged.
+   */
+  readonly slots?: LensSlots;
+}
+
+/**
+ * Slot overrides for `<Lens view="engineer">`.
+ *
+ * Same idea as `<TraceExplorerShell slots>`: keep the shipped layout and the
+ * shipped cursor, replace what one pane renders.
+ */
+export interface LensSlots {
+  /**
+   * Override the RIGHT column — the "what happened" timeline. Your component
+   * renders inside the shipped column (its width, borders, collapse pill and
+   * scroll behaviour are unchanged); only the content is yours.
+   *
+   * Omit it and the built-in timeline renders exactly as before.
+   */
+  readonly detail?: React.ComponentType<LensDetailSlotProps>;
+}
+
+/**
+ * What the `detail` slot receives — the cursor, in the units a detail pane
+ * needs, plus the run behind it.
+ */
+export interface LensDetailSlotProps {
+  /** The cursor, on the lens's step axis. */
+  readonly step: number;
+  /** How many positions the axis has right now. */
+  readonly totalSteps: number;
+  /** The cursor's footprintjs address. `''` when the axis is empty. */
+  readonly cursorRuntimeStageId: string;
+  /** The commit-log index the cursor anchors to; `-1` when unknown. */
+  readonly commitIdx: number;
+  /** The position's label, as the transport and timeline spell it. */
+  readonly label: string;
+  /** What kind of stop the cursor is on. */
+  readonly kind?: string;
+  /** The StepNode the cursor sits on exactly, when there is one. */
+  readonly node?: import("agentfootprint/observe").StepNode;
+  /** Every StepNode that ran inside the cursor's scope, in run order. */
+  readonly relatedNodes: readonly import("agentfootprint/observe").StepNode[];
+  /** The recording, for anything else the pane wants to read. */
+  readonly recorder: LensRecorder;
+  /** Move the ONE cursor — same funnel every built-in mover uses. */
+  readonly onNavigate: (step: number) => void;
 }
 
 export const Lens: React.FC<LensProps> = ({
@@ -250,6 +365,9 @@ export const Lens: React.FC<LensProps> = ({
   commentaryTemplates,
   toolChoice,
   granularity = 'step',
+  step: controlledStep,
+  onStepChange,
+  slots,
 }) => {
   ensureLensStyles();
   // Subscribe to the recorder so React re-renders on EVERY event
@@ -381,34 +499,38 @@ export const Lens: React.FC<LensProps> = ({
   const cursorPositions = useCursorPositions(recorder, drillPath);
   const stepCount = Math.max(1, cursorPositions.length);
   const maxStep = Math.max(0, stepCount - 1);
-  const [focusStep, setFocusStep] = useState(0);
+  // ONE cursor, one funnel. `useLensCursor` holds it internally (today's
+  // behaviour, byte for byte) unless the host passed `step` — in which case the
+  // host holds it and every internal mover reports through `onStepChange`.
+  // "Stay pinned to live" lives in the same funnel: the auto-advance that
+  // follows a growing run used to set the position directly and tell nobody,
+  // which made it a second cursor in disguise.
+  const describeStep = useCallback(
+    (n: number): LensCursorPlace => {
+      const p = cursorPositions[n];
+      return {
+        runtimeStageId: p?.runtimeStageId ?? '',
+        commitIdx: p?.commitIdx ?? -1,
+        label: p?.label ?? '',
+        ...(p?.kind !== undefined ? { kind: p.kind } : {}),
+      };
+    },
+    [cursorPositions],
+  );
+  const {
+    step: focusStep,
+    isLive,
+    moveTo: handleFocusChange,
+  } = useLensCursor({
+    controlledStep,
+    onStepChange,
+    maxStep,
+    describe: describeStep,
+  });
   // Cursor's runtimeStageId — derived from the current position. Used
   // by Commentary cutoff, chart highlight, Trace sync.
   const cursorRuntimeStageId: string =
     cursorPositions[focusStep]?.runtimeStageId ?? '';
-  // `autoAdvance` is the source of truth for "stay pinned to live."
-  // It flips OFF only when the user explicitly scrubs back; clicking
-  // the Live button (or scrubbing back to maxStep) flips it ON again.
-  //
-  // Earlier this was tracked via `wasLive.current = focusStep >= maxStep`
-  // in the render body — broken because the assignment ran AFTER the
-  // useEffect closed over a stale `focusStep`, so a `0→1` step
-  // transition saw `wasLive=false` (focusStep=0, maxStep=1) and
-  // skipped the advance, freezing the slider after the first event.
-  const [autoAdvance, setAutoAdvance] = useState(true);
-  useEffect(() => {
-    if (autoAdvance) setFocusStep(maxStep);
-  }, [maxStep, autoAdvance]);
-
-  const handleFocusChange = (n: number): void => {
-    setFocusStep(n);
-    // Scrubbing back exits auto-advance; scrubbing to the live edge
-    // re-engages it. Lets users pause to inspect a step, then click
-    // the end of the slider to follow live again.
-    setAutoAdvance(n >= maxStep);
-  };
-
-  const isLive = autoAdvance && focusStep >= maxStep;
 
   // `theme.mode` applies eui's full light/dark preset as `--fp-*` vars, plus
   // the lens-only palettes eui has no cousin for (elevated surface, edge kinds,
@@ -491,6 +613,7 @@ export const Lens: React.FC<LensProps> = ({
       cursorPositions={cursorPositions}
       cursorRuntimeStageId={cursorRuntimeStageId}
       granularity={granularity}
+      {...(slots ? { slots } : {})}
       {...(toolChoice ? { toolChoice: toolChoiceData } : {})}
     />,
   );
@@ -693,6 +816,8 @@ const EngineerView: React.FC<{
   /** Which ruler is scrubbing the chart. `'group'` paints the cursor's group as
    *  a named place; `'step'` (default) is today's rendering, untouched. */
   granularity: 'step' | 'group';
+  /** Consumer slot overrides. Absent → every shipped pane renders unchanged. */
+  slots?: LensSlots;
 }> = ({
   recorder,
   theme,
@@ -718,6 +843,7 @@ const EngineerView: React.FC<{
   cursorRuntimeStageId,
   toolChoice,
   granularity,
+  slots,
 }) => {
   // `syncMap` and the slider's compound-position list (`cursorPositions`)
   // are read directly by the slider/commentary cutoff logic farther
@@ -1173,6 +1299,15 @@ const EngineerView: React.FC<{
   // it to eui's TracedFlow (members re-light staggered, non-members dim).
   const [sliceCone, setSliceCone] = useState<ReadonlyMap<string, number> | undefined>(undefined);
 
+  // Narrow degrade — measured on the MAIN ROW, the box the two columns
+  // actually share. Wide (or unmeasured) keeps the shipped side-by-side
+  // layout; see `narrowLayout.ts` for the threshold and why it is 690.
+  const rowRef = useRef<HTMLDivElement | null>(null);
+  const stacked = useNarrowRow(rowRef);
+
+  // The right column's content. Absent slot → the built-in timeline, unchanged.
+  const DetailSlot = slots?.detail;
+
   const jumpToRuntimeStageId = useCallback(
     (runtimeStageId: string) => {
       const exact = cursorPositions.findIndex((p) => p.runtimeStageId === runtimeStageId);
@@ -1245,13 +1380,20 @@ const EngineerView: React.FC<{
       />
 
       {/* Main row: [Topology pill | Topology panel] [Center flowchart]
-          [Details pill | Details panel]. flex: 1 fills remaining height. */}
+          [Details pill | Details panel]. flex: 1 fills remaining height.
+          Below LENS_NARROW_BREAKPOINT the columns STACK instead of clipping —
+          same panes, read top to bottom. */}
       <div
+        ref={rowRef}
+        {...(stacked ? { "data-lens-layout": "stacked" } : {})}
         style={{
           flex: 1,
           minHeight: 0,
           display: "flex",
           overflow: "hidden",
+          ...(stacked
+            ? { flexDirection: "column" as const, overflowY: "auto" as const }
+            : {}),
         }}
       >
         {/* LEFT: Topology — collapsible. Hidden ENTIRELY when the run
@@ -1272,6 +1414,14 @@ const EngineerView: React.FC<{
                   flexDirection: "column",
                   overflow: "hidden",
                   borderRight: `1px solid ${T.border}`,
+                  ...(stacked
+                    ? {
+                        width: "100%",
+                        maxHeight: 140,
+                        borderRight: "none",
+                        borderBottom: `1px solid ${T.border}`,
+                      }
+                    : {}),
                 }}
               >
                 <SidePanelHeader title="Agents" />
@@ -1307,6 +1457,9 @@ const EngineerView: React.FC<{
             display: "flex",
             flexDirection: "column",
             overflow: "hidden",
+            // Stacked: the chart is no longer sharing width with the inspector,
+            // so it takes a fixed slice of HEIGHT instead of all of it.
+            ...(stacked ? { flex: "0 0 auto", height: 320, width: "100%" } : {}),
           }}
         >
           {drillPath.length > 0 && (
@@ -1395,12 +1548,20 @@ const EngineerView: React.FC<{
         </div>
 
         {/* RIGHT: Inspect — the selected step's details; collapsible, mirror of left. */}
-        <VLinePill
-          label="Inspect"
-          expanded={rightExpanded}
-          side="right"
-          onClick={() => setRightExpanded((v) => !v)}
-        />
+        {stacked ? (
+          <HLinePill
+            label="Inspect"
+            expanded={rightExpanded}
+            onClick={() => setRightExpanded((v) => !v)}
+          />
+        ) : (
+          <VLinePill
+            label="Inspect"
+            expanded={rightExpanded}
+            side="right"
+            onClick={() => setRightExpanded((v) => !v)}
+          />
+        )}
         {rightExpanded && (
           <div
             style={{
@@ -1414,12 +1575,42 @@ const EngineerView: React.FC<{
               flexDirection: "column",
               overflow: "hidden",
               borderLeft: `1px solid ${T.border}`,
+              // Stacked: the rail is now the full width of the lens and its
+              // height is whatever its content needs — the row scrolls.
+              ...(stacked
+                ? {
+                    flex: "1 1 auto",
+                    width: "100%",
+                    minWidth: 0,
+                    maxWidth: "none",
+                    borderLeft: "none",
+                    borderTop: `1px solid ${T.border}`,
+                  }
+                : {}),
             }}
           >
             {/* The timeline IS the scrubber + commentary + details, folded into
                 one rail (the mockup's right column). Clicking a moment moves the
                 same single cursor; the focused moment expands to the existing
-                NodeDetailPanel content inline. */}
+                NodeDetailPanel content inline. A `slots.detail` component takes
+                over the CONTENT of this same column — the column itself, its
+                cursor and its collapse pill are unchanged. */}
+            {DetailSlot ? (
+              <DetailSlot
+                step={focusStep}
+                totalSteps={total}
+                cursorRuntimeStageId={cursorRuntimeStageId}
+                commitIdx={cursorPositions[focusStep]?.commitIdx ?? -1}
+                label={cursorPositions[focusStep]?.label ?? ''}
+                {...(cursorPositions[focusStep]?.kind
+                  ? { kind: cursorPositions[focusStep]!.kind }
+                  : {})}
+                {...(cursorFocusedNode ? { node: cursorFocusedNode } : {})}
+                relatedNodes={cursorRelatedNodes}
+                recorder={recorder}
+                onNavigate={onFocusChange}
+              />
+            ) : (
             <WhatHappenedTimeline
               moments={timelineMoments}
               focusStep={focusStep}
@@ -1464,6 +1655,7 @@ const EngineerView: React.FC<{
                   }
                 : {})}
             />
+            )}
           </div>
         )}
       </div>
