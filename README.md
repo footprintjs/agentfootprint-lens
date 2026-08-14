@@ -503,6 +503,64 @@ pane.
 
 ---
 
+## Scrubbing by group — the active group is a named place
+
+One causal trace, replayed at two zoom levels. On the **per-step** ruler each
+commit is a stop; on the **grouped** ruler each boundary is a stop, and ◀ ▶ moves
+a whole group at a time.
+
+The chart used to paint both the same way, and that was wrong for the second one.
+A stage's styling is by TYPE — the LLM call carries a hero emphasis (accent
+border, tint, glow) and the cursor's one node pulses — so landing on a group of
+six nodes pulled the eye to the LLM box. The group, the thing the ruler had
+actually moved by, never read as the position at all.
+
+Pass `granularity="group"` and it does:
+
+- **one accent for every member.** An LLM call, a tool and a context pill light
+  identically — same tint, same intensity. What a node IS stays legible in its
+  icon and its shape; how loud it is no longer depends on its type.
+- **everything else recedes uniformly** — one dim, not a second ranking.
+- **a boundary is drawn around the members**, from their real measured positions,
+  with the group's **name** on its top edge. Scrubbing group to group animates it
+  (and doesn't, under `prefers-reduced-motion: reduce`).
+
+The name is `groupDisplayName` — the same spelling the WHAT HAPPENED boundary
+list uses. One place, one name.
+
+```tsx
+<Lens recorder={recorder} runner={runner} granularity="group" />
+```
+
+Or, in a shell that owns its own canvas and its own cursor:
+
+```tsx
+import { LensFlow, useChartGroup } from 'agentfootprint-lens';
+
+function WhyLensChart({ recorder, chart, cursorCommitIdx }) {
+  // The group the cursor stands in, as chart node ids. Derived from the
+  // boundary ranges the grouped ruler already computes its stops from —
+  // no extra fetch, no second cursor.
+  const group = useChartGroup(recorder, cursorCommitIdx);
+  return <LensFlow chart={chart} granularity="group" activeGroup={group} />;
+}
+```
+
+`granularity` defaults to `'step'`, and on that path nothing changes: no classes,
+no boundary, the same chart the Flow Lens has always drawn. `'group'` at a commit
+no boundary encloses also renders as `'step'` — a mode with nothing to draw draws
+nothing, rather than boxing the whole chart.
+
+Restyle it with one variable (`--lens-group-accent`, falling back to
+`--fp-group-accent`), or target the classes directly: `.lens-group-node--member`,
+`.lens-group-node--outsider`, `.lens-group-boundary`, `.lens-group-boundary-name`.
+
+Headless: `activeChartGroup({ groups, commits, commitIdx })` on
+`agentfootprint-lens/core` is the pure function behind the hook — same answer for
+a Vue or CLI shell.
+
+---
+
 ## Theming
 
 **Lens inherits theme tokens from your app via CSS variables.** Set `--fp-*`
@@ -614,6 +672,25 @@ graph in one call. Returns an unsubscribe. Call it once per run.
 | `chart` | `LensFlowProps['chart']?` | Render YOUR graph instead of the derived one. |
 | `stepGraph` | `StepGraph?` | Bring your own step graph; by default Lens uses the recorder's. |
 | `toolChoice` | `ToolChoiceSource?` | Mount the per-iteration tool-choice panel. |
+| `granularity` | `'step' \| 'group'?` | Which ruler is scrubbing the chart. `'group'` paints the cursor's group as a named place. Default `'step'`. See [Scrubbing by group](#scrubbing-by-group--the-active-group-is-a-named-place). |
+
+### `<LensFlow>` — the chart canvas on its own
+
+The chart without the shell, for consumers who own their layout and their
+cursor. Takes `chart`, the runtime overlay, the cursor, and — for the grouped
+ruler — `granularity="group"` plus `activeGroup` (from `useChartGroup`). Every
+other prop is unchanged by group mode.
+
+### `useChartGroup(recorder, commitIdx, options?)` / `activeChartGroup(...)`
+
+The group the cursor stands in, resolved to CHART NODE IDS: the boundary's
+commit range read off the recording, each commit's `runtimeStageId` stripped of
+its `#executionIndex` (the id rule every chart-click and co-active highlight in
+the ecosystem already uses), plus the group's own mount. Returns `undefined`
+when no boundary encloses the cursor. `options.includeRoot` opts into the
+synthetic Run root, which is off by default because a box around the whole chart
+states nothing. `activeChartGroup` is the pure, React-free twin on
+`agentfootprint-lens/core`.
 
 ### `observeRecording(recording, options?)`
 

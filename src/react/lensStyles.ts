@@ -28,7 +28,7 @@ import { T } from './theme/index.js';
 
 /** Marker attribute on the injected `<style>` — bump when the sheet changes. */
 const STYLE_MARKER = 'data-lens-styles';
-const STYLE_VERSION = 'v4';
+const STYLE_VERSION = 'v5';
 
 /**
  * The whole Lens stylesheet, as text. Exported so a server renderer can inline
@@ -552,6 +552,73 @@ export const LENS_STYLESHEET = `
   color: ${T.textPrimary};
   font: inherit;
   font-size: 11px;
+}
+
+/* ── Group mode — the active group is a named place ───────────────── */
+/* Only ever painted when the chart is scrubbed by the GROUPED ruler
+   (<LensFlow granularity="group">). On the per-commit ruler none of these
+   classes exist, so the chart renders exactly as it always has.
+
+   The wrapper is deliberately unpositioned: xyflow's .react-flow__node
+   stays the nearest positioned ancestor, so the accent below covers the real
+   node box and the node's handles are where they were. */
+.lens-group-node { display: block; }
+
+/* ONE accent for every member, whatever KIND of node it is — the LLM call, the
+   tool and the context pill light identically. What the node IS stays readable
+   in its icon and its shape; how loud it is no longer depends on its type. */
+.lens-group-node--member::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 12px;
+  background: color-mix(in srgb, ${T.groupAccent} 16%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, ${T.groupAccent} 55%, transparent);
+  pointer-events: none;
+  transition: background 240ms ease, box-shadow 240ms ease;
+}
+/* Everything outside the group recedes by the same amount — a uniform
+   background, not a second ranking. */
+.lens-group-node--outsider {
+  opacity: 0.32;
+  filter: saturate(0.45);
+  transition: opacity 240ms ease, filter 240ms ease;
+}
+
+/* The drawn container. Quiet on purpose: a place you are standing in, not an
+   alarm. Never takes pointer events, so the nodes inside stay clickable. */
+.lens-group-boundary {
+  border: 1.5px dashed color-mix(in srgb, ${T.groupAccent} 55%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, ${T.groupAccent} 7%, transparent);
+  pointer-events: none;
+  transition: transform 320ms ease, width 320ms ease, height 320ms ease;
+}
+/* The group's name, on the outline's top edge. Same string the WHAT HAPPENED
+   boundary rail uses — one naming source (see groupDisplayName.ts). */
+.lens-group-boundary-name {
+  position: absolute;
+  top: 0;
+  left: 14px;
+  transform: translateY(-50%);
+  max-width: calc(100% - 28px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 9px;
+  border: 1px solid color-mix(in srgb, ${T.groupAccent} 45%, transparent);
+  border-radius: 999px;
+  background: ${T.bgElevated};
+  color: ${T.textPrimary};
+  font-family: ${T.fontSans};
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+@media (prefers-reduced-motion: reduce) {
+  .lens-group-boundary,
+  .lens-group-node--member::after,
+  .lens-group-node--outsider { transition: none; }
 }
 `;
 

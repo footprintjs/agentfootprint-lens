@@ -51,6 +51,12 @@ export const RAW_DEFAULTS = {
   error: '#ef4444',
   warning: '#f59e0b',
 
+  // The active GROUP on the grouped ruler — the one accent every member of the
+  // group lights with, the outline drawn around them, and its name chip. Its
+  // own token (not `primary`) because a consumer will want to tune "the place
+  // I'm standing in" without moving every other accent in the Lens.
+  groupAccent: '#6366f1',
+
   // Edge kinds (control-flow graph)
   edgeUser: '#0284c7',
   edgeTool: '#059669',
@@ -111,6 +117,11 @@ export const T = {
   success: v('color-success', RAW_DEFAULTS.success),
   error: v('color-error', RAW_DEFAULTS.error),
   warning: v('color-warning', RAW_DEFAULTS.warning),
+
+  // Group mode (see RAW_DEFAULTS.groupAccent). eui ships no `--fp-group-accent`,
+  // so the middle tier is free for `theme.mode` to stamp a light variant into
+  // without ever outranking a consumer's `--lens-group-accent`.
+  groupAccent: v('group-accent', RAW_DEFAULTS.groupAccent),
 
   // Edge kinds — lens-only NAMES, but the same three-tier chain as the rest.
   // eui ships no `--fp-edge-*`, so the middle tier is free for `theme.mode` to
@@ -190,6 +201,7 @@ export const MODE_PALETTES: Record<'dark' | 'light', Readonly<Record<string, str
     '--fp-src-user': RAW_DEFAULTS.srcUser,
     '--fp-src-tool': RAW_DEFAULTS.srcTool,
     '--fp-src-default': RAW_DEFAULTS.srcDefault,
+    '--fp-group-accent': RAW_DEFAULTS.groupAccent,
   },
   light: {
     // The card surface Lens's own panels sit on. eui's presets stop at
@@ -207,5 +219,8 @@ export const MODE_PALETTES: Record<'dark' | 'light', Readonly<Record<string, str
     '--fp-src-user': '#047857',
     '--fp-src-tool': '#0e7490',
     '--fp-src-default': '#52525b',
+    // A touch deeper on a white ground: the group's wash is a low-percentage
+    // mix of this, and the dark-tuned indigo washes out to nothing on paper.
+    '--fp-group-accent': '#4f46e5',
   },
 };

@@ -40,6 +40,7 @@ import { useLensRecorder } from "./hooks/useLensRecorder.js";
 import { useDrillPath } from "./hooks/useDrillPath.js";
 import { useCommitSync } from "./hooks/useCommitSync.js";
 import { useCursorPositions } from "./hooks/useCursorPositions.js";
+import { useChartGroup } from "./hooks/useChartGroup.js";
 import {
   useToolChoice,
   type ToolChoiceSource,
@@ -217,6 +218,22 @@ export interface LensProps {
    * zero impact.
    */
   readonly toolChoice?: ToolChoiceSource;
+
+  /**
+   * Which RULER the chart is being scrubbed by — the same word an embedder uses
+   * to tell its two lenses apart, and the same prop `<LensFlow>` takes.
+   *
+   *   `'step'` (default) — one stop per step. Unchanged in every respect.
+   *   `'group'`          — the cursor's GROUP is the position, so the chart says
+   *                        so: its members light with one uniform accent, the
+   *                        rest recede uniformly, and a named boundary is drawn
+   *                        around them. The name is `groupDisplayName` — the same
+   *                        spelling the WHAT HAPPENED boundary list uses.
+   *
+   * Costs no fetch: membership comes from the boundary ranges already in the
+   * recording.
+   */
+  readonly granularity?: 'step' | 'group';
 }
 
 export const Lens: React.FC<LensProps> = ({
@@ -232,6 +249,7 @@ export const Lens: React.FC<LensProps> = ({
   appName,
   commentaryTemplates,
   toolChoice,
+  granularity = 'step',
 }) => {
   ensureLensStyles();
   // Subscribe to the recorder so React re-renders on EVERY event
@@ -472,6 +490,7 @@ export const Lens: React.FC<LensProps> = ({
       syncMap={syncMap}
       cursorPositions={cursorPositions}
       cursorRuntimeStageId={cursorRuntimeStageId}
+      granularity={granularity}
       {...(toolChoice ? { toolChoice: toolChoiceData } : {})}
     />,
   );
@@ -671,6 +690,9 @@ const EngineerView: React.FC<{
   /** Tool-choice margins data (RFC-002 C7) — present only when the
    *  consumer passed `LensProps.toolChoice`. The panel mounts iff set. */
   toolChoice?: UseToolChoiceResult;
+  /** Which ruler is scrubbing the chart. `'group'` paints the cursor's group as
+   *  a named place; `'step'` (default) is today's rendering, untouched. */
+  granularity: 'step' | 'group';
 }> = ({
   recorder,
   theme,
@@ -695,6 +717,7 @@ const EngineerView: React.FC<{
   cursorPositions,
   cursorRuntimeStageId,
   toolChoice,
+  granularity,
 }) => {
   // `syncMap` and the slider's compound-position list (`cursorPositions`)
   // are read directly by the slider/commentary cutoff logic farther
@@ -882,6 +905,13 @@ const EngineerView: React.FC<{
     if (!ids || ids.length === 0) return undefined;
     return new Set(ids.map((id) => id.split('#')[0]!));
   }, [cursorPositions, focusStep]);
+  // Group mode: the group the cursor stands in, as chart node ids. Derived from
+  // the SAME commit index the cursor already carries — one cursor, asked a
+  // coarser question. `'step'` passes `undefined`, so the chart is untouched.
+  const activeChartGroupHighlight = useChartGroup(
+    recorder,
+    granularity === 'group' ? cursorPositions[focusStep]?.commitIdx : undefined,
+  );
   // Step → event-seq mapping. Resolves each step to a concrete log
   // entry so Commentary can scrub by slider position even when a step
   // is a SYNTHETIC node (User / fork-branch / decision-branch nodes
@@ -1317,6 +1347,8 @@ const EngineerView: React.FC<{
                 } } : {})}
                 selectedRuntimeStageId={cursorRuntimeStageId}
                 selectedCursorKind={cursorPositions[focusStep]?.kind}
+                granularity={granularity}
+                {...(activeChartGroupHighlight ? { activeGroup: activeChartGroupHighlight } : {})}
                 {...(coActiveStageIds ? { coActiveStageIds } : {})}
                 onNodeClick={(nodeId) => {
                   // Chart click → drill. resolveDrillChain maps the

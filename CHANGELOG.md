@@ -5,6 +5,45 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.36.0] - 2026-08-13
+
+### Added
+
+- **The active group is a named place: uniform highlight, a drawn
+  boundary, and the group's name — the chart stops spotlighting the LLM
+  when you're navigating groups.** `<LensFlow granularity="group">` (and
+  `<Lens granularity="group">`) paint the grouped ruler's cursor as what
+  it actually is: every member node lights with ONE accent — same tint,
+  same intensity for an LLM call, a tool and a context pill alike, with
+  the type left where it belongs (icon and shape) — every non-member
+  dims uniformly, and a soft dashed boundary is drawn around the members
+  from their real measured positions (xyflow v12 `nodeLookup`, not
+  `getNodes()`), carrying a chip with the group's name. Scrubbing group
+  to group animates the boundary, and doesn't under
+  `prefers-reduced-motion: reduce`.
+- `useChartGroup(recorder, commitIdx)` and the pure
+  `activeChartGroup({ groups, commits, commitIdx })` — the group at the
+  cursor resolved to CHART NODE IDS, derived from data already in the
+  recording (the boundary ranges the grouped ruler computes its stops
+  from, plus the commit log). No new fetch, no new recorder, no second
+  cursor.
+- `groupDisplayName` — ONE spelling of a group's name, now read by
+  `buildGroups` and by the boundary chip, so the chart and the WHAT
+  HAPPENED boundary list cannot disagree about what a place is called.
+- `--lens-group-accent` / `--fp-group-accent` and the
+  `.lens-group-node--member` / `--outsider` / `.lens-group-boundary` /
+  `.lens-group-boundary-name` classes — one variable retunes the whole
+  highlight, in both themes.
+
+### Unchanged
+
+- **STEP mode is untouched and pinned.** `granularity` defaults to
+  `'step'`; on that path not one group class or element is rendered and
+  node data reaches the card exactly as the chart authored it (hero
+  emphasis and all). `granularity="group"` at a commit no boundary
+  encloses also renders as step — a mode with nothing to draw draws
+  nothing, rather than boxing the whole chart.
+
 ## [0.35.0] - 2026-08-13
 
 ### Added

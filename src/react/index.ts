@@ -33,6 +33,20 @@ export { Replay, type ReplayProps } from "./Replay.js";
 // Lens v0.1 — single-pipeline xyflow renderer driven by the L2
 // translator. The canonical chart for v0.1.
 export { LensFlow, type LensFlowProps } from "./LensFlow.js";
+// Group mode — what `<LensFlow granularity="group">` paints. The wrapper class
+// names are exported so a consumer's own stylesheet can restyle the group
+// highlight (or a test can assert it) without copying string literals; the
+// boundary component and the context are exported for shells that compose their
+// own chart canvas instead of using <LensFlow>.
+export {
+  GROUP_NODE_CLASS,
+  GROUP_MEMBER_CLASS,
+  GROUP_OUTSIDER_CLASS,
+  withGroupEmphasis,
+  withGroupEmphasisAll,
+} from "./group/groupEmphasis.js";
+export { GroupBoundary, type GroupBoundaryProps } from "./group/GroupBoundary.js";
+export { ChartGroupContext, useChartGroupHighlight } from "./group/ChartGroupContext.js";
 // Renderer map for the chart's custom node types (slot pills / subflow boxes).
 // Exported so consumers don't hand-roll it. The Lens uses it for its
 // auto-derived chart when only `runner` is passed.

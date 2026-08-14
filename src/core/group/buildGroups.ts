@@ -32,6 +32,7 @@
 import type { CommitRangeIndex } from 'footprintjs/trace';
 import type { BoundaryRangeLabel } from 'agentfootprint/observe';
 import type { Group } from './Group.js';
+import { groupDisplayNameForLabel } from './groupDisplayName.js';
 
 /** Exact equality of two subflow-path arrays (the chart-nesting chain). */
 function samePath(a: readonly string[], b: readonly string[]): boolean {
@@ -113,9 +114,10 @@ export function buildGroups(
     }
 
     const isRoot = label.type === 'run.entry';
-    const name = label.subflowName
-      ?? (label.type === 'composition.start' ? label.compositionName : undefined)
-      ?? (isRoot ? 'Run' : label.runtimeStageId);
+    // ONE naming source. `groupDisplayName` is the same chain the WHAT HAPPENED
+    // boundary rail and the chart's group-boundary chip read, so a group cannot
+    // be called two things in one view. See groupDisplayName.ts.
+    const name = groupDisplayNameForLabel(label);
     const compositionKind = label.type === 'composition.start'
       ? label.compositionKind
       : undefined;

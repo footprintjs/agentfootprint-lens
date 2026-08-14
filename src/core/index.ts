@@ -58,6 +58,28 @@ export {
 export * from "./selectors/index.js";
 export { buildLLMText, type BuildLLMTextArgs } from "./copyForLLM.js";
 
+// Groups — a subflow execution, the unit the GROUPED ruler moves by.
+// `groupDisplayName` is THE spelling of a group's name: the WHAT HAPPENED
+// boundary rail, the ruler's stop label and the chart's group boundary all read
+// it, so one place cannot end up with two names.
+// `activeChartGroup` answers the chart's question — which CHART NODE IDS belong
+// to the group at this commit — from the recording alone (boundary ranges +
+// commit log, both already fetched). Pure; no React.
+export {
+  groupDisplayName,
+  groupDisplayNameForLabel,
+  type GroupNameSource,
+} from "./group/groupDisplayName.js";
+export {
+  activeChartGroup,
+  chartNodeIdOf,
+  type ActiveChartGroupArgs,
+  type ChartGroupHighlight,
+  type CommitWithStage,
+} from "./group/activeChartGroup.js";
+export { buildGroups } from "./group/buildGroups.js";
+export { groupContainsCommit, type Group } from "./group/Group.js";
+
 // Lens v0.1 translator pipeline — Runner → LensGroupOutput (UI-agnostic
 // graph of nodes + edges). The L3 React renderer consumes this; Vue / D3
 // consumers can swap in their own renderer.

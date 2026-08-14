@@ -31,3 +31,8 @@ export {
   type ToolChoiceSource,
   type UseToolChoiceResult,
 } from './useToolChoice.js';
+// The group the cursor stands in, resolved to chart node ids — the one call
+// that turns on `<LensFlow granularity="group">`.
+export { useChartGroup, type UseChartGroupOptions } from './useChartGroup.js';
+// The same question keyed by the STAGE cursor (returns the `Group` itself).
+export { useActiveGroup } from './useActiveGroup.js';
