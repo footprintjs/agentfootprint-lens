@@ -68,3 +68,28 @@ export {
 // RFC-002 C7 — resolve the ONE Lens cursor to a tool-choice call
 // (exact → within-subflow → nearest-previous).
 export { selectToolChoiceCall } from './selectToolChoiceCall.js';
+// selectSkillRoute — the structured half of routing: the skill-graph cursor's
+// position on every iteration, what moved it, what the gate refused, and the
+// `read_skill` menu the model was reading when it asked. Everything routing
+// used to say only in prose (`humanizeRouting`), still typed.
+export {
+  selectSkillRoute,
+  type SelectSkillRouteArgs,
+  type SkillCursorAfter,
+  type SkillCursorCause,
+  type SkillDeclaredEdge,
+  type SkillEvidenceCheck,
+  type SkillHop,
+  type SkillHopRef,
+  type SkillInjectionSeen,
+  type SkillRouteNode,
+  type SkillObservedEdge,
+  type SkillRefusal,
+  type SkillRoute,
+  type SkillRouteConflict,
+  type SkillRouteWitness,
+  type SkillSuperseded,
+  type SkillToolAsSent,
+  type SkillTurnStart,
+  type SkillTurnVerdict,
+} from './selectSkillRoute.js';

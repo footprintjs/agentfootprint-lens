@@ -889,6 +889,44 @@ record). The headless half — `readAwaitingComponent`, `approveDecision` /
 — is on `agentfootprint-lens/core`. See
 [Answer a paused run with a real component](#answer-a-paused-run-with-a-real-component-typed-hitl).
 
+### `selectSkillRoute({ log })` — why the skill graph went where it went
+
+Routing already had a voice in Lens (the commentary line for every hop). This
+gives it a **shape**: one row per iteration, typed, so a view can group by
+skill, draw the graph, or answer "why was I refused" without re-reading prose.
+
+```ts
+import { selectSkillRoute } from 'agentfootprint-lens/core';
+
+const route = selectSkillRoute({ log: recorder.selectEventLog() });
+
+for (const hop of route.hops) {
+  console.log(hop.iteration, hop.by, hop.from, '→', hop.to); // 2 'stay' triage → triage
+}
+
+// The model asked for a skill it could not reach — and the whole failure,
+// on one row: what it asked for, what it was told, what it was reading when
+// it asked, and the proof the cursor did not budge.
+const [refusal] = route.hops.flatMap((h) => h.refusals);
+refusal.requestedId;        // 'audit-log'
+refusal.allowed;            // ['volume-lookup']  ← the reachable set
+refusal.refusalText;        // the sentence the MODEL read back
+refusal.cursorAfter;        // { iteration: 2, by: 'stay', moved: false }
+```
+
+`hop.readSkillDescription` is the `read_skill` menu **verbatim, as the model saw
+it** — the reachable list it was reading when it picked. `route.nodes` is the
+skill catalog (with `visited`), `route.observedEdges` the hops the cursor
+actually took, `route.declaredEdges` the ones the author drew, and
+`route.turns` the turn-start verdicts.
+
+Two vocabularies, deliberately on two types: `hop.by` answers *what moved the
+cursor* (nine causes: `entry`, `route`, `model-pick`, `tool-proposal`, `intent`,
+`continuity`, `decider`, `stay`, `none`), while `turn.by` answers *which tier
+decided where the turn started* (`menu` lives only there — an offer is not a
+move). `route.hasRouting` is `false` on a run with no skills, so a view can say
+so instead of drawing an empty graph.
+
 ### Headless core
 
 `agentfootprint-lens/core` is React-free: `LensRecorder`, `ChangeNotifier`,

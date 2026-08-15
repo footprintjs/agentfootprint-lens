@@ -21,7 +21,7 @@ import {
   type CommentaryTemplates,
 } from 'agentfootprint';
 import {
-  humanizeCursorMovePick,
+  humanizeCursorMove,
   humanizeRouteConflict,
   humanizeSkillRejected,
   humanizeTurnRouted,
@@ -30,6 +30,10 @@ import {
   type SkillRejectedLike,
   type TurnRoutedLike,
 } from './humanizeRouting.js';
+import {
+  humanizeEvidenceChecked,
+  type EvidenceCheckedLike,
+} from './humanizeEvidence.js';
 import {
   humanizeArtifactExpired,
   humanizeArtifactMinted,
@@ -51,16 +55,23 @@ export type Humanizer = (event: AgentfootprintEvent) => string | null;
  * their own via `humanizeWith` (below).
  */
 export const defaultHumanizer: Humanizer = (event) => {
-  // Low-signal internal engine emits — mostly hidden from prose. The
-  // surrounding injection / llm lines already narrate the OUTCOME, so the raw
-  // "context.evaluated" tick is noise — EXCEPT the iteration a model pick
-  // lands with its menu decorations (offered / declinedOffer, agentfootprint
-  // 9.17.0); that one sentence is the assist-posture record. (These are $emit
-  // events, not part of the typed AgentfootprintEvent union, so we match the
-  // raw type string.)
+  // Low-signal internal engine emits — the raw "context.evaluated" tick is
+  // noise, EXCEPT when it carries a cursorMove: on a skill-graph run that is
+  // the routing itself, one hop per iteration. All NINE causes render (an
+  // earlier era rendered only a decorated `model-pick`, so eight of the nine
+  // ways a run can route said nothing at all); an evaluation with no
+  // cursorMove — every non-skill-graph run — stays silent exactly as before.
+  // (These are $emit events, not part of the typed AgentfootprintEvent union,
+  // so we match the raw type string.)
   if ((event.type as string) === 'agentfootprint.context.evaluated') {
     const cursorMove = (event.payload as { cursorMove?: CursorMoveLike }).cursorMove;
-    return humanizeCursorMovePick(cursorMove);
+    return humanizeCursorMove(cursorMove);
+  }
+  // The evidence gate's verdict (agentfootprint 9.35.0) — newer than the event
+  // union this package compiles against, so matched by raw type string with a
+  // structural payload mirror (see humanizeEvidence.ts).
+  if ((event.type as string) === 'agentfootprint.agent.evidence_checked') {
+    return humanizeEvidenceChecked(event.payload as EvidenceCheckedLike);
   }
   // Skill-graph routing events (agentfootprint 9.16.0 / 9.17.0) — newer than
   // the event union this package compiles against, so matched by raw type

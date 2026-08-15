@@ -21,12 +21,23 @@
  * house law applies: render ONLY what the event carries — an absent field
  * means its clause is OMITTED, never guessed.
  *
- * Vocabulary note: the shipped `by` values are
- * `'entry' | 'intent' | 'continuity' | 'menu' | 'none'` — `'entry'` is the
- * recorded vocabulary for rule-won starts, `'menu'` for an in-band menu.
- * Design-era aliases (`'rule'`, `'model-pick'`) are tolerated as synonyms so
- * a recording from an intermediate build still renders; anything else falls
- * back to an honest raw line.
+ * Vocabulary note — TWO vocabularies, and they are not the same list:
+ *
+ *   • `turn_routed.by` (which TIER decided where the turn started) ships as
+ *     `'entry' | 'intent' | 'continuity' | 'menu' | 'decider' | 'none'`.
+ *     `'entry'` is the recorded vocabulary for rule-won starts, `'menu'` for an
+ *     in-band menu, `'decider'` for a tier-3 resolver (agentfootprint 9.19.0).
+ *     Design-era aliases (`'rule'`, `'model-pick'`) are tolerated as synonyms
+ *     so a recording from an intermediate build still renders.
+ *   • `cursorMove.by` (what moved the CURSOR this iteration) ships as
+ *     `'entry' | 'route' | 'model-pick' | 'tool-proposal' | 'intent' |
+ *     'continuity' | 'decider' | 'stay' | 'none'` — nine causes, the union
+ *     `CursorMoveCause` in agentfootprint's `skillGraph.ts`. The library's own
+ *     `ContextEvaluatedPayload` docstring lists only seven (it predates
+ *     `'tool-proposal'` and `'decider'`); the union is the source of truth.
+ *     `'menu'` is NOT one of them — an offer is not a move.
+ *
+ * Anything outside either list falls back to an honest raw line.
  */
 
 // ─── Structural payload mirrors (events read, never constructed here) ───
@@ -84,13 +95,32 @@ export interface SkillRejectedLike {
   readonly posture?: string; // 'guard' | 'rails' when a posture refused
 }
 
-/** Mirror of `ContextEvaluatedPayload.cursorMove` incl. 9.17.0 decorations. */
+/**
+ * Mirror of `ContextEvaluatedPayload.cursorMove` — the 9.17.0 decorations
+ * (`offered` / `declinedOffer`) and the 9.28.0 `witness` included.
+ *
+ * `by` is typed as the NINE shipped causes plus a `(string & {})` arm, so
+ * editors autocomplete the real vocabulary while a future era's tenth value
+ * still reads (and renders through the honest raw fallback).
+ */
 export interface CursorMoveLike {
   readonly from?: string;
   readonly to?: string;
-  readonly by: string;
+  readonly by:
+    | 'entry'
+    | 'route'
+    | 'model-pick'
+    | 'tool-proposal'
+    | 'intent'
+    | 'continuity'
+    | 'decider'
+    | 'stay'
+    | 'none'
+    | (string & {});
   readonly offered?: readonly string[];
   readonly declinedOffer?: boolean;
+  /** WHAT the message said that routed this hop — `match:` rules only. */
+  readonly witness?: { readonly text: string; readonly keyword?: string };
 }
 
 // ─── Small shared formatters ─────────────────────────────────────────────
@@ -321,4 +351,96 @@ export function humanizeCursorMovePick(move: CursorMoveLike | undefined): string
     line += ' Its pick was not on the offered menu — the divergence is on the record.';
   }
   return line;
+}
+
+// ─── context.evaluated cursorMove — all NINE causes ──────────────────────
+
+/**
+ * Where the cursor ended up, in plain words. `Moved from A to B` when it
+ * changed, `Started in B` on a cold start, `Stayed in A` when it did not.
+ */
+function cursorMovement(move: CursorMoveLike): string {
+  const { from, to } = move;
+  if (to !== undefined && from !== undefined) {
+    return from === to ? `Stayed in ${q(to)}` : `Moved from ${q(from)} to ${q(to)}`;
+  }
+  if (to !== undefined) return `Started in ${q(to)}`;
+  if (from !== undefined) return `Stayed in ${q(from)}`;
+  return 'The skill in play was settled';
+}
+
+/**
+ * The evidence clause for a rule that matched on the message TEXT — the
+ * `witness` agentfootprint 9.28.0 added. Quoted, never paraphrased: the whole
+ * value of a witness is that it is the user's own words.
+ */
+function witnessNote(move: CursorMoveLike): string {
+  const w = move.witness;
+  if (!w || typeof w.text !== 'string' || w.text === '') return '';
+  return w.keyword !== undefined
+    ? ` The message said "${w.text}" — the word ${q(w.keyword)} is what matched.`
+    : ` The message said "${w.text}".`;
+}
+
+/**
+ * Renders the cursor hop for ANY of the nine causes, or `null` to stay silent.
+ *
+ * Coverage note (why this exists): `humanizeCursorMovePick` renders exactly one
+ * cause, `'model-pick'`, and only when the 9.17.0 menu decorations are on it —
+ * so on a skill-graph run the other eight causes rendered NOTHING at all, and
+ * a reader watching a routed conversation saw no routing. This is that gap
+ * closed. `'model-pick'` is deliberately delegated to the existing function
+ * rather than rewritten: its sentence (and its silence on an undecorated
+ * pick, which is what an older recording carries) is unchanged, byte for byte.
+ *
+ * The audience is a non-developer, so the vocabulary is deliberately plain:
+ * "a rule the author wrote", "a separate chooser", "nothing moved".
+ */
+export function humanizeCursorMove(move: CursorMoveLike | undefined): string | null {
+  if (!move || typeof move.by !== 'string') return null;
+
+  switch (move.by) {
+    case 'model-pick':
+      // Unchanged — see the note above.
+      return humanizeCursorMovePick(move);
+
+    case 'entry':
+      return `${cursorMovement(move)} — a rule the author wrote matched this message.${witnessNote(move)}`;
+
+    case 'route':
+      return `${cursorMovement(move)} — the author drew this path, and the run took it automatically.`;
+
+    case 'tool-proposal':
+      return `${cursorMovement(move)} — a tool asked for this move, and it was allowed.`;
+
+    case 'intent': {
+      const fit = move.to !== undefined ? ` ${q(move.to)} fit best` : ' one skill fit best';
+      return `${cursorMovement(move)} — this message was compared against the skills, and${fit}.`;
+    }
+
+    case 'continuity':
+      return `${cursorMovement(move)} — the conversation was already there, so it carried on.`;
+
+    case 'decider':
+      return `${cursorMovement(move)} — a separate chooser was asked to settle it, and this is what it picked.`;
+
+    case 'stay': {
+      // The sticky-stay clause: the resolver found nothing that could move the
+      // cursor. This is the sentence a refused `read_skill` pick ends up
+      // explaining, so it says plainly that nothing happened.
+      const where = move.to ?? move.from;
+      return where !== undefined
+        ? `Nothing moved — it stayed in ${q(where)}.`
+        : 'Nothing moved — the skill in play stayed as it was.';
+    }
+
+    case 'none':
+      return 'No skill was in play — nothing routed this turn.';
+
+    default:
+      // A future era's cause: say what the record says, invent nothing.
+      return `The skill in play was settled by "${move.by}"${
+        move.to !== undefined ? ` → ${q(move.to)}` : ''
+      }.`;
+  }
 }

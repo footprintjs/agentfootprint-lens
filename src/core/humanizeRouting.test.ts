@@ -28,7 +28,17 @@
  *   R21 cursorMove model-pick + declinedOffer — divergence on the record;
  *       the menu clause stays silent (the pick was NOT on that menu)
  *   R22 cursorMove model-pick WITHOUT decorations — stays silent (old era)
- *   R23 context.evaluated without cursorMove — stays silent
+ *   R23 context.evaluated without cursorMove — stays silent; WITH one it now
+ *       speaks (the nine-cause coverage, below)
+ *   R25 cursorMove by=entry — the author's rule, plus the quoted witness
+ *   R26 cursorMove by=route — the drawn path, taken automatically
+ *   R27 cursorMove by=tool-proposal — a TOOL asked for the move
+ *   R28 cursorMove by=intent — the message was compared against the skills
+ *   R29 cursorMove by=continuity — the conversation was already there
+ *   R30 cursorMove by=decider — a separate chooser settled it
+ *   R31 cursorMove by=stay — nothing moved (what a refused pick explains)
+ *   R32 cursorMove by=none — no skill was in play
+ *   R33 an unknown cursor cause — honest raw line; no `by` at all → silent
  *   R24 teachingHumanizer / turn_routed precedence — teaching voice wins
  *       when agentfootprint ships a commentary key for the event (9.16.0+
  *       bundles one for `turn_routed by='entry'`); this package's sentence
@@ -433,9 +443,17 @@ describe('routing — R22: cursorMove model-pick WITHOUT decorations', () => {
 describe('routing — R23: context.evaluated without cursorMove', () => {
   it('stays silent (the low-signal internal tick)', () => {
     expect(defaultHumanizer(evt(EVALUATED, { iteration: 1 }))).toBeNull();
+  });
+
+  it('WITH a cursorMove it now speaks — the eight formerly silent causes', () => {
+    // Era change (this package): a cursorMove used to render only for a
+    // DECORATED `model-pick`, so a `route` hop — the author's own declared
+    // edge firing — produced no commentary at all. Coverage of all nine
+    // causes is the point of `humanizeCursorMove`; `model-pick` itself is
+    // unchanged (R20 / R21 / R22 still pin it byte for byte).
     expect(
       defaultHumanizer(evt(EVALUATED, { iteration: 1, cursorMove: { by: 'route', to: 'x' } })),
-    ).toBeNull();
+    ).toBe('Started in "x" — the author drew this path, and the run took it automatically.');
   });
 });
 
@@ -485,5 +503,124 @@ describe('routing — R24b: defaultHumanizer turn_routed by=entry (era-independe
   it('renders the exact default sentence regardless of what agentfootprint bundles for teaching voice', () => {
     const out = defaultHumanizer(evt(TURN_ROUTED, { by: 'entry', to: 'billing' }));
     expect(out).toBe('Turn started in "billing" — a rule matched (tier 1).');
+  });
+});
+
+// ─── cursorMove — the other EIGHT causes (coverage, not a rewrite) ────────
+//
+// R25–R32 cover every `CursorMoveCause` agentfootprint ships except
+// `model-pick`, which R20–R22 already own and which is delegated unchanged.
+// R33 is the honest fallback for a cause no era has shipped yet.
+
+describe('routing — R25: cursorMove by=entry', () => {
+  it('credits the author’s rule, and quotes the message when a witness is on the event', () => {
+    expect(
+      defaultHumanizer(evt(EVALUATED, { iteration: 1, cursorMove: { by: 'entry', to: 'refunds' } })),
+    ).toBe('Started in "refunds" — a rule the author wrote matched this message.');
+
+    expect(
+      defaultHumanizer(
+        evt(EVALUATED, {
+          iteration: 1,
+          cursorMove: {
+            by: 'entry',
+            to: 'refunds',
+            witness: { text: 'I want a refund please', keyword: 'refund' },
+          },
+        }),
+      ),
+    ).toBe(
+      'Started in "refunds" — a rule the author wrote matched this message. ' +
+        'The message said "I want a refund please" — the word "refund" is what matched.',
+    );
+  });
+});
+
+describe('routing — R26: cursorMove by=route', () => {
+  it('names the move and credits the drawn path', () => {
+    expect(
+      defaultHumanizer(
+        evt(EVALUATED, { iteration: 3, cursorMove: { by: 'route', from: 'triage', to: 'audit' } }),
+      ),
+    ).toBe(
+      'Moved from "triage" to "audit" — the author drew this path, and the run took it automatically.',
+    );
+  });
+});
+
+describe('routing — R27: cursorMove by=tool-proposal', () => {
+  it('says a TOOL asked for the move (not the model, not the author)', () => {
+    expect(
+      defaultHumanizer(
+        evt(EVALUATED, {
+          iteration: 2,
+          cursorMove: { by: 'tool-proposal', from: 'triage', to: 'billing' },
+        }),
+      ),
+    ).toBe('Moved from "triage" to "billing" — a tool asked for this move, and it was allowed.');
+  });
+});
+
+describe('routing — R28: cursorMove by=intent', () => {
+  it('says the message was compared against the skills', () => {
+    expect(
+      defaultHumanizer(evt(EVALUATED, { iteration: 1, cursorMove: { by: 'intent', to: 'billing' } })),
+    ).toBe('Started in "billing" — this message was compared against the skills, and "billing" fit best.');
+  });
+});
+
+describe('routing — R29: cursorMove by=continuity', () => {
+  it('says the conversation was already there', () => {
+    expect(
+      defaultHumanizer(
+        evt(EVALUATED, { iteration: 1, cursorMove: { by: 'continuity', from: 'billing', to: 'billing' } }),
+      ),
+    ).toBe('Stayed in "billing" — the conversation was already there, so it carried on.');
+  });
+});
+
+describe('routing — R30: cursorMove by=decider', () => {
+  it('says a separate chooser settled it', () => {
+    expect(
+      defaultHumanizer(evt(EVALUATED, { iteration: 1, cursorMove: { by: 'decider', to: 'refunds' } })),
+    ).toBe(
+      'Started in "refunds" — a separate chooser was asked to settle it, and this is what it picked.',
+    );
+  });
+});
+
+describe('routing — R31: cursorMove by=stay', () => {
+  it('says plainly that nothing moved — the sentence a refused pick ends up explaining', () => {
+    expect(
+      defaultHumanizer(
+        evt(EVALUATED, { iteration: 2, cursorMove: { by: 'stay', from: 'triage', to: 'triage' } }),
+      ),
+    ).toBe('Nothing moved — it stayed in "triage".');
+  });
+
+  it('with no skill named, says so without inventing one', () => {
+    expect(defaultHumanizer(evt(EVALUATED, { iteration: 2, cursorMove: { by: 'stay' } }))).toBe(
+      'Nothing moved — the skill in play stayed as it was.',
+    );
+  });
+});
+
+describe('routing — R32: cursorMove by=none', () => {
+  it('says no skill was in play', () => {
+    expect(defaultHumanizer(evt(EVALUATED, { iteration: 1, cursorMove: { by: 'none' } }))).toBe(
+      'No skill was in play — nothing routed this turn.',
+    );
+  });
+});
+
+describe('routing — R33: an unknown cursor cause (a future era)', () => {
+  it('renders honestly and raw, inventing nothing', () => {
+    expect(
+      defaultHumanizer(evt(EVALUATED, { iteration: 1, cursorMove: { by: 'teleport', to: 'x' } })),
+    ).toBe('The skill in play was settled by "teleport" → "x".');
+  });
+
+  it('a cursorMove with no `by` at all stays silent', () => {
+    expect(defaultHumanizer(evt(EVALUATED, { iteration: 1, cursorMove: { to: 'x' } }))).toBeNull();
   });
 });
