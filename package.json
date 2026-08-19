@@ -45,6 +45,9 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "demo": "vite",
+    "demo:build": "vite build",
+    "demo:record": "npx --yes tsx demo/generate-skill-run.ts",
     "clean": "rm -rf dist",
     "test:coverage": "vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text-summary --coverage.reportsDirectory=coverage",
     "coverage:badge": "npm run test:coverage; node scripts/coverage-badge.mjs"

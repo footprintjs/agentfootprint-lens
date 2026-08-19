@@ -102,6 +102,13 @@ export {
   type SkillFlowEdge,
   type SkillRoutingPathStep,
 } from "./skillGraphFlowLayout.js";
+// The SkillGraph DEBUGGER — the companion runtime view to <SkillGraphFlow>:
+// the declared topology with the run's cursor on it, the route-decision card,
+// the per-frame "what the model saw" panel, the beat strip, and the product
+// lens's accumulating narrative rail. It SCRUBS the lens's one cursor
+// (`cursorRuntimeStageId` in, `onJumpTo` out) and holds no position of its own.
+// Mount it in `<Lens slots={{ detail }}>` or compose the panes yourself.
+export * from "./skillgraph/index.js";
 export { SummaryCard } from "./SummaryCard.js";
 export { TimeTravel, type TimeTravelProps } from "./TimeTravel.js";
 // WhereFrom — "Where did this come from?": the cursor stage's written keys

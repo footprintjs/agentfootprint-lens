@@ -58,7 +58,11 @@ export interface TurnRoutedLike {
   readonly decisive?: boolean;
   readonly offered?: readonly string[];
   readonly stayOffered?: boolean;
-  readonly droppedResume?: { readonly id: string; readonly reason: string };
+  /** `reason` is optional because a RECORDING's is: the fold that reads these
+   *  events (`selectSkillRoute`) omits a field the payload did not carry, and
+   *  no sentence here reads it — only the id is spoken. Requiring it would
+   *  make a real recording un-narratable over a word nobody says. */
+  readonly droppedResume?: { readonly id: string; readonly reason?: string };
   readonly policy?: {
     readonly nearTieMargin?: number;
     readonly menuSize?: number;

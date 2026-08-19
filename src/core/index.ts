@@ -79,6 +79,12 @@ export {
 } from "./group/activeChartGroup.js";
 export { buildGroups } from "./group/buildGroups.js";
 export { groupContainsCommit, type Group } from "./group/Group.js";
+// The inverse of the cursor's `describe`: an ADDRESS back to the step that
+// holds it. A view that wants to MOVE the one cursor knows a runtimeStageId,
+// and the axis at the current drill level may stop somewhere coarser (a whole
+// iteration rather than the stage inside it). One rule, one place.
+export { stepForRuntimeStageId } from "./group/stepForRuntimeStageId.js";
+
 
 // Lens v0.1 translator pipeline — Runner → LensGroupOutput (UI-agnostic
 // graph of nodes + edges). The L3 React renderer consumes this; Vue / D3

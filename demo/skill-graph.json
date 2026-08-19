@@ -1,0 +1,72 @@
+{
+ "nodes": [
+  {
+   "id": "support",
+   "kind": "skill",
+   "label": "support"
+  },
+  {
+   "id": "billing",
+   "kind": "skill",
+   "label": "billing"
+  },
+  {
+   "id": "account",
+   "kind": "skill",
+   "label": "account"
+  },
+  {
+   "id": "refunds",
+   "kind": "skill",
+   "label": "refunds"
+  },
+  {
+   "id": "disputes",
+   "kind": "skill",
+   "label": "disputes"
+  },
+  {
+   "id": "security",
+   "kind": "skill",
+   "label": "security"
+  }
+ ],
+ "edges": [
+  {
+   "from": null,
+   "to": "support",
+   "kind": "entry"
+  },
+  {
+   "from": "support",
+   "to": "billing",
+   "kind": "model"
+  },
+  {
+   "from": "support",
+   "to": "account",
+   "kind": "model"
+  },
+  {
+   "from": "billing",
+   "to": "refunds",
+   "kind": "on-tool-return",
+   "label": "on inspect_charge"
+  },
+  {
+   "from": "billing",
+   "to": "disputes",
+   "kind": "model"
+  },
+  {
+   "from": "account",
+   "to": "security",
+   "kind": "model"
+  },
+  {
+   "from": "disputes",
+   "to": "security",
+   "kind": "model"
+  }
+ ]
+}

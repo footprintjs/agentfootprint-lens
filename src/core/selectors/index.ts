@@ -93,3 +93,34 @@ export {
   type SkillTurnStart,
   type SkillTurnVerdict,
 } from './selectSkillRoute.js';
+// The routing record projected onto the TIME axis — one beat per iteration,
+// carrying what accumulates (cursor, visited) and the library's own sentence
+// for the hop. `selectSkillBeatAt` resolves the ONE Lens cursor onto that
+// list (exact → within-subflow → nearest-previous), the same rule
+// `selectToolChoiceCall` uses: the skill view scrubs the cursor, never a
+// second one of its own.
+export {
+  selectSkillBeats,
+  selectSkillBeatAt,
+  type SelectSkillBeatsArgs,
+  type SkillBeat,
+  type SkillReachableSet,
+} from './selectSkillBeats.js';
+// …and onto the SPACE axis: the drawable graph at one beat, with declared and
+// observed edges kept apart and each node's state resolved once.
+export {
+  selectSkillTopology,
+  type DeclaredEdgeInput,
+  type SelectSkillTopologyArgs,
+  type SkillNodeState,
+  type SkillTopology,
+  type SkillTopologyEdge,
+  type SkillTopologyNode,
+} from './selectSkillTopology.js';
+// What reached the model on ONE beat: the beat's own Evaluate stage paired
+// with the LLM call it prepared, filtered through `selectContextEngineeringInjections`.
+export {
+  selectSkillFrameContext,
+  type SelectSkillFrameContextArgs,
+  type SkillFrameContext,
+} from './selectSkillFrameContext.js';

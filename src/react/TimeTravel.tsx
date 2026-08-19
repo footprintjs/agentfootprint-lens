@@ -43,6 +43,16 @@ export interface TimeTravelProps {
    * ON by default; pass `false` for just ◀ ▶ ⟳Live + the count.
    */
   readonly stepStrip?: boolean;
+  /**
+   * Bind ← → Home End at the window. Default `true` — today's behaviour.
+   *
+   * Turn it OFF for a SECOND transport on the same page. Two mounted
+   * transports both listen at the window and both move the ONE cursor, so a
+   * single arrow press moves it twice (and by different units when the two
+   * are bound to different projections of the axis). The page's primary
+   * transport keeps the keys; the secondary one asks for `keyboard={false}`.
+   */
+  readonly keyboard?: boolean;
 }
 
 export const TimeTravel: React.FC<TimeTravelProps> = ({
@@ -52,6 +62,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
   isLive,
   compact,
   stepStrip = true,
+  keyboard = true,
 }) => {
   const max = Math.max(0, total - 1);
 
@@ -62,9 +73,20 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
   // Arrow-key scrubbing. Bound at the window so it works regardless of
   // where focus is — but skip when the user is typing in an input.
   useEffect(() => {
+    if (!keyboard) return;
     const onKey = (e: KeyboardEvent): void => {
+      // `matches` is feature-detected: a keydown dispatched AT the window or
+      // the document (a host that forwards keys, a test harness) has a target
+      // that is not an Element, and calling it blindly throws inside the
+      // listener — taking the transport out over a guard clause.
       const target = e.target as HTMLElement | null;
-      if (target?.matches('input, textarea, [contenteditable="true"]')) return;
+      if (
+        target !== null &&
+        typeof target.matches === 'function' &&
+        target.matches('input, textarea, [contenteditable="true"]')
+      ) {
+        return;
+      }
       if (e.key === 'ArrowLeft') {
         e.preventDefault();
         step(-1);
@@ -82,7 +104,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusSeq, max]);
+  }, [focusSeq, max, keyboard]);
 
   const disabled = total <= 1;
 
