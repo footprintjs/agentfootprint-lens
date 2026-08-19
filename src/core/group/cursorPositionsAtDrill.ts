@@ -74,6 +74,15 @@ export interface CursorPosition {
    * stay on `runtimeStageId`; only the CHART lights the whole set.
    */
   readonly coActiveGroupIds?: readonly string[];
+  /**
+   * The DOMAIN's classification of this stop, verbatim from the milestone
+   * classifier (`'iteration'`, `'llm-turn'`, `'tool-call'`, …; the collapsed
+   * slot run carries `'context'`). `undefined` on structural stops and the
+   * root bookends. Preserved — rather than flattened into `kind` — because the
+   * grouped ruler bands the axis by it (`stepBands`): an `'iteration'` stop is
+   * where a new group of steps begins.
+   */
+  readonly milestone?: string;
 }
 
 function rootGroup(groups: readonly Group[]): Group | undefined {
@@ -389,6 +398,9 @@ function milestonePositions(
       kind: (r.kind === 'parallel' ? 'parallel' : 'commit') as CursorPosition['kind'],
       depth: r.depth,
       commitIdx: r.commitIdx,
+      // The domain's own word for the stop, kept for the grouped ruler's
+      // banding. The collapsed slot run is 'context' (its label's word).
+      milestone: r.kind === 'parallel' ? 'context' : r.kind,
       ...(r.coActiveGroupIds && r.coActiveGroupIds.length > 0
         ? { coActiveGroupIds: r.coActiveGroupIds }
         : {}),

@@ -19,6 +19,7 @@
 
 import React, { useEffect } from 'react';
 import { T } from './theme/index.js';
+import { bandIndexOf, type StepBand } from '../core/group/stepBands.js';
 
 export interface TimeTravelProps {
   /** Total number of events in the log (= max seq + 1 for zero-indexed seq). */
@@ -44,6 +45,18 @@ export interface TimeTravelProps {
    */
   readonly stepStrip?: boolean;
   /**
+   * The GROUPED ruler: bands over the same step axis (from `stepBands`).
+   * When present (compact mode), the strip renders ONE segment per band —
+   * sized by how many steps it covers, labelled with the band's name — and
+   * every mover here moves GROUP BY GROUP: ◀ ▶ and the arrow keys go to the
+   * adjacent band's first step, clicking a band goes to ITS first step.
+   *
+   * No second cursor: the position is still `focusSeq` (a step), the active
+   * band is DERIVED from which range contains it, and every move still goes
+   * out through `onFocusChange(step)` — this component stores nothing.
+   */
+  readonly bands?: readonly StepBand[];
+  /**
    * Bind ← → Home End at the window. Default `true` — today's behaviour.
    *
    * Turn it OFF for a SECOND transport on the same page. Two mounted
@@ -62,11 +75,27 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
   isLive,
   compact,
   stepStrip = true,
+  bands,
   keyboard = true,
 }) => {
   const max = Math.max(0, total - 1);
 
+  // The GROUPED ruler is a pure projection: which band the cursor is in is
+  // DERIVED from focusSeq on every render — never stored, so it can never
+  // drift from the one cursor.
+  const banded = bands !== undefined && bands.length > 0;
+  const bandIdx = banded ? bandIndexOf(bands, focusSeq) : -1;
+
   const step = (delta: number): void => {
+    if (banded) {
+      // Group-by-group: the adjacent band's FIRST step. From a mid-band
+      // position, ◀ goes to the top of the band the cursor is in only via its
+      // predecessor — "previous group", as the ruler promises.
+      const next = Math.min(bands.length - 1, Math.max(0, bandIdx + delta));
+      const target = bands[next]?.firstStep;
+      if (target !== undefined && target !== focusSeq) onFocusChange(target);
+      return;
+    }
     onFocusChange(Math.min(max, Math.max(0, focusSeq + delta)));
   };
 
@@ -104,7 +133,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusSeq, max, keyboard]);
+  }, [focusSeq, max, keyboard, bands]);
 
   const disabled = total <= 1;
 
@@ -128,19 +157,19 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
     >
       <button
         onClick={() => step(-1)}
-        disabled={focusSeq <= 0 || disabled}
+        disabled={(banded ? bandIdx <= 0 : focusSeq <= 0) || disabled}
         style={btnStyle(false)}
-        title="Previous event (←)"
-        aria-label="Previous event"
+        title={banded ? 'Previous group (←)' : 'Previous event (←)'}
+        aria-label={banded ? 'Previous group' : 'Previous event'}
       >
         ◀
       </button>
       <button
         onClick={() => step(+1)}
-        disabled={focusSeq >= max || disabled}
+        disabled={(banded ? bandIdx >= bands.length - 1 : focusSeq >= max) || disabled}
         style={btnStyle(false)}
-        title="Next event (→)"
-        aria-label="Next event"
+        title={banded ? 'Next group (→)' : 'Next event (→)'}
+        aria-label={banded ? 'Next group' : 'Next event'}
       >
         ▶
       </button>
@@ -154,8 +183,56 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
         {isLive ? '● Live' : '⟳ Live'}
       </button>
       {/* Compact mode: a clickable STEP STRIP (every step visible, click to jump
-          — including BACKWARD to any earlier step), or just a spacer if disabled. */}
-      {compact ? (
+          — including BACKWARD to any earlier step), or just a spacer if disabled.
+          With `bands`, the strip is the GROUPED ruler instead: one labelled
+          segment per band, sized by the steps it covers. */}
+      {compact && banded ? (
+        <div
+          role="group"
+          aria-label="Groups"
+          style={{ flex: 1, display: 'flex', alignItems: 'center', gap: 3, minWidth: 120, padding: '0 4px' }}
+        >
+          {bands.map((band, i) => {
+            const here = i === bandIdx;
+            const done = i < bandIdx;
+            const span = band.lastStep - band.firstStep + 1;
+            return (
+              <button
+                key={`${band.firstStep}:${band.label}`}
+                onClick={() => onFocusChange(band.firstStep)}
+                disabled={disabled}
+                title={
+                  span === 1
+                    ? `${band.label} — step ${band.firstStep + 1} of ${total}`
+                    : `${band.label} — steps ${band.firstStep + 1}–${band.lastStep + 1} of ${total}`
+                }
+                aria-label={`Go to ${band.label}`}
+                aria-current={here ? 'step' : undefined}
+                style={{
+                  flex: span,
+                  minWidth: 22,
+                  height: here ? 20 : 15,
+                  padding: '0 4px',
+                  border: 'none',
+                  borderRadius: 4,
+                  cursor: disabled ? 'default' : 'pointer',
+                  background: here ? T.warning : done ? T.success : T.border,
+                  color: here ? '#3b2b00' : T.textSecondary,
+                  fontSize: 10,
+                  fontWeight: here ? 600 : 500,
+                  lineHeight: 1,
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap',
+                  transition: 'height 0.12s ease, background 0.12s ease',
+                }}
+              >
+                {band.label}
+              </button>
+            );
+          })}
+        </div>
+      ) : compact ? (
         stepStrip && total > 1 ? (
           <div
             role="group"
@@ -221,7 +298,15 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
           textAlign: 'right',
         }}
       >
-        {total === 0 ? '—' : total === 1 ? '1 step' : `${focusSeq + 1} / ${total}`}
+        {banded
+          ? bands.length === 1
+            ? '1 group'
+            : `group ${bandIdx + 1} / ${bands.length}`
+          : total === 0
+            ? '—'
+            : total === 1
+              ? '1 step'
+              : `${focusSeq + 1} / ${total}`}
       </div>
     </div>
   );

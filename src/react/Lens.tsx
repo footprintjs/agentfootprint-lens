@@ -46,7 +46,8 @@ import { useLensRecorder } from "./hooks/useLensRecorder.js";
 import { useDrillPath } from "./hooks/useDrillPath.js";
 import { useCommitSync } from "./hooks/useCommitSync.js";
 import { useCursorPositions } from "./hooks/useCursorPositions.js";
-import { useChartGroup } from "./hooks/useChartGroup.js";
+import { stepBands, bandIndexOf, bandChartGroup } from "../core/group/stepBands.js";
+import { isFrameworkChartNode } from "../core/collapser/frameworkNode.js";
 import {
   useToolChoice,
   type ToolChoiceSource,
@@ -68,6 +69,9 @@ import { WhereFrom } from "./WhereFrom.js";
 // eui's light/dark presets — applied to the chart area from `theme.mode` so the
 // eui-rendered nodes follow dark/light without the consumer hand-setting `--fp-*`.
 import { tokensToCSSVars, coolLight, coolDark } from "footprint-explainable-ui";
+// eui's neutral node-collapse transform. The PREDICATE stays here (the lens is
+// the agentfootprint-aware layer); eui only ever sees a function.
+import { collapseTraceGraph } from "footprint-explainable-ui/flowchart";
 
 export type LensView = "engineer" | "analyst" | "user";
 
@@ -845,11 +849,41 @@ const EngineerView: React.FC<{
   granularity,
   slots,
 }) => {
-  // `syncMap` and the slider's compound-position list (`cursorPositions`)
-  // are read directly by the slider/commentary cutoff logic farther
-  // below. They remain in the props for completeness even though this
-  // top-level component body doesn't consume them outside the JSX.
-  void syncMap;
+  // ─── The GROUPED ruler (granularity 'group') ──────────────────────
+  // Bands are a PURE PROJECTION of the step axis (see stepBands.ts): which
+  // band is active is derived from focusStep every render, and a band click
+  // moves the ONE cursor to the band's first step through the same
+  // onFocusChange funnel as everything else. Nothing here stores a band.
+  const bands = useMemo(
+    () => (granularity === 'group' ? stepBands(cursorPositions) : undefined),
+    [granularity, cursorPositions],
+  );
+  const activeBandIdx = bands !== undefined ? bandIndexOf(bands, focusStep) : -1;
+
+  // ─── Framework plumbing, collapsed on the grouped reading ─────────
+  // The grouped reading hides what the consumer did not build: chart nodes
+  // the reserved-segment law classifies as agentfootprint's own plumbing
+  // (isFrameworkChartNode). HONESTY RULE: hidden is said out loud — the chip
+  // under the transport states the count, and the toggle brings them back.
+  // The per-step reading ('step' granularity) always shows everything: that
+  // is its identity. UI preference, not a cursor — the position never moves
+  // when this flips.
+  const [showFramework, setShowFramework] = useState(false);
+  const frameworkCollapse = useMemo(
+    () =>
+      granularity === 'group' && chart !== undefined
+        ? collapseTraceGraph(chart.graph, isFrameworkChartNode)
+        : undefined,
+    [granularity, chart],
+  );
+  const frameworkHiddenCount = frameworkCollapse?.hiddenNodeIds.length ?? 0;
+  const chartForCanvas = useMemo(
+    () =>
+      chart !== undefined && frameworkCollapse !== undefined && frameworkHiddenCount > 0 && !showFramework
+        ? { ...chart, graph: frameworkCollapse.graph }
+        : chart,
+    [chart, frameworkCollapse, frameworkHiddenCount, showFramework],
+  );
 
   // Memoize the runtime overlay: getOverlay() returns a DEFENSIVE COPY (deep-
   // clones executionOrder + the error/running maps), so calling it inline in JSX
@@ -1031,12 +1065,16 @@ const EngineerView: React.FC<{
     if (!ids || ids.length === 0) return undefined;
     return new Set(ids.map((id) => id.split('#')[0]!));
   }, [cursorPositions, focusStep]);
-  // Group mode: the group the cursor stands in, as chart node ids. Derived from
-  // the SAME commit index the cursor already carries — one cursor, asked a
-  // coarser question. `'step'` passes `undefined`, so the chart is untouched.
-  const activeChartGroupHighlight = useChartGroup(
-    recorder,
-    granularity === 'group' ? cursorPositions[focusStep]?.commitIdx : undefined,
+  // Group mode: the BAND the cursor stands in, resolved to chart node ids —
+  // the same bands the transport strip renders, so the drawn boundary and the
+  // active strip segment can never name two different groups. Derived from
+  // the cursor every render; `'step'` yields `undefined`, chart untouched.
+  const activeChartGroupHighlight = useMemo(
+    () =>
+      bands !== undefined
+        ? bandChartGroup({ bands, bandIndex: activeBandIdx, positions: cursorPositions, commits: syncMap })
+        : undefined,
+    [bands, activeBandIdx, cursorPositions, syncMap],
   );
   // Step → event-seq mapping. Resolves each step to a concrete log
   // entry so Commentary can scrub by slider position even when a step
@@ -1369,15 +1407,60 @@ const EngineerView: React.FC<{
         />
       </div>
       {/* Compact controls only (◀ ▶ ⟳Live + count) — the WHAT HAPPENED timeline
-          is the scrubber, so the drag track here would be redundant. */}
+          is the scrubber, so the drag track here would be redundant. On the
+          grouped ruler the strip shows BANDS (one labelled segment per group
+          of steps) and the transport moves group by group — same cursor, same
+          funnel, coarser stops. */}
       <TimeTravel
         compact
         stepStrip={stepStrip}
+        {...(bands !== undefined && { bands })}
         total={total}
         focusSeq={focusStep}
         onFocusChange={onFocusChange}
         isLive={isLive}
       />
+      {/* The honest sentence for the collapsed plumbing: what is hidden is
+          SAID, with the door to bring it back. Absent (a chart with no
+          framework nodes) renders nothing — absent and hidden are different
+          facts, and only hidden gets a sentence. */}
+      {granularity === 'group' && frameworkHiddenCount > 0 && (
+        <div
+          data-testid="framework-steps-chip"
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 8,
+            padding: '3px 12px',
+            fontSize: 11,
+            fontFamily: T.fontSans,
+            color: T.textMuted,
+          }}
+        >
+          <span>
+            {showFramework
+              ? `Showing ${frameworkHiddenCount} framework step${frameworkHiddenCount === 1 ? '' : 's'} the library ran for you`
+              : `${frameworkHiddenCount} framework step${frameworkHiddenCount === 1 ? '' : 's'} hidden — steps the library ran for you, not part of your agent's own structure`}
+          </span>
+          <button
+            data-testid="framework-steps-toggle"
+            onClick={() => setShowFramework((v) => !v)}
+            style={{
+              background: 'transparent',
+              color: T.textSecondary,
+              border: `1px solid ${T.border}`,
+              borderRadius: 999,
+              padding: '1px 8px',
+              fontSize: 10.5,
+              cursor: 'pointer',
+              lineHeight: 1.4,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {showFramework ? 'Hide framework steps' : 'Show framework steps'}
+          </button>
+        </div>
+      )}
 
       {/* Main row: [Topology pill | Topology panel] [Center flowchart]
           [Details pill | Details panel]. flex: 1 fills remaining height.
@@ -1491,7 +1574,7 @@ const EngineerView: React.FC<{
               // whole monitor. See `memory/lens_v0_1_one_cursor_architecture.md`.
               <LensChartBoundary>
               <LensFlow
-                chart={chart}
+                chart={chartForCanvas ?? chart}
                 {...(sliceCone && { sliceCone })}
                 {...(theme ? { colors: {
                   default: theme.ground ?? (theme.mode === 'dark' ? '#94a3b8' : '#64748b'),

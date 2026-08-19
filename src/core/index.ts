@@ -77,6 +77,23 @@ export {
   type ChartGroupHighlight,
   type CommitWithStage,
 } from "./group/activeChartGroup.js";
+// The grouped ruler's BANDS: contiguous ranges over the ONE step axis —
+// derived from the positions, never stored, so a band can never be a second
+// cursor. `bandChartGroup` resolves the active band to the same
+// `ChartGroupHighlight` shape the chart's boundary already draws.
+export {
+  stepBands,
+  bandIndexOf,
+  bandChartGroup,
+  type StepBand,
+} from "./group/stepBands.js";
+// The reserved-segment law (`sf-*` = agentfootprint's own plumbing), as a
+// chart-node predicate for eui's neutral `collapseTraceGraph` — the Why
+// Lens's default collapse. The lens is the layer allowed to know this.
+export {
+  isFrameworkChartNode,
+  type ChartNodeLike,
+} from "./collapser/frameworkNode.js";
 export { buildGroups } from "./group/buildGroups.js";
 export { groupContainsCommit, type Group } from "./group/Group.js";
 // The inverse of the cursor's `describe`: an ADDRESS back to the step that
