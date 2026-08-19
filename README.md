@@ -111,6 +111,20 @@ Lens watches agentfootprint's typed event stream — `agentfootprint.agent.*`,
 of the 65-type registry. You never wire events yourself; `recorder.observe()`
 subscribes to all of them.
 
+**A long tool call is no longer a silence.** When a tool reports from inside
+its own `execute` with `ctx.progress(payload)` (agentfootprint 9.52+), each
+report lands in the stream between that call's start and its end:
+
+```
+`walk_graph` reported progress (iteration 1): {"hop":1,"of":3,"node":"svc-a"}
+```
+
+The three identity fields are stamped by the framework, so the line states them
+as facts. The payload is the tool author's own data — the Lens shows a preview
+of it rather than guessing at a shape it was never promised, and says so when
+it had to cut one short. A tool that never calls `ctx.progress` files nothing,
+and nothing here invents a report it did not make.
+
 ---
 
 ## Multiple watchers, one agent

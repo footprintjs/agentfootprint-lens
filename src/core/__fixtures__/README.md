@@ -86,3 +86,48 @@ checked-in demo fixture actually carries the facts the demo shows off.
 
 Same rules as everything above: produced by running the real library, never
 hand-edited.
+
+
+---
+
+# A tool that spoke while it worked
+
+`tool-progress-turn.json` — one frozen turn of a ReAct agent whose
+`walk_graph` tool calls `ctx.progress()` three times mid-execute
+(agentfootprint 9.52.0). Used by `humanizeToolProgress.test.ts`. Same rules as
+everything above: produced by running the real library, never hand-edited.
+
+Before 9.52.0 a tool call was ATOMIC on the record — `tool_start`, a silence of
+however long the handler took, then `tool_end`. `ctx.progress(payload)` files
+one `agentfootprint.stream.tool_progress` event, in call order, always between
+that call's start and its end.
+
+The turn is shaped so the fixture carries every arm the Lens has to render:
+
+| iteration | what happened | on the wire |
+|---|---|---|
+| 1 | `walk_graph` reports three times, then returns | 3 × `stream.tool_progress`, all with `toolCallId: 'c1'`, between `c1`'s start and end |
+| 2 | `summarize` runs and reports nothing | no `tool_progress` at all — the honest-absence arm |
+| 3 | the model answers; the turn ends | — |
+
+The three reports carry three different payload SHAPES on purpose, because
+`payload` is the tool author's own data (typed `unknown`, forwarded verbatim,
+never read or normalized by the library):
+
+1. an object — `{ hop: 1, of: 3, node: 'svc-a' }`
+2. a string — `'still walking — 2 of 3'`
+3. a LONG string, past the Lens's preview limit, so the truncation path runs
+   against a real event instead of a synthetic one
+
+That third one is why the fixture exists rather than a hand-built event: the
+cut, and the "N more chars" that states it, are asserted against bytes a real
+run actually produced.
+
+The three identity fields (`toolCallId`, `toolName`, `iteration`) are stamped
+by the framework, not by the tool — which is what lets the Lens print them as
+facts while previewing the payload as a claim.
+
+Frozen as `{ events, structure }`, like `skill-route-refusal.json`: nothing
+that reads this file uses the commit axis. Regenerate with
+`npm run fixtures:tool-progress`; the generator refuses to write a fixture that
+does not carry exactly three reports.

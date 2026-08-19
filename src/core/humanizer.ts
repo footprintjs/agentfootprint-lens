@@ -35,6 +35,11 @@ import {
   type EvidenceCheckedLike,
 } from './humanizeEvidence.js';
 import {
+  humanizeToolProgress,
+  humanizeToolProgressTeaching,
+  type ToolProgressLike,
+} from './humanizeToolProgress.js';
+import {
   humanizeArtifactExpired,
   humanizeArtifactMinted,
   humanizeArtifactPresented,
@@ -136,6 +141,12 @@ export const defaultHumanizer: Humanizer = (event) => {
       return `Model replied in ${event.payload.durationMs}ms (${event.payload.usage.input}+${event.payload.usage.output} tokens, ${event.payload.toolCallCount} tool calls, stop: ${event.payload.stopReason}).`;
     case 'agentfootprint.stream.tool_start':
       return `Calling tool "${event.payload.toolName}" with ${JSON.stringify(event.payload.args)}.`;
+    // One report from INSIDE a still-running tool call (agentfootprint
+    // 9.52.0). It arrives between this call's tool_start and its tool_end, so
+    // the stream reads as the call speaking mid-flight. See humanizeToolProgress
+    // for why the author's payload is previewed rather than interpreted.
+    case 'agentfootprint.stream.tool_progress':
+      return humanizeToolProgress(event.payload as ToolProgressLike);
     case 'agentfootprint.stream.tool_end':
       return `Tool "${event.payload.toolCallId}" returned in ${event.payload.durationMs}ms${event.payload.error === true ? ' (error)' : ''}.`;
     case 'agentfootprint.stream.token':
@@ -349,6 +360,14 @@ export function makeTeachingHumanizer(
   const ctx = { appName, getToolDescription };
 
   return (event) => {
+    // 0. A tool speaking mid-call (agentfootprint 9.52.0). agentfootprint
+    //    bundles no commentary template for it, so without this it would fall
+    //    through to the default humanizer and drop a JSON payload preview into
+    //    a panel whose whole contract is "no field dumps". Same event, prose
+    //    voice — the numbers stay in the analyst view.
+    if ((event.type as string) === 'agentfootprint.stream.tool_progress') {
+      return humanizeToolProgressTeaching(event.payload as ToolProgressLike);
+    }
     // 1. Pick a template key. `null` skips, `undefined` falls through.
     const key = selectCommentaryKey(event);
     if (key === null) return null;
