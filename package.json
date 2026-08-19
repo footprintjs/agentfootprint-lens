@@ -1,6 +1,6 @@
 {
   "name": "agentfootprint-lens",
-  "version": "0.39.0",
+  "version": "0.40.0",
   "description": "See through your agent's decisions. React components for debugging agentfootprint runs — messages, prompts, tool calls, decision scope, cost.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -26,12 +26,38 @@
         "types": "./dist/core.d.cts",
         "default": "./dist/core.cjs"
       }
+    },
+    "./why": {
+      "import": {
+        "types": "./dist/why.d.ts",
+        "default": "./dist/why.js"
+      },
+      "require": {
+        "types": "./dist/why.d.cts",
+        "default": "./dist/why.cjs"
+      }
+    },
+    "./skillgraph": {
+      "import": {
+        "types": "./dist/skillgraph.d.ts",
+        "default": "./dist/skillgraph.js"
+      },
+      "require": {
+        "types": "./dist/skillgraph.d.cts",
+        "default": "./dist/skillgraph.cjs"
+      }
     }
   },
   "typesVersions": {
     "*": {
       "core": [
         "./dist/core.d.ts"
+      ],
+      "why": [
+        "./dist/why.d.ts"
+      ],
+      "skillgraph": [
+        "./dist/skillgraph.d.ts"
       ]
     }
   },

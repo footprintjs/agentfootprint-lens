@@ -68,6 +68,28 @@ Swap `mock(...)` for `anthropic(...)` / `openai(...)` / `ollama(...)` from
 
 ---
 
+## Doors
+
+Two subpath imports name the lens you are mounting. They are additions —
+everything behind them is also on the root barrel, and the root barrel never
+changes.
+
+| import | the job |
+|---|---|
+| `agentfootprint-lens/why` | Replay a recording as the agent's own milestones. `<WhyLens recording={...} />` takes the recording straight (`recordRun()`'s `{ snapshot, events, structure }`, or the `persistRecording` envelope), validates it at mount, and mounts the shipped `<Lens>` shell on the milestone axis — plus the axis helpers (`scrubAxisFor`, `stepForCommitIdx`, `stepForRuntimeStageId`) for hosts holding one cursor across views. |
+| `agentfootprint-lens/skillgraph` | Debug how a run routed through its skills. `<SkillGraphDebugger recorder={...} />` plus its headless selectors (`selectSkillRoute`, `selectSkillBeats`, `selectSkillTopology`, `selectSkillFrameContext`, `stepForRuntimeStageId`). |
+
+The axis model in three sentences: one run leaves one causal trace, and each
+lens replays one AXIS of it — the Why reading scrubs the milestones, the Flow
+reading scrubs every committed stage, the skill door scrubs the routing stops.
+The cursor and the commentary are shared: a position travels between axes by
+its commit index (`scrubAxisFor` + `stepForCommitIdx`), never by copying a
+step number from one ruler to another. Hand a door the wrong thing and it
+says so on screen — what it received and where to go — instead of rendering
+a blank panel.
+
+---
+
 ## What you actually see
 
 The default view (`view="engineer"`) is one screen:

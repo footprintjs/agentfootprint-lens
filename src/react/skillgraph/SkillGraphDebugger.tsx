@@ -69,6 +69,12 @@ import {
   selectSkillTopology,
   type DeclaredEdgeInput,
 } from '../../core/selectors/selectSkillTopology.js';
+import { DoorRefusalCard } from '../../doors/DoorRefusalCard.js';
+import {
+  REFUSAL_GO_TO,
+  describeReceived,
+  refusalDestinationFor,
+} from '../../doors/recordingInput.js';
 import { useNarrowRow } from '../narrowLayout.js';
 import { T } from '../theme/index.js';
 import { BeatStrip } from './BeatStrip.js';
@@ -77,6 +83,10 @@ import { NarrativeRail } from './NarrativeRail.js';
 import { RouteDecisionCard } from './RouteDecisionCard.js';
 import { SkillTopologyCanvas } from './SkillTopologyCanvas.js';
 import type { SkillLens } from './lens.js';
+
+/** Sentence 1 of the door's refusal — what the Skill Graph debugger reads. */
+export const SKILL_GRAPH_READS =
+  'a replayed recording — the recorder that observeRecording(recording) returns, or a live lensRecorder()';
 
 export interface SkillGraphDebuggerProps {
   /** The recording. Everything is folded from its event log + step graph. */
@@ -157,17 +167,28 @@ export function SkillGraphDebugger({
   const rowRef = useRef<HTMLDivElement>(null);
   const narrow = useNarrowRow(rowRef);
 
+  // THE DOOR'S GATE (`agentfootprint-lens/skillgraph`): `recorder` is TYPED
+  // LensRecorder — TypeScript consumers fail at build time — but a JS consumer
+  // can hand this prop anything. A wrong shape renders the teaching refusal
+  // card below (never a crash on `.getVersion()`), and every hook after this
+  // line reads the vetted handle so the hook order never changes.
+  const recorderRefused =
+    recorder !== undefined &&
+    (typeof (recorder as { getVersion?: unknown }).getVersion !== 'function' ||
+      typeof (recorder as { selectEventLog?: unknown }).selectEventLog !== 'function');
+  const vettedRecorder = recorderRefused ? undefined : recorder;
+
   // `getVersion()` is the recorder's monotonic change stamp — the fold reruns
   // when the run advances, and not on every render of a finished one.
-  const version = recorder?.getVersion() ?? 0;
+  const version = vettedRecorder?.getVersion() ?? 0;
   const route = useMemo(
     () =>
       routeProp ??
-      (recorder !== undefined
-        ? selectSkillRoute({ log: recorder.selectEventLog() })
+      (vettedRecorder !== undefined
+        ? selectSkillRoute({ log: vettedRecorder.selectEventLog() })
         : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [routeProp, recorder, version],
+    [routeProp, vettedRecorder, version],
   );
 
   const beats = useMemo(
@@ -195,15 +216,15 @@ export function SkillGraphDebugger({
   // Pairing a beat with the call it prepared needs the step graph; a host that
   // passed only a pre-folded route has none, and the panel says so.
   const frameContext = useMemo(() => {
-    if (recorder === undefined || activeBeat === undefined) return undefined;
+    if (vettedRecorder === undefined || activeBeat === undefined) return undefined;
     const next = beats[activeBeat.index + 1];
     return selectSkillFrameContext({
-      graph: recorder.getStepGraph(),
+      graph: vettedRecorder.getStepGraph(),
       beat: activeBeat,
       ...(next !== undefined ? { nextBeat: next } : {}),
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recorder, version, activeBeat, beats]);
+  }, [vettedRecorder, version, activeBeat, beats]);
 
   /** Skills the cursor stood in at some beat — the clickable ones. */
   const jumpable = useMemo(() => {
@@ -260,6 +281,24 @@ export function SkillGraphDebugger({
     ...style,
   };
 
+  if (recorderRefused) {
+    return (
+      <div className={className} style={shell} data-testid="skill-graph-debugger">
+        <Header lens={lens} onPick={pickLens} subtitle="the recorder prop is not a recorder" />
+        <DoorRefusalCard
+          door="Skill Graph"
+          reads={SKILL_GRAPH_READS}
+          received={describeReceived(recorder)}
+          goTo={
+            refusalDestinationFor(recorder) === 'commit-trace-lens'
+              ? REFUSAL_GO_TO['commit-trace-lens']
+              : 'Replay the recording first — observeRecording(recording).recorder (or a live lensRecorder()) is what this prop wants.'
+          }
+        />
+      </div>
+    );
+  }
+
   if (route === undefined) {
     return (
       <div className={className} style={shell} data-testid="skill-graph-debugger">
@@ -278,7 +317,9 @@ export function SkillGraphDebugger({
         <Header lens={lens} onPick={pickLens} subtitle="this run did not route through skills" />
         <Empty>
           No skill graph ran here: the recording carries no skill catalog, no cursor move and no
-          refusal. Nothing is hidden — there is nothing to draw.
+          refusal. Nothing is hidden — there is nothing to draw. The run itself is still fully
+          readable — the Why Lens (<code>agentfootprint-lens/why</code>) replays every recording,
+          skills or not.
         </Empty>
       </div>
     );

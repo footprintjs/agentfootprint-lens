@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.40.0] - 2026-08-19
+
+The import line now names the lens. Two subpath doors — additions only:
+nothing on the root barrel moved, nothing renamed, and the door count stays
+exactly two (doors are added sparingly, on the af 8.0.0 lesson).
+
+### Added
+
+- **`agentfootprint-lens/why` — the Why Lens door.** `<WhyLens
+  recording={...} />` takes the recording itself — `recordRun()`'s
+  `{ snapshot, events, structure }` or the `persistRecording` envelope —
+  and mounts the shipped `<Lens>` shell on the milestone axis. Beside it:
+  the `<Lens>` shell for hosts that already hold a recorder,
+  `observeRecording`, and the axis helpers (`scrubAxisFor`,
+  `commitAxisPositions`, `cursorPositionsAtDrill`, `stepForCommitIdx`,
+  `stepForRuntimeStageId`, `stepBands`) for hosts holding one cursor
+  across views.
+- **`agentfootprint-lens/skillgraph` — the SkillGraph debugger door.**
+  `<SkillGraphDebugger>` plus its headless selectors (`selectSkillRoute`,
+  `selectSkillBeats`/`selectSkillBeatAt`, `selectSkillTopology`,
+  `selectSkillFrameContext`, `stepForRuntimeStageId`).
+- **Branded inputs, teaching refusals.** Each door's mount component
+  validates what it is handed AT MOUNT and refuses honestly — an on-screen
+  card that names what was received and where to go ("What you passed looks
+  like a bare commit log… The commit-trace lens is
+  footprint-explainable-ui"), never a blank panel and never a crash. The
+  input types are distinct (`AgentRecordingInput`), so TypeScript consumers
+  fail at build time instead. `<SkillGraphDebugger>` handed something that
+  is not a recorder now renders the same teaching card rather than throwing,
+  and its "no skill routing in this recording" state points at the why door.
+- Packaging tests assert both doors resolve (ESM + CJS + types) and export
+  the promised names, from the BUILT dist; publint + attw stay green across
+  all four entries.
+
 ## [0.39.0] - 2026-08-19
 
 Every step now means every stage. The Flow ruler (`granularity="step"`) scrubs
