@@ -34,6 +34,16 @@ export {
   type UseLensCursorArgs,
   type UseLensCursorResult,
 } from "./useLensCursor.js";
+// The POINTING half of the cursor API: move the one cursor to a STAGE, by its
+// runtimeStageId. `<Lens navigatorRef={ref}>` fills `ref.current` with a
+// `LensNavigator`; `navigateTo` resolves the address against the active axis
+// and moves through the same funnel every click uses. A miss returns the
+// nearest earlier stop as an OFFER and moves nothing.
+export {
+  useLensNavigator,
+  type LensNavigator,
+  type UseLensNavigatorArgs,
+} from "./useLensNavigator.js";
 // Where the engineer view stops being two columns and starts stacking them.
 export {
   LENS_NARROW_BREAKPOINT,

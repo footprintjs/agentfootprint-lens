@@ -76,8 +76,8 @@ changes.
 
 | import | the job |
 |---|---|
-| `agentfootprint-lens/why` | Replay a recording as the agent's own milestones. `<WhyLens recording={...} />` takes the recording straight (`recordRun()`'s `{ snapshot, events, structure }`, or the `persistRecording` envelope), validates it at mount, and mounts the shipped `<Lens>` shell on the milestone axis — plus the axis helpers (`scrubAxisFor`, `stepForCommitIdx`, `stepForRuntimeStageId`) for hosts holding one cursor across views. |
-| `agentfootprint-lens/skillgraph` | Debug how a run routed through its skills. `<SkillGraphDebugger recorder={...} />` plus its headless selectors (`selectSkillRoute`, `selectSkillBeats`, `selectSkillTopology`, `selectSkillFrameContext`, `stepForRuntimeStageId`). |
+| `agentfootprint-lens/why` | Replay a recording as the agent's own milestones. `<WhyLens recording={...} />` takes the recording straight (`recordRun()`'s `{ snapshot, events, structure }`, or the `persistRecording` envelope), validates it at mount, and mounts the shipped `<Lens>` shell on the milestone axis — plus the axis helpers (`scrubAxisFor`, `stepForCommitIdx`, `stepForRuntimeStageId`, `resolveNavigation`) for hosts holding one cursor across views. |
+| `agentfootprint-lens/skillgraph` | Debug how a run routed through its skills. `<SkillGraphDebugger recorder={...} />` plus its headless selectors (`selectSkillRoute`, `selectSkillBeats`, `selectSkillTopology`, `selectSkillFrameContext`, `stepForRuntimeStageId`, `resolveNavigation`). |
 
 The axis model in three sentences: one run leaves one causal trace, and each
 lens replays one AXIS of it — the Why reading scrubs the milestones, the Flow
@@ -654,6 +654,67 @@ click, a WHAT HAPPENED moment, a provenance jump, and the auto-advance that
 follows a live run. One cursor, one funnel — a mover that moved without telling
 you would be a second cursor wearing the first one's clothes.
 
+### Pointing at a step: `navigatorRef`
+
+`step` lets you *own* the cursor. `navigatorRef` lets you *say where* — when the
+only thing you know is a stage's address. That is what a chat answer has: it can
+tell you the tool call went wrong, and now it can point at the exact step it
+means.
+
+```tsx
+import { Lens, type LensNavigator } from 'agentfootprint-lens';
+
+const nav = useRef<LensNavigator>(null);
+
+<Lens recorder={recorder} navigatorRef={nav} />
+
+// Anywhere — a chat message, a dashboard row, a deep link:
+const to = nav.current?.navigateTo('call-llm#18');
+// → { ok: true, step: 7, runtimeStageId: 'call-llm#18', match: 'exact', label: 'call-llm 1' }
+```
+
+It resolves against **the ruler you are actually scrubbing**, so the same
+address is step 7 under `granularity="step"` and step 3 under
+`granularity="group"` — and then it goes through the *same funnel* a click on
+that stop uses. Uncontrolled, the lens moves and reports. Controlled, it reports
+and your `step` lands it. Nothing new holds a position.
+
+**A miss is answered, never guessed.** Three rungs, in order:
+
+| | what happened | you get |
+|---|---|---|
+| `match: 'exact'` | a stop **is** that address | `{ ok: true, step, label }` |
+| `match: 'enclosing'` | no stop is that address, but one **contains** it (a stage inside a subflow, on a ruler that stops at whole subflows) | `{ ok: true, step, runtimeStageId }` — the stop's own address, so you always know where it went |
+| — | nothing holds it | `{ ok: false, reason, message, nearest? }` — **the cursor did not move** |
+
+`nearest` is the stop just *before* the address, handed back as data. It is an
+**offer, not a jump**: a cursor that silently lands somewhere the person did not
+ask for is worse than one that stays put. Take it when you want to — one more
+call, and it is an exact hit by construction:
+
+```tsx
+const to = nav.current?.navigateTo(stageId);
+if (to?.ok) {
+  // landed
+} else if (to?.nearest) {
+  // "That step isn't on this ruler. Go to Iteration 1 instead?"
+  onConfirm(() => nav.current?.navigateTo(to.nearest.runtimeStageId));
+} else {
+  show(to?.message); // says exactly why, in a sentence you can print
+}
+```
+
+**No component? Same answer.** The resolver is pure and ships headlessly, so a
+server-rendered link or a CLI can compute the step with nothing mounted:
+
+```ts
+import { scrubAxisFor, resolveNavigation } from 'agentfootprint-lens/core';
+
+const positions = scrubAxisFor(recorder, 'step');   // the ruler, as data
+const to = resolveNavigation(positions, 'call-llm#18');
+const href = to.ok ? `/runs/${runId}?step=${to.step}` : undefined;
+```
+
 ---
 
 ## Rendering your own detail pane
@@ -812,6 +873,7 @@ graph in one call. Returns an unsubscribe. Call it once per run.
 | `granularity` | `'step' \| 'group'?` | Which ruler is scrubbing the chart. `'group'` paints the cursor's group as a named place. Default `'step'`. See [Scrubbing by group](#scrubbing-by-group--the-active-group-is-a-named-place). |
 | `step` | `number?` | Controlled cursor. **Omit it and the lens is self-driving, exactly as before.** Pass it and you own the position; out-of-range values are clamped and reported. See [Driving the cursor](#driving-the-cursor-from-your-app). |
 | `onStepChange` | `(step, at) => void?` | Fires on every cursor move — required for movement in controlled mode, an observation hook otherwise. `at` carries `runtimeStageId`, `commitIdx`, `label`, `kind` and `clamped`. |
+| `navigatorRef` | `Ref<LensNavigator>?` | Move the cursor to a stage **by its `runtimeStageId`**. `ref.current.navigateTo(id)` returns `{ ok: true, step, match, label }` or `{ ok: false, reason, message, nearest? }` — a miss never moves. See [Pointing at a step](#pointing-at-a-step-navigatorref). |
 | `slots` | `LensSlots?` | Slot overrides. `slots.detail` renders your content in the shipped right column. Omit for the built-in timeline. See [Rendering your own detail pane](#rendering-your-own-detail-pane). |
 
 ### `<LensFlow>` — the chart canvas on its own

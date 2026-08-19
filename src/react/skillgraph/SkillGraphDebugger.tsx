@@ -31,8 +31,9 @@
  * WIRED INTO `<Lens>`: mount it in the detail slot and forward the props the
  * slot already hands you — that is the whole integration.
  *
- *   // The host's axis — the same list `<Lens>` scrubs.
- *   const positions = useCursorPositions(recorder, drillPath);
+ *   // The host holds ONE navigator, on <Lens> — this view owns no axis, so it
+ *   // reports an ADDRESS and lets the cursor's owner resolve it.
+ *   const nav = useRef<LensNavigator>(null);
  *
  *   const detail = (p: LensDetailSlotProps) => (
  *     <SkillGraphDebugger
@@ -42,13 +43,16 @@
  *       step={p.step}
  *       totalSteps={p.totalSteps}
  *       onStepChange={p.onNavigate}
- *       onJumpTo={(id) => {
- *         const step = stepForRuntimeStageId(positions, id);
- *         if (step >= 0) p.onNavigate(step);
- *       }}
+ *       onJumpTo={(id) => nav.current?.navigateTo(id)}
  *     />
  *   );
- *   <Lens recorder={recorder} slots={{ detail }} />
+ *   <Lens recorder={recorder} navigatorRef={nav} slots={{ detail }} />
+ *
+ * `navigateTo` hands back `{ ok: false, nearest }` when the host's ruler has
+ * no stop for that beat, so the host can OFFER the nearest earlier stop
+ * instead of jumping somewhere the person did not ask for. (The older
+ * `stepForRuntimeStageId(positions, id)` + `p.onNavigate(step)` wiring still
+ * works and is still supported — it simply takes that offer silently.)
  *
  * The two lenses are one data path (see `./lens.ts`): the developer lens shows
  * the record, the product lens shows the library's sentences for the same

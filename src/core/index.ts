@@ -106,6 +106,24 @@ export { stepForRuntimeStageId } from "./group/stepForRuntimeStageId.js";
 // and `granularity="group"` (milestone axis) carries a position between them
 // with this + the target axis from `scrubAxisFor`.
 export { stepForCommitIdx } from "./group/stepForCommitIdx.js";
+// The same ladder as `stepForRuntimeStageId`, with every rung NAMED and the
+// nearest-previous rung handed back as an OFFER rather than taken — the answer
+// a host that POINTS at evidence needs ("did I land on it, or just before
+// it?"). `<Lens navigatorRef>` is this function plus the cursor channel; this
+// is it alone, for a host with nothing mounted.
+export {
+  resolveNavigation,
+  type NavigationResult,
+  type NavigationHit,
+  type NavigationRefusal,
+  type NavigationMatch,
+  type NavigationMiss,
+} from "./group/resolveNavigation.js";
+// The scrub axis itself, as a pure function — the same positions `<Lens>`
+// scrubs at that granularity, computable with no React and nothing mounted.
+// Pair it with `resolveNavigation` / `stepForCommitIdx` to turn an address or
+// a commit index into a step from a server, a CLI, or a chat answer.
+export { scrubAxisFor, type ScrubAxis } from "./group/scrubAxisFor.js";
 // The scrub axes themselves, as pure functions over the recording's data:
 // `commitAxisPositions` = one stop per executed stage (the Flow reading);
 // `cursorPositionsAtDrill` = the milestone/structural stops (the Why reading).

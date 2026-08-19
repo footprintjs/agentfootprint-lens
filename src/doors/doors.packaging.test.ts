@@ -32,6 +32,7 @@ const WHY_EXPORTS = [
   'cursorPositionsAtDrill',
   'stepForCommitIdx',
   'stepForRuntimeStageId',
+  'resolveNavigation',
   'stepBands',
   'bandIndexOf',
 ] as const;
@@ -44,6 +45,7 @@ const SKILLGRAPH_EXPORTS = [
   'selectSkillTopology',
   'selectSkillFrameContext',
   'stepForRuntimeStageId',
+  'resolveNavigation',
 ] as const;
 
 describe('package.json exports map (no build needed)', () => {

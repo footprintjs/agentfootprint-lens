@@ -58,7 +58,7 @@ export {
 // The milestone axis, and the carry between axes (lens 0.39.0): the same
 // positions <Lens> scrubs, computable outside React, plus the resolvers a
 // host uses to land one cursor on another view's ruler.
-export { scrubAxisFor, type ScrubAxis } from '../react/hooks/useCursorPositions.js';
+export { scrubAxisFor, type ScrubAxis } from '../core/group/scrubAxisFor.js';
 export {
   commitAxisPositions,
   cursorPositionsAtDrill,
@@ -67,4 +67,14 @@ export {
 } from '../core/group/cursorPositionsAtDrill.js';
 export { stepForCommitIdx } from '../core/group/stepForCommitIdx.js';
 export { stepForRuntimeStageId } from '../core/group/stepForRuntimeStageId.js';
+// "Take me to this stage" with an honest answer — the resolver behind
+// `<Lens navigatorRef>`, usable with nothing mounted.
+export {
+  resolveNavigation,
+  type NavigationResult,
+  type NavigationHit,
+  type NavigationRefusal,
+  type NavigationMatch,
+  type NavigationMiss,
+} from '../core/group/resolveNavigation.js';
 export { stepBands, bandIndexOf, type StepBand } from '../core/group/stepBands.js';

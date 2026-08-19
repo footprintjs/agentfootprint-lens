@@ -33,48 +33,20 @@ import { milestoneFor } from 'agentfootprint';
 import { LensRecorder } from '../../core/LensRecorder.js';
 import { useCommitSync } from './useCommitSync.js';
 import { buildGroups } from '../../core/group/buildGroups.js';
-import { buildCommitSyncMap } from '../../core/group/buildCommitSyncMap.js';
 import {
   commitAxisPositions,
   cursorPositionsAtDrill,
   type CursorPosition,
 } from '../../core/group/cursorPositionsAtDrill.js';
 import type { SplitLensStoresOptions } from '../../core/stores/splitLensStores.js';
+import type { ScrubAxis } from '../../core/group/scrubAxisFor.js';
 
-/** Which projection of the run the scrub axis stops at. */
-export type ScrubAxis = 'commit' | 'milestone';
-
-/**
- * The scrub axis for a recording, as a PURE function — the same positions the
- * mounted `<Lens>` scrubs at that granularity, computable outside React.
- *
- * This is the export a HOST holding the cursor across two granularities needs:
- * to carry a position from one axis to the other, build the target axis here
- * and resolve the commit with `stepForCommitIdx` (or an address with
- * `stepForRuntimeStageId`). Returns `[]` when the recording has no commits yet
- * (or on any read error — same posture as the hook).
- */
-export function scrubAxisFor(
-  recorder: LensRecorder,
-  granularity: 'step' | 'group',
-  drillPath: readonly string[] = [],
-): readonly CursorPosition[] {
-  try {
-    const groups = buildGroups(recorder.boundary.boundaryIndex);
-    const commits = buildCommitSyncMap(recorder);
-    const overlay = recorder.runtime.getOverlay();
-    if (granularity === 'step') {
-      const commitAxis = commitAxisPositions(groups, commits, drillPath, overlay.executionOrder);
-      if (commitAxis.length > 0) return commitAxis;
-      // A recording with NO commit log (a Trace replay carries only the
-      // boundary log) still deserves an axis — the milestone/structural stops
-      // are the finest truth it has. Never quieter than before 0.39.0.
-    }
-    return cursorPositionsAtDrill(groups, commits, drillPath, milestoneFor, overlay.executionOrder);
-  } catch {
-    return [];
-  }
-}
+// The axis type and the pure axis builder now live in `/core` (zero React), so
+// a server-rendered dashboard link or a CLI can build the same positions
+// without mounting anything. Re-exported here so every existing import site —
+// and the `/why` door — keeps its import line unchanged.
+export { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
+export type { ScrubAxis } from '../../core/group/scrubAxisFor.js';
 
 export function useCursorPositions(
   recorder: LensRecorder,

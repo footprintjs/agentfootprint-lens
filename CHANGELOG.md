@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.0] - 2026-08-19
+
+A chat answer can now point at the exact step it means. The lens has always
+let a host OWN the cursor (`step` / `onStepChange`); this release adds the
+other half — a way to SAY WHERE, when the only thing you have is a stage's
+address. And it answers honestly: an address the ruler cannot hold moves
+nothing and hands back what it found instead.
+
+### Added
+
+- **`<Lens navigatorRef>` — move the cursor to a stage by its
+  `runtimeStageId`.** The React idiom: a ref you hold, filled with a
+  `LensNavigator`.
+
+  ```tsx
+  const nav = useRef<LensNavigator>(null);
+  <Lens recorder={recorder} navigatorRef={nav} />
+
+  nav.current?.navigateTo('call-llm#18');
+  // → { ok: true, step: 7, runtimeStageId: 'call-llm#18', match: 'exact', label: 'call-llm 1' }
+  ```
+
+  It is a RESOLUTION plus the cursor channel you already have — **not a second
+  channel and not new state**. The address resolves against the ruler actually
+  being scrubbed (so the same address is step 7 under `granularity="step"` and
+  step 3 under `granularity="group"`), then goes through the same funnel a
+  click on that stop uses: uncontrolled, the lens moves and reports;
+  controlled, it reports and your `step` prop lands it. A jump to the stop
+  already showing is not a move, so it fires nothing — which is what keeps a
+  programmatic jump and a person's scrub from fighting.
+
+- **Honest misses — the nearest stop is OFFERED, never taken.** Three rungs,
+  in order: `exact` (a stop IS that address), `enclosing` (a stop CONTAINS it —
+  a stage inside a subflow, on a ruler that stops at whole subflows; the stop's
+  own address comes back so you always know where it went), then a refusal.
+  A refusal is `{ ok: false, reason, message, nearest? }`, **the cursor does
+  not move**, and `nearest` is the stop just before the address handed back as
+  data. Take it with one more call — it is an exact hit by construction — or
+  render it as a choice. A cursor that silently lands somewhere nobody asked
+  for is the failure this shape exists to prevent. `reason` is a small union
+  you can branch on (`'not-on-axis'`, `'before-first-stop'`, `'empty-axis'`,
+  `'no-id'`); `message` is the same fact as one sentence you can print.
+
+- **`resolveNavigation(positions, runtimeStageId)` — the same answer with
+  nothing mounted.** Pure, never throws, exported from `/core` (zero React),
+  the root barrel, `/why` and `/skillgraph`. A server-rendered dashboard link
+  or a CLI computes a step without a component:
+
+  ```ts
+  import { scrubAxisFor, resolveNavigation } from 'agentfootprint-lens/core';
+
+  const to = resolveNavigation(scrubAxisFor(recorder, 'step'), 'call-llm#18');
+  const href = to.ok ? `/runs/${runId}?step=${to.step}` : undefined;
+  ```
+
+- **`useLensNavigator`** is exported too, for shells that compose their own
+  layout around the same one cursor.
+
+### Changed
+
+- **`scrubAxisFor` now lives in `/core`** and is exported from it. It was
+  already pure — it just sat in a React hooks file, which meant the headless
+  door could not build the ruler that the headless resolver needs. Every
+  existing import line still works unchanged (the root barrel, `/why` and
+  `react/hooks` re-export it), and `/core` stays React-free (verified: zero
+  react references in the built bundle).
+- **`stepForRuntimeStageId` now delegates to `resolveNavigation`** — ONE
+  ladder, two readings. Its behaviour is byte-identical (it takes the
+  nearest-previous offer silently, which is exactly what its callers — chart
+  clicks, beat jumps, provenance frames — have always wanted), and a parity
+  test pins the two readings together over both axes so the rule can never
+  fork.
+- **`<SkillGraphDebugger>`'s wiring example** now shows the host holding one
+  navigator on `<Lens>` and `onJumpTo` routing through it, so a beat the
+  host's ruler cannot hold offers the nearest stop instead of jumping
+  silently. The older `stepForRuntimeStageId` + `onNavigate` wiring still
+  works and is still supported — no code changed, only the guidance.
+
 ## [0.41.0] - 2026-08-19
 
 The recording now carries the map, and the SkillGraph surfaces read it.

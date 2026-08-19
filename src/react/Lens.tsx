@@ -41,6 +41,7 @@ import {
   type LensCursorAt,
   type LensCursorPlace,
 } from "./useLensCursor.js";
+import { useLensNavigator, type LensNavigator } from "./useLensNavigator.js";
 import { useNarrowRow } from "./narrowLayout.js";
 import { useLensRecorder } from "./hooks/useLensRecorder.js";
 import { useDrillPath } from "./hooks/useDrillPath.js";
@@ -317,6 +318,34 @@ export interface LensProps {
   readonly onStepChange?: (step: number, at: LensCursorAt) => void;
 
   /**
+   * Move the cursor to a STAGE, by its address — the pointing half of the
+   * cursor API. `step` / `onStepChange` let a host OWN the cursor; this lets
+   * one SAY WHERE when all it knows is a `runtimeStageId` (a chat answer
+   * citing the step it means, a dashboard row, a deep link).
+   *
+   * ```tsx
+   * const nav = useRef<LensNavigator>(null);
+   * <Lens recorder={recorder} navigatorRef={nav} />
+   *
+   * const to = nav.current?.navigateTo('llm#7');
+   * // { ok: true, step: 7, runtimeStageId: 'llm#7', match: 'exact', label: … }
+   * ```
+   *
+   * It is a RESOLUTION plus the cursor channel you already have — not a second
+   * channel. The address is resolved against the ACTIVE axis (`granularity`),
+   * then handed to the same funnel a click on that stop uses: uncontrolled,
+   * the lens moves and reports; controlled, it reports and your `step` lands
+   * it. Nothing here holds a position.
+   *
+   * An address the axis cannot hold comes back `{ ok: false, reason, message }`
+   * with the nearest earlier stop OFFERED as `nearest` — never taken. The
+   * caller decides. See `resolveNavigation` for the ladder (exact → enclosing
+   * → nearest-previous-as-an-offer), which is also exported headlessly for
+   * hosts with nothing mounted.
+   */
+  readonly navigatorRef?: React.Ref<LensNavigator>;
+
+  /**
    * Optional slot overrides. Should be stable across renders (define at module
    * scope or `useMemo`). Omit and the shipped panes render unchanged.
    */
@@ -383,6 +412,7 @@ export const Lens: React.FC<LensProps> = ({
   granularity = 'step',
   step: controlledStep,
   onStepChange,
+  navigatorRef,
   slots,
 }) => {
   ensureLensStyles();
@@ -553,6 +583,15 @@ export const Lens: React.FC<LensProps> = ({
     onStepChange,
     maxStep,
     describe: describeStep,
+  });
+  // Address → cursor. `navigateTo` resolves a runtimeStageId against the
+  // ACTIVE axis and hands the answer to the SAME `moveTo` funnel above, so a
+  // programmatic jump is indistinguishable from a person clicking that stop.
+  // No state of its own — the one-cursor law holds.
+  useLensNavigator({
+    positions: cursorPositions,
+    moveTo: handleFocusChange,
+    navigatorRef,
   });
   // Cursor's runtimeStageId — derived from the current position. Used
   // by Commentary cutoff, chart highlight, Trace sync.

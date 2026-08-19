@@ -28,17 +28,19 @@
  *
  * Deliberately never throws and never guesses forward: a jump that silently
  * lands past its target is worse than one that does not happen.
+ *
+ * ONE LADDER, TWO READINGS (0.42.0): the rungs live in `resolveNavigation`,
+ * which NAMES each one and hands rung 3 back as an OFFER on a miss rather than
+ * taking it. This function is the terse reading of the same climb — it takes
+ * the offer and answers with a bare step, which is what its callers (chart
+ * clicks, beat jumps, provenance frames) have always wanted. A host that must
+ * distinguish "landed on it" from "landed just before it" — a chat pointing at
+ * evidence — calls `resolveNavigation` instead. There is no second rule here:
+ * change the ladder in one place and both readings follow.
  */
 
 import type { CursorPosition } from './cursorPositionsAtDrill.js';
-
-/** Parse the `#N` executionIndex suffix off a runtimeStageId. */
-function execIndex(runtimeStageId: string): number | undefined {
-  const hash = runtimeStageId.lastIndexOf('#');
-  if (hash < 0) return undefined;
-  const n = Number(runtimeStageId.slice(hash + 1));
-  return Number.isInteger(n) && n >= 0 ? n : undefined;
-}
+import { resolveNavigation } from './resolveNavigation.js';
 
 /**
  * Resolve an address to a step on the given position list.
@@ -59,45 +61,8 @@ export function stepForRuntimeStageId(
   positions: readonly CursorPosition[],
   runtimeStageId: string,
 ): number {
-  if (positions.length === 0 || runtimeStageId === '') return -1;
-
-  const exact = positions.findIndex((p) => p.runtimeStageId === runtimeStageId);
-  if (exact >= 0) return exact;
-
-  const target = execIndex(runtimeStageId);
-  if (target === undefined) return -1;
-
-  // The enclosing scopes of the address, innermost first: `a/b/c#7` is held by
-  // `a/b`, then by `a`.
-  const scopes: string[] = [];
-  const base = runtimeStageId.split('#')[0] ?? '';
-  for (let cut = base.lastIndexOf('/'); cut > 0; cut = base.lastIndexOf('/', cut - 1)) {
-    scopes.push(base.slice(0, cut));
-  }
-
-  for (const scope of scopes) {
-    let best = -1;
-    let bestIdx = -1;
-    for (let i = 0; i < positions.length; i += 1) {
-      const id = positions[i]?.runtimeStageId ?? '';
-      if ((id.split('#')[0] ?? '') !== scope) continue;
-      const idx = execIndex(id);
-      if (idx === undefined || idx > target || idx <= bestIdx) continue;
-      best = i;
-      bestIdx = idx;
-    }
-    if (best >= 0) return best;
-  }
-
-  let prev = -1;
-  let prevIdx = -1;
-  for (let i = 0; i < positions.length; i += 1) {
-    const idx = execIndex(positions[i]?.runtimeStageId ?? '');
-    // `<=` not `<`: two positions can share an executionIndex (a group's start
-    // and its end), and the FIRST of them is the one a mover means.
-    if (idx === undefined || idx > target || idx <= prevIdx) continue;
-    prev = i;
-    prevIdx = idx;
-  }
-  return prev;
+  const to = resolveNavigation(positions, runtimeStageId);
+  // Rungs 1–2 landed; else take rung 3's offer, else `-1`. Taking the offer
+  // silently is exactly what this narrower reading promises to do.
+  return to.ok ? to.step : (to.nearest?.step ?? -1);
 }

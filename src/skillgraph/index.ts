@@ -68,3 +68,14 @@ export {
   type SkillFrameContext,
 } from '../core/selectors/selectSkillFrameContext.js';
 export { stepForRuntimeStageId } from '../core/group/stepForRuntimeStageId.js';
+// The same climb, with the rungs named: a beat's address → the host's step,
+// and an honest refusal (plus the nearest earlier stop, offered) when the
+// host's ruler cannot hold it.
+export {
+  resolveNavigation,
+  type NavigationResult,
+  type NavigationHit,
+  type NavigationRefusal,
+  type NavigationMatch,
+  type NavigationMiss,
+} from '../core/group/resolveNavigation.js';
