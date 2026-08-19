@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.38.0] - 2026-08-19
+
+Two features and one fix, all on the same law: ONE cursor (the runtime stage
+address), everything else derived from it.
+
+### Added
+
+- **The SkillGraph debugger** — `<SkillGraphDebugger>` and its headless
+  selectors (`selectSkillBeats`, `selectSkillTopology`,
+  `selectSkillFrameContext`, `stepForRuntimeStageId`). Two lenses over a
+  recorded skill-routing run: a Product lens that narrates how the assistant
+  found its way through the playbook, and a Developer lens that shows the
+  topology (current / reachable / visited / REFUSED / not entered), why the
+  cursor moved, and what the model actually saw — read_skill as sent, tools
+  as sent, injections — with an explicit "not in this recording" card
+  instead of reconstruction. Mounts the shipped `<TimeTravel>` bound to the
+  HOST's step axis; the host owns the number. `<TimeTravel>` gains a
+  `keyboard` prop (and no longer crashes on non-element event targets).
+- **The grouped ruler is a real ruler: `<TimeTravel bands>`.** Labelled
+  band segments (width proportional to steps) — arrows and clicks move
+  group-by-group, the active band is DERIVED from the step every render, and
+  no component stores a band index. `stepBands` builds the bands from
+  iteration milestones; `bandChartGroup` hands the active band to the chart
+  as the same group highlight the boundary draws, so strip and chart can
+  never name different groups.
+- **Framework plumbing collapses honestly in group view.** Reserved
+  `sf-`-prefixed subflows are hidden by default behind a chip that says how
+  many framework steps are hidden and a Show/Hide toggle — via eui's
+  `collapseNode` (lens supplies the law; eui stays generic). Step view is
+  byte-identical and never chips.
+
+### Fixed
+
+- **The chart says "you are here" on a REPLAY.** `observeRecording` now
+  seeds the runtime overlay from the recording's commit log
+  (`overlayFromSnapshot`) — a replay never traverses, so the live recorder
+  channel never heard anything and the chart could not light the current
+  stage, color the executed path, or number the passes. Needs
+  footprint-explainable-ui ≥0.34 at runtime for the full lighting; older
+  peers in range degrade to the previous unlit chart rather than crashing.
+- **The current node lights INSIDE a group.** Group emphasis was force-
+  clearing every node's active flag, so even a lit overlay could not show
+  the current node within the boundary box.
+
 ## [0.37.0] - 2026-08-14
 
 ### Added
