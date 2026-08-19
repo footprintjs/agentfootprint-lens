@@ -21,10 +21,15 @@
  * diamonds, slot pills) and its size are untouched, because those are what the
  * node IS — not how loud it is.
  *
- * `active` is cleared on members deliberately. eui paints an active node with a
- * pulsing halo; lighting eight of them at once would be an alarm, and the owner's
- * rule for this mode is that a group is a PLACE. The "now" is the group, and the
- * group is said by the boundary drawn around it.
+ * `active` is PRESERVED — deliberately, and this is a reversal of the first
+ * grouped design. The group is still the PLACE (the boundary box + one member
+ * accent say so), but the person scrubbing is standing on ONE step inside that
+ * place, and a chart that refuses to show which one has no "you are here" at
+ * all. The overlay marks exactly one current node (plus a parallel cohort's
+ * co-actives at a Context stop), so preserving it lights one node, not eight.
+ * `done` IS cleared on top of the uniform accent: the members must read as one
+ * unit, and per-member visited tinting would fracture that reading — the ⛓
+ * step lens is where per-step done/visited state belongs.
  *
  * ── Why the emphasis is safe to drop ────────────────────────────────────────
  * `emphasis` drives colour only (fill / border / glow / a 0.5 opacity for
@@ -67,9 +72,14 @@ export function withGroupEmphasis(Inner: ComponentType<NodeProps>): ComponentTyp
           ? props.data
           : ({
               ...(props.data as Record<string, unknown>),
-              // One emphasis for everyone: no hero, no plumbing, no spotlight.
+              // One emphasis for everyone: no hero, no plumbing, no spotlight —
+              // and no per-member visited tint (see the header). `active` rides
+              // through untouched: the cursor's ONE current node lights inside
+              // the boundary (derived from the overlay every render — no stored
+              // highlight state, per the one-cursor law).
               emphasis: undefined,
-              active: false,
+              done: false,
+              stepNumbers: undefined,
             } as typeof props.data),
       [props.data, group],
     );

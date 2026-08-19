@@ -41,7 +41,7 @@ const passthrough: TraceFlowLayout = (g) => g;
  *  dominate, a tool, and one outside the group. */
 const graph = {
   nodes: [
-    { id: 'gather', type: 'probe', position: { x: 0, y: 0 }, data: { label: 'Gather', icon: 'tool' } },
+    { id: 'gather', type: 'probe', position: { x: 0, y: 0 }, data: { label: 'Gather', icon: 'tool', done: true } },
     { id: 'call-llm', type: 'probe', position: { x: 220, y: 0 }, data: { label: 'Call LLM', icon: 'llm', emphasis: 'hero', active: true } },
     { id: 'after', type: 'probe', position: { x: 440, y: 0 }, data: { label: 'After', icon: 'tool', emphasis: 'muted' } },
   ],
@@ -112,14 +112,21 @@ describe('group mode — functional', () => {
     expect(classes[0]).toBe(`${GROUP_NODE_CLASS} ${GROUP_MEMBER_CLASS}`);
   });
 
-  it('strips the type emphasis and the single-node spotlight from every node', () => {
-    // FAILS ON THE OLD BEHAVIOUR: `emphasis: 'hero'` reached the card, which is
-    // why the LLM box dominated the group it was only one member of.
+  it('strips the type emphasis and the visited tint — but the CURSOR rides through', () => {
+    // Two eras pinned at once. FAILS ON THE FIRST behaviour: `emphasis: 'hero'`
+    // reached the card, so the LLM box dominated the group it was only one
+    // member of. FAILS ON THE SECOND: `active` was force-cleared, so the chart
+    // had no "you are here" inside the boundary at all — the group is the
+    // PLACE, but the cursor still stands on ONE step in it and must show.
     const seen = new Map<string, Record<string, unknown>>();
     renderChart({ granularity: 'group', activeGroup: committee }, seen);
     expect(seen.get('call-llm')?.emphasis).toBeUndefined();
-    expect(seen.get('call-llm')?.active).toBe(false);
+    expect(seen.get('call-llm')?.active).toBe(true); // the current node lights within the group
     expect(seen.get('after')?.emphasis).toBeUndefined();
+    // Per-member visited state is levelled: the uniform accent says "members",
+    // the ⛓ step lens is where done/visited belongs.
+    expect(seen.get('gather')?.done).toBe(false);
+    expect(seen.get('gather')?.active).toBeFalsy(); // only the cursor's node lights
     // What the node IS survives: the icon is untouched on both sides.
     expect(seen.get('call-llm')?.icon).toBe('llm');
     expect(seen.get('gather')?.icon).toBe('tool');

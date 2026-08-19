@@ -652,3 +652,37 @@ describe('observeRecording — unreadable is not the same as absent', () => {
     expect(observed.notes.some((n) => /unreadable, not absent/i.test(n))).toBe(true);
   });
 });
+
+describe('observeRecording — the runtime overlay is recovered from the commit log', () => {
+  it('seeds recorder.runtime so the chart lights: one step per executed stage, ids spelled as the cursor spells them', () => {
+    const artifacts = load(WITH_BOUNDARIES);
+    const observed = observeRecording({
+      snapshot: artifacts.snapshot,
+      events: artifacts.events,
+      structure: artifacts.blueprint,
+    });
+    const overlay = observed.recorder.runtime.getOverlay();
+    // The replay's overlay mirrors the commit log: every bundle's
+    // runtimeStageId lands (deduped, first occurrence), so LensFlow's
+    // findIndex resolves a scrubIndex for EVERY cursor stop.
+    const logIds = new Set(
+      artifacts.snapshot.commitLog
+        .map((c) => c.runtimeStageId)
+        .filter((id): id is string => typeof id === 'string'),
+    );
+    expect(overlay.executionOrder.length).toBeGreaterThan(0);
+    expect(overlay.executionOrder).toHaveLength(logIds.size);
+    for (const step of overlay.executionOrder) {
+      expect(logIds.has(step.runtimeStageId)).toBe(true);
+      // Path kept, `#index` stripped — the id the chart's nodes are keyed by.
+      expect(step.stageId).toBe(step.runtimeStageId.split('#')[0]);
+    }
+    // A recording is a finished run by definition.
+    expect(overlay.running).toBe(false);
+  });
+
+  it('a recording with no snapshot seeds nothing — the chart honestly stays unlit', () => {
+    const observed = observeRecording({ events: [], structure: {} });
+    expect(observed.recorder.runtime.getOverlay().executionOrder).toHaveLength(0);
+  });
+});

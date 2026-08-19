@@ -40,11 +40,14 @@
  * WHAT IT CANNOT GIVE BACK
  * ────────────────────────
  * A recording has no traversal, so footprintjs's FlowRecorder channel
- * (`runner.attach`) has nothing to fire: the structure recorder and the runtime
- * overlay stay as empty as they were before the call. The two things that WOULD
- * have come off that channel are recovered from the run's own BOUNDARY
- * RECORDING instead — the step strip's commit ranges (`rebuildBoundaryIndex`)
- * and the step graph (`replayStepGraph`), both read and never derived.
+ * (`runner.attach`) has nothing to fire: the structure recorder stays as empty
+ * as it was before the call (the chart is drawn from `structure` instead). What
+ * WOULD have come off that channel is recovered from the recording's own data —
+ * the step strip's commit ranges (`rebuildBoundaryIndex`) and the step graph
+ * (`replayStepGraph`) from the BOUNDARY RECORDING, and the runtime overlay
+ * (which lights the chart's executed path and the cursor's current node) from
+ * the snapshot's COMMIT LOG (`overlayFromSnapshot` → `recorder.runtime.seed`).
+ * All read, never derived.
  */
 
 import type { Runner } from 'agentfootprint';
@@ -57,6 +60,7 @@ import {
 } from 'agentfootprint/observe';
 import { isDevMode } from 'footprintjs';
 import type { RangeToken } from 'footprintjs/trace';
+import { overlayFromSnapshot } from 'footprint-explainable-ui/flowchart';
 import { LensRecorder, type LensRecorderOptions } from './LensRecorder.js';
 
 /** The footprintjs run snapshot as it survives serialization. */
@@ -606,6 +610,22 @@ export function observeRecording(
   // the strip and the provenance panel read the recording. `recorder.detach()`
   // ends it when the consumer is done.
   recorder.observe(runner);
+
+  // The runtime overlay, recovered from the commit log. Live, `observe()`
+  // attaches `recorder.runtime.recorder` to footprintjs's FlowRecorder channel
+  // and every executed stage lands as a step; on this replay runner `attach()`
+  // is a no-op (see above), so without this the overlay is empty and the chart
+  // never lights the executed path or the cursor's current node. The commit
+  // log holds the same order the channel would have fired — one bundle per
+  // executed stage, `runtimeStageId` spelled exactly as the cursor spells it —
+  // so eui's own post-hoc twin (`overlayFromSnapshot`) rebuilds the overlay
+  // and the handle adopts it. `seed` is guarded call-time (house TRUE-ESM
+  // pattern): an older explainable-ui inside the declared peer range simply
+  // keeps today's unlit chart instead of crashing the replay.
+  if (snapshot !== undefined && typeof recorder.runtime.seed === 'function') {
+    const rebuiltOverlay = overlayFromSnapshot(snapshot);
+    if (rebuiltOverlay.executionOrder.length > 0) recorder.runtime.seed(rebuiltOverlay);
+  }
 
   // A recording arrives as parsed JSON from wherever it was stored, so the log
   // is whatever is actually there — not whatever the type says.
