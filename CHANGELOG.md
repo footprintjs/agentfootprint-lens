@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.39.0] - 2026-08-19
+
+Every step now means every stage. The Flow ruler (`granularity="step"`) scrubs
+the run's own commit trace — one stop per executed stage, in execution order —
+instead of stopping only at milestones. On a real 37-stage agent turn the old
+ruler had 17 stops, and the stages between milestones (stage 23,
+NormalizeThinking, sat between stops 9 and 10) could not be reached by ▶ at
+all. Now the ruler's count IS the stage count, "step 22 of 37" on the ruler and
+"stage 22 of 37" in the inspector are the same number by construction, and
+every stage — framework plumbing included — is reachable by ▶ alone.
+
+### Changed
+
+- **`granularity="step"` scrubs the COMMIT axis.** One stop per executed
+  stage, straight off the recording's commit log. A boundary stage that
+  commits twice (a subflow's entry and exit bundles share one
+  runtimeStageId) is ONE stop, anchored at its first commit — execution
+  order. A recording with no commit log at all (a `Trace` replay) falls back
+  to the milestone stops, so nothing gets quieter than before.
+- **`granularity="group"` keeps its milestone axis and iteration bands, and
+  its ◀ ▶ now move stop by stop.** The bands are the grouping, not the unit
+  of movement — a transport that jumped whole bands made mid-band stops
+  unreachable. Band clicks still jump to the band's first stop. The banded
+  readout names both truths: "Iteration 2 · stop 9 of 17".
+- The transport's ◀ ▶ are labelled "Previous step" / "Next step" on both
+  rulers (they were "Previous event" / "Previous group" — neither was the
+  unit they actually move by).
+
+### Added
+
+- **`scrubAxisFor(recorder, granularity)`** — the scrub axis as a pure
+  function: the same positions `<Lens>` scrubs at that granularity,
+  computable outside React. For hosts that hold the cursor across the two
+  granularities (two tabs over one recording).
+- **`stepForCommitIdx(positions, commitIdx)`** — resolve a commit index to
+  the step that holds it on any axis (at-or-nearest-before; first among
+  equals). With `scrubAxisFor`, this is the tab-switch carry: Flow → Why
+  lands on the milestone at-or-nearest-before the stage; Why → Flow lands on
+  the milestone's own stage.
+- **`commitAxisPositions`** (core) — the commit axis builder itself, exported
+  next to `cursorPositionsAtDrill`, `buildCommitSyncMap` and the
+  `CursorPosition` type.
+
 ## [0.38.0] - 2026-08-19
 
 Two features and one fix, all on the same law: ONE cursor (the runtime stage

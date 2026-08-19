@@ -232,16 +232,28 @@ export interface LensProps {
   /**
    * Which RULER the chart is being scrubbed by — the same word an embedder uses
    * to tell its two lenses apart, and the same prop `<LensFlow>` takes.
+   * Since 0.39.0 the two granularities scrub two AXES of the same run:
    *
-   *   `'step'` (default) — one stop per step. Unchanged in every respect.
-   *   `'group'`          — the cursor's GROUP is the position, so the chart says
-   *                        so: its members light with one uniform accent, the
-   *                        rest recede uniformly, and a named boundary is drawn
-   *                        around them. The name is `groupDisplayName` — the same
+   *   `'step'` (default) — the COMMIT axis: one stop per executed stage,
+   *                        straight off the recording's commit log. Every
+   *                        stage is reachable by ▶ alone; the ruler count IS
+   *                        the stage count ("step 22 of 37" and "stage 22 of
+   *                        37" are the same number by construction).
+   *   `'group'`          — the MILESTONE axis: one stop per agent-meaningful
+   *                        moment (iteration / context / LLM turn / route /
+   *                        tool call), banded by iteration. The cursor's
+   *                        GROUP is the reading, so the chart says so: the
+   *                        band's members light with one uniform accent, the
+   *                        rest recede, and a named boundary is drawn around
+   *                        them. The name is `groupDisplayName` — the same
    *                        spelling the WHAT HAPPENED boundary list uses.
    *
-   * Costs no fetch: membership comes from the boundary ranges already in the
-   * recording.
+   * One cursor either way (a runtimeStageId, derived every render); only the
+   * SET of valid positions differs. Costs no fetch: both axes come from the
+   * recording already in hand. A host holding the cursor ACROSS the two
+   * granularities carries it by `commitIdx`: build the target axis with
+   * `scrubAxisFor(recorder, granularity)` and resolve it with
+   * `stepForCommitIdx(positions, at.commitIdx)`.
    */
   readonly granularity?: 'step' | 'group';
 
@@ -500,7 +512,18 @@ export const Lens: React.FC<LensProps> = ({
   // ONE cursor concept; the position-set scales by drill depth. See
   // `memory/lens_v0_1_one_cursor_architecture.md`.
   const syncMap = useCommitSync(recorder);
-  const cursorPositions = useCursorPositions(recorder, drillPath);
+  // TWO AXES, ONE CURSOR (0.39.0): the per-step reading scrubs the COMMIT
+  // axis — every executed stage is a stop, so the ruler's count and the
+  // "stage N of M" readout agree by construction and no stage is skippable.
+  // The grouped reading keeps the MILESTONE axis (iteration / context / LLM
+  // turn / route / tool call), which `stepBands` bands by iteration. The
+  // cursor is still ONE runtimeStageId; only the position SET differs.
+  const cursorPositions = useCursorPositions(
+    recorder,
+    drillPath,
+    undefined,
+    granularity === 'step' ? 'commit' : 'milestone',
+  );
   const stepCount = Math.max(1, cursorPositions.length);
   const maxStep = Math.max(0, stepCount - 1);
   // ONE cursor, one funnel. `useLensCursor` holds it internally (today's
@@ -1409,8 +1432,8 @@ const EngineerView: React.FC<{
       {/* Compact controls only (◀ ▶ ⟳Live + count) — the WHAT HAPPENED timeline
           is the scrubber, so the drag track here would be redundant. On the
           grouped ruler the strip shows BANDS (one labelled segment per group
-          of steps) and the transport moves group by group — same cursor, same
-          funnel, coarser stops. */}
+          of milestone stops); ◀ ▶ still move stop by stop and a band click
+          jumps — same cursor, same funnel, every stop reachable either way. */}
       <TimeTravel
         compact
         stepStrip={stepStrip}

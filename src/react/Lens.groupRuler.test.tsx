@@ -79,7 +79,9 @@ describe('<Lens granularity="group"> — the grouped strip', () => {
     expect(bands.some((label) => /^LLM turn/.test(label ?? ''))).toBe(false);
     expect(bands.some((label) => /^Tool call/.test(label ?? ''))).toBe(false);
     // And the count speaks in groups.
-    expect(screen.getByText(/^group \d+ \/ \d+$/)).toBeTruthy();
+    // The banded readout names the group AND the milestone stop — the ◀ ▶
+    // unit stays the stop, so both truths are on the one line.
+    expect(screen.getByText(/ · stop \d+ of \d+$/)).toBeTruthy();
   });
 
   it('a band click moves the ONE cursor to the band’s first step; the active band is derived from the controlled step', async () => {
@@ -107,6 +109,51 @@ describe('<Lens granularity="group"> — the grouped strip', () => {
     expect(
       screen.getByLabelText('Go to Iteration 2').getAttribute('aria-current'),
     ).toBe('step');
+  });
+
+  it('▶ moves MILESTONE BY MILESTONE inside a band — and ▶ alone reaches every milestone stop', async () => {
+    // The bands are the grouping, never the unit of movement: from a band's
+    // first stop, ▶ goes to the NEXT MILESTONE (staying inside a multi-stop
+    // band), not to the next band. Walking ▶ across the whole axis visits
+    // every stop — the Why-mode walk-all pin.
+    const { recorder, runner } = await runAgent();
+    let step = 0;
+    const visited: number[] = [0];
+    const onStepChange = vi.fn((next: number) => {
+      step = next;
+      visited.push(next);
+    });
+    const { rerender } = render(
+      <Lens recorder={recorder} runner={runner} granularity="group" step={step} onStepChange={onStepChange} />,
+    );
+    // Drop the opening live-edge report and re-pin the start.
+    step = 0;
+    visited.length = 1;
+    rerender(
+      <Lens recorder={recorder} runner={runner} granularity="group" step={step} onStepChange={onStepChange} />,
+    );
+
+    // The banded strip is up (no per-step ticks) — yet ▶ speaks in stops.
+    expect(screen.queryAllByLabelText(/^Go to step /)).toHaveLength(0);
+    const nextBtn = () => screen.getByLabelText('Next step') as HTMLButtonElement;
+
+    let guard = 0;
+    while (!nextBtn().disabled && guard < 100) {
+      fireEvent.click(nextBtn());
+      rerender(
+        <Lens recorder={recorder} runner={runner} granularity="group" step={step} onStepChange={onStepChange} />,
+      );
+      guard += 1;
+    }
+    // Every stop visited, one at a time, in order — none skipped. (Arriving
+    // at the live edge re-reports the final stop once; collapse that.) The
+    // axis has more stops than bands (Iteration bands hold several
+    // milestones), so a band-jumping ▶ would have taken fewer presses and
+    // failed here.
+    const walked = visited.filter((s, i) => i === 0 || s !== visited[i - 1]);
+    const bandCount = screen.getAllByLabelText(/^Go to /).length;
+    expect(walked.length).toBeGreaterThan(bandCount);
+    expect(walked).toEqual(Array.from({ length: walked.length }, (_, i) => i));
   });
 
   it('keeps the per-step strip byte-identical on granularity="step"', async () => {

@@ -95,12 +95,16 @@ describe('<Lens> over a recording — the notes strip', () => {
 describe('<Lens> over a recording — the moments rail', () => {
   it('does not tell a finished run to go run a sample', () => {
     // FAILS ON THE OLD BEHAVIOUR: "No moments yet — run a sample to see what
-    // happened", in front of a turn that already happened.
+    // happened", in front of a turn that already happened. Since 0.39.0 the
+    // per-step reading scrubs the COMMIT axis, so a recording with no
+    // boundaries but a full commit log gets a full rail — one moment per
+    // executed stage — rather than an apology.
     const { recorder } = observeRecording(recording('recorded-turn-no-boundaries.json'));
 
     const { container } = render(<Lens recorder={recorder} view="engineer" />);
 
-    expect(container.textContent).toMatch(/This recording has no moments to walk/);
+    expect(container.textContent).toMatch(/drag any dot to scrub/i);
+    expect(container.textContent).not.toMatch(/This recording has no moments to walk/);
     expect(container.textContent).not.toMatch(/run a sample to see what happened/);
   });
 

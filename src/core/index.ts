@@ -101,6 +101,21 @@ export { groupContainsCommit, type Group } from "./group/Group.js";
 // and the axis at the current drill level may stop somewhere coarser (a whole
 // iteration rather than the stage inside it). One rule, one place.
 export { stepForRuntimeStageId } from "./group/stepForRuntimeStageId.js";
+// The same question keyed by COMMIT INDEX — the unit the lens's two axes
+// share. A host holding one cursor across `granularity="step"` (commit axis)
+// and `granularity="group"` (milestone axis) carries a position between them
+// with this + the target axis from `scrubAxisFor`.
+export { stepForCommitIdx } from "./group/stepForCommitIdx.js";
+// The scrub axes themselves, as pure functions over the recording's data:
+// `commitAxisPositions` = one stop per executed stage (the Flow reading);
+// `cursorPositionsAtDrill` = the milestone/structural stops (the Why reading).
+export {
+  commitAxisPositions,
+  cursorPositionsAtDrill,
+  type CursorPosition,
+  type MilestoneClassifier,
+} from "./group/cursorPositionsAtDrill.js";
+export { buildCommitSyncMap, type CommitSyncEntry } from "./group/buildCommitSyncMap.js";
 
 
 // Lens v0.1 translator pipeline — Runner → LensGroupOutput (UI-agnostic

@@ -215,7 +215,7 @@ describe('<SkillGraphDebugger> — THE ONE-CURSOR LAW', () => {
 
     // The SHIPPED transport (`<TimeTravel>`, the one `<Lens>` mounts — this
     // view does not own a slider of its own)…
-    fireEvent.click(screen.getByTitle('Next event (→)'));
+    fireEvent.click(screen.getByTitle('Next step (→)'));
     expect(onJumpTo).toHaveBeenLastCalledWith(AT_STAY);
 
     // …a beat…
@@ -311,8 +311,8 @@ describe('<SkillGraphDebugger> — ONE CURSOR, ONE TRANSPORT', () => {
     );
     // TimeTravel's OWN affordances, asserted by its own titles: a slider
     // re-implemented in this folder would have had to counterfeit them.
-    expect(screen.getByTitle('Previous event (←)')).toBeTruthy();
-    expect(screen.getByTitle('Next event (→)')).toBeTruthy();
+    expect(screen.getByTitle('Previous step (←)')).toBeTruthy();
+    expect(screen.getByTitle('Next step (→)')).toBeTruthy();
     expect(screen.getByTitle('Jump to latest event (End)')).toBeTruthy();
   });
 
@@ -332,7 +332,7 @@ describe('<SkillGraphDebugger> — ONE CURSOR, ONE TRANSPORT', () => {
     );
     // The readout is the HOST's axis (27 stops), not this view's 4 beats.
     expect(screen.getByText('12 / 27')).toBeTruthy();
-    fireEvent.click(screen.getByTitle('Next event (→)'));
+    fireEvent.click(screen.getByTitle('Next step (→)'));
     expect(onStepChange).toHaveBeenCalledWith(12);
     expect(onJumpTo).not.toHaveBeenCalled();
   });
@@ -348,7 +348,7 @@ describe('<SkillGraphDebugger> — ONE CURSOR, ONE TRANSPORT', () => {
       />,
     );
     expect(screen.getByText('1 / 4')).toBeTruthy();
-    fireEvent.click(screen.getByTitle('Next event (→)'));
+    fireEvent.click(screen.getByTitle('Next step (→)'));
     expect(onJumpTo).toHaveBeenCalledWith(AT_STAY);
   });
 

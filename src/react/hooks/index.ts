@@ -31,6 +31,12 @@ export {
   type ToolChoiceSource,
   type UseToolChoiceResult,
 } from './useToolChoice.js';
+// The scrub axis for a recording, as a PURE function (not a hook): the same
+// positions `<Lens>` scrubs at that granularity — 'step' = the COMMIT axis
+// (one stop per executed stage), 'group' = the MILESTONE axis. A host holding
+// the cursor across the two granularities builds the target axis here and
+// resolves the carried position with `stepForCommitIdx`.
+export { scrubAxisFor, type ScrubAxis } from './useCursorPositions.js';
 // The group the cursor stands in, resolved to chart node ids — the one call
 // that turns on `<LensFlow granularity="group">`.
 export { useChartGroup, type UseChartGroupOptions } from './useChartGroup.js';

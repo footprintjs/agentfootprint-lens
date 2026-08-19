@@ -45,11 +45,13 @@ export interface TimeTravelProps {
    */
   readonly stepStrip?: boolean;
   /**
-   * The GROUPED ruler: bands over the same step axis (from `stepBands`).
-   * When present (compact mode), the strip renders ONE segment per band —
-   * sized by how many steps it covers, labelled with the band's name — and
-   * every mover here moves GROUP BY GROUP: ◀ ▶ and the arrow keys go to the
-   * adjacent band's first step, clicking a band goes to ITS first step.
+   * The GROUPED ruler: bands over the step axis (from `stepBands`). When
+   * present (compact mode), the strip renders ONE segment per band — sized by
+   * how many steps it covers, labelled with the band's name — and clicking a
+   * band jumps to ITS first step. The bands are the GROUPING, not the unit of
+   * movement: ◀ ▶ and the arrow keys still move stop by stop, so every
+   * position on the axis is reachable by the transport alone (the readout
+   * names both: "Iteration 2 · stop 9 of 17").
    *
    * No second cursor: the position is still `focusSeq` (a step), the active
    * band is DERIVED from which range contains it, and every move still goes
@@ -86,16 +88,11 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
   const banded = bands !== undefined && bands.length > 0;
   const bandIdx = banded ? bandIndexOf(bands, focusSeq) : -1;
 
+  // Stop by stop, banded or not: the bands are the ruler's GROUPING, never
+  // its unit of movement — a ◀ ▶ that jumped whole bands would make the
+  // stops inside a band unreachable by the transport alone. (Band CLICKS
+  // still jump to a band's first step; that is a jump, not the step key.)
   const step = (delta: number): void => {
-    if (banded) {
-      // Group-by-group: the adjacent band's FIRST step. From a mid-band
-      // position, ◀ goes to the top of the band the cursor is in only via its
-      // predecessor — "previous group", as the ruler promises.
-      const next = Math.min(bands.length - 1, Math.max(0, bandIdx + delta));
-      const target = bands[next]?.firstStep;
-      if (target !== undefined && target !== focusSeq) onFocusChange(target);
-      return;
-    }
     onFocusChange(Math.min(max, Math.max(0, focusSeq + delta)));
   };
 
@@ -157,19 +154,19 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
     >
       <button
         onClick={() => step(-1)}
-        disabled={(banded ? bandIdx <= 0 : focusSeq <= 0) || disabled}
+        disabled={focusSeq <= 0 || disabled}
         style={btnStyle(false)}
-        title={banded ? 'Previous group (←)' : 'Previous event (←)'}
-        aria-label={banded ? 'Previous group' : 'Previous event'}
+        title="Previous step (←)"
+        aria-label="Previous step"
       >
         ◀
       </button>
       <button
         onClick={() => step(+1)}
-        disabled={(banded ? bandIdx >= bands.length - 1 : focusSeq >= max) || disabled}
+        disabled={focusSeq >= max || disabled}
         style={btnStyle(false)}
-        title={banded ? 'Next group (→)' : 'Next event (→)'}
-        aria-label={banded ? 'Next group' : 'Next event'}
+        title="Next step (→)"
+        aria-label="Next step"
       >
         ▶
       </button>
@@ -298,10 +295,12 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
           textAlign: 'right',
         }}
       >
+        {/* Both readouts count STOPS on the one axis. The banded one also
+            names the group the cursor stands in — "Iteration 2 · stop 9 of
+            17" — so the grouping and the position are both visible, honestly:
+            the group is where you are, the stop is how far along. */}
         {banded
-          ? bands.length === 1
-            ? '1 group'
-            : `group ${bandIdx + 1} / ${bands.length}`
+          ? `${bands[bandIdx] !== undefined ? `${bands[bandIdx]!.label} · ` : ''}stop ${Math.min(focusSeq, max) + 1} of ${total}`
           : total === 0
             ? '—'
             : total === 1

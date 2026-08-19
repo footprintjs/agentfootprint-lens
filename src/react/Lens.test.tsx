@@ -88,8 +88,11 @@ describe('<Lens> engineer view', () => {
     // with humanized titles (Chatbot/LLM verb discipline).
     expect(container.textContent).toMatch(/What happened/i);
     expect(container.textContent).toMatch(/drag any dot to scrub/i);
-    // Terse moment titles (the verbose prose moved into the expanded card).
-    expect(container.textContent).toMatch(/LLM turn/);
+    // The default reading is the COMMIT axis (0.39.0): one moment per
+    // executed stage, labelled by the commit's own stage ("call-llm 1"),
+    // not by milestones ("LLM turn" belongs to granularity="group").
+    expect(container.textContent).toMatch(/call-llm 1/);
+    expect(container.textContent).not.toMatch(/LLM turn/);
   });
 
   it('auto-derives the chart from the runner when no chart prop is passed', async () => {

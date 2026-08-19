@@ -653,7 +653,7 @@ export function observeRecording(
   }
   if (boundaryRanges === 0) {
     note(
-      'This recording has no step boundaries — the step strip stays quiet rather than inventing stops. Attach agentfootprint’s boundary recorder at record time to get them.',
+      'This recording has no step boundaries — the grouped reading has nothing to band, though every commit still scrubs. Attach agentfootprint’s boundary recorder at record time to get the groups.',
     );
   }
   if (eventsSkipped > 0) {

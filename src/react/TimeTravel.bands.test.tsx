@@ -84,22 +84,48 @@ describe('TimeTravel — grouped ruler', () => {
     expect(activeBandLabel()).toBe('Iteration 2');
   });
 
-  it('◀ ▶ move GROUP BY GROUP — to the adjacent band’s first step, through the same funnel', () => {
+  it('◀ ▶ move STOP BY STOP even when banded — bands are the grouping, never the unit of movement', () => {
+    // FAILS ON THE OLD BEHAVIOUR: ◀ ▶ used to jump whole bands, which made
+    // every mid-band stop unreachable by the transport alone.
     const onFocusChange = vi.fn();
     render(
       <TimeTravel compact bands={BANDS} total={TOTAL} focusSeq={3} onFocusChange={onFocusChange} isLive={false} />,
     );
-    fireEvent.click(screen.getByLabelText('Next group'));
-    expect(onFocusChange).toHaveBeenLastCalledWith(6);
-    fireEvent.click(screen.getByLabelText('Previous group'));
-    expect(onFocusChange).toHaveBeenLastCalledWith(0);
+    fireEvent.click(screen.getByLabelText('Next step'));
+    expect(onFocusChange).toHaveBeenLastCalledWith(4);
+    fireEvent.click(screen.getByLabelText('Previous step'));
+    expect(onFocusChange).toHaveBeenLastCalledWith(2);
   });
 
-  it('counts groups, honestly labelled as groups', () => {
+  it('▶ alone reaches EVERY stop on a banded axis — the walk-all pin', () => {
+    // Drive the component the way a user does: press ▶, feed the reported
+    // step back in as the prop (the parent owns the cursor), repeat. Every
+    // stop on the axis must be visited exactly once, in order.
+    const visited: number[] = [0];
+    let focus = 0;
+    const onFocusChange = vi.fn((next: number) => {
+      visited.push(next);
+      focus = next;
+    });
+    const { rerender } = render(
+      <TimeTravel compact bands={BANDS} total={TOTAL} focusSeq={focus} onFocusChange={onFocusChange} isLive={false} />,
+    );
+    for (let presses = 0; presses < TOTAL - 1; presses += 1) {
+      fireEvent.click(screen.getByLabelText('Next step'));
+      rerender(
+        <TimeTravel compact bands={BANDS} total={TOTAL} focusSeq={focus} onFocusChange={onFocusChange} isLive={false} />,
+      );
+    }
+    expect(visited).toEqual(Array.from({ length: TOTAL }, (_, i) => i));
+    // At the last stop ▶ is disabled — no wrap, no skip.
+    expect((screen.getByLabelText('Next step') as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  it('the banded readout names the group AND the stop — both truths, one line', () => {
     render(
       <TimeTravel compact bands={BANDS} total={TOTAL} focusSeq={6} onFocusChange={() => {}} isLive={false} />,
     );
-    expect(screen.getByText('group 3 / 4')).toBeTruthy();
+    expect(screen.getByText('Iteration 2 · stop 7 of 12')).toBeTruthy();
   });
 
   it('without bands, the per-step strip is untouched', () => {

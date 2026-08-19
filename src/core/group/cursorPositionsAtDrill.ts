@@ -549,6 +549,114 @@ function subflowInternalPositions(
   });
 }
 
+/**
+ * commitAxisPositions — the COMMIT axis: one scrub stop per EXECUTED STAGE,
+ * straight off the recording's commit log. This is the Flow Lens's axis
+ * (granularity `'step'`).
+ *
+ * Why it exists: the milestone axis above stops only at the moments the domain
+ * classifies (iteration / context / LLM turn / route / tool call). That is the
+ * right altitude for the GROUPED reading — but the per-step reading promises
+ * "every step", and a ruler built from milestones skips the stages between
+ * them (a 37-stage run got 17 stops; stage 23 was unreachable between stops 9
+ * and 10). Here every executed stage IS a stop, so the ruler's count and the
+ * inspector's "stage N of M" count the same unit and nothing is skippable.
+ *
+ * THE UNIT IS THE STAGE, NOT THE RAW COMMIT ROW: a boundary stage can commit
+ * more than once under ONE runtimeStageId (a subflow mounts with an entry
+ * commit and closes with an exit commit — footprintjs's law is one stage, one
+ * CommitBundle; the doubles are the boundary's own bundles). Two stops with
+ * one address would be the same place twice, so a stage's stops collapse to
+ * ONE, anchored at its FIRST commit — the moment it started, which is
+ * execution order (runtimeStageIds are stamped before the stage runs).
+ *
+ * The one-cursor law holds unchanged: each stop's `runtimeStageId` is the
+ * stage's own, `commitIdx` is its first commit's index, and nothing here
+ * stores state.
+ *
+ * Drilled scope: stops are the stages INSIDE the drilled group (membership by
+ * the enclosing-group chain, never a bare index range — parallel siblings
+ * interleave commits). A drilled subflow whose internals commit in its OWN
+ * memory scope (only the mount boundary reaches the parent log) falls back to
+ * the runtime overlay's executionOrder — the same source the milestone axis
+ * uses for those internals (`subflowInternalPositions`).
+ */
+export function commitAxisPositions(
+  groups: readonly Group[],
+  commits: readonly CommitSyncEntry[],
+  drillPath: readonly string[] = [],
+  executionOrder?: readonly ExecOrderEntry[],
+): readonly CursorPosition[] {
+  if (commits.length === 0) return [];
+
+  const toStop = (c: CommitSyncEntry): CursorPosition => ({
+    runtimeStageId: c.runtimeStageId,
+    runtimeGroupId: c.runtimeGroupId !== '' ? c.runtimeGroupId : c.runtimeStageId,
+    label: c.label,
+    kind: 'commit',
+    depth: c.depth,
+    commitIdx: c.commitIdx,
+  });
+
+  // One stop per STAGE: collapse a stage's repeated commits (boundary
+  // entry/exit bundles share the runtimeStageId) onto the first — execution
+  // order, and the anchor every consumer reads state "as of the start" from.
+  const oneStopPerStage = (list: readonly CommitSyncEntry[]): CursorPosition[] => {
+    const seen = new Set<string>();
+    const stops: CursorPosition[] = [];
+    for (const c of list) {
+      if (seen.has(c.runtimeStageId)) continue;
+      seen.add(c.runtimeStageId);
+      stops.push(toStop(c));
+    }
+    return ordinalizeLabels(stops);
+  };
+
+  // Top level: the whole log, one stop per executed stage, in execution order.
+  if (drillPath.length === 0) return oneStopPerStage(commits);
+
+  const current = currentGroup(groups, drillPath);
+  if (!current) return [];
+
+  // Membership by enclosing-group CHAIN (commit's innermost group is the
+  // drilled group, or a descendant of it) — never a bare [opens..closes]
+  // index range, which would capture interleaved parallel-sibling commits.
+  const byId = new Map(groups.map((g) => [g.runtimeGroupId, g] as const));
+  const inScope = commits.filter((c) => {
+    let gid: string | undefined = c.runtimeGroupId;
+    while (gid !== undefined && gid !== '') {
+      if (gid === current.runtimeGroupId) return true;
+      gid = byId.get(gid)?.parentGroupId;
+    }
+    return false;
+  });
+
+  // A drilled subflow whose stops are ONLY its own boundary commit(s) keeps
+  // its internal commits in its own memory scope — the overlay's
+  // executionOrder is the one place those stage executions appear.
+  const stripped = stripExecIndex(current.runtimeGroupId);
+  const hasInternals = inScope.some((c) => stripExecIndex(c.runtimeStageId) !== stripped);
+  if (!hasInternals && executionOrder !== undefined && executionOrder.length > 0) {
+    const overlayStops = subflowInternalPositions(current, executionOrder);
+    if (overlayStops.length > 0) return overlayStops;
+  }
+
+  return oneStopPerStage(inScope);
+}
+
+/** Ordinal repeated labels ("call-llm" ×3 → "call-llm 1/2/3") so a list of
+ *  stops stays readable — same per-label rule the milestone axis uses. */
+function ordinalizeLabels(positions: readonly CursorPosition[]): CursorPosition[] {
+  const totals = new Map<string, number>();
+  for (const p of positions) totals.set(p.label, (totals.get(p.label) ?? 0) + 1);
+  const seen = new Map<string, number>();
+  return positions.map((p) => {
+    const n = (seen.get(p.label) ?? 0) + 1;
+    seen.set(p.label, n);
+    return (totals.get(p.label) ?? 0) > 1 ? { ...p, label: `${p.label} ${n}` } : p;
+  });
+}
+
 export function cursorPositionsAtDrill(
   groups: readonly Group[],
   commits: readonly CommitSyncEntry[],

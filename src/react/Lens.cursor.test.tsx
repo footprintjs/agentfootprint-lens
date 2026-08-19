@@ -185,8 +185,8 @@ describe('<Lens step> controlled — the host owns the cursor', () => {
     const total = stepButtons().length;
     moves.length = 0;
 
-    fireEvent.click(screen.getByLabelText('Next event'));
-    fireEvent.click(screen.getByLabelText('Previous event'));
+    fireEvent.click(screen.getByLabelText('Next step'));
+    fireEvent.click(screen.getByLabelText('Previous step'));
     fireEvent.keyDown(document.body, { key: 'ArrowRight' });
     fireEvent.click(screen.getByLabelText('Jump to latest'));
     // At the live edge the transport disables ◀/▶ nothing else; Home rewinds.

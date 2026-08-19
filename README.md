@@ -505,9 +505,12 @@ pane.
 
 ## Scrubbing by group — the active group is a named place
 
-One causal trace, replayed at two zoom levels. On the **per-step** ruler each
-commit is a stop; on the **grouped** ruler each boundary is a stop, and ◀ ▶ moves
-a whole group at a time.
+One causal trace, replayed at two zoom levels. On the **per-step** ruler every
+executed stage is a stop — the commit trace itself, nothing skippable, so the
+ruler's count is the run's stage count. On the **grouped** ruler the stops are
+the agent's milestones (iteration, context, LLM turn, route, tool call), drawn
+as labelled iteration bands; ◀ ▶ still move one stop at a time, and clicking a
+band jumps to its first stop.
 
 The chart used to paint both the same way, and that was wrong for the second one.
 A stage's styling is by TYPE — the LLM call carries a hero emphasis (accent
