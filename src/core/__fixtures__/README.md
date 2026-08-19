@@ -65,3 +65,24 @@ byte that IS here is the run's own.
 Recorded against the `agentfootprint` version in this package's
 devDependencies, on the mock provider — no network, no real model output.
 
+
+---
+
+# The demo run, before the recording carried the map
+
+`skill-run-pre-950.json` — a byte copy of `demo/skill-run.json` exactly as the
+agentfootprint **9.49-era** generator wrote it, frozen the day the demo fixture
+was regenerated on 9.50.0. Same support-triage agent, same scripted mock — the
+pair differs in exactly one thing: whether the recording carries the three
+9.50.0 routing facts (`skill.graph_declared`, `cursorMove.reachable`,
+`llm_start.systemPromptText`).
+
+Used by `selectors/recordingCarriesTheMap.test.ts` as the OLD arm of the era
+split: the fallback paths (declared edges as the fired lower bound, reachable
+sets from refusals and declared-edge folds, the prompt honestly absent) run
+against a real old-shape artifact, not a synthetic imitation of one. The NEW
+arm reads `demo/skill-run.json` itself, which doubles as a guard that the
+checked-in demo fixture actually carries the facts the demo shows off.
+
+Same rules as everything above: produced by running the real library, never
+hand-edited.

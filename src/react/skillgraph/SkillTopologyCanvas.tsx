@@ -9,9 +9,12 @@
  *   drawn differently and named in the legend. An observed edge with no
  *   declared twin is the finding, not a rendering detail.
  *
- *   PARTIAL DECLARATIONS — when the declared set came from the recording, it
- *   is a lower bound (an edge is named once it fires), and the canvas says so
- *   under the legend rather than implying the author drew only what ran.
+ *   PARTIAL DECLARATIONS — when the declared set is only `routing[]`'s fired
+ *   edges, it is a lower bound, and the canvas says so under the legend
+ *   rather than implying the author drew only what ran. When the recording
+ *   carries the author's whole map (`skill.graph_declared`, 9.50.0) — or the
+ *   caller passed the built graph — the warning does NOT show, because it
+ *   would then be the lie.
  *
  * Clicking a node FILTERS THE ONE CURSOR to that skill's next span. It never
  * holds a selection of its own — what is highlighted is a function of the
@@ -66,6 +69,10 @@ interface SkillNodeData extends Record<string, unknown> {
   readonly stateLabel: string;
   readonly pickedByModel: boolean;
   readonly jumpable: boolean;
+  /** The catalog description, verbatim — shown as the node's tooltip. */
+  readonly description?: string;
+  /** The declared map's synthetic START points here. */
+  readonly isEntry: boolean;
 }
 
 const SkillStateNode: React.FC<NodeProps> = ({ data }) => {
@@ -76,7 +83,12 @@ const SkillStateNode: React.FC<NodeProps> = ({ data }) => {
     <div
       data-testid={`skill-node-${d.label}`}
       data-state={d.state}
-      title={d.jumpable ? `Jump the cursor to "${d.label}"` : `The cursor never stood in "${d.label}"`}
+      title={[
+        d.description,
+        d.jumpable ? `Jump the cursor to "${d.label}"` : `The cursor never stood in "${d.label}"`,
+      ]
+        .filter((line) => line !== undefined)
+        .join('\n\n')}
       style={{
         width: 192,
         minHeight: 56,
@@ -128,6 +140,21 @@ const SkillStateNode: React.FC<NodeProps> = ({ data }) => {
         }}
       >
         <span>{d.stateLabel}</span>
+        {d.isEntry && (
+          <span
+            style={{
+              padding: '1px 5px',
+              borderRadius: 5,
+              background: `${T.bgPrimary}`,
+              border: `1px solid ${T.textMuted}`,
+              color: T.textMuted,
+              textTransform: 'none',
+              letterSpacing: 0,
+            }}
+          >
+            entry
+          </span>
+        )}
         {d.pickedByModel && (
           <span
             style={{
@@ -191,11 +218,13 @@ export function SkillTopologyCanvas({
           draggable: false,
           selectable: true,
           data: {
-            label: n.id,
+            label: n.label ?? n.id,
             state: n.state,
             stateLabel: lens === 'product' ? STATE_STYLE[n.state].product : STATE_STYLE[n.state].developer,
             pickedByModel: n.pickedByModel,
             jumpable: jumpable.has(n.id),
+            ...(n.description !== undefined ? { description: n.description } : {}),
+            isEntry: n.isEntry,
           } satisfies SkillNodeData,
         };
       }),
@@ -307,7 +336,16 @@ function Legend({
         <span>— solid: an edge the author declared</span>
         <span>┄ dashed: a hop the run took, never declared on the record</span>
       </div>
-      {topology.declaredSource !== 'graph' && (
+      {topology.declaredSource === 'recording-declared' && (
+        <div
+          data-testid="declared-complete-note"
+          style={{ flex: '1 1 100%', color: T.textMuted, lineHeight: 1.35 }}
+        >
+          The author&apos;s complete declared map — this recording carries it
+          (skill.graph_declared).
+        </div>
+      )}
+      {!topology.declaredComplete && (
         <div style={{ flex: '1 1 100%', color: T.warning, lineHeight: 1.35 }}>
           {topology.declaredSource === 'recording'
             ? 'Declared edges shown are only the ones this recording named — a recording names an edge once it fires, so the author may have drawn more.'

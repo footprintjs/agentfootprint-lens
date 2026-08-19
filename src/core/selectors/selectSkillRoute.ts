@@ -100,6 +100,11 @@ export interface SkillRouteNode {
   readonly id: string;
   /** The catalog description, verbatim — the same text the model read. */
   readonly description?: string;
+  /** The drawn kind (`'skill'` box / `'predicate'` diamond), when the
+   *  recording carried the declared map (`skill.graph_declared`, 9.50.0). */
+  readonly kind?: string;
+  /** The drawn caption, when the declared map named one (predicate nodes). */
+  readonly label?: string;
   /** The cursor stood here on at least one iteration. */
   readonly visited: boolean;
 }
@@ -124,7 +129,12 @@ export interface SkillObservedEdge {
   readonly triggerKind?: string;
 }
 
-/** An edge the AUTHOR declared, as reported by `routing[]` provenance. */
+/** An edge the AUTHOR declared. Reported by `routing[]` provenance (an edge
+ *  is named once it FIRES — a lower bound), or verbatim by the run's
+ *  `skill.graph_declared` map (9.50.0 — the WHOLE declaration; see
+ *  {@link SkillRoute.declaredComplete}). `triggerKind` carries `routing[]`'s
+ *  compiled trigger kind or the declared map's edge `kind` — one vocabulary
+ *  (`'entry' | 'predicate' | 'on-tool-return' | 'on-tool-status' | 'model'`). */
 export interface SkillDeclaredEdge {
   readonly from: string;
   readonly to: string;
@@ -275,6 +285,21 @@ export interface SkillHop {
    *  was reachable. The highest-value field here — it is the model's own view
    *  of the graph, and it is free on `stream.llm_start`. */
   readonly readSkillDescription?: string;
+  /**
+   * The REACHABLE set from the cursor this iteration's move landed on —
+   * `cursorMove.reachable` (9.50.0), the same set the gate builds the
+   * `read_skill` menu and its refusals from, as DATA. `[]` is a fact (a dead
+   * end: nothing was admissible); ABSENT means the recording's era predates
+   * the field and the set was honestly not on the record.
+   */
+  readonly reachable?: readonly string[];
+  /**
+   * The ASSEMBLED system prompt, byte-for-byte as sent to the provider
+   * (`llm_start.systemPromptText`, 9.50.0). Present ONLY when the producer
+   * opted in (`recordSystemPrompt: true` — off by default, for privacy);
+   * absent, the string is honestly not in the recording.
+   */
+  readonly systemPromptText?: string;
   /** What the active skills put into the prompt on this iteration. */
   readonly skillInjections: readonly SkillInjectionSeen[];
   readonly evidence?: SkillEvidenceCheck;
@@ -296,6 +321,21 @@ export interface SkillRoute {
   readonly hops: readonly SkillHop[];
   readonly observedEdges: readonly SkillObservedEdge[];
   readonly declaredEdges: readonly SkillDeclaredEdge[];
+  /**
+   * `true` when the run's `agentfootprint.skill.graph_declared` event (9.50.0)
+   * supplied the declared set — the author's WHOLE map, verbatim from the
+   * built graph. `false` (or absent, on a route folded elsewhere) means
+   * `declaredEdges` is the `routing[]` LOWER BOUND — an edge is named only
+   * once it fires — and a view must say so.
+   */
+  readonly declaredComplete?: boolean;
+  /**
+   * Entry skills — targets of the declared map's synthetic-START edges
+   * (`from: null` in `graph_declared`). Where a turn CAN begin, as the author
+   * drew it. Absent when the recording carried no declared map (or it had no
+   * entry edge), never guessed from observed cold starts.
+   */
+  readonly entryIds?: readonly string[];
   readonly turns: readonly SkillTurnStart[];
 }
 
@@ -312,6 +352,7 @@ const LLM_START = 'agentfootprint.stream.llm_start';
 const TOOL_START = 'agentfootprint.stream.tool_start';
 const TOOL_END = 'agentfootprint.stream.tool_end';
 const REJECTED = 'agentfootprint.skill.rejected';
+const GRAPH_DECLARED = 'agentfootprint.skill.graph_declared';
 const ROUTE_CONFLICT = 'agentfootprint.skill.route_conflict';
 const REROUTE_SUPERSEDED = 'agentfootprint.skill.reroute_superseded';
 const TURN_ROUTED = 'agentfootprint.skill.turn_routed';
@@ -384,6 +425,8 @@ interface HopDraft {
   superseded: SkillSuperseded[];
   toolsAsSent: readonly SkillToolAsSent[];
   readSkillDescription?: string;
+  reachable?: readonly string[];
+  systemPromptText?: string;
   skillInjections: SkillInjectionSeen[];
   evidence?: SkillEvidenceCheck;
 }
@@ -432,8 +475,13 @@ interface PendingRefusal {
 export function selectSkillRoute(args: SelectSkillRouteArgs): SkillRoute {
   const { log } = args;
 
+  interface CatalogRow {
+    description?: string;
+    kind?: string;
+    label?: string;
+  }
   const drafts = new Map<string, HopDraft>();
-  const catalog = new Map<string, string | undefined>();
+  const catalog = new Map<string, CatalogRow>();
   const visited = new Set<string>();
   const declared = new Map<string, SkillDeclaredEdge>();
   const turns: SkillTurnStart[] = [];
@@ -442,6 +490,8 @@ export function selectSkillRoute(args: SelectSkillRouteArgs): SkillRoute {
   const openCalls = new Map<string, { name: string; requestedId?: string }>();
 
   let hasRouting = false;
+  let declaredComplete = false;
+  const entryIds: string[] = [];
   // The running address. Iterations restart at 1 on every turn, so a hop key
   // without the turn would collide across turns of one conversation.
   let turnIndex = 0;
@@ -505,7 +555,9 @@ export function selectSkillRoute(args: SelectSkillRouteArgs): SkillRoute {
           const id = str(c?.id);
           if (id === undefined) continue;
           hasRouting = true;
-          if (!catalog.has(id)) catalog.set(id, str(c?.description));
+          const known = catalog.get(id) ?? {};
+          if (known.description === undefined) known.description = str(c?.description);
+          catalog.set(id, known);
         }
 
         for (const row of Array.isArray(p.routing) ? p.routing : []) {
@@ -536,6 +588,9 @@ export function selectSkillRoute(args: SelectSkillRouteArgs): SkillRoute {
           draft.by = str(move.by);
           draft.witness = witnessOf(move.witness);
           if (Array.isArray(move.offered)) draft.offered = strList(move.offered);
+          // `[]` is kept: an empty reachable set is a dead end, a FACT — only
+          // a missing field (an older era) leaves the hop's set absent.
+          if (Array.isArray(move.reachable)) draft.reachable = strList(move.reachable);
           if (typeof move.declinedOffer === 'boolean') draft.declinedOffer = move.declinedOffer;
           if (draft.to !== undefined) visited.add(draft.to);
           if (draft.from !== undefined) visited.add(draft.from);
@@ -560,6 +615,53 @@ export function selectSkillRoute(args: SelectSkillRouteArgs): SkillRoute {
           }
         }
         draft.toolsAsSent = tools;
+        // The assembled prompt rides llm_start only when the producer opted
+        // in (`recordSystemPrompt: true`) — absent is the privacy default.
+        const promptText = str(p.systemPromptText);
+        if (promptText !== undefined) draft.systemPromptText = promptText;
+        break;
+      }
+
+      case GRAPH_DECLARED: {
+        // The author's map, verbatim from the built graph (9.50.0) — fired
+        // once per run, right after the run manifest. Everything it names is
+        // COMPLETE (the whole declaration), unlike `routing[]`'s fired-only
+        // lower bound; `declaredComplete` records which one this route has.
+        hasRouting = true;
+        declaredComplete = true;
+        for (const row of Array.isArray(p.nodes) ? p.nodes : []) {
+          const n = obj(row);
+          const id = str(n?.id);
+          if (id === undefined) continue;
+          const existing = catalog.get(id) ?? {};
+          if (existing.description === undefined) existing.description = str(n?.description);
+          if (existing.kind === undefined) existing.kind = str(n?.kind);
+          if (existing.label === undefined) existing.label = str(n?.label);
+          catalog.set(id, existing);
+        }
+        for (const row of Array.isArray(p.edges) ? p.edges : []) {
+          const e = obj(row);
+          const to = str(e?.to);
+          if (to === undefined) continue;
+          // `from: null` is the synthetic START — an entry fact, not an edge
+          // between two skills. Kept apart so a canvas can mark entries
+          // without drawing a node that does not exist.
+          if (e?.from === null) {
+            if (!entryIds.includes(to)) entryIds.push(to);
+            continue;
+          }
+          const from = str(e?.from);
+          if (from === undefined) continue;
+          const edgeKey = `${from}->${to}`;
+          if (!declared.has(edgeKey)) {
+            declared.set(edgeKey, {
+              from,
+              to,
+              ...some('label', str(e?.label)),
+              ...some('triggerKind', str(e?.kind)),
+            });
+          }
+        }
         break;
       }
 
@@ -802,14 +904,18 @@ export function selectSkillRoute(args: SelectSkillRouteArgs): SkillRoute {
     ...(d.readSkillDescription !== undefined
       ? { readSkillDescription: d.readSkillDescription }
       : {}),
+    ...(d.reachable !== undefined ? { reachable: d.reachable } : {}),
+    ...(d.systemPromptText !== undefined ? { systemPromptText: d.systemPromptText } : {}),
     skillInjections: d.skillInjections,
     ...(d.evidence !== undefined ? { evidence: d.evidence } : {}),
   }));
 
   // ── The graph: catalog nodes, the hops the cursor was seen to take ─────
-  const nodes: SkillRouteNode[] = [...catalog.entries()].map(([id, description]) => ({
+  const nodes: SkillRouteNode[] = [...catalog.entries()].map(([id, row]) => ({
     id,
-    ...(description !== undefined ? { description } : {}),
+    ...(row.description !== undefined ? { description: row.description } : {}),
+    ...(row.kind !== undefined ? { kind: row.kind } : {}),
+    ...(row.label !== undefined ? { label: row.label } : {}),
     visited: visited.has(id),
   }));
   // A cursor position the catalog never listed is still a node of the graph
@@ -850,6 +956,8 @@ export function selectSkillRoute(args: SelectSkillRouteArgs): SkillRoute {
     hops,
     observedEdges: [...edges.values()].map((r) => r.edge),
     declaredEdges: [...declared.values()],
+    declaredComplete,
+    ...(entryIds.length > 0 ? { entryIds } : {}),
     turns,
   };
 }

@@ -10,15 +10,22 @@
  *                   reading — the gate rewrites it every iteration), the tool
  *                   catalog as sent, every injection the skills contributed,
  *                   the engineered context the paired LLM call carried, and
- *                   the evidence gate's verdict.
- *   NOT ON IT       the assembled system prompt as one string (the log carries
- *                   the injections that COMPOSE it, not the composed result),
- *                   and the reachable set as data (it exists only as prose
- *                   inside `read_skill`'s description, plus the typed list a
- *                   refusal happens to carry).
+ *                   the evidence gate's verdict. Since agentfootprint 9.50.0,
+ *                   possibly two more: the ASSEMBLED system prompt verbatim
+ *                   (`llm_start.systemPromptText` — opt-in, rendered here "as
+ *                   sent" when present) and the reachable set as data
+ *                   (`cursorMove.reachable`).
+ *   NOT ON IT       whichever of those two this recording's era or dials left
+ *                   out: the assembled prompt (recording it is an explicit
+ *                   opt-in, `recordSystemPrompt: true` — the privacy default
+ *                   keeps it off the record) and/or the reachable set as data
+ *                   (older eras carry it only as prose inside `read_skill`'s
+ *                   description, plus the typed list a refusal happens to
+ *                   carry).
  *
- * The absence card names those two rather than leaving a reader to assume the
- * panel is showing everything there was.
+ * The absence card names exactly what is absent from THIS beat's record —
+ * and disappears when nothing is — rather than leaving a reader to assume
+ * the panel is showing everything there was.
  */
 
 import React from 'react';
@@ -50,12 +57,24 @@ export function FrameFactsPanel({
   }
 
   const hop = beat.hop;
+  const promptOnRecord = hop.systemPromptText !== undefined;
+  const reachableAsData = beat.reachable?.source === 'cursor-move';
   return (
     <div style={panelStyle} data-testid="frame-facts">
       <Header
         title="What the model saw"
         subtitle={`${beat.label} · the call this stop prepared`}
       />
+
+      {hop.systemPromptText !== undefined && (
+        <Section title="system prompt, as sent" count={1}>
+          <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>
+            the assembled prompt, byte-for-byte as the provider received it (the producer opted
+            in with <code>recordSystemPrompt: true</code>)
+          </div>
+          <Mono testId="system-prompt-text">{hop.systemPromptText}</Mono>
+        </Section>
+      )}
 
       <Section title="read_skill, as sent" count={hop.readSkillDescription !== undefined ? 1 : 0}>
         {hop.readSkillDescription !== undefined ? (
@@ -180,25 +199,41 @@ export function FrameFactsPanel({
         </Section>
       )}
 
-      <div
-        data-testid="frame-absence"
-        style={{
-          marginTop: 12,
-          padding: '8px 10px',
-          borderRadius: 8,
-          border: `1px dashed ${T.border}`,
-          background: T.bgSecondary,
-          fontSize: 11,
-          lineHeight: 1.45,
-          color: T.textMuted,
-        }}
-      >
-        <strong style={{ color: T.textSecondary }}>Not in this recording.</strong> The system
-        prompt as one assembled string is not recorded — the injections above are the pieces it
-        was composed from. The reachable set is not recorded as data either: it appears as prose
-        inside <code>read_skill</code>&apos;s description, and as a typed list only when the gate
-        refused a pick. Neither is reconstructed here.
-      </div>
+      {(!promptOnRecord || !reachableAsData) && (
+        <div
+          data-testid="frame-absence"
+          style={{
+            marginTop: 12,
+            padding: '8px 10px',
+            borderRadius: 8,
+            border: `1px dashed ${T.border}`,
+            background: T.bgSecondary,
+            fontSize: 11,
+            lineHeight: 1.45,
+            color: T.textMuted,
+          }}
+        >
+          <strong style={{ color: T.textSecondary }}>Not in this recording.</strong>
+          {!promptOnRecord && (
+            <>
+              {' '}
+              The system prompt as one assembled string is not recorded — the injections above
+              are the pieces it was composed from. Recording the assembled prompt is an explicit
+              opt-in (<code>recordSystemPrompt: true</code>); the default keeps it out of every
+              recording, because it carries everything injected into it.
+            </>
+          )}
+          {!reachableAsData && (
+            <>
+              {' '}
+              The reachable set is not recorded as data in this era&apos;s recording: it appears
+              as prose inside <code>read_skill</code>&apos;s description, and as a typed list
+              only when the gate refused a pick.
+            </>
+          )}{' '}
+          Nothing absent is reconstructed here.
+        </div>
+      )}
     </div>
   );
 }

@@ -10,15 +10,18 @@
  *
  * DECLARED vs OBSERVED — the distinction the whole canvas rests on:
  *
- *   DECLARED  an edge the AUTHOR drew. On the record it comes from
- *             `context.evaluated`'s `routing[]` provenance, which names an
- *             edge only once it FIRES — so the declared set a recording
- *             carries is a LOWER BOUND on the graph that was built. A
- *             consumer holding the built graph can pass the rest in through
- *             {@link SelectSkillTopologyArgs.declaredEdges}; without it, the
- *             view must say the topology is partial rather than imply the
- *             author drew only what fired. {@link SkillTopology.declaredSource}
- *             is that flag, so no caller has to remember the rule.
+ *   DECLARED  an edge the AUTHOR drew. On the record it comes from one of
+ *             two places, and they differ in COMPLETENESS:
+ *             `skill.graph_declared` (9.50.0) is the author's WHOLE map,
+ *             verbatim from the built graph — complete; `routing[]`
+ *             provenance names an edge only once it FIRES — a LOWER BOUND.
+ *             A consumer holding the built graph can still pass it in
+ *             through {@link SelectSkillTopologyArgs.declaredEdges}; without
+ *             either complete source, the view must say the topology is
+ *             partial rather than imply the author drew only what fired.
+ *             {@link SkillTopology.declaredSource} (and its one-boolean
+ *             digest {@link SkillTopology.declaredComplete}) is that flag,
+ *             so no caller has to remember the rule.
  *   OBSERVED  a hop the CURSOR was seen to take, with the cause that moved it.
  *             An observed edge with no declared twin is the interesting case:
  *             the model routed somewhere the recording never saw declared.
@@ -50,6 +53,14 @@ export interface SkillTopologyNode {
   readonly id: string;
   /** The catalog description, verbatim — the text the model read. */
   readonly description?: string;
+  /** The drawn kind (`'skill'` / `'predicate'`), when the declared map named it. */
+  readonly kind?: string;
+  /** The drawn caption, when the declared map named one. */
+  readonly label?: string;
+  /** A synthetic-START edge points here — a turn CAN begin at this skill, as
+   *  the author drew it. Only ever `true` when the recording carried the
+   *  declared map; never guessed from an observed cold start. */
+  readonly isEntry: boolean;
   readonly state: SkillNodeState;
   /** The cursor moved here on this beat because the MODEL picked it. */
   readonly pickedByModel: boolean;
@@ -83,13 +94,30 @@ export interface SkillTopology {
   readonly nodes: readonly SkillTopologyNode[];
   readonly edges: readonly SkillTopologyEdge[];
   /**
-   * Where the declared edges came from:
-   *   `'recording'` the log's `routing[]` only — a LOWER BOUND, and a view
-   *                 must say so.
-   *   `'graph'`     the caller passed the built graph's edges — complete.
-   *   `'none'`      the recording named no declared edge and none was passed.
+   * Where the declared edges came from — and, with it, whether they are the
+   * WHOLE map or only what fired:
+   *   `'recording-declared'` the run's own `skill.graph_declared` event
+   *                          (9.50.0) — the author's complete declaration,
+   *                          carried by the recording itself.
+   *   `'recording'`          the log's `routing[]` only — a LOWER BOUND (an
+   *                          edge is named once it fires), and a view must
+   *                          say so.
+   *   `'graph'`              the caller passed the built graph's edges —
+   *                          complete.
+   *   `'none'`               the recording named no declared edge and none
+   *                          was passed.
    */
-  readonly declaredSource: 'recording' | 'graph' | 'none';
+  readonly declaredSource: 'recording-declared' | 'recording' | 'graph' | 'none';
+  /**
+   * The one-boolean digest of `declaredSource` a caveat line branches on:
+   * `true` for `'recording-declared'` and `'graph'` (the whole map is drawn —
+   * no "the author may have drawn more" warning), `false` for `'recording'`
+   * and `'none'` (a lower bound — the warning stays).
+   */
+  readonly declaredComplete: boolean;
+  /** Entry skills — the declared map's synthetic-START targets. Empty when
+   *  the recording carried no declared map. */
+  readonly entryIds: readonly string[];
 }
 
 /** A declared edge as a caller supplies it (`graph.edges`, `from !== null`). */
@@ -196,6 +224,8 @@ export function selectSkillTopology({
 
   // Every endpoint is a node, even one the catalog never listed — the run
   // walked it, so hiding it would hide a hop.
+  const entryIds = route.entryIds ?? [];
+  const entrySet = new Set(entryIds);
   const nodes = new Map<string, SkillTopologyNode>();
   const state = (id: string): SkillNodeState => {
     if (id === current) return 'current';
@@ -204,17 +234,24 @@ export function selectSkillTopology({
     if (visitedSoFar.has(id)) return 'visited';
     return 'idle';
   };
-  const addNode = (id: string, description?: string, visitedInRun?: boolean): void => {
+  const addNode = (
+    id: string,
+    detail?: { description?: string; kind?: string; label?: string },
+    visitedInRun?: boolean,
+  ): void => {
     const existing = nodes.get(id);
     if (existing !== undefined) {
-      if (existing.description === undefined && description !== undefined) {
-        nodes.set(id, { ...existing, description });
+      if (existing.description === undefined && detail?.description !== undefined) {
+        nodes.set(id, { ...existing, description: detail.description });
       }
       return;
     }
     nodes.set(id, {
       id,
-      ...(description !== undefined ? { description } : {}),
+      ...(detail?.description !== undefined ? { description: detail.description } : {}),
+      ...(detail?.kind !== undefined ? { kind: detail.kind } : {}),
+      ...(detail?.label !== undefined ? { label: detail.label } : {}),
+      isEntry: entrySet.has(id),
       state: state(id),
       pickedByModel: beat?.modelPickedId === id,
       refusedHere: refused.has(id),
@@ -222,12 +259,31 @@ export function selectSkillTopology({
     });
   };
 
-  for (const n of route.nodes) addNode(n.id, n.description, n.visited);
+  for (const n of route.nodes) {
+    addNode(
+      n.id,
+      {
+        ...(n.description !== undefined ? { description: n.description } : {}),
+        ...(n.kind !== undefined ? { kind: n.kind } : {}),
+        ...(n.label !== undefined ? { label: n.label } : {}),
+      },
+      n.visited,
+    );
+  }
   for (const row of edges.values()) {
     addNode(row.from);
     addNode(row.to);
   }
   for (const id of refused) addNode(id);
+
+  const declaredSource: SkillTopology['declaredSource'] =
+    route.declaredComplete === true
+      ? 'recording-declared'
+      : declaredEdges !== undefined && declaredEdges.length > 0
+        ? 'graph'
+        : route.declaredEdges.length > 0
+          ? 'recording'
+          : 'none';
 
   return {
     nodes: [...nodes.values()],
@@ -243,11 +299,11 @@ export function selectSkillTopology({
       takenAt: row.takenAt,
       active: id === activeId,
     })),
-    declaredSource:
-      declaredEdges !== undefined && declaredEdges.length > 0
-        ? 'graph'
-        : route.declaredEdges.length > 0
-          ? 'recording'
-          : 'none',
+    // The run's own declared map outranks a passed-in graph for the LABEL —
+    // both are complete, but the recording's copy is from the run that
+    // actually executed, so it is the truer provenance to state.
+    declaredSource,
+    declaredComplete: declaredSource === 'recording-declared' || declaredSource === 'graph',
+    entryIds,
   };
 }

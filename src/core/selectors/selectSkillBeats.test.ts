@@ -281,3 +281,66 @@ describe('selectSkillBeats — a caller cannot corrupt the next answer', () => {
     expect(JSON.stringify(r)).toBe(before);
   });
 });
+
+// ─── The 9.50.0 reachable source — priority and the dead-end fact ─────────
+
+describe('selectSkillBeats — cursorMove.reachable (9.50.0)', () => {
+  it('the move\'s own set OUTRANKS the refusal list and the declared-edge fold', () => {
+    // One hop carrying all three candidate sources at once: the exact
+    // per-move set must win, and the tag must say which field supplied it.
+    const r = route({
+      hops: [
+        hop({
+          iteration: 1,
+          from: 'triage',
+          to: 'triage',
+          by: 'stay',
+          reachable: ['volume-lookup', 'export'],
+          refusals: [
+            {
+              requestedId: 'audit-log',
+              allowed: ['volume-lookup'],
+              turnIndex: 0,
+              iteration: 1,
+            },
+          ],
+        }),
+      ],
+      declaredEdges: [{ from: 'triage', to: 'inventory' }],
+    });
+    expect(selectSkillBeats({ route: r })[0]!.reachable).toEqual({
+      ids: ['volume-lookup', 'export'],
+      source: 'cursor-move',
+    });
+  });
+
+  it('an EMPTY reachable set is a dead end — a fact, never rendered as absence', () => {
+    const r = route({
+      hops: [hop({ iteration: 1, from: 'end-skill', to: 'end-skill', by: 'stay', reachable: [] })],
+    });
+    const beat = selectSkillBeats({ route: r })[0]!;
+    // Present with zero ids — the gate admitted NOTHING from this cursor.
+    expect(beat.reachable).toEqual({ ids: [], source: 'cursor-move' });
+  });
+
+  it('without the field, the older sources still answer — in their old order', () => {
+    const r = route({
+      hops: [
+        hop({
+          iteration: 1,
+          from: 'triage',
+          to: 'triage',
+          by: 'stay',
+          refusals: [
+            { requestedId: 'audit-log', allowed: ['volume-lookup'], turnIndex: 0, iteration: 1 },
+          ],
+        }),
+      ],
+      declaredEdges: [{ from: 'triage', to: 'inventory' }],
+    });
+    expect(selectSkillBeats({ route: r })[0]!.reachable).toEqual({
+      ids: ['volume-lookup'],
+      source: 'refusal',
+    });
+  });
+});

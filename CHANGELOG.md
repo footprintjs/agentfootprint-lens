@@ -5,6 +5,68 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.41.0] - 2026-08-19
+
+The recording now carries the map, and the SkillGraph surfaces read it.
+agentfootprint 9.50.0 put three routing facts on the recording as data —
+facts these views until now had to caption "partial", derive from fallbacks,
+or honestly refuse to show. All three land here, with every fallback for
+older recordings kept and still tested against a real old-era artifact.
+
+### Added
+
+- **The declared map, complete — from the recording itself.** A 9.50.0
+  recording carries `skill.graph_declared`: the author's whole skill graph
+  (nodes with their catalog descriptions, edges with their kinds, the
+  synthetic START), fired once per run. `selectSkillRoute` folds it in, and
+  `selectSkillTopology.declaredSource` gains the value that states what
+  changed: `'recording-declared'` means THE WHOLE MAP, unlike the old
+  `'recording'` lower bound (edges named only once they fire). The new
+  one-boolean digest `declaredComplete` is what a view branches on — the
+  Developer lens's amber "the author may have drawn more" warning now shows
+  ONLY when the map really is a lower bound; a complete map gets a quiet
+  provenance note instead. Entry skills wear an `entry` chip
+  (`SkillTopologyNode.isEntry`, `route.entryIds`), never-fired declared
+  edges are finally drawable from the recording alone, node tooltips carry
+  the catalog description, and edge captions come from the declared kinds.
+
+  ```ts
+  const topo = selectSkillTopology({ route });
+  topo.declaredSource;   // 'recording-declared' → the author's whole map
+  topo.declaredComplete; // true → do NOT show the lower-bound warning
+  ```
+
+- **The reachable set, from the move itself.** Every 9.50.0 cursor move
+  carries `cursorMove.reachable` — the exact set the `read_skill` gate would
+  admit, as data instead of menu prose. `selectSkillBeats` fills each beat's
+  reachable set from it FIRST, tagged `source: 'cursor-move'`; the two old
+  sources stay as fallbacks for older recordings, in their old order
+  (`'refusal'`, then `'declared-edges'`). An empty set is kept and rendered
+  as what it is — "a dead end: no skill was admissible from this cursor" —
+  never as absence.
+
+- **The assembled system prompt, verbatim — when the producer opted in.**
+  When a run was recorded with `recordSystemPrompt: true`, `llm_start`
+  carries the joined prompt byte-for-byte, and the frame-facts panel renders
+  it first, in a code block labeled as sent. When it is absent the panel's
+  honest "Not in this recording" card stays — now saying WHY: recording the
+  assembled prompt is an explicit opt-in, off by default because the prompt
+  carries everything injected into it. The card also stopped claiming the
+  reachable set is never data (it is, since 9.50.0) — each absence line
+  appears only when that fact is actually absent, and the card disappears
+  entirely when nothing is.
+
+### Changed
+
+- **Demo fixture regenerated on agentfootprint ^9.50.0** with the prompt
+  opt-in, so `npm run demo` shows all three facts live. The pre-9.50 run is
+  frozen byte-for-byte at `src/core/__fixtures__/skill-run-pre-950.json`,
+  and a new era-split test (`recordingCarriesTheMap.test.ts`) runs the
+  fallback paths against that real old-shape artifact — and doubles as a
+  guard that the checked-in demo fixture actually carries the new facts.
+- devDependency `agentfootprint` → `^9.50.0`. The peer range already
+  admitted 9.50 (`^7 || ^8 || ^9`) and is unchanged.
+
 ## [0.40.0] - 2026-08-19
 
 The import line now names the lens. Two subpath doors — additions only:

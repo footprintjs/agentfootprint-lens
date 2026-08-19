@@ -17,6 +17,14 @@
  * boundary recorder BEFORE the run, which is the only way the step strip (the
  * Lens's ONE cursor axis) can be rebuilt offline.
  *
+ * Since agentfootprint 9.50.0 the recording also CARRIES THE MAP: the
+ * `skill.graph_declared` event (the author's whole topology, fired once per
+ * run), `cursorMove.reachable` on every evaluated move, and — because this
+ * generator opts in with `recordSystemPrompt: true` — the assembled system
+ * prompt verbatim on every `llm_start`. The pre-9.50 run this one replaced is
+ * frozen at `src/core/__fixtures__/skill-run-pre-950.json`, so the fallback
+ * paths keep a real old-era artifact to run against.
+ *
  * Run:  npx tsx demo/generate-skill-run.ts
  */
 
@@ -132,7 +140,14 @@ const scripted = mock({
   },
 });
 
-const agent = Agent.create({ provider: scripted, model: 'mock', maxIterations: 8 })
+const agent = Agent.create({
+  provider: scripted,
+  model: 'mock',
+  maxIterations: 8,
+  // Opt IN to the assembled-prompt fact (9.50.0) — the default is OFF for
+  // privacy, and the demo exists to show the fact rendered "as sent".
+  recordSystemPrompt: true,
+})
   .system('You are a customer support agent.')
   .skillGraph(graph)
   .build();

@@ -33,8 +33,13 @@
  * into ids would re-create the exact mistake `selectSkillRoute` exists to
  * remove (a view re-parsing sentences), and would break on the first era that
  * rewords the menu. So `reachable` is filled only from a TYPED list, and it
- * names which one it used ({@link SkillReachableSet.source}):
+ * names which one it used ({@link SkillReachableSet.source}), in this
+ * priority order:
  *
+ *   `'cursor-move'`    `cursorMove.reachable` (9.50.0) — the gate's own
+ *                      admissible set from the landed cursor, on EVERY move.
+ *                      Exact, and `[]` is kept: an empty set is a dead end,
+ *                      a fact, never rendered as absence.
  *   `'refusal'`        `skill.rejected.allowed` — the gate's own reachability
  *                      set. Exact, but present only on iterations where the
  *                      model was refused.
@@ -42,8 +47,9 @@
  *                      LOWER BOUND: `routing[]` names an edge only once it
  *                      fires, so a graph's unfired edges are missing.
  *
- * Neither is "the reachable set at this frame" in general, and `undefined`
- * (no typed list at all) is the honest third answer — absent, never empty.
+ * The last two are fallbacks for recordings older than `cursorMove.reachable`;
+ * `undefined` (no typed list at all) is the honest fourth answer — absent,
+ * never empty.
  */
 
 import {
@@ -64,8 +70,10 @@ import type {
 /** A reachable set, and the typed field it was read from — never prose. */
 export interface SkillReachableSet {
   readonly ids: readonly string[];
-  /** Which typed field supplied it. See the header for what each one means. */
-  readonly source: 'refusal' | 'declared-edges';
+  /** Which typed field supplied it, in the priority order the header states:
+   *  `'cursor-move'` is exact and present on every 9.50.0+ move (`ids: []` is
+   *  a dead end — a fact); the other two are older-era fallbacks. */
+  readonly source: 'cursor-move' | 'refusal' | 'declared-edges';
 }
 
 /**
@@ -245,18 +253,22 @@ export function selectSkillBeats({ route }: SelectSkillBeatsArgs): readonly Skil
             ...(hop.witness !== undefined ? { witness: hop.witness } : {}),
           })) ?? fallbackHeadline(hop);
 
-    // Reachability: the gate's own list when a refusal put one on the record,
-    // else the declared edges leaving the skill the cursor stood in BEFORE the
+    // Reachability: the move's own typed set first (`cursorMove.reachable`,
+    // exact and present on every 9.50.0+ move — `[]` KEPT, a dead end is a
+    // fact); else the gate's list when a refusal put one on the record; else
+    // the declared edges leaving the skill the cursor stood in BEFORE the
     // hop (which is the position the reachability question was asked from).
     const askedFrom = hop.from ?? hop.to;
     const declared = askedFrom !== undefined ? declaredFrom.get(askedFrom) : undefined;
     const allowed = hop.refusals.find((r) => r.allowed.length > 0)?.allowed;
     const reachable: SkillReachableSet | undefined =
-      allowed !== undefined
-        ? { ids: allowed, source: 'refusal' }
-        : declared !== undefined && declared.length > 0
-          ? { ids: declared, source: 'declared-edges' }
-          : undefined;
+      hop.reachable !== undefined
+        ? { ids: hop.reachable, source: 'cursor-move' }
+        : allowed !== undefined
+          ? { ids: allowed, source: 'refusal' }
+          : declared !== undefined && declared.length > 0
+            ? { ids: declared, source: 'declared-edges' }
+            : undefined;
 
     return {
       index,

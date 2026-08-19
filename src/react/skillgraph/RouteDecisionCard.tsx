@@ -104,7 +104,9 @@ export function RouteDecisionCard({ beat, lens }: RouteDecisionCardProps): React
 
           {beat.reachable !== undefined && (
             <Evidence label={`reachable (${beat.reachable.source})`}>
-              {beat.reachable.ids.join(', ')}
+              {beat.reachable.ids.length > 0
+                ? beat.reachable.ids.join(', ')
+                : 'none — a dead end: no skill was admissible from this cursor'}
             </Evidence>
           )}
 

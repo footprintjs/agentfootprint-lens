@@ -27,6 +27,9 @@ import { render, screen, fireEvent, within } from '@testing-library/react';
 
 import { observeRecording, type Recording } from '../../core/observeRecording.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
+import { selectSkillBeats, type SkillBeat } from '../../core/selectors/selectSkillBeats.js';
+import { selectSkillRoute } from '../../core/selectors/selectSkillRoute.js';
+import { RouteDecisionCard } from './RouteDecisionCard.js';
 import { SkillGraphDebugger } from './SkillGraphDebugger.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'core', '__fixtures__');
@@ -384,5 +387,116 @@ describe('<SkillGraphDebugger> — ONE CURSOR, ONE TRANSPORT', () => {
     fireEvent.keyDown(document.body, { key: 'ArrowRight' });
     expect(hostedStep).not.toHaveBeenCalled();
     expect(hostedJump).not.toHaveBeenCalled();
+  });
+});
+
+// ─── The 9.50.0 recording — the map, the reachable set, the prompt ────────
+//
+// Same rules, second fixture: `demo/skill-run.json` is the checked-in demo
+// recording, regenerated on agentfootprint ^9.50.0 with the prompt opt-in.
+// What these arms pin is the RENDERED half of the era split that
+// `recordingCarriesTheMap.test.ts` pins on the selectors.
+
+const DEMO = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'demo');
+
+function newEraRecorder(): LensRecorder {
+  const recording = JSON.parse(readFileSync(join(DEMO, 'skill-run.json'), 'utf8')) as Recording;
+  return observeRecording(recording).recorder;
+}
+
+/** The demo run's routing stops, resolved from the recording itself — never a
+ *  hardcoded stage id, so regenerating the fixture cannot silently skew these. */
+function newEraBeats(recorder: LensRecorder): readonly SkillBeat[] {
+  return selectSkillBeats({ route: selectSkillRoute({ log: recorder.selectEventLog() }) });
+}
+
+describe('<SkillGraphDebugger> — a recording that carries the declared map', () => {
+  it('draws the COMPLETE map with its provenance note, and NO lower-bound warning', () => {
+    const recorder = newEraRecorder();
+    const at = newEraBeats(recorder)[0]!.runtimeStageId!;
+    render(<SkillGraphDebugger recorder={recorder} cursorRuntimeStageId={at} height={600} />);
+
+    const legend = screen.getByTestId('skill-topology-legend');
+    // The amber caveat would be the LIE here — the whole declaration is drawn.
+    expect(within(legend).queryByText(/only the ones this recording named/i)).toBeNull();
+    expect(within(legend).getByTestId('declared-complete-note').textContent).toContain(
+      'complete declared map',
+    );
+    // A declared edge the run never fired is on the canvas anyway.
+    expect(screen.getByTestId('skill-node-disputes')).toBeTruthy();
+  });
+
+  it('hands each node its catalog description as the tooltip, and marks the entry', () => {
+    const recorder = newEraRecorder();
+    const at = newEraBeats(recorder)[0]!.runtimeStageId!;
+    render(<SkillGraphDebugger recorder={recorder} cursorRuntimeStageId={at} height={600} />);
+
+    const support = screen.getByTestId('skill-node-support');
+    expect(support.getAttribute('title')).toContain('Classify and route the customer request.');
+    expect(within(support).getByText('entry')).toBeTruthy();
+    expect(within(screen.getByTestId('skill-node-billing')).queryByText('entry')).toBeNull();
+  });
+
+  it('states the reachable set from the move itself — reachable (cursor-move)', () => {
+    const recorder = newEraRecorder();
+    const at = newEraBeats(recorder)[0]!.runtimeStageId!;
+    render(<SkillGraphDebugger recorder={recorder} cursorRuntimeStageId={at} height={600} />);
+
+    const card = screen.getByTestId('route-decision-card');
+    expect(within(card).getByText(/reachable \(cursor-move\)/i)).toBeTruthy();
+    expect(within(card).getAllByText(/billing, account/).length).toBeGreaterThan(0);
+  });
+
+  it('renders the assembled system prompt verbatim, labeled as sent — and no absence card', () => {
+    const recorder = newEraRecorder();
+    const at = newEraBeats(recorder)[0]!.runtimeStageId!;
+    render(<SkillGraphDebugger recorder={recorder} cursorRuntimeStageId={at} height={600} />);
+
+    const panel = screen.getByTestId('frame-facts');
+    expect(within(panel).getByTestId('system-prompt-text').textContent).toContain(
+      'You are a customer support agent.',
+    );
+    expect(within(panel).getByText(/as the provider received it/i)).toBeTruthy();
+    // Both 9.50.0 facts are ON this record — there is no absence to state.
+    expect(within(panel).queryByTestId('frame-absence')).toBeNull();
+  });
+});
+
+describe('<RouteDecisionCard> — the dead end is a fact', () => {
+  it('renders reachable: [] as an explicit dead end, never as absence', () => {
+    const beat: SkillBeat = {
+      index: 0,
+      turnIndex: 0,
+      iteration: 3,
+      hop: {
+        turnIndex: 0,
+        iteration: 3,
+        from: 'terminal',
+        to: 'terminal',
+        by: 'stay',
+        moved: false,
+        activeIds: [],
+        supersededIds: [],
+        refusals: [],
+        conflicts: [],
+        superseded: [],
+        toolsAsSent: [],
+        skillInjections: [],
+        reachable: [],
+      },
+      cursorSkillId: 'terminal',
+      cause: 'stay',
+      moved: false,
+      refusedIds: [],
+      visited: ['terminal'],
+      reachable: { ids: [], source: 'cursor-move' },
+      label: 'Iteration 3',
+      headline: 'The cursor stayed at "terminal".',
+      notes: [],
+    };
+    render(<RouteDecisionCard beat={beat} lens="developer" />);
+    const card = screen.getByTestId('route-decision-card');
+    expect(within(card).getByText(/reachable \(cursor-move\)/i)).toBeTruthy();
+    expect(within(card).getByText(/dead end: no skill was admissible/i)).toBeTruthy();
   });
 });

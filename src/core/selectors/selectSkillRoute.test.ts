@@ -434,6 +434,9 @@ describe('selectSkillRoute — S5: honest empties', () => {
       hops: [],
       observedEdges: [],
       declaredEdges: [],
+      // No `graph_declared` on the record ⇒ the declared set (empty here) is
+      // only the fired lower bound, and the fold says so.
+      declaredComplete: false,
       turns: [],
     });
   });
@@ -468,5 +471,102 @@ describe('selectSkillRoute — S5: honest empties', () => {
     expect(route.hops[0]!.refusals).toEqual([]); // no requestedId ⇒ no refusal
     expect(route.hops[0]!.toolsAsSent).toEqual([]);
     expect(route.nodes).toEqual([]);
+  });
+});
+
+// ─── The 9.50.0 facts, synthetically — the arms the fixtures cannot pin ───
+
+const GRAPH_DECLARED = 'agentfootprint.skill.graph_declared';
+
+describe('selectSkillRoute — skill.graph_declared (9.50.0)', () => {
+  it('folds the declared map: nodes with descriptions, edges with their kind, START apart', () => {
+    const log = [
+      entry(GRAPH_DECLARED, {
+        nodes: [
+          { id: 'triage', kind: 'skill', description: 'Sort the request.', label: 'triage' },
+          { id: 'deep', kind: 'skill', description: 'Go deep.' },
+          { id: 'is-urgent', kind: 'predicate', label: 'urgent?' },
+        ],
+        edges: [
+          { from: null, to: 'triage', kind: 'entry' },
+          { from: 'triage', to: 'deep', kind: 'model' },
+          { from: 'triage', to: 'is-urgent', kind: 'predicate', label: 'check urgency' },
+        ],
+      }),
+    ];
+    const route = selectSkillRoute({ log });
+
+    // The event alone is a routing fact — a map was mounted.
+    expect(route.hasRouting).toBe(true);
+    expect(route.declaredComplete).toBe(true);
+
+    // The synthetic START is an entry fact, never an edge row.
+    expect(route.entryIds).toEqual(['triage']);
+    expect(route.declaredEdges.map((e) => `${e.from}->${e.to}`)).toEqual([
+      'triage->deep',
+      'triage->is-urgent',
+    ]);
+    // The declared kind rides the same field routing[] fills — one vocabulary.
+    expect(route.declaredEdges[0]!.triggerKind).toBe('model');
+    expect(route.declaredEdges[1]!.label).toBe('check urgency');
+
+    // Descriptions (and the drawn kind/caption) come free with the map.
+    const byId = new Map(route.nodes.map((n) => [n.id, n]));
+    expect(byId.get('triage')!.description).toBe('Sort the request.');
+    expect(byId.get('is-urgent')!.kind).toBe('predicate');
+    expect(byId.get('is-urgent')!.label).toBe('urgent?');
+    expect(byId.get('deep')!.visited).toBe(false);
+  });
+
+  it('a malformed map contributes nothing instead of aborting the fold', () => {
+    const log = [
+      entry(GRAPH_DECLARED, { nodes: 'not-an-array', edges: [{ to: 42 }, 'junk', { from: 'a' }] }),
+    ];
+    const route = selectSkillRoute({ log });
+    expect(route.nodes).toEqual([]);
+    expect(route.declaredEdges).toEqual([]);
+    // The event still proves a map was mounted — declaredComplete stands,
+    // it just declared nothing drawable.
+    expect(route.declaredComplete).toBe(true);
+  });
+
+  it('without the event, declaredComplete stays false — the routing[] lower bound', () => {
+    const log = [
+      entry(EVALUATED, {
+        iteration: 1,
+        cursorMove: { from: 'a', to: 'b', by: 'route' },
+        routing: [{ injectionId: 'b', from: 'a', triggerKind: 'on-tool-return' }],
+      }),
+    ];
+    const route = selectSkillRoute({ log });
+    expect(route.declaredEdges).toHaveLength(1);
+    expect(route.declaredComplete).toBe(false);
+    expect(route.entryIds).toBeUndefined();
+  });
+});
+
+describe('selectSkillRoute — cursorMove.reachable and llm_start.systemPromptText (9.50.0)', () => {
+  it('keeps [] apart from absent: a dead end is a fact, an old era is an absence', () => {
+    const log = [
+      entry(EVALUATED, { iteration: 1, cursorMove: { to: 'a', by: 'entry', reachable: ['b'] } }),
+      entry(EVALUATED, { iteration: 2, cursorMove: { from: 'a', to: 'a', by: 'stay', reachable: [] } }),
+      entry(EVALUATED, { iteration: 3, cursorMove: { from: 'a', to: 'a', by: 'stay' } }),
+    ];
+    const { hops } = selectSkillRoute({ log });
+    expect(hops[0]!.reachable).toEqual(['b']);
+    expect(hops[1]!.reachable).toEqual([]); // the dead end, kept
+    expect(hops[2]!.reachable).toBeUndefined(); // the older era, honest
+  });
+
+  it('carries the assembled prompt only when the event does — the opt-in, verbatim', () => {
+    const log = [
+      entry(EVALUATED, { iteration: 1, cursorMove: { to: 'a', by: 'entry' } }),
+      entry(LLM_START, { iteration: 1, systemPromptText: 'You are exact.\\nBe brief.' }),
+      entry(EVALUATED, { iteration: 2, cursorMove: { from: 'a', to: 'a', by: 'stay' } }),
+      entry(LLM_START, { iteration: 2 }),
+    ];
+    const { hops } = selectSkillRoute({ log });
+    expect(hops[0]!.systemPromptText).toBe('You are exact.\\nBe brief.');
+    expect(hops[1]!.systemPromptText).toBeUndefined();
   });
 });

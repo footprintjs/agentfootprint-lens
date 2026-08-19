@@ -163,3 +163,59 @@ describe('selectSkillTopology — the shapes one run does not have', () => {
     expect(selectSkillTopology({ route }).nodes.some((n) => n.id === 'injected')).toBe(false);
   });
 });
+
+// ─── The 9.50.0 completeness distinction ──────────────────────────────────
+
+describe('selectSkillTopology — a recording that carries the declared map (9.50.0)', () => {
+  const declaredRoute: SkillRoute = {
+    hasRouting: true,
+    nodes: [
+      { id: 'triage', description: 'Sort the request.', kind: 'skill', visited: true },
+      { id: 'deep', kind: 'skill', visited: false },
+    ],
+    hops: [],
+    observedEdges: [],
+    declaredEdges: [{ from: 'triage', to: 'deep', triggerKind: 'model' }],
+    declaredComplete: true,
+    entryIds: ['triage'],
+    turns: [],
+  };
+
+  it('says the map is COMPLETE, and where it came from', () => {
+    const topo = selectSkillTopology({ route: declaredRoute });
+    expect(topo.declaredSource).toBe('recording-declared');
+    expect(topo.declaredComplete).toBe(true);
+  });
+
+  it('the completeness digest is exactly the two whole-map sources', () => {
+    // recording-declared and graph are complete; recording and none are not.
+    const lowerBound: SkillRoute = { ...declaredRoute, declaredComplete: false };
+    expect(selectSkillTopology({ route: lowerBound }).declaredSource).toBe('recording');
+    expect(selectSkillTopology({ route: lowerBound }).declaredComplete).toBe(false);
+    expect(
+      selectSkillTopology({
+        route: lowerBound,
+        declaredEdges: [{ from: 'triage', to: 'deep' }],
+      }).declaredComplete,
+    ).toBe(true);
+  });
+
+  it('the run\'s own map outranks a passed-in graph for the provenance label', () => {
+    const topo = selectSkillTopology({
+      route: declaredRoute,
+      declaredEdges: [{ from: 'triage', to: 'deep' }, { from: 'triage', to: 'extra' }],
+    });
+    // Both are complete; the recording's copy is from the run that executed.
+    expect(topo.declaredSource).toBe('recording-declared');
+    // A passed edge still merges in — nothing drawable is dropped.
+    expect(topo.edges.some((e) => e.id === 'triage->extra' && e.declared)).toBe(true);
+  });
+
+  it('marks the entry skill, and only it', () => {
+    const topo = selectSkillTopology({ route: declaredRoute });
+    const byId = new Map(topo.nodes.map((n) => [n.id, n]));
+    expect(byId.get('triage')!.isEntry).toBe(true);
+    expect(byId.get('deep')!.isEntry).toBe(false);
+    expect(topo.entryIds).toEqual(['triage']);
+  });
+});
