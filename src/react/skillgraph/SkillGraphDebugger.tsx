@@ -18,6 +18,14 @@
  * the host's own axis with the host's own numbers; omit them and it scrubs
  * this view's routing stops. Either way it is the shipped slider.
  *
+ * SHARING AN AXIS IS NOT SHARING A STRIDE. The host's axis is the RUN's: a
+ * four-tool turn puts 73 stops on it, and this view changes at eight. Pass
+ * `snapSteps` — the steps this view's picture changes at, in the host's own
+ * numbers — and ◀ ▶ walk those instead of walking framework stages that change
+ * nothing here. The cursor, the axis and the numbers all stay the host's; the
+ * slider still reaches every position; only the step buttons' landing set
+ * narrows, and the readout says when the cursor is standing between two stops.
+ *
  * THE ONE-CURSOR LAW — the rule this component is shaped by. The lens has one
  * time cursor (`memory/lens_v0_1_one_cursor_architecture.md`), and this view
  * SCRUBS AND FILTERS it. It holds no position: the beat being shown is
@@ -81,7 +89,7 @@ import {
 } from '../../doors/recordingInput.js';
 import { useNarrowRow } from '../narrowLayout.js';
 import { T } from '../theme/index.js';
-import { BeatStrip } from './BeatStrip.js';
+import { BeatStrip, type BeatTransport } from './BeatStrip.js';
 import { FrameFactsPanel } from './FrameFactsPanel.js';
 import { NarrativeRail } from './NarrativeRail.js';
 import { RouteDecisionCard } from './RouteDecisionCard.js';
@@ -120,6 +128,35 @@ export interface SkillGraphDebuggerProps {
   readonly totalSteps?: number;
   readonly onStepChange?: (step: number) => void;
   /**
+   * SNAP STOPS — the positions on the HOST's axis that ◀ ▶ and ← → may land
+   * on. Ascending, in the same units as `step` / `totalSteps`.
+   *
+   * Why a host needs this: sharing the host's axis is the one-cursor law
+   * working correctly, but the host's axis is the RUN's, not this view's. A
+   * four-tool turn can put 73 stops on it while the routing picture changes at
+   * eight — so scrubbing spends 65 presses walking framework stages that
+   * change nothing here. Hand the steps this view actually changes at and the
+   * transport walks those; everything else about it is unchanged.
+   *
+   * The host builds the list, because the host owns the axis — the mapping is
+   * `stepForRuntimeStageId(positions, beat.runtimeStageId)` over
+   * `selectSkillBeats`, both already exported from this door.
+   *
+   * IGNORED when this view scrubs its OWN routing stops (no `step` /
+   * `totalSteps`): every routing stop already changes the picture, so there is
+   * nothing to narrow. Absent ⇒ byte-identical to today.
+   *
+   * @example
+   * ```tsx
+   * const beats = selectSkillBeats({ route: selectSkillRoute({ log }) });
+   * const snapSteps = [...new Set(beats
+   *   .map((b) => (b.runtimeStageId !== undefined
+   *     ? stepForRuntimeStageId(positions, b.runtimeStageId) : -1))
+   *   .filter((s) => s >= 0))].sort((a, b) => a - b);
+   * ```
+   */
+  readonly snapSteps?: readonly number[];
+  /**
    * Whether this view's transport owns ← → Home End. Defaults to `true` when
    * it is the page's only transport and `false` when the host passed its own
    * axis (a hosted view sits beside the host's transport, and two bound
@@ -152,6 +189,7 @@ export function SkillGraphDebugger({
   step,
   totalSteps,
   onStepChange,
+  snapSteps,
   transportKeyboard,
   declaredEdges,
   lens: lensProp,
@@ -247,7 +285,7 @@ export function SkillGraphDebugger({
    * back out; nothing is stored here.
    */
   const hostAxis = step !== undefined && totalSteps !== undefined && totalSteps > 0;
-  const transport = {
+  const transport: BeatTransport = {
     total: hostAxis ? totalSteps : beats.length,
     focus: hostAxis ? step : (activeIndex ?? 0),
     onFocusChange: (position: number): void => {
@@ -260,6 +298,11 @@ export function SkillGraphDebugger({
     },
     keyboard: transportKeyboard ?? !hostAxis,
     axisLabel: hostAxis ? 'the run' : 'routing stops',
+    // Snap stops are a HOST-AXIS notion: they are steps on the axis the host
+    // handed us. Without one the transport is already scrubbing this view's
+    // routing stops — every one of which changes the picture — so there is
+    // nothing to narrow and the list is not forwarded.
+    ...(hostAxis && snapSteps !== undefined ? { snapSteps } : {}),
   };
 
   /** Filter the ONE cursor to a skill's next span, wrapping to its first. */

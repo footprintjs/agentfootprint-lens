@@ -17,9 +17,10 @@
  *   - Theme/styling lives in one place
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { T } from './theme/index.js';
 import { bandIndexOf, type StepBand } from '../core/group/stepBands.js';
+import { nextSnapStep, prevSnapStep, snapPositionOf } from '../core/group/snapSteps.js';
 
 export interface TimeTravelProps {
   /** Total number of events in the log (= max seq + 1 for zero-indexed seq). */
@@ -51,13 +52,51 @@ export interface TimeTravelProps {
    * band jumps to ITS first step. The bands are the GROUPING, not the unit of
    * movement: ◀ ▶ and the arrow keys still move stop by stop, so every
    * position on the axis is reachable by the transport alone (the readout
-   * names both: "Iteration 2 · stop 9 of 17").
+   * names both: "Iteration 2 · stop 9 of 17"). `snapSteps` is the one prop
+   * that narrows where the step buttons land, and it says there what stays
+   * reachable when it does.
    *
    * No second cursor: the position is still `focusSeq` (a step), the active
    * band is DERIVED from which range contains it, and every move still goes
    * out through `onFocusChange(step)` — this component stores nothing.
    */
   readonly bands?: readonly StepBand[];
+  /**
+   * SNAP STOPS — the positions ◀ ▶ and ← → are allowed to land on, as an
+   * ASCENDING list of steps on the axis this transport already receives.
+   *
+   * Why: a hosted view shares the host's axis, which is the run's and not the
+   * view's. A four-tool turn can put 73 stops on it while the view changes at
+   * eight of them, so 65 presses show the reader the same picture twice. The
+   * cure is NOT a second slider with its own numbers (two transports over one
+   * run is the drift this package refuses) — the axis, the numbers and the one
+   * cursor all stay the host's, and only the STEP BUTTONS' landing set narrows.
+   *
+   * What stays true when it is set:
+   *   • the drag track and the step strip keep the FULL axis — every position
+   *     is still reachable, just not by ◀ ▶;
+   *   • Home / End still go to the axis endpoints, because they are jumps, not
+   *     steps (band clicks and strip clicks are jumps too, and also unaffected);
+   *   • a position BETWEEN two stops resolves to the one at-or-before, and the
+   *     readout SAYS it is between rather than rounding down silently;
+   *   • nothing is stored — the position is still `focusSeq`, and every move
+   *     still leaves through `onFocusChange(step)`.
+   *
+   * Entries the axis cannot hold (negative, past `total - 1`, non-integer) are
+   * ignored: a stop the axis does not have is not a stop. An empty list, or a
+   * list whose entries are all off-axis, is the same as passing nothing.
+   *
+   * Orthogonal to `bands`: bands GROUP the axis, snaps MOVE along it. Set both
+   * and the readout names the band, the stop and the raw step.
+   *
+   * @example
+   * ```tsx
+   * // ◀ ▶ walk only the steps where the skill graph's picture changes.
+   * <TimeTravel total={73} focusSeq={step} onFocusChange={go} isLive={false}
+   *             snapSteps={[0, 9, 17, 31, 44, 58, 72]} />
+   * ```
+   */
+  readonly snapSteps?: readonly number[];
   /**
    * Bind ← → Home End at the window. Default `true` — today's behaviour.
    *
@@ -78,6 +117,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
   compact,
   stepStrip = true,
   bands,
+  snapSteps,
   keyboard = true,
 }) => {
   const max = Math.max(0, total - 1);
@@ -88,11 +128,38 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
   const banded = bands !== undefined && bands.length > 0;
   const bandIdx = banded ? bandIndexOf(bands, focusSeq) : -1;
 
+  // SNAP STOPS, kept honest at the door: an entry the axis cannot hold is not
+  // a stop, so it is dropped here rather than clamped onto a neighbour (a
+  // clamped stop would let ▶ report the same position forever). All entries
+  // dropped ⇒ `undefined` ⇒ byte-identical to passing nothing.
+  const snaps = useMemo(() => {
+    if (snapSteps === undefined) return undefined;
+    const onAxis = snapSteps.filter((s) => Number.isInteger(s) && s >= 0 && s <= max);
+    return onAxis.length > 0 ? onAxis : undefined;
+  }, [snapSteps, max]);
+
+  const prevStop = snaps !== undefined ? prevSnapStep(snaps, focusSeq) : undefined;
+  const nextStop = snaps !== undefined ? nextSnapStep(snaps, focusSeq) : undefined;
+  const canBack = snaps !== undefined ? prevStop !== undefined : focusSeq > 0;
+  const canFwd = snaps !== undefined ? nextStop !== undefined : focusSeq < max;
+
   // Stop by stop, banded or not: the bands are the ruler's GROUPING, never
   // its unit of movement — a ◀ ▶ that jumped whole bands would make the
   // stops inside a band unreachable by the transport alone. (Band CLICKS
   // still jump to a band's first step; that is a jump, not the step key.)
+  //
+  // With `snapSteps` the unit of movement narrows — and ONLY that. The step
+  // buttons walk the permitted stops (strictly ahead / strictly behind, so a
+  // cursor parked between two of them walks back onto the one it is standing
+  // past); the drag track, the step strip, band clicks and Home/End all still
+  // reach every position on the axis. No wrap at either end: `undefined` from
+  // the query disables the button instead.
   const step = (delta: number): void => {
+    if (snaps !== undefined) {
+      const to = delta < 0 ? prevSnapStep(snaps, focusSeq) : nextSnapStep(snaps, focusSeq);
+      if (to !== undefined) onFocusChange(to);
+      return;
+    }
     onFocusChange(Math.min(max, Math.max(0, focusSeq + delta)));
   };
 
@@ -130,7 +197,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusSeq, max, keyboard, bands]);
+  }, [focusSeq, max, keyboard, bands, snaps]);
 
   const disabled = total <= 1;
 
@@ -154,19 +221,19 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
     >
       <button
         onClick={() => step(-1)}
-        disabled={focusSeq <= 0 || disabled}
+        disabled={!canBack || disabled}
         style={btnStyle(false)}
-        title="Previous step (←)"
-        aria-label="Previous step"
+        title={snaps !== undefined ? 'Previous stop (←)' : 'Previous step (←)'}
+        aria-label={snaps !== undefined ? 'Previous stop' : 'Previous step'}
       >
         ◀
       </button>
       <button
         onClick={() => step(+1)}
-        disabled={focusSeq >= max || disabled}
+        disabled={!canFwd || disabled}
         style={btnStyle(false)}
-        title="Next step (→)"
-        aria-label="Next step"
+        title={snaps !== undefined ? 'Next stop (→)' : 'Next step (→)'}
+        aria-label={snaps !== undefined ? 'Next stop' : 'Next step'}
       >
         ▶
       </button>
@@ -298,18 +365,44 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
         {/* Both readouts count STOPS on the one axis. The banded one also
             names the group the cursor stands in — "Iteration 2 · stop 9 of
             17" — so the grouping and the position are both visible, honestly:
-            the group is where you are, the stop is how far along. */}
-        {banded
-          ? `${bands[bandIdx] !== undefined ? `${bands[bandIdx]!.label} · ` : ''}stop ${Math.min(focusSeq, max) + 1} of ${total}`
-          : total === 0
-            ? '—'
-            : total === 1
-              ? '1 step'
-              : `${focusSeq + 1} / ${total}`}
+            the group is where you are, the stop is how far along.
+
+            SNAPPING adds the third truth. ◀ ▶ no longer reach every position,
+            so the readout must say where the cursor stands among the STOPS —
+            and, when it stands between two of them, that it does. It keeps the
+            raw step beside it, because that number is still the one the host
+            owns and the slider still moves. */}
+        {snaps !== undefined
+          ? `${banded && bands[bandIdx] !== undefined ? `${bands[bandIdx]!.label} · ` : ''}${snapReadout(snaps, Math.min(focusSeq, max), total)}`
+          : banded
+            ? `${bands[bandIdx] !== undefined ? `${bands[bandIdx]!.label} · ` : ''}stop ${Math.min(focusSeq, max) + 1} of ${total}`
+            : total === 0
+              ? '—'
+              : total === 1
+                ? '1 step'
+                : `${focusSeq + 1} / ${total}`}
       </div>
     </div>
   );
 };
+
+/**
+ * The snapping readout — where the cursor stands among the permitted stops,
+ * and the raw step it is on.
+ *
+ * The four arms are four different truths, and collapsing any of them into
+ * "stop N" would be the lie this feature exists to avoid: with ◀ ▶ narrowed to
+ * the stops, a cursor the slider parked between two of them is a position the
+ * step buttons cannot reproduce, and the reader has to be told.
+ */
+function snapReadout(snaps: readonly number[], focus: number, total: number): string {
+  const { index, exact } = snapPositionOf(snaps, focus);
+  const raw = `${focus + 1} / ${total}`;
+  if (index < 0) return `before stop 1 · ${raw}`;
+  if (exact) return `stop ${index + 1} of ${snaps.length} · ${raw}`;
+  if (index === snaps.length - 1) return `past stop ${index + 1} of ${snaps.length} · ${raw}`;
+  return `between stops ${index + 1} and ${index + 2} of ${snaps.length} · ${raw}`;
+}
 
 function btnStyle(accent: boolean): React.CSSProperties {
   return {

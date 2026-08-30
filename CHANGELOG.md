@@ -5,6 +5,89 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.44.0] - 2026-08-29
+
+Sharing an axis is not the same as sharing a stride.
+
+A view mounted inside the lens scrubs the host's axis — the one-cursor law
+working exactly as designed. But the host's axis is the *run's*. A four-tool
+turn puts 73 stops on it, and the Skill Graph's picture changes at eight of
+them: sixty-five presses of ◀ ▶ walk framework stages that change nothing in
+its view. The scrubbing was never wrong. It was **dead air**.
+
+The fix that was available and had to be refused is a second slider with its
+own numbers — two transports over one run is the drift class this package keeps
+paying for, and the debugger's own header refuses the lookalike by name. So the
+axis stays the host's, the numbers stay the host's, the cursor stays the one
+cursor, and the only thing that changes is which of those numbers the step
+buttons stop at.
+
+### Added
+
+- **`<TimeTravel snapSteps>` — the stops ◀ ▶ and ← → are allowed to land on.**
+  An ascending list of positions on the axis the transport already receives.
+  Not an axis, not a projection, and it carries no addresses: every entry is a
+  step the host could already have moved to.
+
+  ```tsx
+  <TimeTravel total={73} focusSeq={step} onFocusChange={setStep} isLive={false}
+              snapSteps={[0, 9, 17, 31, 44, 58, 72]} />
+  ```
+
+  It lives on the transport rather than on any one view because the transport
+  is where movement lives — putting it a level up would have meant a view
+  re-implementing the slider, which is the thing being avoided.
+
+- **The stride narrows; the reach does not.** The drag track and the step strip
+  still carry the full axis, so every position remains reachable — just not by
+  ◀ ▶. Home / End still go to the axis endpoints, because they are jumps, not
+  steps (band clicks and strip clicks are jumps too, and equally unaffected).
+
+- **A cursor between two stops is DISCLOSED, never rounded down.** Drag to a
+  step no stop covers and the readout says where you actually are —
+  `between stops 2 and 3 of 4 · 8 / 12`, and `before stop 1 · …` /
+  `past stop 3 of 3 · …` at the ends. With the buttons narrowed, a
+  between-position is one they cannot reproduce, so a readout that quietly
+  claimed "stop 2" would be describing a place the reader is not standing.
+
+- **`<SkillGraphDebugger snapSteps>` forwards it**, in the host's own step
+  units. The host builds the list, because the host owns the axis:
+  `stepForRuntimeStageId(positions, beat.runtimeStageId)` over
+  `selectSkillBeats` — both already exported from
+  `agentfootprint-lens/skillgraph`. The prop is **ignored** when the debugger is
+  scrubbing its own routing stops (no `step` / `totalSteps`): every routing stop
+  already changes the picture, so narrowing there would hide beats.
+
+- **The headless queries, on `agentfootprint-lens/core`** —
+  `snapPositionOf(snapSteps, step)` (the at-or-before stop plus an `exact` flag,
+  which is what makes the disclosure possible), `nextSnapStep`, `prevSnapStep`,
+  and the `SnapPosition` type. Both movement laws are **strict** — the least
+  stop greater than the cursor, the greatest stop less than it — and strictness
+  is what makes a between-position behave: ◀ from step 5 with stops
+  `[0, 4, 9]` lands on 4, back onto the stop you are standing past, rather than
+  skipping to 0.
+
+### Unchanged, and worth saying
+
+- **Absent prop ⇒ byte-identical.** Proved as an equality rather than as a list
+  of arms: the same component with `snapSteps` omitted and with it explicitly
+  `undefined` must render identical DOM, and the raw-step walk, today's button
+  labels and today's readout are asserted beside it.
+- **An empty list, or one whose entries are all off the axis, is the same as
+  passing nothing** — never a dead transport. Entries the axis cannot hold
+  (negative, past the end, non-integer) are dropped rather than clamped onto a
+  neighbour; a stop the axis does not have is not a stop, and a clamped one
+  would let ▶ report the same position forever.
+- **`bands` are untouched, and orthogonal.** Bands GROUP the axis; snaps narrow
+  the unit of MOVEMENT along it. Without `snapSteps`, ◀ ▶ still move stop by
+  stop on a banded ruler — the 0.38.0 law, still pinned by its own test. Set
+  both and the readout carries all three truths:
+  `Iteration 2 · stop 3 of 4 · 10 / 12`.
+- **Nothing is stored, anywhere on this path.** The position is still
+  `focusSeq`, every move still leaves through `onFocusChange(step)`, and no
+  index into the snap list is held — a stored snap index would be a second
+  cursor, which is the one thing the locked v0.1 architecture bans.
+
 ## [0.43.0] - 2026-08-19
 
 A tool call used to be a silence. `tool_start` fired, the handler ran for as

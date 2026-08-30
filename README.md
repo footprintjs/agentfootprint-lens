@@ -600,6 +600,83 @@ a Vue or CLI shell.
 
 ---
 
+## Scrubbing without dead air — snap stops
+
+Sharing an axis is not the same as sharing a stride.
+
+A view mounted inside the lens scrubs the **host's** axis — that is the
+one-cursor law working correctly. But the host's axis is the *run's*. A
+four-tool turn puts 73 stops on it, and a view like the Skill Graph changes at
+eight of them: 65 presses of ◀ ▶ walk framework stages that change nothing in
+its picture. The scrubbing is not wrong, it is **dead air**.
+
+The fix that must not be taken is a second slider with its own numbers. Two
+transports over one run is the drift this package refuses. So pass `snapSteps` —
+an ascending list of positions on the axis the transport **already has** — and
+only the step buttons' landing set narrows:
+
+```tsx
+<TimeTravel
+  total={73}
+  focusSeq={step}
+  onFocusChange={setStep}
+  isLive={false}
+  // ◀ ▶ and ← → now land only here. Everything else is untouched.
+  snapSteps={[0, 9, 17, 31, 44, 58, 72]}
+/>
+```
+
+What stays true when it is set:
+
+- **the drag track and the step strip keep the full axis** — every position is
+  still reachable, just not by ◀ ▶;
+- **Home / End still go to the axis endpoints**, because they are jumps, not
+  steps (band clicks and strip clicks are jumps too, and also unaffected);
+- **a position between two stops is disclosed, never rounded down.** Drag to a
+  step no stop covers and the readout says so — `between stops 2 and 3 of 4 ·
+  8 / 12` — because with the buttons narrowed, that is a position they cannot
+  reproduce and the reader has to be told;
+- **nothing is stored.** The position is still the host's `step`, and every
+  move still leaves through `onFocusChange(step)`.
+
+Entries the axis cannot hold (negative, past the end, non-integer) are ignored —
+a stop the axis does not have is not a stop. An empty list, or one whose entries
+are all off-axis, behaves exactly as passing nothing.
+
+`snapSteps` is orthogonal to `bands`: bands **group** the axis, snaps narrow the
+unit of **movement** along it. Set both and the readout names all three truths —
+`Iteration 2 · stop 3 of 4 · 10 / 12`.
+
+`<SkillGraphDebugger>` forwards the same prop to the transport it mounts, so a
+host can hand it the steps its routing picture actually changes at:
+
+```tsx
+import { selectSkillBeats, selectSkillRoute, stepForRuntimeStageId } from 'agentfootprint-lens/skillgraph';
+
+const beats = selectSkillBeats({ route: selectSkillRoute({ log: recorder.selectEventLog() }) });
+const snapSteps = [
+  ...new Set(
+    beats
+      .map((b) => (b.runtimeStageId !== undefined ? stepForRuntimeStageId(positions, b.runtimeStageId) : -1))
+      .filter((s) => s >= 0),
+  ),
+].sort((a, b) => a - b);
+
+<SkillGraphDebugger step={step} totalSteps={totalSteps} onStepChange={onNavigate} snapSteps={snapSteps} … />
+```
+
+The host builds the list because the host owns the axis. On the debugger the
+prop is **ignored when it is scrubbing its own routing stops** (no `step` /
+`totalSteps`) — every routing stop already changes the picture, so there is
+nothing to narrow.
+
+Headless: `snapPositionOf`, `nextSnapStep` and `prevSnapStep` on
+`agentfootprint-lens/core` are the pure queries behind it — the same
+at-or-before resolution (with its `exact` flag) and the same strict
+next/previous laws, for a shell that draws its own transport.
+
+---
+
 ## Driving the cursor from your app
 
 **Omitting these props keeps the lens self-driving.** It holds the position

@@ -58,6 +58,10 @@ export interface BeatTransport {
   readonly keyboard: boolean;
   /** What the axis is, said in the readout above the rail. */
   readonly axisLabel: string;
+  /** The stops ◀ ▶ may land on, when the host narrowed them — positions on
+   *  `total`'s axis, handed straight to the shipped transport. Absent ⇒ the
+   *  step buttons walk every position, exactly as before. */
+  readonly snapSteps?: readonly number[];
 }
 
 export interface BeatStripProps {
@@ -96,6 +100,7 @@ export function BeatStrip({
             onFocusChange={transport.onFocusChange}
             isLive={transport.total > 0 && transport.focus >= transport.total - 1}
             keyboard={transport.keyboard}
+            {...(transport.snapSteps !== undefined ? { snapSteps: transport.snapSteps } : {})}
           />
         </div>
         <span style={{ fontSize: 11, color: T.textMuted, whiteSpace: 'nowrap' }}>

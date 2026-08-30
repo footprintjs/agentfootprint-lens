@@ -87,6 +87,18 @@ export {
   bandChartGroup,
   type StepBand,
 } from "./group/stepBands.js";
+// SNAP STOPS: which positions on that same one axis a transport's ◀ ▶ may
+// land on. Bands GROUP the axis; snaps narrow the unit of MOVEMENT along it —
+// the cure for a hosted view whose picture changes at 8 of the host's 73
+// stops. Pure queries: no axis of their own, no stored index, and a position
+// between two stops resolves to the one at-or-before with `exact: false`, so a
+// readout can disclose it instead of rounding down silently.
+export {
+  snapPositionOf,
+  nextSnapStep,
+  prevSnapStep,
+  type SnapPosition,
+} from "./group/snapSteps.js";
 // The reserved-segment law (`sf-*` = agentfootprint's own plumbing), as a
 // chart-node predicate for eui's neutral `collapseTraceGraph` — the Why
 // Lens's default collapse. The lens is the layer allowed to know this.
