@@ -17,6 +17,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # npm PIN, and not a cosmetic one: npm 10 — what setup-node's node-22 still
+      # ships — crashes resolving this dependency set with "Cannot read properties
+      # of null (reading 'edgesOut')", an arborist bug tripped by a transitive
+      # published after 2026-08-30. That is why 0.44.0's run was green and the very
+      # next one was not, with no change to our own deps. Reproduced both ways:
+      # npm 10.9.3 crashes, npm 11 resolves the same package.json cleanly. A
+      # committed lockfile cannot paper over it (rolldown's native binding is a
+      # platform optional dep, npm #4828), so the npm version IS the fix.
+      - run: npm install -g npm@11
       - run: npm install
       - run: npm run build
       - run: npm test
@@ -52,6 +61,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      # npm PIN, and not a cosmetic one: npm 10 — what setup-node's node-22 still
+      # ships — crashes resolving this dependency set with "Cannot read properties
+      # of null (reading 'edgesOut')", an arborist bug tripped by a transitive
+      # published after 2026-08-30. That is why 0.44.0's run was green and the very
+      # next one was not, with no change to our own deps. Reproduced both ways:
+      # npm 10.9.3 crashes, npm 11 resolves the same package.json cleanly. A
+      # committed lockfile cannot paper over it (rolldown's native binding is a
+      # platform optional dep, npm #4828), so the npm version IS the fix.
+      - run: npm install -g npm@11
       - run: npm install
       - run: npm run build
       - run: npm pack # the exact tarball npm would publish
