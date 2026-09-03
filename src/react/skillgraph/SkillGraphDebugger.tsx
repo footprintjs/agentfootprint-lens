@@ -242,6 +242,16 @@ export function SkillGraphDebugger({
     [beats, cursorRuntimeStageId, cursorKind],
   );
   const activeIndex = activeBeat?.index;
+  // The turn's routing verdict for the beat in view, joined on `turnIndex` —
+  // the one field SkillBeat and SkillTurnStart both carry. A join on a shared
+  // key, never an assumption about which turn a beat sits next to.
+  const activeTurnStart = useMemo(
+    () =>
+      activeBeat === undefined || route === undefined
+        ? undefined
+        : route.turns.find((t) => t.turnIndex === activeBeat.turnIndex),
+    [route, activeBeat],
+  );
 
   const topology = useMemo(
     () =>
@@ -413,7 +423,11 @@ export function SkillGraphDebugger({
               />
             )}
           </div>
-          <RouteDecisionCard {...(activeBeat !== undefined ? { beat: activeBeat } : {})} lens={lens} />
+          <RouteDecisionCard
+            {...(activeBeat !== undefined ? { beat: activeBeat } : {})}
+            {...(activeTurnStart !== undefined ? { turnStart: activeTurnStart } : {})}
+            lens={lens}
+          />
         </section>
 
         <section style={{ minHeight: 0 }}>

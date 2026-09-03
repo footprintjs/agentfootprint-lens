@@ -30,6 +30,7 @@ import type { LensRecorder } from '../../core/LensRecorder.js';
 import { selectSkillBeats, type SkillBeat } from '../../core/selectors/selectSkillBeats.js';
 import { selectSkillRoute } from '../../core/selectors/selectSkillRoute.js';
 import { RouteDecisionCard } from './RouteDecisionCard.js';
+import type { SkillTurnStart } from '../../core/selectors/selectSkillRoute.js';
 import { SkillGraphDebugger } from './SkillGraphDebugger.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'core', '__fixtures__');
@@ -498,5 +499,102 @@ describe('<RouteDecisionCard> — the dead end is a fact', () => {
     const card = screen.getByTestId('route-decision-card');
     expect(within(card).getByText(/reachable \(cursor-move\)/i)).toBeTruthy();
     expect(within(card).getByText(/dead end: no skill was admissible/i)).toBeTruthy();
+  });
+});
+
+describe('<RouteDecisionCard> — a scored route shows its numbers', () => {
+  /** A beat is enough context; the scores ride the turn's start record. */
+  const scoredBeat: SkillBeat = {
+    index: 0,
+    turnIndex: 4,
+    iteration: 1,
+    hop: {
+      turnIndex: 4,
+      iteration: 1,
+      from: 'powerstore',
+      to: 'powerstore-performance',
+      by: 'intent',
+      moved: true,
+      activeIds: ['powerstore-performance'],
+      supersededIds: [],
+      refusals: [],
+      conflicts: [],
+      superseded: [],
+      toolsAsSent: [],
+      skillInjections: [],
+      reachable: ['powerstore-performance'],
+    },
+    cursorSkillId: 'powerstore-performance',
+    cause: 'intent',
+    moved: true,
+    refusedIds: [],
+    visited: ['powerstore', 'powerstore-performance'],
+    reachable: { ids: ['powerstore-performance'], source: 'cursor-move' },
+    label: 'Iteration 1',
+    headline: 'The message was scored.',
+    notes: [],
+  };
+
+  const scoredStart: SkillTurnStart = {
+    turnIndex: 4,
+    by: 'intent',
+    from: 'powerstore',
+    to: 'powerstore-performance',
+    scorer: 'estate',
+    scores: [
+      { id: 'powerstore-performance', score: 0.33, relevance: 0.45 },
+      // Above the floor and still lost — "beaten" is a different fact from
+      // "did not match", and the fixture has to contain both to prove it.
+      { id: 'powerstore-capacity', score: 0.2, relevance: 0.3 },
+      { id: 'powerstore', score: 0.1, relevance: 0.15 },
+      { id: 'powermax-performance', score: 0, relevance: 0.1 },
+    ],
+    runnerUp: { id: 'powerstore-capacity', gap: 0.13 },
+    decisive: true,
+    policy: { floor: 0.15, nearTieMargin: 0.12 },
+  };
+
+  it('renders EVERY candidate, losers included — a winner alone is not tunable', () => {
+    render(<RouteDecisionCard beat={scoredBeat} turnStart={scoredStart} lens="developer" />);
+    const card = screen.getByTestId('route-decision-card');
+    // Every candidate appears in the table. The winner's id also appears in the
+    // card's headline, so this counts rows rather than matching text globally.
+    const table = within(card).getByRole('table');
+    for (const id of [
+      'powerstore-performance',
+      'powerstore-capacity',
+      'powerstore',
+      'powermax-performance',
+    ]) {
+      expect(within(table).getByText(new RegExp(`^\\s*(→\\s*)?${id}$`))).toBeTruthy();
+    }
+    // Raw scores, which is what a floor is set against.
+    expect(within(table).getByText('0.33')).toBeTruthy();
+    expect(within(table).getByText('0.2')).toBeTruthy();
+    // The scorer whose arithmetic produced them, and the floor it was judged by.
+    expect(within(card).getByText(/scored by estate/i)).toBeTruthy();
+    expect(within(card).getByText(/floor 0\.15/i)).toBeTruthy();
+  });
+
+  it('says WHICH candidates fell below the floor — "did not match" is not "was beaten"', () => {
+    render(<RouteDecisionCard beat={scoredBeat} turnStart={scoredStart} lens="developer" />);
+    const card = screen.getByTestId('route-decision-card');
+    // 0.1 and 0 sit at or under the 0.15 floor; 0.2 cleared it and still lost.
+    // Both facts stated in words, so the distinction never depends on colour.
+    expect(within(card).getAllByText(/below floor/i).length).toBe(2);
+    expect(within(card).getAllByText(/^beaten$/i).length).toBe(1);
+  });
+
+  it('renders NO score table for a rule-routed turn — tier 1 has no numbers to show', () => {
+    const ruleStart: SkillTurnStart = {
+      turnIndex: 4,
+      by: 'entry',
+      to: 'esxi-inventory',
+      scores: [],
+      witness: { matched: 'esxi' } as SkillTurnStart['witness'],
+    };
+    render(<RouteDecisionCard beat={scoredBeat} turnStart={ruleStart} lens="developer" />);
+    const card = screen.getByTestId('route-decision-card');
+    expect(within(card).queryByText(/every candidate this turn was scored against/i)).toBeNull();
   });
 });

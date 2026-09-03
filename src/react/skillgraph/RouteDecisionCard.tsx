@@ -14,6 +14,7 @@
 import React from 'react';
 
 import type { SkillBeat } from '../../core/selectors/selectSkillBeats.js';
+import type { SkillTurnStart } from '../../core/selectors/selectSkillRoute.js';
 import { T } from '../theme/index.js';
 import type { SkillLens } from './lens.js';
 
@@ -32,10 +33,21 @@ const CAUSE_LABEL: Record<string, string> = {
 
 export interface RouteDecisionCardProps {
   readonly beat?: SkillBeat;
+  /**
+   * The routing verdict for THIS beat's turn, joined by `turnIndex` — the one
+   * field both types carry, so the correlation is a real key rather than a
+   * guess about adjacency.
+   *
+   * Present only to show the SCORES. Tier 1 renders its witness (the substring
+   * a rule matched); tier 2 had no equivalent, so a scored route announced that
+   * it happened and never said with what numbers — the one kind of routing a
+   * reader cannot work out for themselves.
+   */
+  readonly turnStart?: SkillTurnStart;
   readonly lens: SkillLens;
 }
 
-export function RouteDecisionCard({ beat, lens }: RouteDecisionCardProps): React.ReactElement {
+export function RouteDecisionCard({ beat, turnStart, lens }: RouteDecisionCardProps): React.ReactElement {
   return (
     <aside
       data-testid="route-decision-card"
@@ -191,6 +203,15 @@ export function RouteDecisionCard({ beat, lens }: RouteDecisionCardProps): React
             </ul>
           )}
 
+          {/* Scores, for the tiers that HAVE numbers. `intent` is a scorer win;
+              `continuity` carries the losing numbers when it stayed on a
+              near-tie. Every other verdict has nothing to show, and shows
+              nothing — the house law: render only what the event carries. */}
+          {turnStart !== undefined &&
+            (turnStart.by === 'intent' || turnStart.by === 'continuity') && (
+              <ScoreTable start={turnStart} />
+            )}
+
           {lens === 'developer' && beat.runtimeStageId !== undefined && (
             <div style={{ marginTop: 8, fontFamily: T.fontMono, fontSize: 10, color: T.textMuted }}>
               {beat.runtimeStageId}
@@ -224,4 +245,109 @@ function Evidence({
       {children}
     </div>
   );
+}
+
+/**
+ * The scores a tier-2 route was decided by — every candidate, losers included.
+ *
+ * Why the losers are the point: a floor is a number you set by looking at what
+ * real messages score, and a near-tie is only visible next to what it nearly
+ * tied with. A winner alone tells a reader nothing they can act on.
+ *
+ * ONE LIMIT, and it is not recoverable from this data: a candidate scored 0
+ * because a scorer gated it out (wrong product, say) and one scored 0 because
+ * its overlap was genuinely low are the same number here. If a scorer ever
+ * carries its own reason on `witness`, that is where the distinction would come
+ * from — until then this renders the number and declines to interpret it.
+ */
+function ScoreTable({ start }: { readonly start: SkillTurnStart }): React.ReactElement | null {
+  if (start.scores.length === 0) return null;
+  const floor = start.policy?.floor;
+  const margin = start.policy?.nearTieMargin;
+
+  return (
+    <div style={{ marginTop: 8 }}>
+      <div
+        style={{
+          fontSize: 10,
+          letterSpacing: '0.08em',
+          textTransform: 'uppercase',
+          color: T.textMuted,
+          marginBottom: 4,
+        }}
+      >
+        Scored{start.scorer ? ` by ${start.scorer}` : ''}
+        {floor !== undefined ? ` · floor ${floor}` : ''}
+        {start.runnerUp !== undefined && margin !== undefined
+          ? ` · gap ${fmt(start.runnerUp.gap)} of ${margin} needed`
+          : ''}
+      </div>
+      <table
+        style={{ borderCollapse: 'collapse', width: '100%', fontSize: 12 }}
+      >
+        <caption
+          style={{
+            captionSide: 'top',
+            textAlign: 'left',
+            fontSize: 11,
+            color: T.textMuted,
+            paddingBottom: 3,
+          }}
+        >
+          Every candidate this turn was scored against, best first.
+        </caption>
+        <tbody>
+          {start.scores.map((row) => {
+            const belowFloor = floor !== undefined && row.score <= floor;
+            const won = row.id === start.to;
+            return (
+              <tr key={row.id}>
+                <td
+                  style={{
+                    padding: '2px 6px 2px 0',
+                    color: belowFloor ? T.textMuted : T.textPrimary,
+                    fontWeight: won ? 700 : 400,
+                    fontFamily: T.fontMono,
+                  }}
+                >
+                  {won ? '→ ' : '   '}
+                  {row.id}
+                </td>
+                <td
+                  style={{
+                    padding: '2px 6px',
+                    textAlign: 'right',
+                    fontFamily: T.fontMono,
+                    color: belowFloor ? T.textMuted : T.textPrimary,
+                  }}
+                >
+                  {fmt(row.score)}
+                </td>
+                <td
+                  style={{
+                    padding: '2px 6px',
+                    textAlign: 'right',
+                    fontFamily: T.fontMono,
+                    color: T.textMuted,
+                  }}
+                >
+                  {Math.round(row.relevance * 100)}%
+                </td>
+                <td style={{ padding: '2px 0 2px 6px', color: T.textMuted, fontSize: 11 }}>
+                  {/* "did not match at all" and "was beaten" are different facts.
+                      Stated in words, not by colour alone. */}
+                  {belowFloor ? 'below floor' : won ? '' : 'beaten'}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+/** Three decimals, trailing zeros trimmed — a raw score, not a percentage. */
+function fmt(n: number): string {
+  return String(Math.round(n * 1000) / 1000);
 }
