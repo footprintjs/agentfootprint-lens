@@ -5,6 +5,49 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.45.0] - 2026-09-03
+
+A route that announces it was scored, without the scores, is a claim.
+
+Tier 1 always showed its work: a start rule matched, and the card renders the
+witness — the substring the rule fired on. Tier 2 had no equivalent. A scored
+route said "the message was scored" and stopped, so the one number a reader
+needs to act on — how close the loser came — lived only in the ndjson. Tuning a
+floor meant grepping an event stream for the very numbers the debugger was
+holding.
+
+The losers are the point. A floor is a threshold you set by looking at what real
+messages score, and a near-tie is only legible next to the thing it nearly tied
+with. A winner on its own tells a reader nothing they can change.
+
+### Added
+
+- **`<RouteDecisionCard turnStart>` — the scores a tier-2 route was decided by.**
+  The turn's routing verdict, joined to the beat by `turnIndex` — the one field
+  both types carry, so the correlation is a key rather than a guess about
+  adjacency. `<SkillGraphDebugger>` does that join for you; pass it yourself
+  only if you compose the card directly.
+
+  ```tsx
+  <RouteDecisionCard beat={beat} lens="developer"
+                     turnStart={route.turns.find((t) => t.turnIndex === beat.turnIndex)} />
+  ```
+
+  Every candidate renders, best first: the raw score, relevance as a
+  percentage, and — in words, not by colour alone — whether it was `below
+  floor` or merely `beaten`. The header carries the scorer's name, the floor,
+  and, on a near-tie, the gap against the margin that was needed.
+
+  It shows for `by: 'intent'` and `by: 'continuity'` and for nothing else. Every
+  other verdict has no numbers, and renders none: the house law is that a view
+  shows what the event carries.
+
+- **One limit, stated rather than papered over.** A candidate that scored 0
+  because a scorer gated it out, and one that scored 0 because its overlap was
+  genuinely low, are the same number here. The table renders the number and
+  declines to interpret it. If a scorer ever carries its own reason, that is
+  where the distinction would come from.
+
 ## [0.44.0] - 2026-08-29
 
 Sharing an axis is not the same as sharing a stride.

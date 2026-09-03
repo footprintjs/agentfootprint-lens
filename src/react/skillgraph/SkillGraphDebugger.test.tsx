@@ -591,7 +591,7 @@ describe('<RouteDecisionCard> — a scored route shows its numbers', () => {
       by: 'entry',
       to: 'esxi-inventory',
       scores: [],
-      witness: { matched: 'esxi' } as SkillTurnStart['witness'],
+      witness: { text: 'check esxi inventory', keyword: 'esxi' },
     };
     render(<RouteDecisionCard beat={scoredBeat} turnStart={ruleStart} lens="developer" />);
     const card = screen.getByTestId('route-decision-card');
