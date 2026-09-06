@@ -5,6 +5,129 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.46.0] - 2026-09-06
+
+Four views, four copies of "clamp at zero, clamp at the end".
+
+The step arithmetic behind a scrub ruler is six lines, which is why everybody
+writes it again. The lens had it in `<TimeTravel>`; the flow view had its own;
+a dashboard had a third. They agreed everywhere except the places nobody tests
+— a ▶ at the last stop, a jump to a stage that is not on this ruler, a step
+stored from a longer run — and each of those disagreements looked like a bug in
+the lens.
+
+footprintjs 9.17 owns that arithmetic now: `timeTravel(snapshot, { strategy })`,
+the reader's cursor over a finished trace, with one law — **a refused move never
+moves the cursor**. The Why Lens's movement goes through it as of this release.
+The Flow Lens takes the same road next, which is the point: one interface, one
+answer, in the library that owns the substrate.
+
+**Which stops exist did not change** — not one of them. The lens still computes
+its own axis (milestones banded by iteration; one stop per executed stage for
+the per-step reading; drill-scoped either way), with the same labels, order and
+kinds, and every panel still reads the lens's own position object. The proof is
+that the entire existing suite passes untouched, plus a test that drives the old
+arithmetic and the port side by side over a real run and compares the landing at
+every step.
+
+### Added
+
+- **`openLensCursor(positions)` — the lens's cursor movement, as one
+  interface.** Headless, in `/core`. Each mover takes the step the cursor is on
+  and answers with the step it should be on next; nothing is stored.
+
+  ```ts
+  import { scrubAxisFor, openLensCursor } from 'agentfootprint-lens/core';
+
+  const port = openLensCursor(scrubAxisFor(recorder, 'group'));
+  port.next(4);                  // { step: 5, moved: true, clamped: false }
+  port.toStep(2, 9999);          // { step: <last>, moved: true, clamped: true }
+  port.toAddress(2, 'ghost#9');  // { ok: false, reason: 'miss', nearest: … }
+  ```
+
+  A miss is **offered, never taken**: `toAddress` returns no step, and the
+  cursor stays exactly where it was. Every other answer is a step this axis
+  really holds, so `positionAt(step)` always resolves. `positionAt` hands back
+  the lens position itself — `runtimeGroupId`, `depth`, `coActiveGroupIds`,
+  `milestone` — which the port's `Stop` has no slot for and which nothing
+  flattens.
+
+  The port answers **where**, never **what**: no `stateAt`, no `changedSince`,
+  no `drill`. Those are folds over the run's commit log; run them over this same
+  ruler with `timeTravel(snapshot, { strategy: lensStopsStrategy(positions) })`.
+
+- **`lensStopsStrategy(positions)` — the seam.** The lens's `CursorPosition[]`
+  wearing footprintjs's `Stop`, in the same order, so `stop.step` IS the index
+  into the position list. Pass it to `timeTravel()` yourself to run the
+  library's `stateAt` / `changedSince` over the lens's own ruler.
+
+- **`CursorStepper`** — the type of that `stepper` prop, exported alongside
+  `<TimeTravel>` so a host can name what it passes.
+
+- **`<TimeTravel stepper>`** — where ◀ ▶ ← → Home End land, when a host drives
+  the transport directly. Omit it and the transport keeps its own arithmetic,
+  unchanged. `snapSteps` still wins where both are set: snaps narrow movement to
+  a *subset* of the axis while the cursor may be parked between two stops, which
+  is a question `jumpTo` does not answer.
+
+- **`<Lens>`** now routes every internal mover — the step strip, ◀ ▶ ⟳Live, the
+  arrow keys, Home / End, a chart click, a provenance jump, and the controlled
+  funnel itself — through that port. One cursor still: the port instance is
+  re-seated on the step the lens owns before every question and remembers
+  nothing between them.
+
+### Changed
+
+- **An out-of-range internal move now clamps and says so**, instead of parking
+  the cursor on a step the axis does not have. `onStepChange` fires with the
+  nearest real position and `clamped: true` — the same correction a
+  host-supplied `step` prop has always received, now applied to every mover.
+
+- **The cursor is always a position.** A host-supplied `step` was always snapped
+  onto the axis; the lens's own internal step is snapped the same way now. The
+  axis SHRINKS as well as grows — switching `granularity` from `'step'` to
+  `'group'`, or drilling into a small group — and a remembered step could be
+  past the end of the axis it was next read against, reaching the ruler, the
+  strip highlight and the movement port as a step that does not exist.
+
+- **That snap is now REPORTED in both modes.** The correction used to be
+  announced only when a host owned the cursor: uncontrolled, the axis shrank,
+  the cursor jumped, and `onStepChange` said nothing — so "clamp AND say so"
+  was true of one mode only, and a host that merely OBSERVES the lens's cursor
+  quietly went out of sync with it. `onStepChange` now fires with the nearest
+  real position and `clamped: true` whichever mode you are in. The console
+  warning stays controlled-only: it teaches a host about a value the host
+  passed, and an uncontrolled host passed none. Nothing about WHERE the cursor
+  lands changed — only whether you are told.
+
+- **`footprintjs` peer range is `^9.17.0`** (was `^9.10.0`) — `timeTravel` and
+  the `TimeTravelStrategy` seam arrive in 9.17.
+
+### Documentation
+
+- **README "Time travel through one port"** — the fold recipe
+  (`timeTravel(snapshot, { strategy: lensStopsStrategy(positions) })`) is
+  written over a LIVE snapshot, where `runner.getLastSnapshot()` already IS a
+  `TimeTravelSource` and the two libraries meet with no cast. A STORED
+  recording needs one narrowing today, and the README says why: the lens types
+  `Recording.snapshot.commitLog` as `readonly unknown[]` — a recording arrives
+  as parsed JSON and the lens will not claim it is a `CommitBundle` — while
+  `TimeTravelSource.commitLog` is `readonly CommitBundle[]`. The cast goes away
+  with no change here once footprintjs widens that field and narrows per bundle
+  where it folds; reported upstream as a port gap. Movement is unaffected
+  either way — `openLensCursor` reads stops and no snapshot at all.
+
+### Fixed
+
+- **A replayed `composition.start` boundary keeps its kind and its name.**
+  `observeRecording`'s boundary rebuild dropped `kind` and `name` into the
+  no-payload projection unnamed, so a group rebuilt from a stored recording
+  carried neither `compositionKind` nor `compositionName` — the live recorder's
+  labels and the replayed ones disagreed, and a chip that says "Parallel" on a
+  live run said nothing on the same run reloaded. (Unrelated to the cursor port
+  above; it rides this release because it touches the same replay path the port's
+  axis is built from.)
+
 ## [0.45.0] - 2026-09-03
 
 A route that announces it was scored, without the scores, is a claim.
