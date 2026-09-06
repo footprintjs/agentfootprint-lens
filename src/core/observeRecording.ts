@@ -149,6 +149,18 @@ const BOUNDARY_ENTRY_NAME = 'BoundaryEvents';
 const OPENS_A_RANGE = new Set(['run.entry', 'subflow.entry', 'composition.start']);
 const CLOSES_A_RANGE = new Set(['run.exit', 'subflow.exit', 'composition.end']);
 
+/** Composition kinds accepted by the live boundary-label projection. */
+function isCompositionKind(
+  value: unknown,
+): value is NonNullable<BoundaryRangeLabel['compositionKind']> {
+  return (
+    value === 'Parallel' ||
+    value === 'Sequence' ||
+    value === 'Loop' ||
+    value === 'Conditional'
+  );
+}
+
 /**
  * Boundary events that can ONLY come from footprintjs's live traversal channel
  * (`runner.attach`). A replay has no traversal, so these exist only in the
@@ -314,8 +326,19 @@ function rebuildBoundaryIndex(
       // — the same no-payload projection the live recorder stores, and the
       // reason a chip rendered from this index cannot leak a tool argument or
       // an LLM message.
-      const { payload: _payload, ...label } = event;
-      open.set(key, index.open(label as unknown as BoundaryRangeLabel, event.commitIdxBefore));
+      const { payload: _payload, kind, name, ...label } = event;
+      const boundaryLabel =
+        type === 'composition.start'
+          ? {
+              ...label,
+              ...(isCompositionKind(kind) ? { compositionKind: kind } : {}),
+              ...(typeof name === 'string' ? { compositionName: name } : {}),
+            }
+          : label;
+      open.set(
+        key,
+        index.open(boundaryLabel as unknown as BoundaryRangeLabel, event.commitIdxBefore),
+      );
       ranges += 1;
     } else {
       const token = open.get(key);

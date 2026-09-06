@@ -41,6 +41,8 @@ import {
   type LensCursorAt,
   type LensCursorPlace,
 } from "./useLensCursor.js";
+import { openLensCursor, type LensCursorPort } from "../core/timeTravel/lensCursorPort.js";
+import type { CursorStepper } from "./TimeTravel.js";
 import { useLensNavigator, type LensNavigator } from "./useLensNavigator.js";
 import { useNarrowRow } from "./narrowLayout.js";
 import { useLensRecorder } from "./hooks/useLensRecorder.js";
@@ -556,6 +558,26 @@ export const Lens: React.FC<LensProps> = ({
   );
   const stepCount = Math.max(1, cursorPositions.length);
   const maxStep = Math.max(0, stepCount - 1);
+  // MOVEMENT THROUGH ONE PORT (0.46.0). The stops are still the Lens's — the
+  // very `cursorPositions` above, in the same order, with the same labels and
+  // the same kinds — but WHERE A MOVE LANDS is footprintjs 9.17's answer now:
+  // `timeTravel(snapshot, { strategy: lensStopsStrategy(positions) })`, whose
+  // law is one cursor, a clamp at each end, and a miss that never moves. The
+  // Flow Lens takes the same road next; this is the step that gives them one
+  // interface to take it through.
+  //
+  // Memoised per (recording, axis, drillPath) — which is exactly what
+  // `cursorPositions` is memoised on, so this list's identity IS that key.
+  const cursorPort = useMemo(() => openLensCursor(cursorPositions), [cursorPositions]);
+  const stepper = useMemo<CursorStepper>(
+    () => ({
+      back: (from) => cursorPort.prev(from).step,
+      forward: (from) => cursorPort.next(from).step,
+      toFirst: (from) => cursorPort.first(from).step,
+      toLast: (from) => cursorPort.last(from).step,
+    }),
+    [cursorPort],
+  );
   // ONE cursor, one funnel. `useLensCursor` holds it internally (today's
   // behaviour, byte for byte) unless the host passed `step` — in which case the
   // host holds it and every internal mover reports through `onStepChange`.
@@ -583,6 +605,7 @@ export const Lens: React.FC<LensProps> = ({
     onStepChange,
     maxStep,
     describe: describeStep,
+    port: cursorPort,
   });
   // Address → cursor. `navigateTo` resolves a runtimeStageId against the
   // ACTIVE axis and hands the answer to the SAME `moveTo` funnel above, so a
@@ -651,6 +674,7 @@ export const Lens: React.FC<LensProps> = ({
         focusSeq={focusStep}
         onFocusChange={handleFocusChange}
         isLive={isLive}
+        stepper={stepper}
         liveStreamLine={liveStreamLine}
       />,
     );
@@ -669,6 +693,8 @@ export const Lens: React.FC<LensProps> = ({
       focusStep={focusStep}
       onFocusChange={handleFocusChange}
       isLive={isLive}
+      stepper={stepper}
+      cursorPort={cursorPort}
       stepStrip={stepStrip}
       showSummary={showSummary}
       liveStreamLine={liveStreamLine}
@@ -882,6 +908,12 @@ const EngineerView: React.FC<{
   /** Which ruler is scrubbing the chart. `'group'` paints the cursor's group as
    *  a named place; `'step'` (default) is today's rendering, untouched. */
   granularity: 'step' | 'group';
+  /** Where ◀ ▶ / ← → / Home / End land — footprintjs's reader cursor over
+   *  these same stops. See `<TimeTravel stepper>`. */
+  stepper: CursorStepper;
+  /** The same port, for the ADDRESS jump (a chart click, a provenance frame).
+   *  Resolution stays the Lens's; the move is the library's. */
+  cursorPort: LensCursorPort;
   /** Consumer slot overrides. Absent → every shipped pane renders unchanged. */
   slots?: LensSlots;
 }> = ({
@@ -909,6 +941,8 @@ const EngineerView: React.FC<{
   cursorRuntimeStageId,
   toolChoice,
   granularity,
+  stepper,
+  cursorPort,
   slots,
 }) => {
   // ─── The GROUPED ruler (granularity 'group') ──────────────────────
@@ -1408,18 +1442,20 @@ const EngineerView: React.FC<{
   // The right column's content. Absent slot → the built-in timeline, unchanged.
   const DetailSlot = slots?.detail;
 
+  // Address → cursor, for a chart click or a provenance frame. The RULE is
+  // still the Lens's (exact, then the same stage at whatever execution index
+  // this axis holds — an axis of whole iterations has to answer for the stages
+  // inside them); the MOVE is the port's, so a miss refuses here exactly as it
+  // refuses everywhere else in the family. `toAddress` is those two, in that
+  // order, in one call.
   const jumpToRuntimeStageId = useCallback(
     (runtimeStageId: string) => {
-      const exact = cursorPositions.findIndex((p) => p.runtimeStageId === runtimeStageId);
-      if (exact >= 0) {
-        onFocusChange(exact);
-        return;
-      }
-      const stagePart = runtimeStageId.split("#")[0];
-      const byStage = cursorPositions.findIndex((p) => p.runtimeStageId.split("#")[0] === stagePart);
-      if (byStage >= 0) onFocusChange(byStage);
+      const to = cursorPort.toAddress(focusStep, runtimeStageId);
+      // A miss NEVER moves — the cursor stays where it is and the offered
+      // `nearest` is left for the caller that wants to render it.
+      if (to.ok && to.step !== undefined) onFocusChange(to.step);
     },
-    [cursorPositions, onFocusChange],
+    [cursorPort, focusStep, onFocusChange],
   );
 
   return (
@@ -1481,6 +1517,7 @@ const EngineerView: React.FC<{
         focusSeq={focusStep}
         onFocusChange={onFocusChange}
         isLive={isLive}
+        stepper={stepper}
       />
       {/* The honest sentence for the collapsed plumbing: what is hidden is
           SAID, with the door to bring it back. Absent (a chart with no
@@ -2524,6 +2561,8 @@ const AnalystView: React.FC<{
   focusSeq: number;
   onFocusChange: (seq: number) => void;
   isLive: boolean;
+  /** Where ◀ ▶ / ← → / Home / End land — the same port the engineer view uses. */
+  stepper: CursorStepper;
   liveStreamLine: string | null;
 }> = ({
   summary,
@@ -2533,6 +2572,7 @@ const AnalystView: React.FC<{
   focusSeq,
   onFocusChange,
   isLive,
+  stepper,
   liveStreamLine,
 }) => {
   return (
@@ -2543,6 +2583,7 @@ const AnalystView: React.FC<{
         focusSeq={focusSeq}
         onFocusChange={onFocusChange}
         isLive={isLive}
+        stepper={stepper}
       />
       <Card title="Commentary">
         <div style={{ fontSize: 13, lineHeight: 1.6, fontFamily: T.fontSans }}>

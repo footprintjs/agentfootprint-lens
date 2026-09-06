@@ -320,6 +320,13 @@ describe('observeRecording — the typed replay never leaves ranges behind', () 
     expect(ranges[0]!.endIdx).toBe(3);
     // The live-recorder stamp would have been the final commit count on both ends.
     expect(ranges[0]!.startIdx).not.toBe(observed.recorder.getCommitCount());
+
+    const groups = buildGroups(observed.recorder.boundary.boundaryIndex);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({
+      name: 'Fanout',
+      compositionKind: 'Parallel',
+    });
   });
 });
 

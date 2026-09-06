@@ -147,6 +147,26 @@ export {
 } from "./group/cursorPositionsAtDrill.js";
 export { buildCommitSyncMap, type CommitSyncEntry } from "./group/buildCommitSyncMap.js";
 
+// TIME TRAVEL THROUGH ONE PORT (0.46.0) — cursor MOVEMENT is footprintjs
+// 9.17's `timeTravel()` now, over the Lens's own stops. `lensStopsStrategy`
+// is the seam (the Lens's `CursorPosition[]`, wearing the port's `Stop`);
+// `openLensCursor` is the interface the UI moves through, so prev / next /
+// first / last / jumpTo / clamp / miss are stated once, in the library that
+// owns the substrate, instead of re-derived per view. Which stops exist, what
+// they are called and how any panel renders are untouched — the positions ARE
+// the stops, and `positionAt(step)` hands back the Lens position with
+// everything `Stop` has no slot for.
+export {
+  openLensCursor,
+  type LensCursorPort,
+  type LensStopMove,
+  type LensAddressMove,
+} from "./timeTravel/lensCursorPort.js";
+// Only the SEAM is public. `lensStop` / `lensStopKind` are how the seam
+// projects one position onto a `Stop`; keeping them module-private leaves that
+// projection free to change without a major.
+export { lensStopsStrategy } from "./timeTravel/lensStops.js";
+
 
 // Lens v0.1 translator pipeline — Runner → LensGroupOutput (UI-agnostic
 // graph of nodes + edges). The L3 React renderer consumes this; Vue / D3

@@ -107,6 +107,36 @@ export interface TimeTravelProps {
    * transport keeps the keys; the secondary one asks for `keyboard={false}`.
    */
   readonly keyboard?: boolean;
+  /**
+   * WHERE ◀ ▶ AND Home / End LAND — footprintjs 9.17's reader cursor, over
+   * this axis's stops (`openLensCursor(positions)` in `/core`).
+   *
+   * The step arithmetic ("one less, but not below zero") has lived in three
+   * places across this ecosystem and disagreed in two of them at the ends. It
+   * is the library's now: `prev` / `next` / `first` / `last` on the port, whose
+   * law is that a move outside the axis does not happen and says why. Each
+   * method here takes the step the cursor is on and returns the step it should
+   * be on — this component still stores nothing and still leaves through
+   * `onFocusChange`.
+   *
+   * OMIT IT and the transport keeps its own arithmetic, unchanged. `snapSteps`
+   * wins where both are set: snaps narrow the unit of movement to a SUBSET of
+   * the axis, which is a question the port does not answer (see the README).
+   */
+  readonly stepper?: CursorStepper;
+}
+
+/**
+ * The four movers a transport needs, each answered by the port and applied by
+ * the one funnel. `from` is the step the cursor is on; the return is the step
+ * to move to (the same step back means "no move", which is a true answer at
+ * the ends of the axis).
+ */
+export interface CursorStepper {
+  readonly back: (from: number) => number;
+  readonly forward: (from: number) => number;
+  readonly toFirst: (from: number) => number;
+  readonly toLast: (from: number) => number;
 }
 
 export const TimeTravel: React.FC<TimeTravelProps> = ({
@@ -119,6 +149,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
   bands,
   snapSteps,
   keyboard = true,
+  stepper,
 }) => {
   const max = Math.max(0, total - 1);
 
@@ -160,7 +191,19 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
       if (to !== undefined) onFocusChange(to);
       return;
     }
+    if (stepper !== undefined) {
+      onFocusChange(delta < 0 ? stepper.back(focusSeq) : stepper.forward(focusSeq));
+      return;
+    }
     onFocusChange(Math.min(max, Math.max(0, focusSeq + delta)));
+  };
+  /** Home / End — jumps to the ends of the axis, the port's `first` / `last`. */
+  const toEnd = (which: 'first' | 'last'): void => {
+    if (stepper !== undefined) {
+      onFocusChange(which === 'first' ? stepper.toFirst(focusSeq) : stepper.toLast(focusSeq));
+      return;
+    }
+    onFocusChange(which === 'first' ? 0 : max);
   };
 
   // Arrow-key scrubbing. Bound at the window so it works regardless of
@@ -188,16 +231,16 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
         step(1);
       } else if (e.key === 'Home') {
         e.preventDefault();
-        onFocusChange(0);
+        toEnd('first');
       } else if (e.key === 'End') {
         e.preventDefault();
-        onFocusChange(max);
+        toEnd('last');
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [focusSeq, max, keyboard, bands, snaps]);
+  }, [focusSeq, max, keyboard, bands, snaps, stepper]);
 
   const disabled = total <= 1;
 
@@ -238,7 +281,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
         ▶
       </button>
       <button
-        onClick={() => onFocusChange(max)}
+        onClick={() => toEnd('last')}
         disabled={isLive || disabled}
         style={btnStyle(!isLive && total > 0)}
         title="Jump to latest event (End)"

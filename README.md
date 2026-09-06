@@ -808,6 +808,133 @@ const href = to.ok ? `/runs/${runId}?step=${to.step}` : undefined;
 
 ---
 
+## Time travel through one port
+
+**Nothing to do — this is how the cursor already moves.** Read it if you are
+building a second surface over the same run, or wondering why the ruler behaves
+identically in the Why Lens, the Flow Lens and your own view.
+
+### Why
+
+Every consumer of a footprintjs run was writing the same six lines: clamp at
+zero, clamp at the end, resolve an address to a stop, decide what a miss does.
+The lens had them in `<TimeTravel>`, the flow view had its own copy, and a
+dashboard had a third — and they disagreed at exactly the places nobody tests: a
+▶ at the last stop, a jump to a stage that is not on this ruler, a step stored
+from a longer run.
+
+footprintjs 9.17 owns that arithmetic now. `timeTravel(snapshot, { strategy })`
+is the **reader's cursor over a finished trace**: `first` / `last` / `prev` /
+`next` / `jumpTo`, one position, and one law — **a refused move never moves the
+cursor**, it returns the reason and the nearest stop it could name. Since
+0.46.0 the lens's movement goes through it.
+
+**Which stops exist did not change.** The lens still computes its own axis —
+milestones banded by iteration for the Why reading, one stop per executed stage
+for the Flow reading, drill-scoped either way — with the same labels, the same
+order and the same kinds. Those positions ARE the port's stops, through a
+lens-owned `TimeTravelStrategy`. The library decides *where a move lands*; the
+lens decides *what there is to land on*.
+
+**Still one cursor.** The port instance is a calculator, not a position: it is
+re-seated on the step the lens owns before every question and remembers nothing
+between them. `<Lens step onStepChange>` is unchanged, and so is everything a
+panel reads.
+
+### The port, headless
+
+```ts
+import { scrubAxisFor, openLensCursor } from 'agentfootprint-lens/core';
+
+const positions = scrubAxisFor(recorder, 'group');   // the ruler, as data
+const cursor = openLensCursor(positions);
+
+cursor.next(4).step;          // 5
+cursor.next(positions.length - 1);
+// { step: <last>, moved: false, reason: 'clamped', clamped: false }
+
+cursor.toStep(2, 9999);
+// { step: <last>, moved: true, clamped: true }   ← off the axis, said so
+
+cursor.toAddress(2, 'call-llm#18');
+// { ok: true, step: 7 }
+cursor.toAddress(2, 'never-ran#4');
+// { ok: false, reason: 'miss', nearest: <the closest stop the library
+//   could name — the same stage at another execution index if this axis
+//   holds one, otherwise the last stop whose execution index is not past
+//   the one you asked for> }
+//   the cursor is still at 2 — a miss is offered, never taken
+
+cursor.positionAt(7);
+// the LENS position: runtimeGroupId, depth, coActiveGroupIds, milestone —
+// everything the port's `Stop` has no slot for, unchanged and unflattened
+```
+
+`openLensCursor` answers **where**, never **what**: it has no `stateAt`, no
+`changedSince`, no `drill`. Those are folds over the run's commit log, and a
+fold wants the run's snapshot — which movement never reads. Want them over this
+same ruler? Build the library's cursor directly, with the lens's stops:
+
+```ts
+import { timeTravel } from 'footprintjs/trace';
+import { scrubAxisFor, lensStopsStrategy } from 'agentfootprint-lens/core';
+
+// A LIVE run. `runner.getLastSnapshot()` IS footprintjs's own snapshot, so it
+// is already a `TimeTravelSource` and the two libraries meet with no cast.
+const snapshot = runner.getLastSnapshot();
+if (snapshot) {
+  const positions = scrubAxisFor(recorder, 'group');
+  const tt = timeTravel(snapshot, { strategy: lensStopsStrategy(positions) });
+  tt.jumpTo(7);
+  tt.changedSince();       // the keys this stop's slice of the log wrote
+  tt.stateAt().state;      // state as of that stop, detached
+}
+```
+
+A **stored** recording needs one narrowing today, and the reason is honest on
+both sides: the lens types `Recording.snapshot.commitLog` as `readonly
+unknown[]` — a recording arrives as parsed JSON, and the lens will not claim
+that what came back off disk is a `CommitBundle` — while `timeTravel` takes
+`TimeTravelSource`, whose `commitLog` is `readonly CommitBundle[]`. So a
+replayed run has to say so at the seam:
+
+```ts
+import type { TimeTravelSource } from 'footprintjs/trace';
+
+const stored = recording.snapshot as unknown as TimeTravelSource;
+const tt = timeTravel(stored, { strategy: lensStopsStrategy(positions) });
+```
+
+That cast disappears — with no change here — the day footprintjs widens
+`TimeTravelSource.commitLog` to accept an unvalidated `readonly unknown[]` and
+does the per-bundle narrowing where it folds, which is the only place that can
+honestly do it. It is reported upstream as a port gap. **Movement never needs
+this**: `openLensCursor` reads the stops and no snapshot at all, which is why
+the lens's own cursor is unaffected either way.
+
+### Two axes, and drilling
+
+Rebuild the port when the positions change; its identity is that list's, which
+is already memoised per (recording, axis, drill level):
+
+```ts
+const port = useMemo(() => openLensCursor(positions), [positions]);
+```
+
+Drilling rebuilds the axis — the drilled group's own stops, which is a
+different set — so it rebuilds the port. The lens does **not** use the port's
+`drill()` for this: `drill()` opens a subflow's own commit log, and a lens drill
+level is not always a subflow (it is a group, and a subflow whose stages commit
+in their own memory scope is reconstructed from the runtime overlay). Using it
+would change which stops appear at a drill level, which is the one thing this
+change refuses to do.
+
+`snapSteps` also stays the lens's. Snaps narrow ◀ ▶ to a *subset* of the axis
+while the cursor may be parked between two of them — a question `jumpTo` does
+not answer, since it takes an exact stop.
+
+---
+
 ## Rendering your own detail pane
 
 `slots.detail` replaces the CONTENT of the shipped right column. The column
@@ -1111,6 +1238,12 @@ so instead of drawing an empty graph.
 `observeRecording`, the selectors and the graph adapters. Build a Vue / Angular
 / CLI view on the same primitives — see `ChangeNotifier`'s JSDoc for adapter
 snippets.
+
+The cursor is headless too: `scrubAxisFor` builds the ruler, `openLensCursor`
+moves along it through footprintjs's `timeTravel()` port, `resolveNavigation`
+turns an address into a step with every rung named, and `stepForCommitIdx`
+carries a position between the two axes. See
+[Time travel through one port](#time-travel-through-one-port).
 
 ---
 

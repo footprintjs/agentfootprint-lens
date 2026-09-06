@@ -199,3 +199,64 @@ describe('controlled, out of range — clamps AND says so', () => {
     expect(onStepChange.mock.calls[0]?.[1].clamped).toBe(true);
   });
 });
+
+describe('uncontrolled, out of range — the snap is reported too', () => {
+  let warn: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  });
+  afterEach(() => warn.mockRestore());
+
+  // The axis SHRINKS when granularity flips from 'step' to 'group', or on a
+  // drill into a smaller group. The remembered step is then past the end: the
+  // lens renders somewhere else, and before 0.46.0 it told nobody — the
+  // controlled path's stated law ("clamp AND say so") held in one mode only.
+  it('fires onStepChange with clamped:true when a parked cursor falls off the axis', () => {
+    const onStepChange = vi.fn();
+    const { result, rerender } = setup({ maxStep: 9, onStepChange });
+    act(() => result.current.moveTo(8));
+    expect(result.current.step).toBe(8);
+    expect(result.current.isLive).toBe(false);
+    onStepChange.mockClear();
+
+    rerender({ maxStep: 3 }); // the axis shrank under the cursor
+    expect(result.current.step).toBe(3);
+    expect(onStepChange).toHaveBeenCalledTimes(1);
+    expect(onStepChange.mock.calls[0]?.[0]).toBe(3);
+    expect(onStepChange.mock.calls[0]?.[1].clamped).toBe(true);
+    expect(onStepChange.mock.calls[0]?.[1].totalSteps).toBe(4);
+  });
+
+  it('reports it once for a cursor that was following the live edge', () => {
+    const onStepChange = vi.fn();
+    const { result, rerender } = setup({ maxStep: 9, onStepChange });
+    expect(result.current.step).toBe(9);
+    onStepChange.mockClear();
+
+    rerender({ maxStep: 3 });
+    expect(result.current.step).toBe(3);
+    expect(onStepChange).toHaveBeenCalledTimes(1);
+    expect(onStepChange.mock.calls[0]?.[1].clamped).toBe(true);
+  });
+
+  // The warning teaches a HOST about a value the host passed. An uncontrolled
+  // host passed none, so warning would be scolding the lens's own state.
+  it('does not scold the console — no host supplied the bad value', () => {
+    const { result, rerender } = setup({ maxStep: 9 });
+    act(() => result.current.moveTo(8));
+    rerender({ maxStep: 3 });
+    expect(result.current.step).toBe(3);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('stays quiet while the cursor is a real position', () => {
+    const onStepChange = vi.fn();
+    const { result, rerender } = setup({ maxStep: 4, onStepChange });
+    act(() => result.current.moveTo(1));
+    onStepChange.mockClear();
+
+    rerender({ maxStep: 6 }); // the axis GROWS — step 1 is still a position
+    expect(result.current.step).toBe(1);
+    expect(onStepChange).not.toHaveBeenCalled();
+  });
+});

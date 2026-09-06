@@ -120,7 +120,7 @@ export {
 // Mount it in `<Lens slots={{ detail }}>` or compose the panes yourself.
 export * from "./skillgraph/index.js";
 export { SummaryCard } from "./SummaryCard.js";
-export { TimeTravel, type TimeTravelProps } from "./TimeTravel.js";
+export { TimeTravel, type TimeTravelProps, type CursorStepper } from "./TimeTravel.js";
 // WhereFrom — "Where did this come from?": the cursor stage's written keys
 // as chips → backward slice frames → one-cursor jump. Canonical fp slice
 // (same queries as the backtrack LLM tool + eui's Data Trace). The engineer

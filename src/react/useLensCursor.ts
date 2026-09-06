@@ -20,6 +20,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import type { LensCursorPort } from '../core/timeTravel/lensCursorPort.js';
+
 /**
  * Where the cursor landed, in all three units the lens knows — handed to
  * `onStepChange` alongside the step so a host never has to reverse-engineer
@@ -45,9 +47,13 @@ export interface LensCursorAt {
   /** What kind of stop this is. Absent when the axis is empty. */
   readonly kind?: string;
   /**
-   * `true` when this call is Lens CORRECTING an out-of-range `step` you
-   * passed (or one an internal jump produced), not a move someone made.
-   * Store the corrected value and the two cursors agree again.
+   * `true` when this call is Lens CORRECTING a step that is not a position on
+   * the axis it is now read against, not a move someone made. That is an
+   * out-of-range `step` you passed, one an internal jump produced, OR — when
+   * you passed no `step` at all — the lens's own remembered step after the
+   * axis shrank under it. Uncontrolled snaps are reported too, so this flag
+   * means the same thing in both modes. Store the corrected value and the two
+   * cursors agree again.
    */
   readonly clamped: boolean;
 }
@@ -70,6 +76,18 @@ export interface UseLensCursorArgs {
   readonly maxStep: number;
   /** Resolve a step to its address. Called only when a move is reported. */
   readonly describe: (step: number) => LensCursorPlace;
+  /**
+   * The MOVEMENT port — footprintjs 9.17's reader cursor over the Lens's own
+   * stops (`openLensCursor(positions)`). When present, every move this funnel
+   * makes is decided by the library: where a step lands, what happens at the
+   * ends of the axis, and what an out-of-range ask does. Omit it and the
+   * funnel keeps its own arithmetic, unchanged — which is what the hook's own
+   * tests drive, so the two readings can be compared.
+   *
+   * It is NOT a second cursor: the port is re-seated on the step this hook
+   * owns before every question and remembers nothing between them.
+   */
+  readonly port?: LensCursorPort | undefined;
 }
 
 export interface UseLensCursorResult {
@@ -98,6 +116,7 @@ export function useLensCursor({
   onStepChange,
   maxStep,
   describe,
+  port,
 }: UseLensCursorArgs): UseLensCursorResult {
   const isControlled = controlledStep !== undefined;
 
@@ -112,7 +131,16 @@ export function useLensCursor({
     () => controlledStep === undefined || clampStep(controlledStep, maxStep) >= maxStep,
   );
 
-  const step = isControlled ? clampStep(controlledStep, maxStep) : internalStep;
+  // THE CURSOR IS ALWAYS A POSITION. A host-supplied value has always been
+  // snapped onto the axis; the INTERNAL one is snapped the same way now,
+  // because the axis SHRINKS as well as grows — switch `granularity` from
+  // 'step' to 'group' on a long run, or drill into a small group, and a
+  // remembered step can be past the end of the axis it is now read against.
+  // Left unsnapped it reached `<TimeTravel focusSeq>`, the strip highlight and
+  // the movement port as a step that does not exist. Snapping here is the ONE
+  // place that can fix it for every reader at once: `step` is what the whole
+  // component tree sees, and `stepRef` is what the funnel hands the port.
+  const step = clampStep(isControlled ? controlledStep : internalStep, maxStep);
   const isLive = autoAdvance && step >= maxStep;
 
   // Refs so `notify` / `moveTo` stay identity-stable: an unstable notifier in a
@@ -125,6 +153,8 @@ export function useLensCursor({
   maxRef.current = maxStep;
   const stepRef = useRef(step);
   stepRef.current = step;
+  const portRef = useRef(port);
+  portRef.current = port;
 
   const notify = useCallback((n: number, clamped: boolean): void => {
     const cb = onChangeRef.current;
@@ -142,15 +172,27 @@ export function useLensCursor({
   }, []);
 
   const moveTo = useCallback((n: number): void => {
+    const from = stepRef.current;
+    // WHERE IT LANDS is the port's answer when there is one: `jumpTo` over the
+    // Lens's own stops, with the library's clamp law (an ask outside the axis
+    // names the end it hit; the same step you are on is not a move). Without a
+    // port the funnel keeps its own arithmetic, byte for byte.
+    const to = portRef.current !== undefined
+      ? portRef.current.toStep(from, n)
+      : { step: n, moved: n !== from, clamped: false };
     // Uncontrolled: today's law, unchanged — the position moves here.
-    if (controlledStep === undefined) setInternalStep(n);
+    if (controlledStep === undefined) setInternalStep(to.step);
     // Auto-advance re-engages when the move lands on the live edge, and
-    // disengages when it doesn't. Same rule in both modes.
-    setAutoAdvance(n >= maxRef.current);
+    // disengages when it doesn't. Same rule in both modes — and it is why a
+    // refused move still comes through here with the step it stayed on: a
+    // silent no-op at the end of the axis would switch "follow live" off.
+    setAutoAdvance(to.step >= maxRef.current);
     // Not a move → not a change. This is what keeps a host echo from
-    // ping-ponging: the echoed value equals the current one and stops here.
-    if (n === stepRef.current) return;
-    notify(n, false);
+    // ping-ponging: the echoed value equals the current one and stops here. A
+    // CLAMP is the exception — the cursor may not have moved, but the value
+    // the host holds is not a position, and it has to be told.
+    if (to.step === from && !to.clamped) return;
+    notify(to.step, to.clamped);
   }, [controlledStep, notify]);
 
   // Controlled mode: re-derive the follow-live mode whenever the HOST sets a
@@ -175,26 +217,46 @@ export function useLensCursor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [maxStep, autoAdvance, controlledStep, notify]);
 
-  // Out-of-range correction — clamp AND say so, never a silent clamp.
+  // Out-of-range correction — clamp AND say so, never a silent clamp, and in
+  // BOTH modes. The value being corrected is whoever owns the cursor's: the
+  // host's `step` when controlled, this hook's own remembered step when not.
+  //
+  // The uncontrolled snap used to be the silent one, and that made the law
+  // above true of one mode only. The axis SHRINKS — switch `granularity` from
+  // 'step' to 'group', or drill into a smaller group — a remembered step is
+  // then past the end, `step` renders somewhere else, and an observing host
+  // was never told. It is reported now, with the same `clamped: true` a
+  // controlled host already gets.
+  //
+  // The CONSOLE warning stays controlled-only: it teaches a host about a value
+  // the host passed, and an uncontrolled host passed none — a warning there
+  // would be scolding the lens's own state.
+  //
+  // What is deliberately NOT done: `internalStep` is left as it is rather than
+  // rewritten to `snapped`. Snapping is a READ (`step` above), so a stale
+  // internal value comes back when the axis regrows — today's behaviour,
+  // untouched. This effect reports the correction; it does not change it.
   const warnedRef = useRef<string | undefined>(undefined);
   useEffect(() => {
-    if (controlledStep === undefined) return;
-    const snapped = clampStep(controlledStep, maxStep);
-    if (snapped === controlledStep) return;
-    const key = `${controlledStep}/${maxStep}`;
-    if (warnedRef.current !== key) {
-      warnedRef.current = key;
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[agentfootprint-lens] <Lens step={${controlledStep}}> is not a position in this run: ` +
-          `the cursor axis holds ${maxStep + 1} step${maxStep === 0 ? '' : 's'} (0…${maxStep}). ` +
-          `Lens moved to step ${snapped} and called onStepChange(${snapped}, { clamped: true }) ` +
-          `so your state can follow. The axis GROWS as the run does, so store the value the ` +
-          `callback hands you rather than a remembered number.`,
-      );
+    const owned = controlledStep !== undefined ? controlledStep : internalStep;
+    const snapped = clampStep(owned, maxStep);
+    if (snapped === owned) return;
+    if (controlledStep !== undefined) {
+      const key = `${controlledStep}/${maxStep}`;
+      if (warnedRef.current !== key) {
+        warnedRef.current = key;
+        // eslint-disable-next-line no-console
+        console.warn(
+          `[agentfootprint-lens] <Lens step={${controlledStep}}> is not a position in this run: ` +
+            `the cursor axis holds ${maxStep + 1} step${maxStep === 0 ? '' : 's'} (0…${maxStep}). ` +
+            `Lens moved to step ${snapped} and called onStepChange(${snapped}, { clamped: true }) ` +
+            `so your state can follow. The axis GROWS as the run does, so store the value the ` +
+            `callback hands you rather than a remembered number.`,
+        );
+      }
     }
     notify(snapped, true);
-  }, [controlledStep, maxStep, notify]);
+  }, [controlledStep, internalStep, maxStep, notify]);
 
   return { step, isLive, moveTo };
 }

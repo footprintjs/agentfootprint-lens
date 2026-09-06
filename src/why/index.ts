@@ -78,3 +78,13 @@ export {
   type NavigationMiss,
 } from '../core/group/resolveNavigation.js';
 export { stepBands, bandIndexOf, type StepBand } from '../core/group/stepBands.js';
+// MOVEMENT along that axis — footprintjs 9.17's reader cursor over the Why
+// Lens's own stops (lens 0.46.0). The same interface `<Lens>` moves through, so
+// a host driving the cursor from outside lands exactly where a click lands.
+export {
+  openLensCursor,
+  type LensCursorPort,
+  type LensStopMove,
+  type LensAddressMove,
+} from '../core/timeTravel/lensCursorPort.js';
+export { lensStopsStrategy } from '../core/timeTravel/lensStops.js';
