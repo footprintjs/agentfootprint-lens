@@ -24,6 +24,7 @@ import {
 } from '../src/core/index.js';
 import { useCursorPositions } from '../src/react/hooks/useCursorPositions.js';
 import { SkillGraphDebugger, type SkillLens } from '../src/react/skillgraph/index.js';
+import { ServedTab } from '../src/react/components/ServedTab.js';
 import { T } from '../src/react/theme/index.js';
 
 import recordingJson from './skill-run.json';
@@ -36,7 +37,7 @@ const DECLARED_EDGES = (graphJson as { edges: { from: string | null; to: string 
   .map((e) => ({ from: e.from, to: e.to }));
 
 export function Demo(): React.ReactElement {
-  const { recorder } = useMemo(
+  const { recorder, runner } = useMemo(
     () => observeRecording(recordingJson as unknown as Recording),
     [],
   );
@@ -104,7 +105,8 @@ export function Demo(): React.ReactElement {
         <span style={{ fontSize: 11, color: T.textMuted }}>{beats.length} routing stops</span>
       </header>
 
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
         <SkillGraphDebugger
           recorder={recorder}
           cursorRuntimeStageId={cursorRuntimeStageId}
@@ -117,6 +119,29 @@ export function Demo(): React.ReactElement {
           lens={lens}
           onLensChange={setLens}
         />
+        </div>
+        {/* SERVED — what the model was handed at the host's cursor. Same one
+            cursor: `cursorRuntimeStageId` in, a jump request out. This demo's
+            recording predates the receipt (agentfootprint 9.50), so the tab
+            shows the rebuild with the library's no-receipt gap beside it —
+            which is the honest shape for every recording made before 9.88. */}
+        <div
+          style={{
+            flex: '0 0 380px',
+            minWidth: 300,
+            borderLeft: `1px solid ${T.border}`,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+          }}
+        >
+          <ServedTab
+            runner={runner ?? recorder.observedRunner()}
+            cursorRuntimeStageId={cursorRuntimeStageId}
+            commitIdx={at?.commitIdx ?? -1}
+            onJumpTo={jumpTo}
+          />
+        </div>
       </div>
     </div>
   );

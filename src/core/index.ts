@@ -237,3 +237,27 @@ export * from "./artifacts/index.js";
 // the words are display; the structured decision is the record).
 // `<AwaitingPane>` composes them; a Vue or CLI shell can too.
 export * from "./hitl/index.js";
+
+// The Served tab's data (0.47.0): the ONE cursor resolved to its epoch, the
+// rebuilt request checked against the receipt with the library's own hashes,
+// what changed since the previous epoch, and the agent's own keys at the stop
+// read from the FOLD. Pure; frozen returns; no React. See src/core/served/README.md.
+export {
+  servedRowAt,
+  servedRowForEpoch,
+  verify,
+  EXCUSING_GAPS,
+  sincePrevious,
+  foldFactsAt,
+  FOLD_FACT_KEYS,
+  type FieldCheck,
+  type FoldFactKey,
+  type FoldFacts,
+  type ReceiptPresence,
+  type RowCounts,
+  type ServedCursor,
+  type ServedFieldStatus,
+  type ServedRow,
+  type ServedVerification,
+  type SincePrevious,
+} from "./served/index.js";

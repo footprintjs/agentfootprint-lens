@@ -2,16 +2,27 @@
  * diffPrompts — word-level diff between two prompt strings.
  *
  * Returns a sequence of segments tagged `equal` / `added` / `removed`,
- * suitable for inline highlighting in the compare-branches panel.
+ * suitable for inline highlighting in the compare-branches panel and the
+ * Served tab's since-previous block.
  *
  * Pure function. Layer 1 / Tier C / Lens v0.1.
  *
- * Algorithm: LCS (longest common subsequence) at word granularity.
- * Tokenizes both inputs by whitespace boundary (preserving the
- * delimiter glue so reconstructing the original is trivial). LCS
- * complexity is O(n × m); for prompts under ~10k tokens this is
- * well under 10ms in V8. For longer prompts the caller should chunk
- * or use a streaming alternative.
+ * Algorithm: the common HEAD and TAIL of the two token sequences are stripped
+ * in O(n + m) first, and only the middle that actually differs goes to an LCS
+ * (longest common subsequence) at word granularity. LCS is O(n × m) in time
+ * AND memory (one `Uint32Array` row per token of `a`), so it is bounded:
+ * `diffPromptsBounded` refuses a middle larger than `maxCells` and returns
+ * `undefined` — "not computed" is a fact a caller prints as data, never a
+ * stall of hundreds of milliseconds and hundreds of megabytes inside a render.
+ * `diffPrompts` is the unbounded form for the small strings it was written
+ * for.
+ *
+ * MEASURED (this machine, one-word change in the middle): the head/tail strip
+ * makes a one-word edit in a 10 000-word prompt cost the LCS of a handful of
+ * tokens; two prompts that differ throughout hit the cap at ~1 250 words each
+ * (2 500 × 2 500 tokens = {@link DIFF_CELL_CAP} cells ≈ 25 MB, ~15 ms).
+ * Whitespace runs are tokens of their own, so a prompt of N words is ≈ 2N
+ * tokens.
  *
  * Why word-level (not char-level): debugging "why did legal say
  * approve but ethics say deny?" surfaces in WORD-level divergence
@@ -115,9 +126,81 @@ function lcsDiff(a: readonly string[], b: readonly string[]): DiffSegment[] {
   return segments;
 }
 
-export function diffPrompts(a: string, b: string): readonly DiffSegment[] {
+/**
+ * The largest LCS table `diffPromptsBounded` will build by default, in cells
+ * (tokens of `a` × tokens of `b`, after the common head and tail are
+ * stripped). 2 500 × 2 500 — about 25 MB of `Uint32Array` and ~15 ms.
+ */
+export const DIFF_CELL_CAP = 6_250_000;
+
+/** Tokens shared at the head of both sequences. */
+function commonHead(a: readonly string[], b: readonly string[]): number {
+  const max = Math.min(a.length, b.length);
+  let n = 0;
+  while (n < max && a[n] === b[n]) n++;
+  return n;
+}
+
+/** Tokens shared at the tail of both sequences, past a head of `head`. */
+function commonTail(a: readonly string[], b: readonly string[], head: number): number {
+  const max = Math.min(a.length, b.length) - head;
+  let n = 0;
+  while (n < max && a[a.length - 1 - n] === b[b.length - 1 - n]) n++;
+  return n;
+}
+
+/** Concatenate segment runs, merging adjacent runs of one kind. */
+function joinSegments(parts: readonly (readonly DiffSegment[])[]): DiffSegment[] {
+  const out: DiffSegment[] = [];
+  for (const part of parts) {
+    for (const s of part) {
+      if (s.text.length === 0) continue;
+      const last = out[out.length - 1];
+      if (last !== undefined && last.kind === s.kind) {
+        out[out.length - 1] = { kind: last.kind, text: last.text + s.text } as DiffSegment;
+      } else {
+        out.push(s);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * The diff, or `undefined` when the part of the two strings that differs is
+ * larger than `maxCells` (tokens × tokens) — the caller then prints "not
+ * computed" rather than paying a quadratic table inside a render.
+ *
+ * @example
+ * ```ts
+ * diffPromptsBounded(before, after);            // segments, or undefined past the cap
+ * diffPromptsBounded(before, after, Infinity);  // === diffPrompts(before, after)
+ * ```
+ */
+export function diffPromptsBounded(
+  a: string,
+  b: string,
+  maxCells: number = DIFF_CELL_CAP,
+): readonly DiffSegment[] | undefined {
   if (a === b) {
     return a.length === 0 ? [] : [{ kind: 'equal', text: a }];
   }
-  return lcsDiff(tokenize(a), tokenize(b));
+  const ta = tokenize(a);
+  const tb = tokenize(b);
+  const head = commonHead(ta, tb);
+  const tail = commonTail(ta, tb, head);
+  const midA = ta.slice(head, ta.length - tail);
+  const midB = tb.slice(head, tb.length - tail);
+  if (midA.length * midB.length > maxCells) return undefined;
+  return joinSegments([
+    head > 0 ? [{ kind: 'equal', text: ta.slice(0, head).join('') }] : [],
+    lcsDiff(midA, midB),
+    tail > 0 ? [{ kind: 'equal', text: ta.slice(ta.length - tail).join('') }] : [],
+  ]);
+}
+
+/** The unbounded diff — for the short strings the compare-branches panel
+ *  hands it. Prefer {@link diffPromptsBounded} for anything a run composed. */
+export function diffPrompts(a: string, b: string): readonly DiffSegment[] {
+  return diffPromptsBounded(a, b, Number.POSITIVE_INFINITY)!;
 }

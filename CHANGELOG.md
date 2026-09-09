@@ -5,6 +5,129 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.47.0] - 2026-09-08
+
+Stand on an LLM turn and ask what the model read. Until now the honest answer
+from any lens in this family was "most of it": the request a provider receives
+is assembled from committed pieces and is itself never committed, so a panel
+either read an event some runs record (`llm_start`, opt-in) or rebuilt the
+prompt from the pieces with no way to say whether the rebuild matched what
+went out.
+
+agentfootprint 9.88.0 ships both halves and one law — `hash(servedAt(k)) ===
+receiptAt(k).hash` — and this release renders them. The right rail of the Why
+Lens has a second tab, **Served**, mounted for every run: at every LLM call,
+exactly what the model was served, provable from the log, with a badge beside
+each field saying what the record could establish and the library's own
+sentence beside every field it could not.
+
+### Added
+
+- **`<ServedTab>`** on the engineer view's right rail (tab strip: *What
+  happened* · *Served*), and exported for shells that hold the one cursor
+  themselves. Sections: SERVED (system prompt by piece, messages as sent,
+  request-only lines, tools as sent with the forced tool marked and `withheld`
+  as the library states it) · BASIS (epoch, call, commit, model, provider,
+  params — only the dials the receipt carries — cache transform and
+  breakpoints) · FOLD (`iteration`, `currentSkillId`, `stepPointer`,
+  engagement, active injections, **hidden from the model** — read from the
+  fold at the stop through footprintjs's `stateAt`, never from a receipt) ·
+  OMISSIONS ·
+  GAPS (kind, fields covered, `why` verbatim, `cause` when the library
+  established one) · SINCE PREVIOUS (messages entered/left, tools added/removed,
+  schemas changed, and a word diff of the system text through the lens's
+  `diffPromptsBounded`).
+
+- **Four badges, four exact meanings.** *Verified* — the receipt's hash equals
+  the hash of the rebuild, computed with agentfootprint's exported
+  `receiptHash` / `messageDigestInput`, run-salted. *Reconstructed* — rebuilt,
+  nothing to check it against (no receipt, no hash for the row, or a declared
+  gap covering a field whose rebuild can only be short). *Damaged* — the record
+  contradicts itself: a hash that disagrees with no gap to excuse it, a rebuilt
+  row the receipt never witnessed (the receipt is the witness in BOTH
+  directions — `rebuiltOnly` counts them), or a value under the receipt key
+  that was refused as not-a-receipt. *Not on record* — absent on both sides.
+  Tool names are never *Verified* (no hash exists); tool schemas stay
+  *Reconstructed* because the library's canonical serializer is not exported
+  and a lookalike would be a second copy of the rule. Under `no-fold-base` the
+  rebuild is a suffix of what went out, so rows are paired by the receipt's own
+  join key / suffix offset / `(slot, source)` and a paired row is decided by
+  its hash — the excuse never hides a disagreement on a row that has its
+  witness. When two hashes disagree they are printed inline, whatever the
+  status.
+
+- **`/core`: `servedRowAt` · `servedRowForEpoch` · `verify` · `sincePrevious` ·
+  `foldFactsAt`** — pure, frozen, framework-free. `servedRowAt(recording,
+  { runtimeStageId, commitIdx })` resolves the lens's cursor to its epoch: on an
+  llm-turn stop, that call; on a grouped turn's mount, that turn; anywhere else
+  the nearest PRECEDING call, flagged `betweenCalls`. `EXCUSING_GAPS` names the
+  gaps under which a disagreement is a declared hole rather than damage.
+
+- **`LensRecorder.observedRunner()`** — the runner under observation, so a
+  `<Lens recorder>` with no `runner` prop still reaches the snapshot the tab
+  folds.
+
+- **`SERVED_LABELS`** — every string the tab owns. Labels, never sentences about
+  the run: `test/served/no-own-claims.test.ts` walks every literal in the tab's
+  source and fails, naming the literal, on any claim sentence that is not the
+  library's. Its header states what such a walk cannot catch.
+
+- **Fixtures generated from real 9.88.0 runs** (`test/served/fixtures/`): flat
+  and grouped agents, an `LLMCall` (no receipt → the gap and its cause), a
+  paused-and-resumed run whose base did not travel (`no-fold-base`), a
+  tool-forced output, a stepped skill whose tool set moves between epochs, and a
+  role that may not see one skill (`hiddenSkillIds` on the fold, nowhere on a
+  receipt).
+
+- **A record can never take the Lens down.** agentfootprint's `receiptAt`
+  narrows only `basis.epoch`; the lens narrows the rest (`receiptShape.ts`) and
+  treats a half-shaped receipt as `cause: 'receipt-shape-rejected'` — every row
+  *Damaged*, nothing dereferenced. A commit-log row the fold cannot read is
+  printed in the FOLD section as data (`skipped` indices under footprintjs
+  9.18, the fold's error under 9.17). A render throw past both is caught by a
+  boundary around the tab that prints the Damaged badge and the message, so the
+  one cursor and the *What happened* tab survive exactly the record this tab
+  exists to call damaged.
+
+- **Derivation per log and cursor, never per render.** A live runner hands back
+  a new snapshot object on every `getLastSnapshot()`; the tab keys its
+  derivation on the log (run id + commit count), so a Lens re-render the cursor
+  did not cause re-runs no fold. The system-text diff is `diffPromptsBounded`:
+  common head and tail stripped first, and a differing middle past
+  `DIFF_CELL_CAP` (2 500 × 2 500 tokens) is not computed — the tab prints
+  *diff not computed* as data instead of stalling on a quadratic table.
+
+### The laws this tab keeps
+
+A lens may **omit, never deny** — a field a gap covers is never rendered as
+"empty" or "none"; the gap is the empty state, and under an excusing gap a
+section's header prints BOTH counts labelled (`rebuilt 1 · receipt 3`), never a
+bare number that reads as "no tools". The tab **writes no claim sentences of
+its own** — eight review rounds upstream found a new false sentence in every
+round of hand-written prose; `test/served/no-own-claims.test.ts` is an
+ALLOWLIST (every printed literal of two or more words must be a `SERVED_LABELS`
+value or a library constant), not a verb blacklist. A resumed leg's first call
+prints its previous epoch's NUMBER with *Not on record* — never "no previous
+epoch", which the paused leg refutes. **Verified means hashes agree**, nothing
+softer. **Authority omissions come from the fold**, not the receipt. **One
+cursor** — the tab holds a diff toggle and a set of expanded schemas, never a
+position; Run · start hands it no commit (`-1`), since that stop stands before
+the first commit it shares an index with.
+
+### Changed
+
+- `agentfootprint` devDependency → `^9.88.0` (the peer range `^7 || ^8 || ^9`
+  is unchanged). On a recording made before 9.88 the tab still renders every
+  epoch, *Reconstructed* throughout, with the library's `no-receipt-on-chart`
+  sentence beside it.
+- `vitest` and `tsc` now include `test/**` alongside `src/**`.
+- `diffPrompts` (compare-branches) is now the unbounded form of
+  `diffPromptsBounded`; its docstring's timing claim was false by ~25× at 10k
+  tokens (a full LCS table was built for a one-word change) and is replaced by
+  a measured one.
+- `LensRecorder.observedRunner()` JSDoc: the runner is undefined after
+  `detach()` or the `observe()` unsubscribe — there is no `stop()`.
+
 ## [0.46.0] - 2026-09-06
 
 Four views, four copies of "clamp at zero, clamp at the end".

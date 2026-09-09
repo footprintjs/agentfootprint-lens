@@ -3,7 +3,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { diffPrompts, type DiffSegment } from './diffPrompts.js';
+import { DIFF_CELL_CAP, diffPrompts, diffPromptsBounded, type DiffSegment } from './diffPrompts.js';
 
 function reconstruct(segments: readonly DiffSegment[], side: 'a' | 'b'): string {
   let out = '';
@@ -187,5 +187,67 @@ describe('diffPrompts — load', () => {
     diffPrompts(a, b);
     const ms = performance.now() - start;
     expect(ms).toBeLessThan(500);
+  });
+});
+
+// ─── 8. BOUNDED ─────────────────────────────────────────────────────
+
+describe('diffPromptsBounded — the common head and tail are stripped; a differing middle past the cap is not computed', () => {
+  const words = (n: number, tag = 'w') => Array.from({ length: n }, (_, i) => `${tag}${i}`);
+
+  it('a one-word change in a 10 000-word prompt costs the LCS of one word — and reconstructs both sides', () => {
+    const a = words(10_000).join(' ');
+    const b = words(10_000)
+      .map((w, i) => (i === 5_000 ? 'CHANGED' : w))
+      .join(' ');
+    const start = performance.now();
+    const out = diffPromptsBounded(a, b, 100)!;
+    const ms = performance.now() - start;
+    expect(out).toBeDefined();
+    expect(ms).toBeLessThan(200);
+    expect(out.filter((s) => s.kind !== 'equal')).toEqual([
+      { kind: 'removed', text: 'w5000' },
+      { kind: 'added', text: 'CHANGED' },
+    ]);
+    expect(reconstruct(out, 'a')).toBe(a);
+    expect(reconstruct(out, 'b')).toBe(b);
+  });
+
+  it('two prompts that differ throughout, past the cap → undefined, fast, and no table allocated', () => {
+    const a = words(3_000, 'a').join(' ');
+    const b = words(3_000, 'b').join(' ');
+    const start = performance.now();
+    expect(diffPromptsBounded(a, b)).toBeUndefined();
+    expect(performance.now() - start).toBeLessThan(100);
+    // Under a cap that admits it, the same shape IS computed — and exact.
+    const small = diffPromptsBounded('x y', 'p q', 100)!;
+    expect(small).toBeDefined();
+    expect(reconstruct(small, 'a')).toBe('x y');
+    expect(reconstruct(small, 'b')).toBe('p q');
+    expect(diffPromptsBounded('x y', 'p q', 1)).toBeUndefined();
+  });
+
+  it('the default cap admits ~1 250 differing words a side (2 500 × 2 500 tokens)', () => {
+    expect(DIFF_CELL_CAP).toBe(2_500 * 2_500);
+    const a = words(1_200, 'a').join(' ');
+    const b = words(1_200, 'b').join(' ');
+    expect(diffPromptsBounded(a, b)).toBeDefined();
+  });
+
+  it('unbounded equals diffPrompts, and equal inputs short-circuit', () => {
+    expect(diffPromptsBounded('a b c', 'a x c', Number.POSITIVE_INFINITY)).toEqual(diffPrompts('a b c', 'a x c'));
+    expect(diffPromptsBounded('same', 'same')).toEqual([{ kind: 'equal', text: 'same' }]);
+    expect(diffPromptsBounded('', '')).toEqual([]);
+    expect(diffPromptsBounded('', 'x y', 0)).toEqual([{ kind: 'added', text: 'x y' }]);
+  });
+
+  it('head/tail strip keeps the diff minimal and exact when only the middle moved', () => {
+    const out = diffPromptsBounded('the quick brown fox jumps', 'the quick red fox jumps')!;
+    expect(out).toEqual([
+      { kind: 'equal', text: 'the quick ' },
+      { kind: 'removed', text: 'brown' },
+      { kind: 'added', text: 'red' },
+      { kind: 'equal', text: ' fox jumps' },
+    ]);
   });
 });

@@ -935,6 +935,129 @@ not answer, since it takes an exact stop.
 
 ---
 
+## The Served tab
+
+**At every LLM call, exactly what the model was served — provable from the log.**
+The Why Lens's right rail has a second tab, **Served**, mounted for every run.
+Stand on an LLM turn and it shows the request that call went out with: the system
+prompt (piece by piece), the messages as sent, the tools as sent, the dials, the
+cache breakpoints — and beside every field, what the record can PROVE about it.
+
+### Why
+
+The request a provider receives is assembled from committed pieces and is itself
+never committed — the `call-llm` bundle holds the answer, not the ask. Every
+earlier "what did the model see?" panel in this family read an event
+(`llm_start`) that only some runs record, or rebuilt the prompt from the pieces
+with no way to know whether the rebuild matched what went out.
+
+agentfootprint 9.88.0 closes that with two halves and one law:
+
+```
+hash(servedAt(k)) === receiptAt(k).hash
+```
+
+`servedAt(k)` REBUILDS the request for epoch `k` (one epoch = one LLM call) from
+the committed pieces. `receiptAt(k)` reads the **receipt** — the hashes-only
+record the call itself committed at the stop (system hash and pieces, one hash
+per message, tool names and schema hashes, the sampling dials, the cache
+verdict). When the two agree the record is complete; when they disagree,
+something reached the model that the run never wrote down. The tab renders both
+halves at the lens's one cursor and checks them with the library's own
+`receiptHash` / `messageDigestInput`.
+
+### What each badge means
+
+| badge | exactly this |
+|---|---|
+| **Verified** | the receipt's hash for the field EQUALS the hash of what the rebuild produced — run-salted SHA-256, computed with agentfootprint's exported `receiptHash` (over `messageDigestInput` for a message). Nothing softer earns it. |
+| **Reconstructed** | rebuilt from the log, but nothing to check it against: this epoch committed no receipt, the receipt has no hash for this row, or a gap on the view covers the field (a declared hole, printed beside it). Tool NAMES are always here — they carry no hash. Tool SCHEMAS are here too, because the library hashes them over a canonical JSON it does not export, and a lookalike serializer would be a second copy of the rule. |
+| **Damaged** | the record contradicts itself: the receipt's hash disagrees with the rebuild and no gap excuses it, the rebuild produced a row the receipt never witnessed (no gap says a rebuild may be LONG — the receipt is the witness in both directions), or something under the receipt key was refused as not-a-receipt (`cause: 'receipt-shape-rejected'` — the library refuses a value with no `basis.epoch`, the lens refuses one missing the containers it reads). |
+| **Not on record** | the field is absent on both sides — a receipt-only field (model, provider, params, cache) on an epoch that minted no receipt. |
+
+### The laws the tab keeps
+
+- **Omit, never deny.** A field a gap covers is never rendered as "empty" or
+  "none". The gap IS the empty state: its `why` sentence, verbatim from
+  `SERVED_GAPS`, is printed beside the field it covers, and the section is
+  marked with the gap's name.
+- **The tab writes no claim sentences of its own.** Every explanatory sentence
+  on it is the library's — `SERVED_GAPS[k].why`, `UNGAPPED_FIELDS[k]`,
+  `RECEIPT_BOUNDARY` — or is computed data: a status, a count, a hash, a diff.
+  The strings the tab owns are labels (`SERVED_LABELS`), and
+  `test/served/no-own-claims.test.ts` walks every literal in the tab's source to
+  keep it that way; its header states what such a walk cannot catch.
+- **Authority omissions come from the fold.** A receipt never names what a
+  caller's ROLE was not allowed to see (the library's first law). The tab's
+  audience is an operator, so it MAY show the skill ids hidden from the model —
+  but it reads them from the committed state at the stop through footprintjs's
+  `stateAt`, labelled **hidden from the model**, never from the receipt.
+- **One cursor.** The tab takes the lens's position as props and holds none of
+  its own. On an llm-turn stop it shows that epoch. On any other stop it shows
+  the nearest PRECEDING call with the note *as of call k — this stop is between
+  calls*. Clicking the call's id asks the lens to move the one cursor there.
+  A resumed leg's first call has no previous epoch IN THIS RECORDING; the tab
+  prints that epoch's number with *Not on record*, never "no previous epoch".
+- **A record never takes the Lens down.** A half-shaped receipt reads
+  *Damaged*; a commit-log row the fold cannot read is data in the FOLD
+  section; a render throw is caught by a boundary around the tab and printed
+  as the Damaged badge plus the message. The rest of the Lens — its one
+  cursor, its *What happened* tab — stays mounted.
+
+### The sections
+
+**SERVED** — system prompt with per-piece boundaries (slot · source) and a
+word-level diff against the previous epoch when the text changed; messages as
+sent (role, tool-call ids, request-only lines marked with the mechanism that
+composed them); tools as sent (names, expandable schemas, the forced tool
+marked, `withheld` shown as the library states it). **BASIS** — epoch, call id,
+commit index, model, provider, params (only the dials the receipt carries — an
+absent dial is not rendered as a default), cache (transform, breakpoints
+applied). **FOLD** — `iteration`, `currentSkillId`, `stepPointer`, engagement,
+active injections, hidden skill ids, read from the fold at the stop; a row the
+fold could not read is printed there as data (skipped indices, or the fold's
+error), beside a Damaged badge.
+**OMISSIONS** — attention drops from the receipt when present, else the
+library's `UNGAPPED_FIELDS` sentence for the field. **GAPS** — every gap on the
+view: its kind, the fields it covers, its sentence verbatim, and its `cause`
+when the library established one (`receipt-shape-rejected` styled as damage).
+**SINCE PREVIOUS** — messages entered/left, tools added/removed, schemas whose
+receipt hashes changed, and the system-text word diff.
+
+### Headless
+
+```ts
+import {
+  servedRowAt, servedRowForEpoch, verify, sincePrevious, foldFactsAt,
+} from 'agentfootprint-lens/core';
+
+const snapshot = runner.getLastSnapshot();
+const row = servedRowAt(snapshot, { runtimeStageId: 'call-llm#18', commitIdx: 15 });
+if (row) {
+  row.epoch;                                         // 1
+  row.betweenCalls;                                  // false — on the call itself
+  const checks = verify(row.view, row.receipt, row.receipt?.basis.runId ?? '');
+  checks.system.status;                              // 'verified'
+  checks.messages.map((c) => c.status);              // ['verified']
+  row.view.gaps.map((g) => g.why);                   // the library's sentences
+  const prev = row.previousEpoch !== undefined
+    ? servedRowForEpoch(snapshot, row.previousEpoch) : undefined;
+  if (prev) sincePrevious(row, prev).tools.added;    // ['charge']
+  foldFactsAt(snapshot, { runtimeStageId: 'call-llm#18', commitIdx: 15 }).hiddenSkillIds;
+}
+```
+
+Every function is pure and every return is frozen. `<ServedTab runner
+cursorRuntimeStageId commitIdx onJumpTo>` is exported for shells that hold the
+one cursor themselves.
+
+**A recording made before agentfootprint 9.88** still renders: the rebuild works
+on every epoch, no receipt was minted, and the tab says so with the library's
+`no-receipt-on-chart` gap and `cause: 'no-receipt-committed'` — every row
+**Reconstructed**, never a fabricated **Verified**.
+
+---
+
 ## Rendering your own detail pane
 
 `slots.detail` replaces the CONTENT of the shipped right column. The column
@@ -1153,6 +1276,16 @@ always visited, the chart cone follows the walk, and **[Copy story]** emits the
 exact `formatSlice` text the LLM tool returns. Honest absence stays honest:
 "never written — initial state / args / a closure", and reads-off runs say
 "unknowable, not absent".
+
+### `<ServedTab>` — what the model was served at the cursor's call
+
+`<ServedTab runner cursorRuntimeStageId commitIdx onJumpTo?>`. The Why Lens
+mounts it as the right rail's second tab; exported for consumer-built shells.
+Renders `servedAt(k)` and `receiptAt(k)` (agentfootprint 9.88.0) at the one
+cursor with a **Verified / Reconstructed / Damaged / Not on record** badge per
+field, the library's gap sentences verbatim, the fold's hidden skill ids, and a
+since-previous diff. Headless: `servedRowAt` · `verify` · `sincePrevious` ·
+`foldFactsAt` in `/core`. See "The Served tab" above.
 
 ### `<BugReportButton>` — report a bug with the run attached, consent first
 

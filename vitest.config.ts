@@ -5,7 +5,7 @@ export default defineConfig({
     environment: "jsdom",
     globals: false,
     setupFiles: ["./vitest.setup.ts"],
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "test/**/*.test.{ts,tsx}"],
     // CI resilience: a few tests are inherently timing-sensitive (perf budgets) or
     // render-order-sensitive under parallel workers, and fail intermittently on loaded
     // CI runners — which silently blocked the npm publish since v0.22.0. Retry transient

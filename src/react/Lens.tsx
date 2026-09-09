@@ -49,6 +49,7 @@ import { useLensRecorder } from "./hooks/useLensRecorder.js";
 import { useDrillPath } from "./hooks/useDrillPath.js";
 import { useCommitSync } from "./hooks/useCommitSync.js";
 import { useCursorPositions } from "./hooks/useCursorPositions.js";
+import type { CursorPosition } from "../core/group/cursorPositionsAtDrill.js";
 import { stepBands, bandIndexOf, bandChartGroup } from "../core/group/stepBands.js";
 import { isFrameworkChartNode } from "../core/collapser/frameworkNode.js";
 import {
@@ -69,6 +70,7 @@ import { T, MODE_PALETTES } from "./theme/index.js";
 // Injected on first render, once — consumers wire no CSS. See lensStyles.ts.
 import { ensureLensStyles } from "./lensStyles.js";
 import { WhereFrom } from "./WhereFrom.js";
+import { ServedTab } from "./components/ServedTab.js";
 // eui's light/dark presets — applied to the chart area from `theme.mode` so the
 // eui-rendered nodes follow dark/light without the consumer hand-setting `--fp-*`.
 import { tokensToCSSVars, coolLight, coolDark } from "footprint-explainable-ui";
@@ -1441,6 +1443,14 @@ const EngineerView: React.FC<{
 
   // The right column's content. Absent slot → the built-in timeline, unchanged.
   const DetailSlot = slots?.detail;
+  // Which reading the right rail shows: WHAT HAPPENED (the shipped timeline) or
+  // SERVED (what the model was handed at the cursor's call). A tab choice, not
+  // a position — both read the same one cursor.
+  const [railTab, setRailTab] = useState<"happened" | "served">("happened");
+  // The Served tab folds the run's own snapshot. Prefer the `runner` prop; fall
+  // back to the runner the recorder is observing, so a `<Lens recorder>` with
+  // no runner prop still gets the tab.
+  const servedRunner: unknown = runner ?? recorder.observedRunner();
 
   // Address → cursor, for a chart click or a provenance frame. The RULE is
   // still the Lens's (exact, then the same stage at whatever execution index
@@ -1793,6 +1803,37 @@ const EngineerView: React.FC<{
                 onNavigate={onFocusChange}
               />
             ) : (
+            <>
+            <div role="tablist" aria-label="Right rail" style={railTabsStyle}>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={railTab === "happened"}
+                data-testid="rail-tab-happened"
+                style={railTabStyle(railTab === "happened")}
+                onClick={() => setRailTab("happened")}
+              >
+                What happened
+              </button>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={railTab === "served"}
+                data-testid="rail-tab-served"
+                style={railTabStyle(railTab === "served")}
+                onClick={() => setRailTab("served")}
+              >
+                Served
+              </button>
+            </div>
+            {railTab === "served" ? (
+              <ServedTab
+                runner={servedRunner}
+                cursorRuntimeStageId={cursorRuntimeStageId}
+                commitIdx={servedCommitIdxOf(cursorPositions[focusStep])}
+                onJumpTo={jumpToRuntimeStageId}
+              />
+            ) : (
             <WhatHappenedTimeline
               moments={timelineMoments}
               focusStep={focusStep}
@@ -1837,6 +1878,8 @@ const EngineerView: React.FC<{
                   }
                 : {})}
             />
+            )}
+            </>
             )}
           </div>
         )}
@@ -2379,6 +2422,41 @@ const AgentListRow: React.FC<{
 //   - VLinePill: vertical divider with a centered pill (left/right edges)
 // Click the pill to expand/collapse the adjacent panel. When collapsed
 // the pill+line is the only artifact remaining — minimal visual cost.
+
+/**
+ * The commit anchor the Served tab folds at, for a stop on the axis. Run ·
+ * start (the root group's `group-start`) shares its `commitIdx` with the first
+ * bundle — the group OPENS at that commit — but the stop stands BEFORE that
+ * commit happened, so the tab is handed `-1`: no call has been served yet and
+ * the fold is the base. Every other stop anchors where the axis says.
+ */
+function servedCommitIdxOf(position: CursorPosition | undefined): number {
+  if (position === undefined) return -1;
+  if (position.kind === "group-start" && position.depth === 0) return -1;
+  return position.commitIdx;
+}
+
+/** The right rail's two readings, as a tab strip. */
+const railTabsStyle: React.CSSProperties = {
+  display: "flex",
+  flex: "none",
+  borderBottom: `1px solid ${T.border}`,
+  background: T.bgElevated,
+};
+function railTabStyle(active: boolean): React.CSSProperties {
+  return {
+    flex: 1,
+    padding: "6px 10px",
+    fontSize: 11,
+    fontWeight: active ? 700 : 500,
+    letterSpacing: "0.04em",
+    color: active ? T.textPrimary : T.textMuted,
+    background: "transparent",
+    border: "none",
+    borderBottom: `2px solid ${active ? T.primary : "transparent"}`,
+    cursor: "pointer",
+  };
+}
 
 const HLinePill = memo(function HLinePill({
   label,

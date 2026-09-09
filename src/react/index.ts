@@ -135,6 +135,13 @@ export {
   type ToolChoicePanelProps,
 } from "./components/ToolChoicePanel.js";
 
+// <ServedTab> — at every LLM call, exactly what the model was served, provable
+// from the log (agentfootprint 9.88.0's `servedAt` / `receiptAt`). The engineer
+// view mounts it as the right rail's second tab; exported for consumer-built
+// shells that hold the one cursor themselves. `LABELS` is every string the tab
+// owns — labels, never sentences about the run.
+export { ServedTab, LABELS as SERVED_LABELS, type ServedTabProps } from "./components/ServedTab.js";
+
 // Hooks — composable building blocks for consumer-built Lens layouts.
 export * from "./hooks/index.js";
 // <BugReportButton> — "Report a bug with this run" with consent first: the

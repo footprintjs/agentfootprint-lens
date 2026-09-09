@@ -412,6 +412,18 @@ export class LensRecorder {
   }
 
   /**
+   * The runner this recorder is observing (the most recent `observe(runner)`),
+   * or `undefined` before the first observe / after `detach()` or the
+   * `observe()` unsubscribe. Read-only access
+   * for panes that fold the run's OWN snapshot — the Served tab reads
+   * `getLastSnapshot()` off it — so a `<Lens recorder>` with no `runner` prop
+   * still reaches the log it is looking at.
+   */
+  observedRunner(): Runner | undefined {
+    return this.currentRunner;
+  }
+
+  /**
    * One-line notes about what this view can honestly show — "this recording
    * carried no chart", "3 events could not be read". Views render them; a
    * consumer never has to remember to. Deduped, in the order added; cleared by
