@@ -5,8 +5,9 @@
  *
  * Every hash here is computed by agentfootprint's exported `receiptHash`
  * (run-salted SHA-256, 16 hex chars) over the exported `messageDigestInput`
- * for a message and over the raw text for a system piece or the joined
- * system prompt. Nothing in this file re-implements a digest. A field is
+ * for a message, the exported `toolDigestInput` for a tool schema, and the raw
+ * text for a system piece or the joined system prompt. Nothing in this file
+ * re-implements a digest. A field is
  * `'verified'` when — and only when — the receipt's hash for it equals the
  * hash of what the rebuild produced.
  *
@@ -28,13 +29,17 @@
  * match; system pieces by `(slot, source)`, which both sides carry. A row with
  * a counterpart is decided by the hash; a row with none is `'damaged'`.
  *
- * WHAT IS NOT VERIFIED HERE, AND WHY. A tool schema's receipt hash is taken
- * over the library's canonical JSON (`stableJson`), which agentfootprint 9.88.0
- * does not export from its root barrel. A sorted-key serializer written here
- * would be a second copy of that rule, and the whole point of the law is that
- * there is one. Schema rows therefore stay `'reconstructed'` until the library
- * exports the serializer — an honest limit, stated on the tab as a status and
- * here as a comment, not papered over with a lookalike hash.
+ * TOOL SCHEMAS. A schema's receipt hash is taken over the exported
+ * `toolDigestInput(tool)` (agentfootprint 9.89.0, beside `messageDigestInput`)
+ * — the ONE spelling of the schema rule; `buildReceipt` calls the same
+ * function. Rows are paired by NAME, the key both sides carry, so an excusing
+ * gap changes no pairing here: it only makes a receipt-only hash (the forced
+ * tool's, under `forced-tool-schema`) the declared hole rather than damage. A
+ * rebuilt schema the receipt never hashed is `'damaged'`, as any unwitnessed
+ * row is. Under a 9.88 peer the export is absent, and the rows stay
+ * `'reconstructed'` with the receipt's hash riding along as data — detected at
+ * call time (`toolDigestOf`), never by copying the serializer here, which would
+ * be a second owner of the rule.
  *
  * Tool NAMES carry no hash on either side (they are plain strings on the
  * receipt), so they are never `'verified'`; but two name lists CAN contradict
@@ -42,6 +47,7 @@
  * the receipt's list back as data so a renderer can print the diff.
  */
 
+import * as agentfootprint from 'agentfootprint';
 import {
   messageDigestInput,
   receiptHash,
@@ -60,6 +66,24 @@ import type { FieldCheck, ServedFieldStatus } from './types.js';
 /** One message as the view carries it (the library's `LLMMessage`, reached
  *  through the view because the root barrel does not export the type). */
 type ServedMessage = ServedView['messages']['asSent'][number];
+/** One tool schema as the view carries it (the library's `LLMToolSchema`,
+ *  likewise reached through the view). */
+type ServedSchema = ServedView['tools']['schemas'][number];
+
+/** The library's schema digest, when this peer exports it. */
+type ToolDigest = (tool: ServedSchema) => string;
+
+/**
+ * `toolDigestInput` arrived in agentfootprint 9.89.0. It is read off the
+ * module namespace AT CALL TIME rather than named in the import list, because
+ * under ESM a named import of a symbol the peer does not export fails the
+ * whole module at link time — on a 9.88 peer this resolves to `undefined` and
+ * the schema rows are `'reconstructed'`, as they were in 0.47.0.
+ */
+function toolDigestOf(): ToolDigest | undefined {
+  const digest: ToolDigest | undefined = agentfootprint.toolDigestInput;
+  return typeof digest === 'function' ? digest : undefined;
+}
 
 /**
  * The gaps that EXCUSE a receipt row the rebuild did not produce — the
@@ -97,6 +121,9 @@ export interface RowCounts {
   readonly messages: number;
   readonly requestOnly: number;
   readonly toolNames: readonly string[];
+  /** Schema NAMES hashed on one side only — the receipt's (`onReceiptOnly`)
+   *  or the rebuild's (`rebuiltOnly`). */
+  readonly schemas: readonly string[];
 }
 
 export interface ServedVerification {
@@ -113,8 +140,10 @@ export interface ServedVerification {
   readonly toolNames: FieldCheck;
   /** The receipt's own name list, for a renderer to diff against the view's. */
   readonly namesOnReceipt?: readonly string[];
-  /** One per `view.tools.schemas[i].name`. `'reconstructed'` while the
-   *  canonical serializer is not exported — see the header. */
+  /** One per `view.tools.schemas[i].name`, paired by name: decided by the hash
+   *  over the library's `toolDigestInput`; `'damaged'` when the receipt has no
+   *  hash for the name; `'reconstructed'` under a peer without the export
+   *  (9.88) — see the header. */
   readonly toolSchemas: Readonly<Record<string, FieldCheck>>;
   /** `basis`, `params`, `cache` — receipt-only fields. */
   readonly basis: ReceiptPresence;
@@ -233,6 +262,7 @@ function withoutReceipt(view: ServedView, absent: ServedFieldStatus): ServedVeri
     messages: 0,
     requestOnly: 0,
     toolNames: Object.freeze([]),
+    schemas: Object.freeze([]),
   });
   return Object.freeze({
     system: check(absent),
@@ -345,33 +375,51 @@ export function verify(
     namesRebuiltOnly.length > 0 || (namesOnReceiptOnly.length > 0 && !namesExcused);
   const toolNames = check(namesContradict ? 'damaged' : 'reconstructed');
 
+  // Schemas: paired by NAME on both sides, decided by the hash over the
+  // library's own `toolDigestInput`. Without the export (a 9.88 peer) the row
+  // is reconstructed and the receipt's hash rides along as data. A receipt-only
+  // name is the declared short list under an excuse (`forced-tool-schema`
+  // names exactly this); a rebuilt schema with no hash is unwitnessed.
+  const schemasExcused = excusedOn(view, 'tools.schemaHashes');
+  const digest = toolDigestOf();
   const schemas: Record<string, FieldCheck> = {};
   for (const schema of view.tools.schemas) {
-    // The receipt hashes the library's canonical JSON of the schema, and that
-    // serializer is not exported — so the row can only be reconstructed. The
-    // receipt's hash rides along as data.
-    schemas[schema.name] = check('reconstructed', undefined, receipt.tools.schemaHashes[schema.name]);
+    const onReceipt: string | undefined = receipt.tools.schemaHashes[schema.name];
+    schemas[schema.name] =
+      digest === undefined
+        ? check('reconstructed', undefined, onReceipt)
+        : against(hash(digest(schema)), onReceipt, 'damaged', 'damaged');
   }
+  const rebuiltSchemaNames = new Set(view.tools.schemas.map((s) => s.name));
+  const schemasRebuiltOnly = [...rebuiltSchemaNames].filter(
+    (n) => receipt.tools.schemaHashes[n] === undefined,
+  );
+  const schemasOnReceiptOnly = Object.keys(receipt.tools.schemaHashes).filter(
+    (n) => !rebuiltSchemaNames.has(n),
+  );
 
   const onReceiptOnly: RowCounts = Object.freeze({
     pieces: unpairedOnReceipt(piecePairs, receipt.system.pieces.length),
     messages: unpairedOnReceipt(messagePairs, receipt.messages.entries.length),
     requestOnly: unpairedOnReceipt(requestOnlyPairs, receipt.messages.requestOnly.length),
     toolNames: Object.freeze(namesOnReceiptOnly),
+    schemas: Object.freeze(schemasOnReceiptOnly),
   });
   const rebuiltOnly: RowCounts = Object.freeze({
     pieces: unpairedRebuilt(piecePairs),
     messages: unpairedRebuilt(messagePairs),
     requestOnly: unpairedRebuilt(requestOnlyPairs),
     toolNames: Object.freeze(namesRebuiltOnly),
+    schemas: Object.freeze(schemasRebuiltOnly),
   });
   // A receipt row nothing rebuilt, with no excuse for the field, is the record
   // contradicting itself even though no rebuilt row carries the status.
   const unexcusedShort =
     (onReceiptOnly.pieces > 0 && !piecesExcused) ||
     (onReceiptOnly.messages > 0 && !entriesExcused) ||
-    (onReceiptOnly.requestOnly > 0 && !requestOnlyExcused);
-  const all = [system, ...pieces, ...messages, ...requestOnly, toolNames];
+    (onReceiptOnly.requestOnly > 0 && !requestOnlyExcused) ||
+    (onReceiptOnly.schemas.length > 0 && !schemasExcused);
+  const all = [system, ...pieces, ...messages, ...requestOnly, toolNames, ...Object.values(schemas)];
 
   return Object.freeze({
     system,

@@ -891,26 +891,28 @@ if (snapshot) {
 }
 ```
 
-A **stored** recording needs one narrowing today, and the reason is honest on
-both sides: the lens types `Recording.snapshot.commitLog` as `readonly
-unknown[]` — a recording arrives as parsed JSON, and the lens will not claim
-that what came back off disk is a `CommitBundle` — while `timeTravel` takes
-`TimeTravelSource`, whose `commitLog` is `readonly CommitBundle[]`. So a
-replayed run has to say so at the seam:
+A **stored** recording meets the port with no cast either, since footprintjs
+9.18. The lens types `Recording.snapshot.commitLog` as `readonly unknown[]` —
+a recording arrives as parsed JSON, and the lens will not claim that what came
+back off disk is a `CommitBundle` — and `TimeTravelSource.commitLog` accepts
+exactly that, narrowing per row where it folds, which is the only place that
+can honestly do it. A row that is not a bundle is reported by index in
+`stateAt().skipped`, never crashed on:
 
 ```ts
-import type { TimeTravelSource } from 'footprintjs/trace';
-
-const stored = recording.snapshot as unknown as TimeTravelSource;
-const tt = timeTravel(stored, { strategy: lensStopsStrategy(positions) });
+if (recording.snapshot) {
+  const tt = timeTravel(recording.snapshot, { strategy: lensStopsStrategy(positions) });
+  tt.jumpTo(7);
+  tt.stateAt().skipped;  // undefined, or the rows the fold could not read
+}
 ```
 
-That cast disappears — with no change here — the day footprintjs widens
-`TimeTravelSource.commitLog` to accept an unvalidated `readonly unknown[]` and
-does the per-bundle narrowing where it folds, which is the only place that can
-honestly do it. It is reported upstream as a port gap. **Movement never needs
-this**: `openLensCursor` reads the stops and no snapshot at all, which is why
-the lens's own cursor is unaffected either way.
+(Under footprintjs 9.17 — still the peer floor — the same call needs
+`recording.snapshot as unknown as TimeTravelSource`, and a bad row throws
+inside the fold; a types-only difference the lens's `foldFactsAt` reports as
+`foldError`.) **Movement never needs a snapshot at all**: `openLensCursor`
+reads the stops and nothing else, which is why the lens's own cursor is
+unaffected either way.
 
 ### Two axes, and drilling
 
@@ -964,14 +966,15 @@ per message, tool names and schema hashes, the sampling dials, the cache
 verdict). When the two agree the record is complete; when they disagree,
 something reached the model that the run never wrote down. The tab renders both
 halves at the lens's one cursor and checks them with the library's own
-`receiptHash` / `messageDigestInput`.
+`receiptHash` over `messageDigestInput` (a message) and `toolDigestInput` (a
+tool schema).
 
 ### What each badge means
 
 | badge | exactly this |
 |---|---|
-| **Verified** | the receipt's hash for the field EQUALS the hash of what the rebuild produced — run-salted SHA-256, computed with agentfootprint's exported `receiptHash` (over `messageDigestInput` for a message). Nothing softer earns it. |
-| **Reconstructed** | rebuilt from the log, but nothing to check it against: this epoch committed no receipt, the receipt has no hash for this row, or a gap on the view covers the field (a declared hole, printed beside it). Tool NAMES are always here — they carry no hash. Tool SCHEMAS are here too, because the library hashes them over a canonical JSON it does not export, and a lookalike serializer would be a second copy of the rule. |
+| **Verified** | the receipt's hash for the field EQUALS the hash of what the rebuild produced — run-salted SHA-256, computed with agentfootprint's exported `receiptHash` (over `messageDigestInput` for a message, `toolDigestInput` for a tool schema). System text, every piece, every message and every tool schema can read it. Nothing softer earns it. |
+| **Reconstructed** | rebuilt from the log, but nothing to check it against: this epoch committed no receipt, the receipt carries no hash for this KIND of row, or a gap on the view covers the field (a declared hole, printed beside it). Tool NAMES are always here — they carry no hash. Tool SCHEMAS are here only under an agentfootprint peer older than 9.89.0, which does not export `toolDigestInput`; the lens detects the export at call time rather than copy the serializer. |
 | **Damaged** | the record contradicts itself: the receipt's hash disagrees with the rebuild and no gap excuses it, the rebuild produced a row the receipt never witnessed (no gap says a rebuild may be LONG — the receipt is the witness in both directions), or something under the receipt key was refused as not-a-receipt (`cause: 'receipt-shape-rejected'` — the library refuses a value with no `basis.epoch`, the lens refuses one missing the containers it reads). |
 | **Not on record** | the field is absent on both sides — a receipt-only field (model, provider, params, cache) on an epoch that minted no receipt. |
 

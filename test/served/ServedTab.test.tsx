@@ -25,7 +25,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { receiptAt, servedAt, SERVED_GAPS, UNGAPPED_FIELDS } from 'agentfootprint';
 
 import { ServedTab, LABELS } from '../../src/react/components/ServedTab.js';
-import { load, loadTampered, stopsOf } from './helpers.js';
+import { load, loadTampered, stopsOf, tamperToolSchema } from './helpers.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -53,7 +53,7 @@ function ownText(container: HTMLElement): string {
 }
 
 describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
-  it('flat run, on the call: system, pieces and messages verified; tool rows reconstructed; params only the dials carried', () => {
+  it('flat run, on the call: system, pieces, messages and schemas verified; the names row reconstructed; params only the dials carried', () => {
     const f = load('flat-dynamic-tools');
     const stop = stopsOf(f, 'llm-turn')[0]!;
     const { container } = mount(f, stop);
@@ -62,15 +62,26 @@ describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
 
     const verified = badges(container).filter((b) => b.dataset.status === 'verified');
     const receipt = receiptAt(f.snapshot, 1)!;
-    // system (1) + pieces + messages — exactly the rows the receipt hashes.
-    expect(verified).toHaveLength(1 + receipt.system.pieces.length + receipt.messages.entries.length);
+    // system (1) + pieces + messages + schemas — exactly the rows the receipt hashes.
+    const schemaCount = Object.keys(receipt.tools.schemaHashes).length;
+    expect(schemaCount).toBe(2);
+    expect(verified).toHaveLength(
+      1 + receipt.system.pieces.length + receipt.messages.entries.length + schemaCount,
+    );
     // Every verified badge carries the two hashes it was decided by.
     verified.forEach((b) => expect(b.title).toMatch(/receipt [0-9a-f]{16} · rebuilt [0-9a-f]{16}/));
-    // The schema rows are 'reconstructed' — never dressed up as verified.
+    // Each schema row reads Verified (agentfootprint 9.89.0's `toolDigestInput`);
+    // the names row carries no hash on either side and stays Reconstructed.
     const tools = screen.getByTestId('served-tools');
-    Array.from(tools.querySelectorAll<HTMLElement>('[data-testid="served-badge"]')).forEach((b) =>
-      expect(b.dataset.status).toBe('reconstructed'),
+    const toolRows = Array.from(tools.querySelectorAll<HTMLElement>('[data-testid="served-tool"]'));
+    expect(toolRows.map((r) => r.dataset.tool)).toEqual(['alpha_tool', 'beta_tool']);
+    toolRows.forEach((r) =>
+      expect(r.querySelector<HTMLElement>('[data-testid="served-badge"]')!.dataset.status).toBe('verified'),
     );
+    const toolStatuses = Array.from(tools.querySelectorAll<HTMLElement>('[data-testid="served-badge"]')).map(
+      (b) => b.dataset.status,
+    );
+    expect(toolStatuses.filter((st) => st === 'reconstructed')).toHaveLength(1);
     expect(badges(container).some((b) => b.dataset.status === 'damaged')).toBe(false);
 
     // Params: the receipt carried temperature (0.25) — rendered; no other dial
@@ -78,6 +89,25 @@ describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
     expect(screen.getByTestId('served-param-temperature')).toHaveTextContent('0.25');
     expect(screen.queryByTestId('served-param-maxTokens')).toBeNull();
     expect(screen.getByTestId('served-model')).toHaveTextContent('mock');
+  });
+
+  it('a schema tampered in the recording: that row reads Damaged with both hashes inline, the other stays Verified', () => {
+    const f = loadTampered('flat-dynamic-tools', tamperToolSchema('alpha_tool'));
+    mount(f, stopsOf(f, 'llm-turn')[0]!);
+    const tools = screen.getByTestId('served-tools');
+    const rowOf = (name: string) =>
+      tools.querySelector<HTMLElement>(`[data-testid="served-tool"][data-tool="${name}"]`)!;
+    const alpha = rowOf('alpha_tool');
+    expect(alpha.querySelector<HTMLElement>('[data-testid="served-badge"]')!.dataset.status).toBe('damaged');
+    // Two hashes that disagree are printed inline, not only in the title.
+    expect(alpha.querySelector('[data-testid="served-hashes"]')).toHaveTextContent(
+      /receipt [0-9a-f]{16} · rebuilt [0-9a-f]{16}/,
+    );
+    const beta = rowOf('beta_tool');
+    expect(beta.querySelector<HTMLElement>('[data-testid="served-badge"]')!.dataset.status).toBe('verified');
+    expect(beta.querySelector('[data-testid="served-hashes"]')).toBeNull();
+    // The tampering reached no other section.
+    expect(screen.getByTestId('served-system').querySelector<HTMLElement>('[data-testid="served-badge"]')!.dataset.status).toBe('verified');
   });
 
   it('LLMCall: the no-receipt gap sentence verbatim, its cause, and NO field reads none', () => {

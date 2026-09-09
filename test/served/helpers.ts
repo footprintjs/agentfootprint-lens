@@ -67,3 +67,21 @@ export function loadTampered(name: FixtureName, mutate: (recording: TamperableRe
 export function stopsOf(fixture: LoadedFixture, milestone: string): readonly CursorPosition[] {
   return fixture.positions.filter((p) => p.milestone === milestone);
 }
+
+/**
+ * One tool schema's `inputSchema` changed where the seed commit wrote it
+ * (`dynamicToolSchemas`) — the way a test models a schema that reached the
+ * model in one shape and the log in another. The receipt hashed the schema as
+ * it went out, so the rebuilt row must disagree with it.
+ */
+export function tamperToolSchema(name: string): (recording: TamperableRecording) => void {
+  return (recording) => {
+    const seed = recording.snapshot.commitLog[0];
+    const schemas = seed?.overwrite?.dynamicToolSchemas as
+      | { name: string; inputSchema: Record<string, unknown> }[]
+      | undefined;
+    const schema = schemas?.find((s) => s.name === name);
+    if (schema === undefined) throw new Error(`tamperToolSchema: no schema '${name}' in the seed commit`);
+    schema.inputSchema = { ...schema.inputSchema, required: ['q'] };
+  };
+}

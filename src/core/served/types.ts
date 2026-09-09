@@ -59,11 +59,14 @@ export interface ServedRow {
  *
  * - `'verified'`      — the receipt's hash for it EQUALS the hash of what the
  *                       rebuild produced (computed with the library's own
- *                       `receiptHash` / `messageDigestInput`, run-salted).
+ *                       `receiptHash` over `messageDigestInput` /
+ *                       `toolDigestInput`, run-salted).
  * - `'reconstructed'` — rebuilt, but nothing to check it against: no receipt
  *                       on this epoch, the receipt has no hash for this KIND of
- *                       row (tool names, schemas), or an excusing gap covers a
- *                       field whose rebuild can only be short.
+ *                       row (tool names; tool schemas under a peer without
+ *                       `toolDigestInput`, i.e. agentfootprint < 9.89.0), or
+ *                       an excusing gap covers a field whose rebuild can only
+ *                       be short.
  * - `'damaged'`       — the record contradicts itself: the receipt's hash for
  *                       the paired row disagrees with the rebuild, the rebuild
  *                       produced a row the receipt never witnessed, or

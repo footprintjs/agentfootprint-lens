@@ -5,6 +5,58 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.47.1] - 2026-09-09
+
+The Served tab could prove the system text, every piece and every message
+against the receipt, and had to leave the tools' SCHEMAS at *Reconstructed*:
+agentfootprint 9.88.0 hashed each schema through a serializer its root barrel
+did not export, and a copy written here would have been a second owner of the
+rule — the one thing the law `hash(servedAt(k)) === receiptAt(k).hash` exists
+to prevent. agentfootprint 9.89.0 exports that digest, `toolDigestInput`,
+beside `messageDigestInput`. This release closes the last unprovable row, and
+removes the one cast the 0.46.0 port documented, now that footprintjs 9.18.0
+has widened the seam it sat on.
+
+### Changed
+
+- **Tool schema rows are now provable.** `verify` pairs each rebuilt schema
+  with the receipt's hash by NAME and decides it with the library's own rule —
+  `receiptHash(runId, toolDigestInput(schema)) === receipt.tools.schemaHashes[name]`
+  — so a schema row reads *Verified* when the two agree and *Damaged* when
+  they do not, both hashes printed inline, exactly as pieces and messages do.
+  A rebuilt schema the receipt never hashed is *Damaged* too (the receipt is
+  the witness in both directions); a receipt-only hash is counted in
+  `onReceiptOnly.schemas` and is the declared hole under `forced-tool-schema`
+  (the forced tool still has no schema row). `RowCounts` gains a `schemas`
+  list on both sides. Requires agentfootprint **≥ 9.89.0** for the export; on
+  a 9.88 peer the rows stay *Reconstructed* as in 0.47.0 — the symbol is read
+  off the module namespace at call time, so an older peer neither fails the
+  module's link nor gets a lookalike hash
+  (`test/served/verify.no-tool-digest.test.ts`). No new sentence on the tab:
+  the badge vocabulary is unchanged.
+
+  ```ts
+  verify(row.view, row.receipt, row.receipt.basis.runId).toolSchemas.lookup.status; // 'verified'
+  ```
+
+- **The documented cast at the time-travel seam is gone.** 0.46.0 said a
+  STORED recording needed `recording.snapshot as unknown as TimeTravelSource`
+  because the lens types its log as `readonly unknown[]` and footprintjs 9.17
+  wanted `CommitBundle[]`, and that the cast would vanish the day footprintjs
+  widened the field. footprintjs 9.18.0 did: `FoldSource` / `TimeTravelSource`
+  take `readonly unknown[]` and narrow per row where they fold, reporting a
+  row that is not a bundle in `FoldedState.skipped`. `foldFactsAt` now hands
+  the recording to `stateAt` as the typed shape and reads `skipped` as the
+  typed `LogGap[]` (the duck-typed reader is deleted); the README example is
+  cast-free. **Types-only**: the runtime is unchanged on a 9.17 peer (a fold
+  that throws there is still reported as `foldError`), so the `footprintjs`
+  peer floor STAYS `^9.17.0`; the dev range moves to `^9.18.0` and
+  `agentfootprint`'s to `^9.89.0`.
+
+- The eight Served-tab fixtures were regenerated on agentfootprint 9.89.0 —
+  the release that owns the schema rule; only runIds, hashes and timestamps
+  moved.
+
 ## [0.47.0] - 2026-09-08
 
 Stand on an LLM turn and ask what the model read. Until now the honest answer

@@ -25,7 +25,7 @@
  * and the receipt, the view and the one cursor stay on screen.
  */
 
-import { stateAt, type FoldBasis, type FoldSource } from 'footprintjs/trace';
+import { stateAt, type FoldBasis, type FoldedState, type FoldSource } from 'footprintjs/trace';
 
 import type { ServedCursor } from './types.js';
 
@@ -67,15 +67,11 @@ export interface FoldFacts {
   readonly hiddenSkillIds?: readonly string[];
 }
 
-/** `FoldedState.skipped` as 9.18 reports it — read duck-typed so the lens's
- *  9.17 floor still compiles and a 9.18 resolution surfaces the indices. */
-function skippedIndicesOf(folded: unknown): readonly number[] | undefined {
-  const rows = (folded as { skipped?: unknown }).skipped;
-  if (!Array.isArray(rows)) return undefined;
-  const indices = rows
-    .map((r) => (r as { index?: unknown } | null)?.index)
-    .filter((i): i is number => typeof i === 'number');
-  return indices.length > 0 ? Object.freeze(indices) : undefined;
+/** The indices of `FoldedState.skipped` (footprintjs 9.18's `LogGap[]`), or
+ *  nothing when the fold was clean — on a 9.17 peer the field is never set. */
+function skippedIndicesOf(folded: FoldedState): readonly number[] | undefined {
+  const gaps = folded.skipped;
+  return gaps !== undefined && gaps.length > 0 ? Object.freeze(gaps.map((g) => g.index)) : undefined;
 }
 
 /**
@@ -85,13 +81,16 @@ function skippedIndicesOf(folded: unknown): readonly number[] | undefined {
  * @param recording a run snapshot: `commitLog` + `initialState`, as recorded.
  */
 export function foldFactsAt(recording: unknown, cursor: ServedCursor): FoldFacts {
-  // The lens types a stored recording's log as `readonly unknown[]` because it
-  // came off disk as JSON; footprintjs's fold takes `CommitBundle[]`. This is
-  // the one documented narrowing at the seam (README · "Time travel through
-  // one port").
-  let folded: ReturnType<typeof stateAt>;
+  // A recording is `unknown` at this seam — it came off disk as JSON. Since
+  // footprintjs 9.18 a fold source is `commitLog?: readonly unknown[]` and the
+  // library narrows per row where it folds, so any object IS a `FoldSource`:
+  // no cast, and a row that is not a bundle comes back in `skipped`. A
+  // non-object folds to the base, the library's own answer for an absent log.
+  const source: FoldSource | undefined =
+    typeof recording === 'object' && recording !== null ? recording : undefined;
+  let folded: FoldedState;
   try {
-    folded = stateAt(recording as FoldSource | undefined, cursor.commitIdx);
+    folded = stateAt(source, cursor.commitIdx);
   } catch (e) {
     return Object.freeze({
       redacted: false,

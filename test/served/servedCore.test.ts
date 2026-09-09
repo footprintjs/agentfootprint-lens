@@ -1,7 +1,7 @@
 /**
  * core/served — the four pure queries, on REAL recordings.
  *
- * Every fixture under ./fixtures was produced by driving agentfootprint 9.88.0
+ * Every fixture under ./fixtures was produced by driving agentfootprint 9.89.0
  * (`fixtures/generate.ts`); nothing here is hand-built, because the claim under
  * test is that the tab's data agrees with what the library rebuilt and what
  * the call itself committed.
@@ -13,7 +13,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { messageDigestInput, receiptAt, receiptHash, SERVED_GAPS } from 'agentfootprint';
+import { messageDigestInput, receiptAt, receiptHash, SERVED_GAPS, toolDigestInput } from 'agentfootprint';
 
 import {
   EXCUSING_GAPS,
@@ -23,7 +23,7 @@ import {
   sincePrevious,
   verify,
 } from '../../src/core/served/index.js';
-import { load, loadTampered, stopsOf, type TamperableRecording } from './helpers.js';
+import { load, loadTampered, stopsOf, tamperToolSchema, type TamperableRecording } from './helpers.js';
 
 const cursorOf = (p: { runtimeStageId: string; commitIdx: number }) => ({
   runtimeStageId: p.runtimeStageId,
@@ -171,11 +171,19 @@ describe('verify — verified means the hashes agree, and nothing else', () => {
         // is handed back as data instead.
         expect(checks.toolNames.status).toBe('reconstructed');
         expect(checks.namesOnReceipt).toEqual(receipt.tools.names);
-        // Schemas: the canonical serializer is not exported, so reconstructed.
+        // Schemas: paired by name and hashed over the library's own
+        // `toolDigestInput` (9.89.0) — verified exactly when the two strings
+        // are equal, on every tool of every epoch, in both chart shapes.
+        expect(row.view.tools.schemas.length).toBeGreaterThan(0);
         for (const s of row.view.tools.schemas) {
-          expect(checks.toolSchemas[s.name]!.status).toBe('reconstructed');
+          expect(checks.toolSchemas[s.name]!.status).toBe('verified');
+          expect(checks.toolSchemas[s.name]!.rebuilt).toBe(
+            receiptHash(receipt.basis.runId, toolDigestInput(s)),
+          );
           expect(checks.toolSchemas[s.name]!.onReceipt).toBe(receipt.tools.schemaHashes[s.name]);
         }
+        expect(checks.onReceiptOnly.schemas).toEqual([]);
+        expect(checks.rebuiltOnly.schemas).toEqual([]);
         expect(checks.damaged).toBe(false);
         expect(checks.basis).toBe('on-receipt');
       }
@@ -209,14 +217,69 @@ describe('verify — verified means the hashes agree, and nothing else', () => {
         pieces: [...row.view.system.pieces, { slot: 'system-prompt', source: 'base', text: 'ghost piece' }],
       },
       messages: { ...row.view.messages, asSent: [...row.view.messages.asSent, { role: 'user', content: 'ghost' }] },
-      tools: { ...row.view.tools, names: [...row.view.tools.names, 'ghost_tool'] },
+      tools: {
+        ...row.view.tools,
+        names: [...row.view.tools.names, 'ghost_tool'],
+        schemas: [
+          ...row.view.tools.schemas,
+          { name: 'ghost_tool', description: 'ghost', inputSchema: { type: 'object' } },
+        ],
+      },
     } as typeof row.view;
     const checks = verify(ghosted, receipt, receipt.basis.runId);
     expect(checks.pieces.map((c) => c.status)).toEqual(['verified', 'damaged']);
     expect(checks.messages.map((c) => c.status)).toEqual(['verified', 'damaged']);
     expect(checks.toolNames.status).toBe('damaged');
-    expect(checks.rebuiltOnly).toEqual({ pieces: 1, messages: 1, requestOnly: 0, toolNames: ['ghost_tool'] });
-    expect(checks.onReceiptOnly).toEqual({ pieces: 0, messages: 0, requestOnly: 0, toolNames: [] });
+    // A schema the receipt never hashed is unwitnessed — damaged, with its
+    // rebuilt hash and no receipt hash; the two real ones still verify.
+    expect(checks.toolSchemas.ghost_tool).toMatchObject({ status: 'damaged', rebuilt: expect.stringMatching(/^[0-9a-f]{16}$/) });
+    expect(checks.toolSchemas.ghost_tool!.onReceipt).toBeUndefined();
+    expect(checks.toolSchemas.alpha_tool!.status).toBe('verified');
+    expect(checks.rebuiltOnly).toEqual({
+      pieces: 1,
+      messages: 1,
+      requestOnly: 0,
+      toolNames: ['ghost_tool'],
+      schemas: ['ghost_tool'],
+    });
+    expect(checks.onReceiptOnly).toEqual({ pieces: 0, messages: 0, requestOnly: 0, toolNames: [], schemas: [] });
+    expect(checks.damaged).toBe(true);
+  });
+
+  it('a schema tampered IN THE RECORDING turns exactly that schema row to damaged, both hashes on the check', () => {
+    // The seed commit carries `dynamicToolSchemas`; one schema gains a
+    // `required` there, so the rebuild digests a schema the receipt never
+    // hashed in that shape. Everything else on the epoch is untouched.
+    const f = loadTampered('flat-dynamic-tools', tamperToolSchema('alpha_tool'));
+    const row = servedRowAt(f.snapshot, cursorOf(stopsOf(f, 'llm-turn')[0]!))!;
+    const receipt = receiptAt(f.snapshot, row.epoch)!;
+    const checks = verify(row.view, receipt, receipt.basis.runId);
+    const alpha = checks.toolSchemas.alpha_tool!;
+    expect(alpha.status).toBe('damaged');
+    expect(alpha.onReceipt).toBe(receipt.tools.schemaHashes.alpha_tool);
+    expect(alpha.rebuilt).toBe(
+      receiptHash(receipt.basis.runId, toolDigestInput(row.view.tools.schemas.find((s) => s.name === 'alpha_tool')!)),
+    );
+    expect(alpha.rebuilt).not.toBe(alpha.onReceipt);
+    expect(checks.toolSchemas.beta_tool!.status).toBe('verified');
+    expect(checks.toolNames.status).toBe('reconstructed');
+    expect(checks.system.status).toBe('verified');
+    checks.messages.forEach((c) => expect(c.status).toBe('verified'));
+    expect(checks.rebuiltOnly.schemas).toEqual([]);
+    expect(checks.damaged).toBe(true);
+  });
+
+  it('a receipt with no hash for a rebuilt schema: that row is damaged and counted — the witness runs both ways', () => {
+    const f = load('flat-dynamic-tools');
+    const row = servedRowAt(f.snapshot, cursorOf(stopsOf(f, 'llm-turn')[0]!))!;
+    const receipt = receiptAt(f.snapshot, row.epoch)!;
+    const tampered = JSON.parse(JSON.stringify(receipt)) as typeof receipt;
+    delete (tampered.tools.schemaHashes as Record<string, string>).beta_tool;
+    const checks = verify(row.view, tampered, tampered.basis.runId);
+    expect(checks.toolSchemas.beta_tool!.status).toBe('damaged');
+    expect(checks.toolSchemas.beta_tool!.onReceipt).toBeUndefined();
+    expect(checks.toolSchemas.alpha_tool!.status).toBe('verified');
+    expect(checks.rebuiltOnly.schemas).toEqual(['beta_tool']);
     expect(checks.damaged).toBe(true);
   });
 
@@ -336,6 +399,13 @@ describe('verify — verified means the hashes agree, and nothing else', () => {
     const checks = verify(row.view, row.receipt, row.receipt!.basis.runId);
     expect(checks.system.status).toBe('verified');
     expect(checks.onReceiptOnly.toolNames).toEqual([]);
+    // The forced tool has NO schema row (the rebuild never held its schema);
+    // the receipt hashed it, and `forced-tool-schema` excuses exactly that
+    // receipt-only hash — counted, not damage.
+    expect(checks.toolSchemas[row.view.tools.forced!]).toBeUndefined();
+    expect(checks.onReceiptOnly.schemas).toEqual([row.view.tools.forced]);
+    expect(checks.rebuiltOnly.schemas).toEqual([]);
+    expect(checks.damaged).toBe(false);
   });
 });
 
