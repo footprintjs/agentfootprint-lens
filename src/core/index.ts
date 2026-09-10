@@ -161,6 +161,7 @@ export {
   type LensCursorPort,
   type LensStopMove,
   type LensAddressMove,
+  type OpenLensCursorOptions,
 } from "./timeTravel/lensCursorPort.js";
 // Only the SEAM is public. `lensStop` / `lensStopKind` are how the seam
 // projects one position onto a `Stop`; keeping them module-private leaves that
@@ -261,3 +262,36 @@ export {
   type ServedVerification,
   type SincePrevious,
 } from "./served/index.js";
+
+// BOOKMARKS (0.48.0) — the READER'S mark, kept beside a recording and never in
+// it. footprintjs holds marks on the cursor (`mark` / `marks` / `jumpToMark`)
+// and nowhere else; this is the sidecar that seeds them when a recording is
+// opened and is written back when the reader changes one. A store never
+// throws — an unavailable one is a label on screen. See src/core/bookmarks/README.md.
+export {
+  bookmarkKey,
+  toSidecar,
+  fromSidecar,
+  bookmarksToMarks,
+  localStorageBookmarkStore,
+  memoryBookmarkStore,
+  noBookmarkStore,
+  BOOKMARK_STORAGE_PREFIX,
+  type Bookmark,
+  type BookmarkSidecar,
+  type BookmarkStore,
+  type SidecarReading,
+} from "./bookmarks/index.js";
+
+// DECLARED TAGS, read side (0.48.0) — the legend (what the chart CAN produce
+// from its structure, what the run DID hit from `bundle.tags`) and the tag
+// axis: the Lens's own positions over footprintjs 9.21's `tagStops`, so a
+// picked tag set rides the same port and the same funnel as the default axis.
+export {
+  tagLegend,
+  tagAxisPositions,
+  tagStopsFor,
+  type TagLegend,
+  type TagLegendEntry,
+} from "./tags/index.js";
+export { snapshotOfRunner, snapshotLogKey } from "./utils/snapshotOfRunner.js";

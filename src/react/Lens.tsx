@@ -51,6 +51,7 @@ import { useCommitSync } from "./hooks/useCommitSync.js";
 import { useCursorPositions } from "./hooks/useCursorPositions.js";
 import type { CursorPosition } from "../core/group/cursorPositionsAtDrill.js";
 import { stepBands, bandIndexOf, bandChartGroup } from "../core/group/stepBands.js";
+import { stepForCommitIdx } from "../core/group/stepForCommitIdx.js";
 import { isFrameworkChartNode } from "../core/collapser/frameworkNode.js";
 import {
   useToolChoice,
@@ -71,6 +72,15 @@ import { T, MODE_PALETTES } from "./theme/index.js";
 import { ensureLensStyles } from "./lensStyles.js";
 import { WhereFrom } from "./WhereFrom.js";
 import { ServedTab } from "./components/ServedTab.js";
+// BOOKMARKS + DECLARED TAGS (0.48.0): the reader's marks in a sidecar beside
+// the recording, and the tag legend/picker that rebuilds the scrub axis
+// through footprintjs 9.21's `tagStops` — both riding the ONE cursor.
+import { BookmarksTab } from "./components/BookmarksTab.js";
+import { TagPicker } from "./components/TagPicker.js";
+import { useBookmarkSidecar, type UseBookmarkSidecarResult } from "./hooks/useBookmarkSidecar.js";
+import { bookmarksToMarks, localStorageBookmarkStore, type BookmarkStore } from "../core/bookmarks/index.js";
+import { tagLegend, tagAxisPositions, tagStopsStrategy, type TagLegend } from "../core/tags/index.js";
+import { snapshotOfRunner, snapshotLogKey } from "../core/utils/snapshotOfRunner.js";
 // eui's light/dark presets — applied to the chart area from `theme.mode` so the
 // eui-rendered nodes follow dark/light without the consumer hand-setting `--fp-*`.
 import { tokensToCSSVars, coolLight, coolDark } from "footprint-explainable-ui";
@@ -259,8 +269,22 @@ export interface LensProps {
    * granularities carries it by `commitIdx`: build the target axis with
    * `scrubAxisFor(recorder, granularity)` and resolve it with
    * `stepForCommitIdx(positions, at.commitIdx)`.
+   *
+   * (0.48.0) The TAGS strip — the declared-tag legend and the picker that
+   * rebuilds the ruler through `tagStops` — appears on `'group'` at the root
+   * level only; `'step'` scrubs every commit and carries no strip. A pick
+   * re-seats the cursor by the same `stepForCommitIdx` rule.
    */
   readonly granularity?: 'step' | 'group';
+  /**
+   * Where the reader's BOOKMARKS persist (0.48.0). A bookmark is the reader's
+   * mark — never written into the recording — kept in a sidecar keyed to the
+   * run and seeded onto the cursor when the recording is opened. Default:
+   * `localStorageBookmarkStore()`; a browser that refuses storage makes the
+   * Bookmarks tab say "bookmarks not saved" rather than throw. Pass
+   * `memoryBookmarkStore()` for a session-only reading, or your own store.
+   */
+  readonly bookmarkStore?: BookmarkStore;
 
   /**
    * Controlled cursor (omit for uncontrolled). Omit it and the lens is
@@ -418,6 +442,7 @@ export const Lens: React.FC<LensProps> = ({
   onStepChange,
   navigatorRef,
   slots,
+  bookmarkStore,
 }) => {
   ensureLensStyles();
   // Subscribe to the recorder so React re-renders on EVERY event
@@ -552,11 +577,59 @@ export const Lens: React.FC<LensProps> = ({
   // The grouped reading keeps the MILESTONE axis (iteration / context / LLM
   // turn / route / tool call), which `stepBands` bands by iteration. The
   // cursor is still ONE runtimeStageId; only the position SET differs.
-  const cursorPositions = useCursorPositions(
+  const defaultPositions = useCursorPositions(
     recorder,
     drillPath,
     undefined,
     granularity === 'step' ? 'commit' : 'milestone',
+  );
+  // THE RUN'S OWN SNAPSHOT, adopted only when its log key moves (a live
+  // runner mints a new object per read). Read by the tag legend, the tag
+  // axis and the bookmark key — the Served tab reads it the same way.
+  const lensRunner: unknown = runner ?? recorder.observedRunner();
+  const freshSnapshot = snapshotOfRunner(lensRunner);
+  const logKey = snapshotLogKey(freshSnapshot);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- `freshSnapshot` is keyed by `logKey` on purpose
+  const runSnapshot = useMemo(() => freshSnapshot, [lensRunner, logKey]);
+  // DECLARED TAGS (0.48.0). The legend lists what the chart CAN produce (its
+  // structure) and what the run DID hit (`bundle.tags`); a pick rebuilds the
+  // positions through footprintjs 9.21's `tagStops(names)` — a different LIST
+  // for the same one cursor, on the GROUPED reading at the ROOT level only: a
+  // tag axis IS a grouping (untagged stages fold into the tagged stop before
+  // them), so the per-step reading — every commit a stop — keeps its ruler
+  // byte for byte, and a drilled level keeps its own group's stops; the
+  // picker is omitted in both rather than shown inert. An empty pick, or a
+  // peer without `tagStops`, is the default axis, byte for byte.
+  const [pickedTags, setPickedTags] = useState<readonly string[]>([]);
+  const legend = useMemo<TagLegend>(() => {
+    const spec = (lensRunner as { getSpec?: unknown } | null)?.getSpec;
+    const structure =
+      typeof spec === "function"
+        ? (spec as () => { buildTimeStructure?: unknown } | undefined).call(lensRunner)?.buildTimeStructure
+        : undefined;
+    return tagLegend(structure, runSnapshot);
+  }, [lensRunner, runSnapshot]);
+  const tagAxisAvailable = tagStopsStrategy() !== undefined;
+  const tagAxis = useMemo(
+    () =>
+      pickedTags.length > 0 && drillPath.length === 0 && granularity === 'group'
+        ? tagAxisPositions(runSnapshot, pickedTags, defaultPositions)
+        : undefined,
+    [pickedTags, drillPath.length, granularity, runSnapshot, defaultPositions],
+  );
+  const cursorPositions = tagAxis ?? defaultPositions;
+  // BOOKMARKS (0.48.0): the reader's marks, in a sidecar the store keeps —
+  // never in the recording. A list, not a position; the cursor below is
+  // seeded with them as the library's own marks.
+  const [defaultStore] = useState<BookmarkStore>(() => bookmarkStore ?? localStorageBookmarkStore());
+  const sidecar = useBookmarkSidecar({
+    snapshot: runSnapshot,
+    store: bookmarkStore ?? defaultStore,
+    extraAddresses: ROOT_BOOKEND_ADDRESSES,
+  });
+  const seedMarks = useMemo(
+    () => bookmarksToMarks(sidecar.bookmarks, cursorPositions),
+    [sidecar.bookmarks, cursorPositions],
   );
   const stepCount = Math.max(1, cursorPositions.length);
   const maxStep = Math.max(0, stepCount - 1);
@@ -570,7 +643,13 @@ export const Lens: React.FC<LensProps> = ({
   //
   // Memoised per (recording, axis, drillPath) — which is exactly what
   // `cursorPositions` is memoised on, so this list's identity IS that key.
-  const cursorPort = useMemo(() => openLensCursor(cursorPositions), [cursorPositions]);
+  // Opened WITH the sidecar's bookmarks as its marks (`TimeTravelOptions.marks`):
+  // the library's cursor is the runtime truth for a mark, the sidecar only
+  // seeds it and is written back when the reader changes one.
+  const cursorPort = useMemo(
+    () => openLensCursor(cursorPositions, { marks: seedMarks }),
+    [cursorPositions, seedMarks],
+  );
   const stepper = useMemo<CursorStepper>(
     () => ({
       back: (from) => cursorPort.prev(from).step,
@@ -608,6 +687,24 @@ export const Lens: React.FC<LensProps> = ({
     maxStep,
     describe: describeStep,
     port: cursorPort,
+  });
+  // AXIS SWAP KEEPS THE COMMIT, NOT THE STEP NUMBER. A pick (or a Clear) is a
+  // different LIST for the same one cursor; step 8 of one list is nowhere near
+  // step 8 of the other, and carrying the number across would move the reader
+  // ~30 commits without a word. So the cursor is RE-SEATED through the funnel
+  // at the stop that holds its commit — nearest PRECEDING when the new axis
+  // has no stop at it (`stepForCommitIdx`, the same rule the `granularity`
+  // doc gives a host) — and the host hears it as an ordinary `onStepChange`.
+  // Keyed on the tag axis only: a live run growing, or a drill, is not a swap.
+  const seatRef = useRef({ positions: cursorPositions, step: focusStep, tagAxis });
+  useEffect(() => {
+    const prev = seatRef.current;
+    seatRef.current = { positions: cursorPositions, step: focusStep, tagAxis };
+    if (prev.tagAxis === tagAxis) return;
+    const commit = prev.positions[prev.step]?.commitIdx;
+    if (commit === undefined || commit < 0) return;
+    const target = stepForCommitIdx(cursorPositions, commit);
+    if (target >= 0) handleFocusChange(target);
   });
   // Address → cursor. `navigateTo` resolves a runtimeStageId against the
   // ACTIVE axis and hands the answer to the SAME `moveTo` funnel above, so a
@@ -707,6 +804,8 @@ export const Lens: React.FC<LensProps> = ({
       cursorPositions={cursorPositions}
       cursorRuntimeStageId={cursorRuntimeStageId}
       granularity={granularity}
+      tagPicker={{ legend, picked: pickedTags, onPick: setPickedTags, available: tagAxisAvailable }}
+      bookmarks={sidecar}
       {...(slots ? { slots } : {})}
       {...(toolChoice ? { toolChoice: toolChoiceData } : {})}
     />,
@@ -916,6 +1015,15 @@ const EngineerView: React.FC<{
   /** The same port, for the ADDRESS jump (a chart click, a provenance frame).
    *  Resolution stays the Lens's; the move is the library's. */
   cursorPort: LensCursorPort;
+  /** DECLARED TAGS (0.48.0): the legend and the pick that rebuilds the axis. */
+  tagPicker?: {
+    readonly legend: TagLegend;
+    readonly picked: readonly string[];
+    readonly onPick: (next: readonly string[]) => void;
+    readonly available: boolean;
+  };
+  /** BOOKMARKS (0.48.0): the sidecar — a list, never a position. */
+  bookmarks?: UseBookmarkSidecarResult;
   /** Consumer slot overrides. Absent → every shipped pane renders unchanged. */
   slots?: LensSlots;
 }> = ({
@@ -945,6 +1053,8 @@ const EngineerView: React.FC<{
   granularity,
   stepper,
   cursorPort,
+  tagPicker,
+  bookmarks,
   slots,
 }) => {
   // ─── The GROUPED ruler (granularity 'group') ──────────────────────
@@ -1446,7 +1556,7 @@ const EngineerView: React.FC<{
   // Which reading the right rail shows: WHAT HAPPENED (the shipped timeline) or
   // SERVED (what the model was handed at the cursor's call). A tab choice, not
   // a position — both read the same one cursor.
-  const [railTab, setRailTab] = useState<"happened" | "served">("happened");
+  const [railTab, setRailTab] = useState<"happened" | "served" | "bookmarks">("happened");
   // The Served tab folds the run's own snapshot. Prefer the `runner` prop; fall
   // back to the runner the recorder is observing, so a `<Lens recorder>` with
   // no runner prop still gets the tab.
@@ -1529,6 +1639,18 @@ const EngineerView: React.FC<{
         isLive={isLive}
         stepper={stepper}
       />
+      {/* DECLARED TAGS (0.48.0): the legend, and the picker that rebuilds the
+          axis above through `tagStops`. Root reading only — a drilled level
+          scrubs its own group's stops, and the picker is omitted there rather
+          than shown inert. */}
+      {tagPicker !== undefined && drillPath.length === 0 && granularity === 'group' && (
+        <TagPicker
+          legend={tagPicker.legend}
+          picked={tagPicker.picked}
+          onPick={tagPicker.onPick}
+          available={tagPicker.available}
+        />
+      )}
       {/* The honest sentence for the collapsed plumbing: what is hidden is
           SAID, with the door to bring it back. Absent (a chart with no
           framework nodes) renders nothing — absent and hidden are different
@@ -1825,8 +1947,33 @@ const EngineerView: React.FC<{
               >
                 Served
               </button>
+              {bookmarks !== undefined && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={railTab === "bookmarks"}
+                  data-testid="rail-tab-bookmarks"
+                  style={railTabStyle(railTab === "bookmarks")}
+                  onClick={() => setRailTab("bookmarks")}
+                >
+                  Bookmarks
+                </button>
+              )}
             </div>
-            {railTab === "served" ? (
+            {railTab === "bookmarks" && bookmarks !== undefined ? (
+              <BookmarksTab
+                bookmarks={bookmarks.bookmarks}
+                orphaned={bookmarks.orphaned}
+                persistence={bookmarks.persistence}
+                positions={cursorPositions}
+                step={focusStep}
+                port={cursorPort}
+                moveTo={onFocusChange}
+                onAdd={bookmarks.add}
+                onRemove={bookmarks.remove}
+                onNote={bookmarks.setNote}
+              />
+            ) : railTab === "served" ? (
               <ServedTab
                 runner={servedRunner}
                 cursorRuntimeStageId={cursorRuntimeStageId}
@@ -2430,6 +2577,13 @@ const AgentListRow: React.FC<{
  * commit happened, so the tab is handed `-1`: no call has been served yet and
  * the fold is the base. Every other stop anchors where the axis says.
  */
+/**
+ * The addresses the Why Lens SYNTHESISES for its root bookends — no commit
+ * bundle carries them, so a bookmark on "Run · start" would otherwise read as
+ * not in this recording. Listed once here, handed to the sidecar as present.
+ */
+const ROOT_BOOKEND_ADDRESSES: readonly string[] = ["__root__#0"];
+
 function servedCommitIdxOf(position: CursorPosition | undefined): number {
   if (position === undefined) return -1;
   if (position.kind === "group-start" && position.depth === 0) return -1;

@@ -32,7 +32,7 @@
  */
 
 import { timeTravel } from 'footprintjs/trace';
-import type { Move, MoveRefusal, Stop, TimeTravel } from 'footprintjs/trace';
+import type { Mark, Move, MoveRefusal, Stop, TimeTravel } from 'footprintjs/trace';
 
 import type { CursorPosition } from '../group/cursorPositionsAtDrill.js';
 import { lensStopsStrategy } from './lensStops.js';
@@ -95,6 +95,33 @@ export interface LensCursorPort {
    * port's. A resolution that finds nothing never reaches the port.
    */
   toAddress(from: number, runtimeStageId: string): LensAddressMove;
+  /**
+   * BOOKMARKS (0.48.0) — the library's `mark` / `marks` / `jumpToMark`, seated
+   * the same way every mover is. The port is opened with the marks a sidecar
+   * seeded (`openLensCursor(positions, { marks })`); a mark made here is read
+   * back with `marks()` and written to the sidecar by the caller. The marks
+   * live on the library's cursor (its law 4: beside the log, never in it) and
+   * nowhere in this port.
+   */
+  /** Bookmark the stop at `step`. Names the mark by its address, so marking a
+   *  stop twice updates rather than duplicates. `undefined` on an empty axis. */
+  mark(step: number, name?: string): Mark | undefined;
+  /** The marks this port was opened with plus the ones made since. */
+  marks(): readonly Mark[];
+  /**
+   * Move to a mark. The library resolves it by `runtimeStageId` first; when
+   * that stage is not a stop on THIS axis (a bookmark made on the per-step
+   * reading, read on the grouped one) the Lens's own address rule takes over
+   * — the same stage at whatever execution index this axis holds — exactly as
+   * `toAddress` does. A miss never moves.
+   */
+  toMark(from: number, name: string): LensAddressMove;
+}
+
+/** What `openLensCursor` may be opened with. */
+export interface OpenLensCursorOptions {
+  /** Marks to seed the cursor with — a sidecar's bookmarks, restored. */
+  readonly marks?: readonly Mark[];
 }
 
 /**
@@ -149,12 +176,18 @@ function readMove(move: Move, seat: number): LensStopMove {
  * moveTo(to.step);                  // the ONE funnel applies it
  * ```
  */
-export function openLensCursor(positions: readonly CursorPosition[]): LensCursorPort {
+export function openLensCursor(
+  positions: readonly CursorPosition[],
+  options: OpenLensCursorOptions = {},
+): LensCursorPort {
   // Movement reads the STOPS and nothing else, so the port needs no run to
   // read: the strategy is the whole source of the axis. (A fold — `stateAt`,
   // `changedSince`, `drill` — is what needs the snapshot, and that is a
   // `timeTravel()` the caller builds over the same strategy.)
-  const cursor: TimeTravel = timeTravel({}, { strategy: lensStopsStrategy(positions) });
+  const cursor: TimeTravel = timeTravel(
+    {},
+    { strategy: lensStopsStrategy(positions), ...(options.marks !== undefined ? { marks: options.marks } : {}) },
+  );
   const total = cursor.stops.length;
 
   /** Put the port where the Lens's cursor actually is, then ask. */
@@ -165,9 +198,31 @@ export function openLensCursor(positions: readonly CursorPosition[]): LensCursor
     return readMove(op(cursor), seat);
   };
 
-  return {
+  const port: LensCursorPort = {
     stops: cursor.stops,
     positionAt: (step) => positions[step],
+    mark: (step, name) => {
+      if (total === 0) return undefined;
+      const seat = seatOf(step, total);
+      cursor.jumpTo(seat);
+      const at = cursor.at();
+      if (at === undefined) return undefined;
+      return cursor.mark(name ?? at.runtimeStageId);
+    },
+    marks: () => cursor.marks(),
+    toMark: (from, name) => {
+      if (total === 0) return { ok: false, reason: 'empty' };
+      const entry = cursor.marks().find((m) => m.name === name);
+      if (entry === undefined) return { ok: false, reason: 'miss' };
+      const seat = seatOf(from, total);
+      cursor.jumpTo(seat);
+      const move = cursor.jumpToMark(name);
+      if (move.moved) return { ok: true, step: move.to.step };
+      // 'clamped' from `jumpToMark` means "already on that stop": a move to
+      // where the cursor is, handed through the funnel like any other.
+      if (move.reason === 'clamped') return { ok: true, step: seat };
+      return port.toAddress(from, entry.runtimeStageId);
+    },
     first: (from) => ask(from, (c) => c.first()),
     last: (from) => ask(from, (c) => c.last()),
     prev: (from) => ask(from, (c) => c.prev()),
@@ -216,4 +271,5 @@ export function openLensCursor(positions: readonly CursorPosition[]): LensCursor
       return { ok: true, step: ask(from, (c) => c.jumpTo(step)).step };
     },
   };
+  return port;
 }

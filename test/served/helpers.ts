@@ -21,7 +21,8 @@ export type FixtureName =
   | 'tool-forced'
   | 'tool-set-changes'
   | 'hidden-skills'
-  | 'instructions-move';
+  | 'instructions-move'
+  | 'tagged-chart';
 
 export interface LoadedFixture {
   readonly recording: Recording;

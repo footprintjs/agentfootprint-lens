@@ -86,5 +86,28 @@ export {
   type LensCursorPort,
   type LensStopMove,
   type LensAddressMove,
+  type OpenLensCursorOptions,
 } from '../core/timeTravel/lensCursorPort.js';
 export { lensStopsStrategy } from '../core/timeTravel/lensStops.js';
+// BOOKMARKS (0.48.0) — the reader's mark beside the recording, and the store
+// that keeps it; the Why Lens's Bookmarks tab is `<Lens bookmarkStore>` away.
+export {
+  bookmarkKey,
+  toSidecar,
+  fromSidecar,
+  bookmarksToMarks,
+  localStorageBookmarkStore,
+  memoryBookmarkStore,
+  noBookmarkStore,
+  type Bookmark,
+  type BookmarkSidecar,
+  type BookmarkStore,
+  type SidecarReading,
+} from '../core/bookmarks/index.js';
+// DECLARED TAGS (0.48.0) — the legend and the tag axis the picker scrubs.
+export {
+  tagLegend,
+  tagAxisPositions,
+  type TagLegend,
+  type TagLegendEntry,
+} from '../core/tags/index.js';

@@ -142,6 +142,15 @@ export {
 // owns — labels, never sentences about the run.
 export { ServedTab, LABELS as SERVED_LABELS, type ServedTabProps } from "./components/ServedTab.js";
 
+// <BookmarksTab> (0.48.0) — the reader's marks, riding the ONE cursor: a
+// toggle at the current stop, a list that jumps through the port's `toMark`,
+// orphans greyed and labelled. The engineer view mounts it as the right
+// rail's third tab; exported for shells that hold the cursor themselves.
+export { BookmarksTab, LABELS as BOOKMARK_LABELS, type BookmarksTabProps } from "./components/BookmarksTab.js";
+// <TagPicker> (0.48.0) — the declared-tag legend (what the chart can produce,
+// what the run hit) and the pick that rebuilds the axis through `tagStops`.
+export { TagPicker, LABELS as TAG_PICKER_LABELS, type TagPickerProps } from "./components/TagPicker.js";
+
 // Hooks — composable building blocks for consumer-built Lens layouts.
 export * from "./hooks/index.js";
 // <BugReportButton> — "Report a bug with this run" with consent first: the

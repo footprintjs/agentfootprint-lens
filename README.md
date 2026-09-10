@@ -1061,6 +1061,121 @@ on every epoch, no receipt was minted, and the tab says so with the library's
 
 ---
 
+## Bookmarks, and scrubbing by declared tag
+
+**The reader's marks, kept beside the recording — and the author's tags, as a
+ruler.** Since 0.48.0 the Why Lens's right rail has a third tab, **Bookmarks**,
+and the grouped ruler carries a **Tags** strip.
+
+### Why
+
+footprintjs's design page for declared tags names three marks that end in the
+same operation ("keep these stops, fold the rest into them") and differ in who
+puts the mark and when:
+
+| Mark | Who, when | Lives | In the lens |
+|---|---|---|---|
+| **Declared tag** | the author, at build time | the chart's structure → stamped into the commit bundle (`bundle.tags`) | the **Tags** strip: legend and picker |
+| **Derived tag** | the reader, at read time, from the fold | computed by a strategy; never stored | the lens's own grouping (milestones, banded by iteration) — the default axis |
+| **Bookmark** | the reader, at read time, by choice | on the cursor (`mark` / `marks` / `jumpToMark`); persisted beside a recording, never in it | the **Bookmarks** tab |
+
+Only the first two had a place in the lens. footprintjs holds a bookmark on the
+cursor and, by its own law, nowhere else — the log and the snapshot are the
+run's record, not the reader's notes — so a bookmark vanished when the page
+closed. And a run's own tags (agentfootprint 9.90 declares every milestone as
+one) were in the recording with nothing to read them.
+
+### Bookmarks
+
+Stand on a stop and press **Bookmark this stop**. The library names the mark
+(its own `mark()`, seated on the lens's one cursor); the lens writes it to a
+**sidecar** — a small document keyed to the run, in a store you choose. Click a
+bookmark to jump: the port's `jumpToMark`, through the same funnel every other
+mover uses, so the chart, the timeline and the Served tab all follow. Add a
+note inline; remove with one click.
+
+```tsx
+import { Lens } from 'agentfootprint-lens';
+import { memoryBookmarkStore } from 'agentfootprint-lens/core';
+
+<Lens recorder={recorder} runner={agent} granularity="group" />                       // localStorage, by default
+<Lens recorder={recorder} runner={agent} bookmarkStore={memoryBookmarkStore()} />    // this session only
+```
+
+The laws the tab keeps:
+
+- **One cursor.** The tab holds a list, never a position. A jump moves the lens
+  cursor (`onStepChange` fires); a miss never moves.
+- **Never in the record.** Nothing is written into the snapshot or the log.
+- **Omit, never deny.** A bookmark whose stop this recording does not hold —
+  a truncated recording, a sidecar filed under another run — is shown greyed as
+  *not in this recording*, never dropped.
+- **Persistence is a label.** A browser that refuses storage (private mode, a
+  quota, a server render) makes the tab say *bookmarks not saved*; a snapshot
+  with no `runId` says *no run id*. Nothing throws.
+- **No claim sentences.** Every string the tab prints is a label
+  (`BOOKMARK_LABELS`) or computed data; `test/served/no-own-claims.test.ts`
+  walks the file.
+
+The root bookends (*Run · start* / *Run · end*) are not bookmarkable — Home and
+End reach them on every axis, and they share one synthetic address.
+
+Headless, the sidecar is four functions in `/core`: `bookmarkKey(snapshot)`,
+`toSidecar(key, bookmarks)`, `fromSidecar(json, snapshot)` (reports
+`orphaned`), `bookmarksToMarks(bookmarks, positions)` to seed footprintjs's
+`timeTravel(snapshot, { marks })`; stores are `localStorageBookmarkStore()`,
+`memoryBookmarkStore()`, `noBookmarkStore()`, or any `BookmarkStore` of your
+own. See `src/core/bookmarks/README.md`.
+
+### The Tags strip
+
+On the grouped ruler, above the chart: one chip per declared tag, labelled with
+agentfootprint's milestone label when the tag is a milestone (*LLM turn*,
+*Route*) and its raw name otherwise (*audit*), with the number of bundles this
+run stamped it on. The list comes from the recording's **structure** — the
+chart advertises the tags it *can* produce, so the legend is drawn before a
+stop is reached — and the counts from the **log**. A recording that carried no
+structure lists only *tags this run hit* and says *no chart in this recording*.
+A declared tag the run never hit is shown and disabled.
+
+**Pick a chip and the ruler is rebuilt** through footprintjs 9.21's
+`tagStops(names)`: the stops whose bundle carries any picked tag, the untagged
+stages folded into the tagged stop before them, the run's bookends kept. It is
+the same one cursor on a different list — the cursor **keeps its commit**, not
+its step number: it is re-seated at the stop that holds its commit (nearest
+preceding when the new axis has none there — `stepForCommitIdx`, the same rule
+the `granularity` doc gives a host), and the host hears it as an ordinary
+`onStepChange`. `stateAt` at a picked stop equals the default axis's fold at
+the same commit (`src/core/tags/tags.test.ts` pins the equivalence). *Clear*
+restores the lens's own grouping, by the same rule. The strip appears on
+`granularity="group"` at the root level only: the per-step reading's ruler is
+every commit, byte for byte, and a drilled level scrubs its own stops.
+
+A pick scrubs the run's OWN log (`tagStops` reads no other), so a chip is
+pickable only when the tag was hit on the root log; a tag hit only inside
+mounted subflows (the grouped turn's *LLM turn*, the context slots) is shown
+disabled with *in subflows* — real, said, and not a stop on this axis. Counts
+walk each mount's log once (`subflowResults` is dual-keyed; only the `#n`
+entries are read).
+
+```ts
+import { tagLegend, tagAxisPositions, scrubAxisFor } from 'agentfootprint-lens/core';
+
+const legend = tagLegend(runner.getSpec().buildTimeStructure, runner.getLastSnapshot());
+legend.source;                                  // 'structure' | 'log'
+legend.entries.map((e) => [e.label, e.hits]);   // [['Iteration', 2], ['LLM turn', 2], ['audit', 0], …]
+
+const axis = tagAxisPositions(snapshot, ['milestone:llm-turn'], scrubAxisFor(recorder, 'group'));
+axis?.map((p) => p.label);                      // ['Run · start', 'LLM turn 1', 'LLM turn 2', 'Run · end']
+```
+
+**Older peers.** `tagStops` (footprintjs 9.21) and `milestoneFromTags`
+(agentfootprint 9.90) are read off their module namespaces at call time: on a
+peer without them the legend prints raw names, the strip says *tag axis
+unavailable*, and nothing else changes. The peer ranges are untouched.
+
+---
+
 ## Rendering your own detail pane
 
 `slots.detail` replaces the CONTENT of the shipped right column. The column
@@ -1289,6 +1404,27 @@ cursor with a **Verified / Reconstructed / Damaged / Not on record** badge per
 field, the library's gap sentences verbatim, the fold's hidden skill ids, and a
 since-previous diff. Headless: `servedRowAt` · `verify` · `sincePrevious` ·
 `foldFactsAt` in `/core`. See "The Served tab" above.
+
+### `<BookmarksTab>` — the reader's marks, riding the one cursor
+
+`<BookmarksTab bookmarks orphaned persistence positions step port moveTo onAdd
+onRemove onNote>`. The Why Lens mounts it as the right rail's third tab
+(`<Lens bookmarkStore?>` picks the store; default `localStorageBookmarkStore()`);
+exported for consumer-built shells, with `useBookmarkSidecar({ snapshot, store })`
+as the list and `openLensCursor(positions, { marks })` as the port. A jump is
+the port's `toMark` through `moveTo`; orphans are greyed and labelled; the
+store's availability is a label. Headless: `bookmarkKey` · `toSidecar` ·
+`fromSidecar` · `bookmarksToMarks` and the three stores in `/core`. See
+"Bookmarks, and scrubbing by declared tag" above.
+
+### `<TagPicker>` — the declared-tag legend and picker
+
+`<TagPicker legend picked onPick available>`. The engineer view mounts it above
+the chart on `granularity="group"` at the root level; `legend` is
+`tagLegend(structure, snapshot)` (`source: 'structure' | 'log'`), a pick is a
+list of tag names the lens hands to `tagAxisPositions(snapshot, picked, base)`
+(footprintjs 9.21's `tagStops`). Picking never moves the cursor; it changes the
+list the one cursor is a step into.
 
 ### `<BugReportButton>` — report a bug with the run attached, consent first
 

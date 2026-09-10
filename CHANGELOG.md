@@ -5,6 +5,83 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.48.0] - Unreleased
+
+footprintjs's declared-tags design (9.21) names three marks that end in one
+operation and differ in who puts them: a DECLARED tag is the author's, at build
+time, in the commit bundle; a DERIVED tag is the reader's predicate at read
+time; a BOOKMARK is the reader's choice. footprintjs holds a bookmark on the
+cursor (`mark` / `marks` / `jumpToMark`) and — by its own law — nowhere else,
+so the Why Lens had no bookmark at all: nothing persisted, and nothing in the
+lens read the tags an agent chart now declares (agentfootprint 9.90 stamps
+every milestone as one). This release gives the reader's mark a home BESIDE the
+recording, and the author's tags a ruler.
+
+### Added
+
+- **Bookmarks tab** on the engineer view's right rail (*What happened* ·
+  *Served* · *Bookmarks*): **Bookmark this stop** at the current stop, a list
+  that jumps on click through the port's `toMark` (the library's `jumpToMark`,
+  seated on the ONE cursor — `onStepChange` fires, nothing tab-local moves),
+  an inline note, a remove. Marks persist in a **sidecar** keyed to the run
+  (`bookmarkKey` = `runId` + a fingerprint of the log's opening) in a store
+  the host chooses: `<Lens bookmarkStore>` — default `localStorageBookmarkStore()`,
+  or `memoryBookmarkStore()` / `noBookmarkStore()` / your own `BookmarkStore`.
+  A store never throws: an unavailable one is the label *bookmarks not saved*;
+  a snapshot with no `runId` is *no run id*. A bookmark whose stop the
+  recording does not hold is shown greyed as *not in this recording* — reported,
+  never dropped (omit, never deny). Nothing is ever written into the record.
+  The root bookends are not bookmarkable (they share one synthetic address;
+  Home / End reach them anyway).
+
+  ```tsx
+  <Lens recorder={recorder} runner={agent} granularity="group" bookmarkStore={memoryBookmarkStore()} />
+  ```
+
+- **Tags strip** above the chart on `granularity="group"` (root level): a
+  legend of the tags the chart CAN produce (from the recording's structure)
+  with the count of bundles this run stamped each on (from `bundle.tags`);
+  milestone tags print agentfootprint's declared label (`milestoneFromTags`),
+  any other tag its raw name; a recording with no structure lists only *tags
+  this run hit* and says *no chart in this recording*. **Picking chips rebuilds
+  the ruler** through footprintjs 9.21's `tagStops(names)` — the same one
+  cursor, a different list; the cursor KEEPS ITS COMMIT (re-seated through the
+  funnel at the stop holding it, nearest preceding otherwise — `stepForCommitIdx`
+  — and reported via `onStepChange`); `stateAt` at a picked stop equals the
+  default axis's fold at the same commit; *Clear* restores the lens's own
+  grouping by the same rule. A chip is pickable only on a ROOT-log hit
+  (`tagStops` reads no other log); a tag hit only inside mounted subflows is
+  shown disabled as *in subflows* (`rootHits` / `mountHits` on the legend;
+  counts walk each mount's log once — `subflowResults` is dual-keyed). The
+  per-step reading and drilled levels are byte-identical to 0.47.1.
+
+- **`/core`:** `bookmarkKey`, `toSidecar`, `fromSidecar` (reports `orphaned`),
+  `bookmarksToMarks`, the three stores and `BOOKMARK_STORAGE_PREFIX`;
+  `tagLegend`, `tagAxisPositions`, `tagStopsFor`; `snapshotOfRunner` /
+  `snapshotLogKey` (the one owner of "did the runner's log move", now shared
+  by the Served tab, the legend and the bookmark key).
+- **`LensCursorPort`** gains `mark(step, name?)`, `marks()`, `toMark(from,
+  name)` and `openLensCursor(positions, { marks })` — the library's bookmark
+  verbs, seated the way every mover is. A `toMark` whose stage is not a stop on
+  the current axis falls back to the lens's own address rule (`toAddress`).
+- **React:** `<BookmarksTab>` + `BOOKMARK_LABELS`, `<TagPicker>` +
+  `TAG_PICKER_LABELS`, `useBookmarkSidecar`. Every printed string is a label:
+  `test/served/no-own-claims.test.ts` now walks `core/bookmarks`, `core/tags`,
+  both components and the hook against the union of the three `LABELS` sets.
+
+### Changed
+
+- devDependencies: `agentfootprint` → `^9.90.0`, `footprintjs` → `^9.21.1`.
+  Peer ranges are untouched: `tagStops` (footprintjs 9.21) and
+  `milestoneFromTags` (agentfootprint 9.90) are read off the module namespaces
+  at call time, so an older peer prints raw tag names and the strip says *tag
+  axis unavailable* instead of failing the module's link.
+- The Served-tab fixtures were regenerated on agentfootprint 9.90.0 (every
+  agent chart now carries `tags` in its structure and its bundles); the diff
+  against 0.47.1 moved only `tags`, runIds, hashes and timestamps. One fixture
+  added: `tagged-chart.json`, a plain footprintjs chart with the author's own
+  `audit` tag beside milestone tags.
+
 ## [0.47.1] - 2026-09-09
 
 The Served tab could prove the system text, every piece and every message

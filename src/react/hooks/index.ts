@@ -42,3 +42,11 @@ export { scrubAxisFor, type ScrubAxis } from './useCursorPositions.js';
 export { useChartGroup, type UseChartGroupOptions } from './useChartGroup.js';
 // The same question keyed by the STAGE cursor (returns the `Group` itself).
 export { useActiveGroup } from './useActiveGroup.js';
+// BOOKMARKS (0.48.0) — the sidecar for one recording: seeded from a store on
+// open, written back on change, orphans reported, persistence as a label.
+export {
+  useBookmarkSidecar,
+  type BookmarkPersistence,
+  type UseBookmarkSidecarArgs,
+  type UseBookmarkSidecarResult,
+} from './useBookmarkSidecar.js';

@@ -47,18 +47,33 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 import { RECEIPT_BOUNDARY, SERVED_GAPS, UNGAPPED_FIELDS } from 'agentfootprint';
 
-import { LABELS } from '../../src/react/components/ServedTab.js';
+import { LABELS as SERVED_LABELS } from '../../src/react/components/ServedTab.js';
+// 0.48.0: the Bookmarks tab and the tag picker keep the same rule — every
+// printed string is a LABEL in the component's own set — so their files and
+// their cores are walked here too, against the union of the three sets.
+import { LABELS as BOOKMARK_LABELS } from '../../src/react/components/BookmarksTab.js';
+import { LABELS as TAG_LABELS } from '../../src/react/components/TagPicker.js';
+
+// Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
+// than one set, and a spread would silently drop the values behind them.
+const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [SERVED_LABELS, BOOKMARK_LABELS, TAG_LABELS];
+const LABEL_ENTRIES: readonly (readonly [string, string])[] = LABEL_SETS.flatMap((set) => Object.entries(set));
+const LABELS = SERVED_LABELS;
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SRC = join(here, '..', '..', 'src');
 
+const sources = (dir: string, keep: (f: string) => boolean): string[] =>
+  readdirSync(join(SRC, dir))
+    .filter((f) => keep(f) && !f.includes('.test.'))
+    .map((f) => join(SRC, dir, f));
+
 const FILES: string[] = [
-  ...readdirSync(join(SRC, 'core', 'served'))
-    .filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))
-    .map((f) => join(SRC, 'core', 'served', f)),
-  ...readdirSync(join(SRC, 'react', 'components'))
-    .filter((f) => /^ServedTab.*\.tsx$/.test(f) && !f.includes('.test.'))
-    .map((f) => join(SRC, 'react', 'components', f)),
+  ...sources('core/served', (f) => f.endsWith('.ts')),
+  ...sources('core/bookmarks', (f) => f.endsWith('.ts')),
+  ...sources('core/tags', (f) => f.endsWith('.ts')),
+  ...sources('react/components', (f) => /^(ServedTab|BookmarksTab|TagPicker).*\.tsx$/.test(f)),
+  ...sources('react/hooks', (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
 
 const LIBRARY_SENTENCES = new Set<string>([
@@ -67,7 +82,7 @@ const LIBRARY_SENTENCES = new Set<string>([
   ...Object.values(UNGAPPED_FIELDS),
 ]);
 
-const LABEL_VALUES = new Set<string>(Object.values(LABELS));
+const LABEL_VALUES = new Set<string>(LABEL_ENTRIES.map(([, value]) => value));
 
 /** The single sentence-shaped label, with its provenance. */
 const MANDATED_NOTES = new Set<string>([LABELS.betweenCalls]);
@@ -122,7 +137,7 @@ describe('the Served tab writes no claim sentences of its own', () => {
   });
 
   it('every LABEL is a label: short, and no claim verb (one mandated note excepted)', () => {
-    const offenders = Object.entries(LABELS).filter(
+    const offenders = LABEL_ENTRIES.filter(
       ([, value]) => !MANDATED_NOTES.has(value) && (wordCount(value) > 7 || CLAIM_VERB.test(value)),
     );
     expect(offenders).toEqual([]);

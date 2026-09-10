@@ -33,8 +33,12 @@
  *                             return → the SYSTEM TEXT differs between epoch 1
  *                             and epoch 2 (one piece leaves, one enters; the
  *                             tool set stays).
+ *   tagged-chart.json         a plain footprintjs chart with the author's OWN
+ *                             tag (`audit`) beside milestone tags, no agent
+ *                             events → the tag legend and picker on a name
+ *                             the domain does not classify.
  *
- * Run:  npx tsx test/served/fixtures/generate.ts             all eight
+ * Run:  npx tsx test/served/fixtures/generate.ts             all nine
  *       npx tsx test/served/fixtures/generate.ts <name>…     only those; the
  *       other files are not touched (every run mints a fresh runId, so a
  *       regenerated fixture never has the bytes it had).
@@ -58,6 +62,7 @@ import { defineInstruction, defineSkill, skillGraph } from 'agentfootprint/conte
 import { PermissionPolicy } from 'agentfootprint/security';
 import { recordRun } from 'agentfootprint/observe';
 import { mock } from 'agentfootprint/providers';
+import { flowChart, FlowChartExecutor } from 'footprintjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -318,5 +323,42 @@ if (wanted('instructions-move')) {
     if (first === undefined || second === undefined || first === second) {
       throw new Error('instructions-move: the system text did not change between epoch 1 and epoch 2');
     }
+  });
+}
+
+// ── 9: a plain footprintjs chart with a NON-milestone declared tag ───────
+// Every agentfootprint chart declares only `milestone:*` tags. This one is
+// the author's own vocabulary — `audit` beside a milestone kind — so the tag
+// legend, the picker and `tagStops`'s any-of rule are exercised on a name
+// the domain does not classify. No agentfootprint events: the recording is
+// `{ snapshot, events: [], structure }`, which `observeRecording` reads as an
+// empty event log over a real commit axis.
+if (wanted('tagged-chart')) {
+  interface State {
+    trail?: string[];
+    n?: number;
+    [key: string]: unknown;
+  }
+  const push = (name: string) => (s: State) => {
+    s.trail = [...(s.trail ?? []), name];
+    s.n = (s.n ?? 0) + 1;
+  };
+  const chart = flowChart<State>('Seed', push('seed'), 'seed')
+    .addFunction('Call model', push('a'), 'call-llm')
+    .tag('milestone:llm-turn', 'milestone-label:LLM turn')
+    .addFunction('Normalise', push('b'), 'normalise')
+    .addFunction('Route', push('c'), 'route')
+    .tag('milestone:decision', 'milestone-label:Route', 'audit')
+    .addFunction('Finish', push('d'), 'finish')
+    .tag('audit')
+    .build();
+  const executor = new FlowChartExecutor(chart);
+  await executor.run();
+  const frozen: Frozen = { snapshot: executor.getSnapshot(), events: [], structure: chart.buildTimeStructure };
+  write('tagged-chart', frozen, (r) => {
+    const log = (r.snapshot as { commitLog: { tags?: string[] }[] }).commitLog;
+    const audits = log.filter((b) => b.tags?.includes('audit')).length;
+    if (audits !== 2) throw new Error(`tagged-chart: expected 2 audit-tagged bundles, got ${audits}`);
+    if (!JSON.stringify(r.structure).includes('"audit"')) throw new Error('tagged-chart: the structure lists no audit tag');
   });
 }

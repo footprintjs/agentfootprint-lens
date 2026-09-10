@@ -51,6 +51,7 @@ import {
   type SincePrevious,
 } from '../../core/served/index.js';
 import type { DiffSegment } from '../../core/utils/diffPrompts.js';
+import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRunner.js';
 import { T } from '../theme/index.js';
 
 /**
@@ -156,32 +157,11 @@ export interface ServedTabProps {
   readonly onJumpTo?: (runtimeStageId: string) => void;
 }
 
-function snapshotOf(runner: unknown): unknown {
-  const fn = (runner as { getLastSnapshot?: unknown } | null)?.getLastSnapshot;
-  if (typeof fn === 'function') return (fn as () => unknown).call(runner);
-  return runner;
-}
-
-/**
- * What a snapshot's log has that the last one did not: the run and how many
- * commits it holds (run log + subflow mounts). A live runner hands back a NEW
- * snapshot object on every `getLastSnapshot()`, so keying a memo on the object
- * would derive the whole tab on every render; this key is stable until a
- * commit lands or the run changes.
- */
-function logKeyOf(snapshot: unknown): string {
-  const s = snapshot as
-    | { runId?: unknown; commitLog?: unknown; subflowResults?: unknown }
-    | null
-    | undefined;
-  if (s === null || typeof s !== 'object') return '';
-  const commits = Array.isArray(s.commitLog) ? s.commitLog.length : 0;
-  const mounts =
-    s.subflowResults !== null && typeof s.subflowResults === 'object'
-      ? Object.keys(s.subflowResults as object).length
-      : 0;
-  return `${String(s.runId)}:${commits}:${mounts}`;
-}
+// `snapshotOfRunner` / `snapshotLogKey` (0.48.0): the runner's last snapshot
+// and the "did its log move" key are one owner now, shared with the tag
+// legend and the bookmark key — see `core/utils/snapshotOfRunner.ts`.
+const snapshotOf = snapshotOfRunner;
+const logKeyOf = snapshotLogKey;
 
 /** The tab, inside the boundary that keeps a bad record from unmounting the
  *  Lens. `ServedTabBody` is the tab itself. */
