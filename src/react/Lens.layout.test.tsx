@@ -86,8 +86,11 @@ describe('slots.detail — the host renders the right column', () => {
 
     const pane = screen.getByTestId('host-detail');
     expect(pane.textContent).toMatch(/host pane · step \d+/);
-    // The shipped timeline is gone; the shipped COLUMN (its collapse pill) stays.
-    expect(container.textContent).not.toMatch(/What happened/i);
+    // The shipped timeline is not SHOWING — the host's pane is the selected
+    // tab. But the strip is the library's (0.50.0): "What happened" is one
+    // click away, and the shipped COLUMN (its collapse pill) is untouched.
+    expect(screen.queryByRole('listbox', { name: 'Run timeline' })).toBeNull();
+    expect(screen.getByTestId('rail-tab-happened')).toBeInTheDocument();
     expect(container.textContent).toMatch(/Inspect/i);
   });
 

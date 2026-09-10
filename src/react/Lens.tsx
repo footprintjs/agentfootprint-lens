@@ -385,16 +385,69 @@ export interface LensProps {
  *
  * Same idea as `<TraceExplorerShell slots>`: keep the shipped layout and the
  * shipped cursor, replace what one pane renders.
+ *
+ * THE LAW: **a slot fills a PANE, never the CHROME around it.** The rail's tab
+ * strip, the one cursor and the collapse pill belong to the library, because
+ * chrome is how the library adds capability over time — a consumer that fills a
+ * slot must still receive every capability the rail gains later. That is why
+ * `detail` is ONE TAB and not a takeover, and why `detailOnly` is an opt-out
+ * rather than the default.
  */
 export interface LensSlots {
   /**
-   * Override the RIGHT column — the "what happened" timeline. Your component
-   * renders inside the shipped column (its width, borders, collapse pill and
-   * scroll behaviour are unchanged); only the content is yours.
+   * Render the right column's FIRST TAB — your own pane, beside the library's.
+   *
+   * Your component renders inside the shipped column (its width, borders,
+   * collapse pill and scroll behaviour are unchanged) and inside the shipped
+   * rail: the tab strip stays, your pane becomes the first tab and is selected
+   * by default, and "What happened", "Served" and "Bookmarks" stay reachable
+   * beside it. Switching tabs never moves the cursor and never unmounts your
+   * pane — it keeps its own state.
+   *
+   * Before 0.50.0 a supplied slot replaced the whole rail, tab strip included,
+   * so a slot consumer could not reach anything the rail gained afterwards.
+   * That was the defect this shape fixes; `detailOnly` is the way back.
    *
    * Omit it and the built-in timeline renders exactly as before.
+   *
+   * ```tsx
+   * <Lens recorder={recorder} slots={{ detail: MyBands, detailLabel: 'Bands' }} />
+   * // rail: [ Bands* | What happened | Served | Bookmarks ]
+   * ```
    */
   readonly detail?: React.ComponentType<LensDetailSlotProps>;
+
+  /**
+   * What the `detail` tab is CALLED. Default: `"Details"`.
+   *
+   * WHY it exists: the tab strip names each reading in the reader's own words,
+   * and "Details" is the library's generic word for someone else's pane. An app
+   * whose pane is a stack of SEO bands should say so — the strip is read left to
+   * right and an unnamed tab makes the app's own reading the anonymous one.
+   *
+   * A plain string, rendered as the tab's text; it is the accessible name too.
+   * Ignored when no `detail` slot is supplied.
+   *
+   * ```tsx
+   * slots={{ detail: MyBands, detailLabel: 'SEO bands' }}
+   * ```
+   */
+  readonly detailLabel?: string;
+
+  /**
+   * OPT OUT of the tab strip: the `detail` slot takes the whole rail, as it did
+   * before 0.50.0. Default `false`.
+   *
+   * For the app with a full-height custom layout of its own — a pane that owns
+   * its scroll and its header and would read as a second chrome under the
+   * library's strip. The cost is stated plainly: nothing the rail gains later
+   * (Served, Bookmarks, whatever follows) can reach that consumer, and neither
+   * can the library's own timeline. Prefer the tabs; take this only when the
+   * layout genuinely demands it.
+   *
+   * Ignored when no `detail` slot is supplied.
+   */
+  readonly detailOnly?: boolean;
 }
 
 /**
@@ -1551,12 +1604,31 @@ const EngineerView: React.FC<{
   const rowRef = useRef<HTMLDivElement | null>(null);
   const stacked = useNarrowRow(rowRef);
 
-  // The right column's content. Absent slot → the built-in timeline, unchanged.
+  // The right column's FIRST TAB, when a host supplies one. Absent slot → the
+  // built-in readings alone, unchanged. A slot fills a PANE, never the chrome:
+  // the strip below is the library's in both cases (see `LensSlots`).
   const DetailSlot = slots?.detail;
-  // Which reading the right rail shows: WHAT HAPPENED (the shipped timeline) or
-  // SERVED (what the model was handed at the cursor's call). A tab choice, not
-  // a position — both read the same one cursor.
-  const [railTab, setRailTab] = useState<"happened" | "served" | "bookmarks">("happened");
+  const detailLabel = slots?.detailLabel ?? "Details";
+  // The opt-out: the slot takes the whole rail, as it did before 0.50.0.
+  const detailOnly = DetailSlot !== undefined && slots?.detailOnly === true;
+  // Which reading the right rail shows: the HOST's pane (first, and the default
+  // whenever a slot is supplied), WHAT HAPPENED (the shipped timeline), SERVED
+  // (what the model was handed at the cursor's call) or BOOKMARKS. A tab
+  // choice, not a position — every one of them reads the same one cursor.
+  //
+  // The reader's CHOICE is what is stored, not the tab: a slot that arrives
+  // late (a host that fetches its recording before it can build a pane) must
+  // still open on the host's own tab, and a slot that goes away must not strand
+  // the rail on a tab that no longer exists. Both fall out of deriving the
+  // shown tab from the choice plus what is actually mounted.
+  const [railTabChoice, setRailTabChoice] = useState<RailTab | undefined>(undefined);
+  const defaultRailTab: RailTab = DetailSlot !== undefined ? "detail" : "happened";
+  const railTab: RailTab =
+    railTabChoice !== undefined &&
+    (railTabChoice !== "detail" || DetailSlot !== undefined) &&
+    (railTabChoice !== "bookmarks" || bookmarks !== undefined)
+      ? railTabChoice
+      : defaultRailTab;
   // The Served tab folds the run's own snapshot. Prefer the `runner` prop; fall
   // back to the runner the recorder is observing, so a `<Lens recorder>` with
   // no runner prop still gets the tab.
@@ -1577,6 +1649,27 @@ const EngineerView: React.FC<{
     },
     [cursorPort, focusStep, onFocusChange],
   );
+
+  // The host's pane, built ONCE — the same element whether it is the rail's
+  // first tab or (with `detailOnly`) the whole rail, so the props a slot
+  // receives never depend on which shape it is mounted in.
+  const detailPane =
+    DetailSlot !== undefined ? (
+      <DetailSlot
+        step={focusStep}
+        totalSteps={total}
+        cursorRuntimeStageId={cursorRuntimeStageId}
+        commitIdx={cursorPositions[focusStep]?.commitIdx ?? -1}
+        label={cursorPositions[focusStep]?.label ?? ''}
+        {...(cursorPositions[focusStep]?.kind
+          ? { kind: cursorPositions[focusStep]!.kind }
+          : {})}
+        {...(cursorFocusedNode ? { node: cursorFocusedNode } : {})}
+        relatedNodes={cursorRelatedNodes}
+        recorder={recorder}
+        onNavigate={onFocusChange}
+      />
+    ) : null;
 
   return (
     <div
@@ -1906,34 +1999,40 @@ const EngineerView: React.FC<{
             {/* The timeline IS the scrubber + commentary + details, folded into
                 one rail (the mockup's right column). Clicking a moment moves the
                 same single cursor; the focused moment expands to the existing
-                NodeDetailPanel content inline. A `slots.detail` component takes
-                over the CONTENT of this same column — the column itself, its
-                cursor and its collapse pill are unchanged. */}
-            {DetailSlot ? (
-              <DetailSlot
-                step={focusStep}
-                totalSteps={total}
-                cursorRuntimeStageId={cursorRuntimeStageId}
-                commitIdx={cursorPositions[focusStep]?.commitIdx ?? -1}
-                label={cursorPositions[focusStep]?.label ?? ''}
-                {...(cursorPositions[focusStep]?.kind
-                  ? { kind: cursorPositions[focusStep]!.kind }
-                  : {})}
-                {...(cursorFocusedNode ? { node: cursorFocusedNode } : {})}
-                relatedNodes={cursorRelatedNodes}
-                recorder={recorder}
-                onNavigate={onFocusChange}
-              />
+                NodeDetailPanel content inline.
+
+                A `slots.detail` component is the rail's FIRST TAB, selected by
+                default — NOT a takeover. The strip below is the library's in
+                both cases, which is what keeps a slot consumer reachable by
+                everything the rail ships now (What happened, Served, Bookmarks)
+                and everything it gains later. `slots.detailOnly` hands the
+                pre-0.50.0 takeover back to the app that truly wants it. */}
+            {detailOnly ? (
+              detailPane
             ) : (
             <>
             <div role="tablist" aria-label="Right rail" style={railTabsStyle}>
+              {DetailSlot !== undefined && (
+                <button
+                  type="button"
+                  role="tab"
+                  aria-selected={railTab === "detail"}
+                  data-testid="rail-tab-detail"
+                  className="lens-rail-tab"
+                  style={railTabStyle(railTab === "detail")}
+                  onClick={() => setRailTabChoice("detail")}
+                >
+                  {detailLabel}
+                </button>
+              )}
               <button
                 type="button"
                 role="tab"
                 aria-selected={railTab === "happened"}
                 data-testid="rail-tab-happened"
+                className="lens-rail-tab"
                 style={railTabStyle(railTab === "happened")}
-                onClick={() => setRailTab("happened")}
+                onClick={() => setRailTabChoice("happened")}
               >
                 What happened
               </button>
@@ -1942,8 +2041,9 @@ const EngineerView: React.FC<{
                 role="tab"
                 aria-selected={railTab === "served"}
                 data-testid="rail-tab-served"
+                className="lens-rail-tab"
                 style={railTabStyle(railTab === "served")}
-                onClick={() => setRailTab("served")}
+                onClick={() => setRailTabChoice("served")}
               >
                 Served
               </button>
@@ -1953,14 +2053,34 @@ const EngineerView: React.FC<{
                   role="tab"
                   aria-selected={railTab === "bookmarks"}
                   data-testid="rail-tab-bookmarks"
+                  className="lens-rail-tab"
                   style={railTabStyle(railTab === "bookmarks")}
-                  onClick={() => setRailTab("bookmarks")}
+                  onClick={() => setRailTabChoice("bookmarks")}
                 >
                   Bookmarks
                 </button>
               )}
             </div>
-            {railTab === "bookmarks" && bookmarks !== undefined ? (
+            {/* The host's pane stays MOUNTED behind the other tabs — hidden, not
+                unmounted. A remount would make it forget what it was showing
+                (a band that was open, a scroll position), and a reader who
+                glanced at Served and came back would find their own pane reset.
+                The library's own readings are cheap to rebuild and are not. */}
+            {DetailSlot !== undefined && (
+              <div
+                data-testid="rail-pane-detail"
+                style={{
+                  display: railTab === "detail" ? "flex" : "none",
+                  flexDirection: "column",
+                  flex: "1 1 auto",
+                  minHeight: 0,
+                  overflow: "hidden",
+                }}
+              >
+                {detailPane}
+              </div>
+            )}
+            {railTab === "detail" ? null : railTab === "bookmarks" && bookmarks !== undefined ? (
               <BookmarksTab
                 bookmarks={bookmarks.bookmarks}
                 orphaned={bookmarks.orphaned}
@@ -2590,7 +2710,15 @@ function servedCommitIdxOf(position: CursorPosition | undefined): number {
   return position.commitIdx;
 }
 
-/** The right rail's two readings, as a tab strip. */
+/**
+ * The right rail's readings, as a tab strip.
+ *
+ * `"detail"` is a host's pane through `slots.detail` and only exists while one
+ * is supplied; `"bookmarks"` only while a bookmark sidecar is. The strip itself
+ * is always the library's — see `LensSlots` for why.
+ */
+type RailTab = "detail" | "happened" | "served" | "bookmarks";
+
 const railTabsStyle: React.CSSProperties = {
   display: "flex",
   flex: "none",

@@ -940,7 +940,9 @@ not answer, since it takes an exact stop.
 ## The Served tab
 
 **At every LLM call, exactly what the model was served — provable from the log.**
-The Why Lens's right rail has a second tab, **Served**, mounted for every run.
+The Why Lens's right rail has a second tab, **Served**, mounted for every run —
+including for a host that supplies `slots.detail`, whose own pane is the tab
+beside it (0.50.0).
 Stand on an LLM turn and it shows the request that call went out with: the system
 prompt (piece by piece), the messages as sent, the tools as sent, the dials, the
 cache breakpoints — and beside every field, what the record can PROVE about it.
@@ -1108,7 +1110,8 @@ likely to rot — and the question above is answered without it.
 ## Bookmarks, and scrubbing by declared tag
 
 **The reader's marks, kept beside the recording — and the author's tags, as a
-ruler.** Since 0.48.0 the Why Lens's right rail has a third tab, **Bookmarks**,
+ruler.** Since 0.48.0 the Why Lens's right rail has a third tab, **Bookmarks**
+(a fourth when a host fills `slots.detail`),
 and the grouped ruler carries a **Tags** strip.
 
 ### Why
@@ -1222,9 +1225,17 @@ unavailable*, and nothing else changes. The peer ranges are untouched.
 
 ## Rendering your own detail pane
 
-`slots.detail` replaces the CONTENT of the shipped right column. The column
-itself — its width, its border, its collapse pill, its cursor — is unchanged.
-Omit `slots` and the built-in timeline renders exactly as before.
+**A slot fills a PANE, never the CHROME around it.** The right rail's tab strip,
+the one cursor and the collapse pill belong to the library, because chrome is how
+the library adds capability over time — a consumer that fills a slot must still
+receive every reading the rail gains later. That is why `slots.detail` is ONE TAB
+and not a takeover, and why `detailOnly` is an opt-out rather than the default.
+
+`slots.detail` renders the right column's FIRST tab. The column itself — its
+width, its border, its collapse pill, its cursor — is unchanged, and so is the
+strip: your pane is selected by default, with *What happened*, *Served* and
+*Bookmarks* one click away beside it. Omit `slots` and the built-in timeline
+renders exactly as before.
 
 ```tsx
 const Detail: React.FC<LensDetailSlotProps> = ({ step, cursorRuntimeStageId, node, onNavigate }) => (
@@ -1235,7 +1246,8 @@ const Detail: React.FC<LensDetailSlotProps> = ({ step, cursorRuntimeStageId, nod
   </div>
 );
 
-<Lens recorder={recorder} runner={runner} slots={{ detail: Detail }} />
+<Lens recorder={recorder} runner={runner} slots={{ detail: Detail, detailLabel: 'My bands' }} />
+// rail: [ My bands* | What happened | Served | Bookmarks ]
 ```
 
 The slot receives the cursor in every unit (`step`, `totalSteps`,
@@ -1243,6 +1255,23 @@ The slot receives the cursor in every unit (`step`, `totalSteps`,
 and the ones that ran inside its scope (`node`, `relatedNodes`), the `recorder`
 for anything else, and `onNavigate` — the same funnel every built-in mover uses,
 so your pane moves the ONE cursor rather than starting a second one.
+
+| key | what it does |
+|---|---|
+| `detail` | your pane, as the rail's first tab, selected by default |
+| `detailLabel` | what that tab is CALLED. Default `"Details"` — the library's generic word for someone else's pane. Name it and the strip reads in your reader's words. |
+| `detailOnly` | opt OUT of the strip: your pane takes the whole rail, as it did before 0.50.0. For a full-height custom layout that would read as a second chrome under the library's strip. The cost: nothing the rail gains later can reach you. |
+
+**Switching tabs moves nothing and remounts nothing.** The cursor stays where it
+was, and your pane is hidden rather than unmounted — a reader who glances at
+*Served* and comes back finds their bands open and their scroll where they left
+it.
+
+**The worked example (0.50.0).** An app supplies `detail` + `detailLabel` and
+changes nothing else: it sees its own pane first and selected, exactly as before,
+and it GAINS Served, the Served graph and Bookmarks on the version bump. Before
+0.50.0 that same app lost the entire rail — the tab strip included — and could
+not reach any of them.
 
 Keep the slots object stable across renders (module scope or `useMemo`), same as
 `<TraceExplorerShell slots>`.
@@ -1377,7 +1406,7 @@ graph in one call. Returns an unsubscribe. Call it once per run.
 | `step` | `number?` | Controlled cursor. **Omit it and the lens is self-driving, exactly as before.** Pass it and you own the position; out-of-range values are clamped and reported. See [Driving the cursor](#driving-the-cursor-from-your-app). |
 | `onStepChange` | `(step, at) => void?` | Fires on every cursor move — required for movement in controlled mode, an observation hook otherwise. `at` carries `runtimeStageId`, `commitIdx`, `label`, `kind` and `clamped`. |
 | `navigatorRef` | `Ref<LensNavigator>?` | Move the cursor to a stage **by its `runtimeStageId`**. `ref.current.navigateTo(id)` returns `{ ok: true, step, match, label }` or `{ ok: false, reason, message, nearest? }` — a miss never moves. See [Pointing at a step](#pointing-at-a-step-navigatorref). |
-| `slots` | `LensSlots?` | Slot overrides. `slots.detail` renders your content in the shipped right column. Omit for the built-in timeline. See [Rendering your own detail pane](#rendering-your-own-detail-pane). |
+| `slots` | `LensSlots?` | Slot overrides. `slots.detail` renders your content as the right rail's FIRST TAB (`slots.detailLabel` names it; `slots.detailOnly` takes the whole rail instead). The strip stays the library's. Omit for the built-in timeline. See [Rendering your own detail pane](#rendering-your-own-detail-pane). |
 
 ### `<LensFlow>` — the chart canvas on its own
 

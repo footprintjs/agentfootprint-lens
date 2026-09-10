@@ -7,6 +7,12 @@ and one over what they returned — no React, every return frozen. agentfootprin
 and the epoch owner (`epochLocations`); this folder only resolves the lens's
 cursor onto those and compares what they hand back.
 
+The tab this feeds is the right rail's, and the rail is the LIBRARY's chrome:
+since 0.50.0 a host that fills `slots.detail` gets its own pane as the rail's
+first tab and keeps this one beside it (before 0.50.0 a slot replaced the whole
+rail, so those consumers never saw Served at all). Nothing here changes with a
+slot present — the tab reads the same one cursor either way.
+
 | file | one job |
 |---|---|
 | `servedRowAt.ts` | cursor → epoch. On an llm-turn stop, that call. Inside a grouped turn's subflow, that turn. Otherwise the nearest PRECEDING call by run-log index, flagged `betweenCalls`. |

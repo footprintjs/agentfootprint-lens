@@ -28,7 +28,7 @@ import { T } from './theme/index.js';
 
 /** Marker attribute on the injected `<style>` — bump when the sheet changes. */
 const STYLE_MARKER = 'data-lens-styles';
-const STYLE_VERSION = 'v5';
+const STYLE_VERSION = 'v6';
 
 /**
  * The whole Lens stylesheet, as text. Exported so a server renderer can inline
@@ -615,6 +615,16 @@ export const LENS_STYLESHEET = `
   font-weight: 600;
   line-height: 1.5;
 }
+/* ── The right rail's tab strip ───────────────────────────────────────────
+   The tabs are keyboard-reachable buttons, and this is the ring that says so.
+   A tab strip whose focus is invisible is a strip only a mouse can use, and
+   since 0.50.0 a host's own pane is one of these tabs — so the reader who
+   tabs to it must see where they are. */
+.lens-rail-tab:focus-visible {
+  outline: 2px solid ${T.primary};
+  outline-offset: -2px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .lens-group-boundary,
   .lens-group-node--member::after,

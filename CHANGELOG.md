@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.50.0] - 2026-09-10
+
+**A detail slot is one TAB, not a takeover.** A consumer that supplied
+`slots.detail` used to lose the entire right rail — the TAB STRIP included — so
+it could never reach *Served*, *Bookmarks*, or anything the rail gained after it
+adopted the slot. That was measured on a real consumer app whose
+console mounts `<Lens slots={{ detail }}>` for every recording: it was
+locked out of the Served tab and the Served graph shipped in 0.47–0.49 without
+ever knowing they existed. The slot's own docs said the takeover was only "the
+CONTENT of this same column"; the tab strip made that untrue.
+
+**The law, written down so the next slot cannot repeat it: a slot fills a PANE,
+never the CHROME around it.** The rail's tab strip, the one cursor and the
+collapse pill are the library's, because chrome is how the library adds
+capability over time — a consumer that fills a slot must still receive every
+reading the rail gains later.
+
+### Changed
+
+- **`slots.detail` is now the right rail's FIRST TAB**, selected by default, with
+  the library's strip above it. A slot consumer opens exactly where it always
+  did — its own pane, same props, same cursor — and now has *What happened*,
+  *Served* and *Bookmarks* one click away beside it. Switching tabs moves
+  nothing and unmounts nothing: the host pane is hidden rather than remounted,
+  so a band it had open is still open on the way back.
+
+  **Migration: none.** With `slots.detail` supplied and NOTHING else changed, the
+  pane renders with the same props, the same mount identity and the same default
+  selection — the only visible difference is a tab strip above it, and three
+  readings the consumer could not previously reach.
+
+### Added
+
+- **`slots.detailLabel?: string`** — what that tab is CALLED. Default `"Details"`,
+  the library's generic word for someone else's pane; name it and the strip reads
+  in your reader's words (`slots={{ detail: MyBands, detailLabel: 'SEO bands' }}`
+  ⇒ `[ SEO bands* | What happened | Served | Bookmarks ]`).
+
+- **`slots.detailOnly?: boolean`** — the OPT-OUT, defaulted **off**. It restores
+  the pre-0.50.0 takeover: the slot owns the whole rail, no strip. We offer it
+  rather than refuse it because an app with a full-height custom layout — one
+  that owns its own header and scroll — would read as a second chrome stacked
+  under the library's strip, and that app deserves an escape hatch. But the
+  DEFAULT is the tabs, because the default is what decides whether a consumer
+  keeps receiving what the library ships next, and a lockout should never be
+  something a consumer gets without asking for it. The cost is stated at the
+  type: nothing the rail gains later can reach a `detailOnly` consumer.
+
+- A focus ring on the rail's tabs (`.lens-rail-tab:focus-visible`) — the strip is
+  keyboard-reachable, and now says so.
+
 ## [0.49.0] - 2026-09-10
 
 The five laws are pinned twice on purpose: `servedGraph.test.ts` checks them
