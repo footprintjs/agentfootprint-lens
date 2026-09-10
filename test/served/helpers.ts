@@ -7,6 +7,20 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import {
+  foldFactsAt,
+  servedGraphAt,
+  servedRowAt,
+  servedRowForEpoch,
+  sincePrevious,
+  verify,
+  type FoldFacts,
+  type ServedCursor,
+  type ServedGraph,
+  type ServedRow,
+  type ServedVerification,
+  type SincePrevious,
+} from '../../src/core/served/index.js';
 import { observeRecording, type Recording } from '../../src/core/observeRecording.js';
 import { scrubAxisFor } from '../../src/core/group/scrubAxisFor.js';
 import type { CursorPosition } from '../../src/core/group/cursorPositionsAtDrill.js';
@@ -85,4 +99,46 @@ export function tamperToolSchema(name: string): (recording: TamperableRecording)
     if (schema === undefined) throw new Error(`tamperToolSchema: no schema '${name}' in the seed commit`);
     schema.inputSchema = { ...schema.inputSchema, required: ['q'] };
   };
+}
+
+/**
+ * The Served row at one stop, resolved the way `<ServedTab>` resolves it, plus
+ * the graph built from it. The graph is a SECOND VIEW of that row — never a
+ * second read — so every test measures both off one resolution.
+ */
+export interface LoadedGraph {
+  readonly cursor: ServedCursor;
+  readonly row: ServedRow;
+  readonly checks: ServedVerification;
+  readonly fold: FoldFacts;
+  readonly since?: SincePrevious;
+  readonly graph: ServedGraph;
+}
+
+export function graphAt(fixture: LoadedFixture, stop: CursorPosition): LoadedGraph {
+  const cursor: ServedCursor = { runtimeStageId: stop.runtimeStageId, commitIdx: stop.commitIdx };
+  const row = servedRowAt(fixture.snapshot, cursor);
+  if (row === undefined) throw new Error(`graphAt: no epoch at ${stop.runtimeStageId}`);
+  const checks = verify(row.view, row.receipt, row.receipt?.basis.runId ?? '', row.receiptCause);
+  const previous =
+    row.previousEpoch !== undefined
+      ? servedRowForEpoch(fixture.snapshot, row.previousEpoch)
+      : undefined;
+  const since = previous !== undefined ? sincePrevious(row, previous) : undefined;
+  const fold = foldFactsAt(fixture.snapshot, cursor);
+  return {
+    cursor,
+    row,
+    checks,
+    fold,
+    ...(since !== undefined ? { since } : {}),
+    graph: servedGraphAt({ row, fold, checks, ...(since !== undefined ? { since } : {}) }),
+  };
+}
+
+/** The llm-turn stops of a fixture, or the iteration stops where a fixture has
+ *  no llm-turn milestone of its own (the grouped turn and the LLMCall chart). */
+export function turnStops(fixture: LoadedFixture, name: FixtureName): readonly CursorPosition[] {
+  const turns = stopsOf(fixture, 'llm-turn');
+  return turns.length > 0 ? turns : stopsOf(fixture, 'iteration');
 }

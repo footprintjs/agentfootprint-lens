@@ -28,3 +28,10 @@
  */
 export * from './core/index.js';
 export * from './react/index.js';
+
+// ONE NAME, TWO DOORWAYS. `ServedGraph` is the React component here and the
+// SHAPE `servedGraphAt` returns on `agentfootprint-lens/core`. On this barrel
+// the component wins — a React app importing the root wants the element — and
+// the shape keeps its name behind `/core`, where it is built. An explicit
+// re-export is what decides it; two `export *` alone would be ambiguous.
+export { ServedGraph } from './react/index.js';

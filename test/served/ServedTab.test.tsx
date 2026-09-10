@@ -357,8 +357,11 @@ describe('<ServedTab> — one cursor', () => {
     expect(states.length).toBeGreaterThan(0);
     for (const [whole, name] of states) {
       expect(name).not.toMatch(/step|cursor|epoch|position|idx|index|commit/i);
-      // Initial values are a boolean or a Set — never a number.
-      expect(whole).toMatch(/useState\(false\)|useState<ReadonlySet<string>>/);
+      // Initial values are a boolean, a Set, or the name of a VIEW (0.49.0's
+      // list ⇄ graph toggle) — never a number, which is what a position is.
+      expect(whole).toMatch(
+        /useState\(false\)|useState<ReadonlySet<string>>|useState<ServedViewMode>\('list'\)/,
+      );
     }
   });
 });

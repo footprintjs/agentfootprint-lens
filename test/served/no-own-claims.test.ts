@@ -6,7 +6,8 @@
  * NONE: every explanatory sentence it prints is `SERVED_GAPS[k].why`,
  * `UNGAPPED_FIELDS[k]` or `RECEIPT_BOUNDARY` verbatim, or is computed data.
  * This test walks every string literal in `src/core/served/` and
- * `src/react/components/ServedTab*.tsx` and requires each to be one of:
+ * `src/react/components/Served*.tsx` — the tab, the GRAPH (0.49.0) and the
+ * badge they share — and requires each to be one of:
  *
  *   · a LABEL — a value of the tab's exported `LABELS` (each of which is itself
  *     checked here: short, and carrying no claim verb);
@@ -53,10 +54,20 @@ import { LABELS as SERVED_LABELS } from '../../src/react/components/ServedTab.js
 // their cores are walked here too, against the union of the three sets.
 import { LABELS as BOOKMARK_LABELS } from '../../src/react/components/BookmarksTab.js';
 import { LABELS as TAG_LABELS } from '../../src/react/components/TagPicker.js';
+// 0.49.0: the Served GRAPH is a second view of the same row, under the same
+// rule — its own labels, and every reason it prints is the library's string.
+import { GRAPH_LABELS } from '../../src/react/components/ServedGraph.js';
+import { BADGE_LABELS } from '../../src/react/components/ServedBadge.js';
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
-const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [SERVED_LABELS, BOOKMARK_LABELS, TAG_LABELS];
+const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
+  SERVED_LABELS,
+  BOOKMARK_LABELS,
+  TAG_LABELS,
+  GRAPH_LABELS,
+  BADGE_LABELS,
+];
 const LABEL_ENTRIES: readonly (readonly [string, string])[] = LABEL_SETS.flatMap((set) => Object.entries(set));
 const LABELS = SERVED_LABELS;
 
@@ -72,7 +83,7 @@ const FILES: string[] = [
   ...sources('core/served', (f) => f.endsWith('.ts')),
   ...sources('core/bookmarks', (f) => f.endsWith('.ts')),
   ...sources('core/tags', (f) => f.endsWith('.ts')),
-  ...sources('react/components', (f) => /^(ServedTab|BookmarksTab|TagPicker).*\.tsx$/.test(f)),
+  ...sources('react/components', (f) => /^(Served|BookmarksTab|TagPicker).*\.tsx$/.test(f)),
   ...sources('react/hooks', (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
 
@@ -132,8 +143,12 @@ function literalsOf(file: string): Literal[] {
 const wordCount = (s: string): number => s.split(/\s+/).filter((w) => w.length > 0).length;
 
 describe('the Served tab writes no claim sentences of its own', () => {
-  it('walks at least the four core files and the tab', () => {
+  it('walks the core files, the tab, the graph and the badge they share', () => {
     expect(FILES.length).toBeGreaterThanOrEqual(5);
+    const walked = FILES.map((f) => f.split('/').pop());
+    expect(walked).toContain('servedGraphAt.ts');
+    expect(walked).toContain('ServedGraph.tsx');
+    expect(walked).toContain('ServedBadge.tsx');
   });
 
   it('every LABEL is a label: short, and no claim verb (one mandated note excepted)', () => {

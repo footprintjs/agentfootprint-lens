@@ -39,6 +39,7 @@ import { SERVED_GAPS, UNGAPPED_FIELDS, type ServedGap } from 'agentfootprint';
 import {
   EXCUSING_GAPS,
   foldFactsAt,
+  servedGraphAt,
   servedRowAt,
   servedRowForEpoch,
   sincePrevious,
@@ -51,6 +52,10 @@ import {
   type SincePrevious,
 } from '../../core/served/index.js';
 import type { DiffSegment } from '../../core/utils/diffPrompts.js';
+// The badge is ONE owner across the tab's two views (list and graph) — see
+// `ServedBadge.tsx`. Re-exported below so its import path is unchanged.
+import { Badge, BADGE_LABELS } from './ServedBadge.js';
+import { ServedGraph, GRAPH_LABELS } from './ServedGraph.js';
 import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRunner.js';
 import { T } from '../theme/index.js';
 
@@ -78,14 +83,14 @@ export const LABELS = Object.freeze({
   omissions: 'Omissions',
   gaps: 'Gaps',
   sincePrevious: 'Since previous',
-  verified: 'Verified',
-  reconstructed: 'Reconstructed',
-  damaged: 'Damaged',
-  notOnRecord: 'Not on record',
-  onReceipt: 'on receipt',
+  verified: BADGE_LABELS.verified,
+  reconstructed: BADGE_LABELS.reconstructed,
+  damaged: BADGE_LABELS.damaged,
+  notOnRecord: BADGE_LABELS.notOnRecord,
+  onReceipt: BADGE_LABELS.onReceipt,
   onReceiptOnly: 'on receipt only',
-  receipt: 'receipt',
-  rebuilt: 'rebuilt',
+  receipt: BADGE_LABELS.receipt,
+  rebuilt: BADGE_LABELS.rebuilt,
   pieces: 'pieces',
   requestOnly: 'request-only',
   forced: 'forced',
@@ -132,6 +137,11 @@ export const LABELS = Object.freeze({
   tokens: 'tokens',
   foldUnavailable: 'fold unavailable',
   skippedRows: 'skipped rows',
+  // The view toggle (0.49.0). The graph owns the words it draws with; the tab
+  // only names the two views.
+  view: GRAPH_LABELS.view,
+  list: GRAPH_LABELS.list,
+  graph: GRAPH_LABELS.graph,
 } as const);
 
 /** Receipt-field paths each section renders — what a gap's `fields` are
@@ -196,17 +206,20 @@ function ServedTabBody({
       row.previousEpoch !== undefined ? servedRowForEpoch(snapshot, row.previousEpoch) : undefined;
     const since = previous !== undefined ? sincePrevious(row, previous) : undefined;
     const fold = foldFactsAt(snapshot, cursor);
-    return { row, checks, since, fold };
+    // The SECOND VIEW of the same row — no second read, no second cursor.
+    const graph = servedGraphAt({ row, fold, checks, ...(since !== undefined ? { since } : {}) });
+    return { row, checks, since, fold, graph };
   }, [snapshot, cursorRuntimeStageId, commitIdx]);
 
-  // UI state only: a toggle and a set of expanded schema names. No position.
+  // UI state only: two toggles and a set of expanded schema names. No position.
+  const [viewMode, setViewMode] = useState<ServedViewMode>('list');
   const [showDiff, setShowDiff] = useState(false);
   const [openSchemas, setOpenSchemas] = useState<ReadonlySet<string>>(() => new Set());
 
   if (derived === undefined) {
     return (
       <div style={panelStyle} data-testid="served-tab" data-served="none">
-        <Header row={undefined} onJumpTo={onJumpTo} />
+        <Header row={undefined} onJumpTo={onJumpTo} viewMode={viewMode} onViewMode={setViewMode} />
         <div style={mutedStyle} data-testid="served-no-call">
           {LABELS.noCallAtOrBefore}
         </div>
@@ -214,7 +227,7 @@ function ServedTabBody({
     );
   }
 
-  const { row, checks, since, fold } = derived;
+  const { row, checks, since, fold, graph } = derived;
   const view = row.view;
   const gapsCovering = (fields: readonly string[]): readonly ServedGap[] =>
     view.gaps.filter((g) => g.fields.some((f) => fields.includes(f)));
@@ -231,9 +244,13 @@ function ServedTabBody({
     );
 
   return (
-    <div style={panelStyle} data-testid="served-tab" data-epoch={row.epoch}>
-      <Header row={row} onJumpTo={onJumpTo} />
+    <div style={panelStyle} data-testid="served-tab" data-epoch={row.epoch} data-view={viewMode}>
+      <Header row={row} onJumpTo={onJumpTo} viewMode={viewMode} onViewMode={setViewMode} />
 
+      {viewMode === 'graph' ? (
+        <ServedGraph graph={graph} />
+      ) : (
+        <>
       {/* ── SERVED ─────────────────────────────────────────────────────── */}
       <SectionTitle>{LABELS.served}</SectionTitle>
 
@@ -528,22 +545,34 @@ function ServedTabBody({
           <SinceBlock since={since} showDiff={showDiff} />
         )}
       </Section>
+        </>
+      )}
     </div>
   );
 }
 
 // ─── pieces ────────────────────────────────────────────────────────────
 
+/** Which of the tab's two views is on screen. The list is the default. */
+export type ServedViewMode = 'list' | 'graph';
+
 function Header({
   row,
   onJumpTo,
+  viewMode,
+  onViewMode,
 }: {
   row: ServedRow | undefined;
   onJumpTo?: ((runtimeStageId: string) => void) | undefined;
+  viewMode: ServedViewMode;
+  onViewMode: (mode: ServedViewMode) => void;
 }): React.ReactElement {
   return (
     <div style={headerStyle}>
       <span style={headerTitleStyle}>{LABELS.tab}</span>
+      {/* No epoch at or before this stop: there is nothing for either view to
+          draw, so the toggle is not offered rather than offered and inert. */}
+      {row !== undefined && <ViewToggle mode={viewMode} onMode={onViewMode} />}
       {row !== undefined && (
         <>
           <span style={chipStyle(T.primary)} data-testid="served-epoch">
@@ -568,63 +597,8 @@ function Header({
   );
 }
 
-function statusLabel(status: ServedFieldStatus): string {
-  switch (status) {
-    case 'verified':
-      return LABELS.verified;
-    case 'reconstructed':
-      return LABELS.reconstructed;
-    case 'damaged':
-      return LABELS.damaged;
-    default:
-      return LABELS.notOnRecord;
-  }
-}
-
-function statusColor(status: ServedFieldStatus): string {
-  switch (status) {
-    case 'verified':
-      return T.success;
-    case 'damaged':
-      return T.error;
-    default:
-      return T.textMuted;
-  }
-}
-
-/**
- * The status badge. Title carries the two hashes it was decided by — data.
- * When the two DISAGREE they are also printed inline, whatever the status: a
- * disagreement an excusing gap turned into "reconstructed" is still a fact the
- * reader wants on screen, not only in a tooltip.
- */
-export function Badge({ check }: { check: FieldCheck }): React.ReactElement {
-  const title = [
-    check.onReceipt !== undefined ? `${LABELS.receipt} ${check.onReceipt}` : undefined,
-    check.rebuilt !== undefined ? `${LABELS.rebuilt} ${check.rebuilt}` : undefined,
-  ]
-    .filter((s) => s !== undefined)
-    .join(' · ');
-  const disagree =
-    check.onReceipt !== undefined && check.rebuilt !== undefined && check.onReceipt !== check.rebuilt;
-  return (
-    <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-      {disagree && (
-        <span style={monoMutedStyle} data-testid="served-hashes">
-          {LABELS.receipt} {check.onReceipt} · {LABELS.rebuilt} {check.rebuilt}
-        </span>
-      )}
-      <span
-        style={badgeStyle(statusColor(check.status), check.status === 'not-on-record')}
-        data-testid="served-badge"
-        data-status={check.status}
-        {...(title !== '' ? { title } : {})}
-      >
-        {statusLabel(check.status)}
-      </span>
-    </span>
-  );
-}
+// The badge lives in `ServedBadge.tsx` — ONE owner for the tab's two views.
+export { Badge } from './ServedBadge.js';
 
 /** A receipt-only field that is not here: the "Not on record" badge, no value. */
 function Presence({ label }: { label: string }): React.ReactElement {
@@ -933,6 +907,43 @@ function safeJson(value: unknown): string {
   }
 }
 
+/**
+ * The list ⇄ graph toggle. Two real buttons in a `tablist`, so the keyboard
+ * reaches them and the focus ring is the platform's own — the focus outline is
+ * never removed here.
+ */
+function ViewToggle({
+  mode,
+  onMode,
+}: {
+  mode: ServedViewMode;
+  onMode: (mode: ServedViewMode) => void;
+}): React.ReactElement {
+  const button = (value: ServedViewMode, label: string) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={mode === value}
+      data-testid={`served-view-${value}`}
+      style={toggleButtonStyle(mode === value)}
+      onClick={() => onMode(value)}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <span
+      role="tablist"
+      aria-label={LABELS.view}
+      style={{ display: 'inline-flex', gap: 4 }}
+      data-testid="served-view-toggle"
+    >
+      {button('list', LABELS.list)}
+      {button('graph', LABELS.graph)}
+    </span>
+  );
+}
+
 // ─── boundary ──────────────────────────────────────────────────────────
 
 /**
@@ -1087,6 +1098,14 @@ const buttonStyle: React.CSSProperties = {
   color: T.textSecondary,
   cursor: 'pointer',
 };
+function toggleButtonStyle(on: boolean): React.CSSProperties {
+  return {
+    ...buttonStyle,
+    color: on ? T.textPrimary : T.textSecondary,
+    borderColor: on ? T.primary : T.border,
+    background: on ? T.bgTertiary : T.bgElevated,
+  };
+}
 const countStyle: React.CSSProperties = {
   fontSize: 10.5,
   fontFamily: T.fontMono,
@@ -1136,18 +1155,6 @@ function chipStyle(color: string): React.CSSProperties {
     color,
     fontSize: 10,
     fontFamily: T.fontMono,
-  };
-}
-function badgeStyle(color: string, dashed: boolean): React.CSSProperties {
-  return {
-    padding: '0 6px',
-    borderRadius: 999,
-    border: `1px ${dashed ? 'dashed' : 'solid'} ${color}`,
-    color,
-    fontSize: 10,
-    fontWeight: 600,
-    letterSpacing: '0.02em',
-    whiteSpace: 'nowrap',
   };
 }
 function gapCardStyle(damaged: boolean): React.CSSProperties {

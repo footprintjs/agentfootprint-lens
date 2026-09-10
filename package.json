@@ -123,7 +123,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
-    "agentfootprint": "^9.90.0",
+    "agentfootprint": "^9.91.0",
     "footprint-explainable-ui": ">=0.32.0 <1.0.0",
     "footprintjs": "^9.21.1",
     "jsdom": "^29.0.2",

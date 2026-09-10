@@ -5,6 +5,94 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.49.0] - 2026-09-10
+
+The five laws are pinned twice on purpose: `servedGraph.test.ts` checks them
+through the function that builds the graph, and `servedGraph.laws.test.tsx`
+recomputes what each recording held-and-did-not-send straight from the fold,
+the view and the receipt, then demands the WITHHELD band match. Two paths to
+one answer, so a builder and a renderer cannot agree on a falsehood in
+private. The demo fixture has a guard of its own now as well.
+
+Also in this release: the demo's own recording is re-made on agentfootprint
+9.91.0, so `npm run demo` shows the Served tab and the graph against real
+receipts instead of the *Reconstructed* rows a pre-9.88 recording could only
+ever produce; and the library floor moves to `^9.91.0`, which carries the fix
+for a served view that reported an EMPTY tool list on a call that served
+tools — the one denial this view would otherwise draw.
+
+The Served tab answers *what was this call made of?* as a list of sections. A
+list is right for checking one row and wrong for seeing that the system string
+was assembled from a base plus one skill body plus two injections while three
+tools were withheld. That is one picture. This release draws it — and gives the
+third band, WITHHELD, a place on screen: the model never learns what it was
+denied, and the operator should.
+
+### Added
+
+- **The Served graph** — a **List ⇄ Graph** toggle inside the Served tab (the
+  list stays the default), drawing the SAME row the one cursor already resolved
+  as three bands, left to right:
+
+  1. **HELD** — what the record holds at this stop, from the fold: `iteration`,
+     `currentSkillId`, `stepPointer`, `mapEngagement`, `activeInjections`,
+     `hiddenSkillIds`, plus the fold's own honesty flags (`basis`, `redacted`,
+     `skipped`, `foldError`). A key with no committed value is DRAWN and marked
+     *Not on record*; a fold that could not read a row is marked *Damaged*.
+  2. **SERVED** — what crossed into the call: three slot nodes (exactly the
+     library's `ContextSlot`) and one EDGE per system piece, message,
+     request-only line and tool, each carrying the badge `verify` decided for it
+     and — against the previous epoch — whether it *entered*, *left* or is
+     *unchanged*. A piece leaves its own `source` node, a message its own
+     `role`: the graph draws the node the RECORD names and maps neither
+     vocabulary onto the other.
+  3. **WITHHELD** — held and not sent: `tools.withheld`,
+     `Receipt.omittedForAttention`, the skills a role hid (read from the FOLD —
+     a receipt carries no authority names, by the library's first law), a
+     redacted fold, and every gap the view declares, each printing the
+     library's own sentence verbatim.
+
+  To open it: stand on an LLM turn in the Why Lens, right rail → **Served** →
+  **Graph**. The toggle is two real buttons in a `tablist`, so the keyboard
+  reaches it; the cursor never moves.
+
+- **`servedGraphAt({ row, fold, checks, since })`** in `agentfootprint-lens/core`
+  — pure, frozen, no React: the same projection headless, with `SERVED_SLOTS`,
+  `HELD_KEYS` and the `ServedGraph` / `ServedEdge` / `SlotNode` / `WithheldNode`
+  / `CallNode` types. It reads nothing and folds nothing: a SECOND VIEW of the
+  row, never a second data path and never a second cursor.
+
+- **`<ServedGraph graph>`** exported for consumer-built shells, and
+  **`<ServedBadge>`** (`Badge`) — the verdict badge is now ONE owner shared by
+  both views, so a row cannot read *Damaged* in the list and something softer in
+  the picture.
+
+- **`sincePrevious` now names WHICH rows moved**, not only how many:
+  `system.enteredIndexes` / `system.leftPieces` and `messages.enteredIndexes` /
+  `messages.leftEntries`. The counts beside them are those lists' lengths, so
+  the identity rule stays spelled once. Additive — no existing field changed.
+
+### The laws, each measured on the real fixtures
+
+`test/served/servedGraph.test.ts` and `test/served/ServedGraph.test.tsx` drive
+the eight frozen recordings in `test/served/fixtures/`: **one cursor** (the same
+cursor builds the same graph; the graph's source holds no `useState` at all),
+**no sentence of the lens's own** (`no-own-claims.test.ts` now walks the graph
+and the badge too — every reason on screen is a library constant, byte for
+byte), **a badge is never softened** (a tampered schema draws *Damaged* on its
+own edge and on the call), **absent is not none** (a slot with nothing rebuilt
+draws its gap and the receipt's own count; a fold key with no value draws *Not
+on record*), and **authority omissions come from the fold** (strip
+`hiddenSkillIds` from a recording and they leave the withheld band — they were
+never on the receipt).
+
+### Deliberately not built
+
+An edge from a served piece back to the STAGE that wrote it. It needs a
+commit-log walk keyed by piece text or slot, it is the part most likely to rot,
+and the question the view answers is answered without it. Stated in
+`src/core/served/README.md` so nobody reads its absence as an oversight.
+
 ## [0.48.0] - 2026-09-10
 
 footprintjs's declared-tags design (9.21) names three marks that end in one

@@ -16,10 +16,14 @@
  * Pure. Returns a frozen value. Counts and lists only — no sentences.
  */
 
-import { messageDigestInput } from 'agentfootprint';
+import { messageDigestInput, type ServedPiece, type ServedView } from 'agentfootprint';
 
 import { diffPromptsBounded, type DiffSegment } from '../utils/diffPrompts.js';
 import type { ServedRow } from './types.js';
+
+/** One message as the view carries it (the library's `LLMMessage`, reached
+ *  through the view because the root barrel does not export the type). */
+type ServedMessage = ServedView['messages']['asSent'][number];
 
 export interface SincePrevious {
   readonly fromEpoch: number;
@@ -34,12 +38,24 @@ export interface SincePrevious {
     readonly piecesEntered: number;
     /** Pieces present before that are not present now (by text). */
     readonly piecesLeft: number;
+    /** WHICH of the current pieces entered — indices into
+     *  `current.view.system.pieces`. The count above is this list's length; a
+     *  reader that needs the piece itself has it on the view. */
+    readonly enteredIndexes: readonly number[];
+    /** The pieces that LEFT, as the previous epoch carried them. They are on
+     *  no current view, so the values travel rather than their indices. */
+    readonly leftPieces: readonly ServedPiece[];
   };
   readonly messages: {
     /** Messages in the current window that were not in the previous one. */
     readonly entered: number;
     /** Messages in the previous window that are not in the current one. */
     readonly left: number;
+    /** WHICH of the current messages entered — indices into
+     *  `current.view.messages.asSent`. */
+    readonly enteredIndexes: readonly number[];
+    /** The messages that LEFT, as the previous epoch carried them. */
+    readonly leftEntries: readonly ServedMessage[];
   };
   readonly tools: {
     readonly added: readonly string[];
@@ -52,17 +68,22 @@ export interface SincePrevious {
   };
 }
 
-/** Multiset difference: how many of `a`'s items have no partner in `b`. */
-function unmatched(a: readonly string[], b: readonly string[]): number {
+/**
+ * Multiset difference: WHICH of `a`'s items have no partner in `b`, as indices
+ * into `a`. The counts this file reports are this list's length, so the
+ * identity rule is spelled once — the graph view pins a state on the same
+ * answer the tab counts.
+ */
+function unmatchedIndexes(a: readonly string[], b: readonly string[]): number[] {
   const pool = new Map<string, number>();
   for (const item of b) pool.set(item, (pool.get(item) ?? 0) + 1);
-  let count = 0;
-  for (const item of a) {
+  const out: number[] = [];
+  for (const [i, item] of a.entries()) {
     const n = pool.get(item) ?? 0;
     if (n > 0) pool.set(item, n - 1);
-    else count += 1;
+    else out.push(i);
   }
-  return count;
+  return out;
 }
 
 /**
@@ -96,6 +117,11 @@ export function sincePrevious(current: ServedRow, previous: ServedRow): SincePre
     }
   }
 
+  const piecesEntered = unmatchedIndexes(nowPieces, beforePieces);
+  const piecesLeft = unmatchedIndexes(beforePieces, nowPieces);
+  const messagesEntered = unmatchedIndexes(nowMessages, beforeMessages);
+  const messagesLeft = unmatchedIndexes(beforeMessages, nowMessages);
+
   const changed = now.system.text !== before.system.text;
   const diff = changed ? diffPromptsBounded(before.system.text, now.system.text) : Object.freeze([]);
   return Object.freeze({
@@ -104,12 +130,16 @@ export function sincePrevious(current: ServedRow, previous: ServedRow): SincePre
     system: Object.freeze({
       changed,
       ...(diff !== undefined ? { diff: Object.freeze([...diff]) } : {}),
-      piecesEntered: unmatched(nowPieces, beforePieces),
-      piecesLeft: unmatched(beforePieces, nowPieces),
+      piecesEntered: piecesEntered.length,
+      piecesLeft: piecesLeft.length,
+      enteredIndexes: Object.freeze(piecesEntered),
+      leftPieces: Object.freeze(piecesLeft.map((i) => before.system.pieces[i] as ServedPiece)),
     }),
     messages: Object.freeze({
-      entered: unmatched(nowMessages, beforeMessages),
-      left: unmatched(beforeMessages, nowMessages),
+      entered: messagesEntered.length,
+      left: messagesLeft.length,
+      enteredIndexes: Object.freeze(messagesEntered),
+      leftEntries: Object.freeze(messagesLeft.map((i) => before.messages.asSent[i] as ServedMessage)),
     }),
     tools: Object.freeze({
       added: Object.freeze(added),

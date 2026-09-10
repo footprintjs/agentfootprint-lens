@@ -243,6 +243,9 @@ export * from "./hitl/index.js";
 // rebuilt request checked against the receipt with the library's own hashes,
 // what changed since the previous epoch, and the agent's own keys at the stop
 // read from the FOLD. Pure; frozen returns; no React. See src/core/served/README.md.
+// 0.49.0: `servedGraphAt` projects the SAME row into three bands — held,
+// served, withheld — with one edge per piece carrying its badge and its
+// entered / left / unchanged state. Pure; frozen; no React.
 export {
   servedRowAt,
   servedRowForEpoch,
@@ -250,8 +253,27 @@ export {
   EXCUSING_GAPS,
   sincePrevious,
   foldFactsAt,
+  servedGraphAt,
   FOLD_FACT_KEYS,
+  HELD_HONESTY_KEYS,
+  HELD_KEYS,
+  SERVED_SLOTS,
+  type CallNode,
   type FieldCheck,
+  type HeldKey,
+  type HeldNode,
+  type ServedEdge,
+  type ServedEdgeKind,
+  type ServedEdgeState,
+  type ServedGraph,
+  type ServedGraphInput,
+  type ServedRoleName,
+  type ServedSlotName,
+  type ServedSourceName,
+  type SlotNode,
+  type WithheldFrom,
+  type WithheldKind,
+  type WithheldNode,
   type FoldFactKey,
   type FoldFacts,
   type ReceiptPresence,

@@ -1,7 +1,7 @@
 # `core/served/` — what the model was served, at the cursor
 
-The data behind the **Served** tab. Four pure functions over a recording, no
-React, every return frozen. agentfootprint 9.89.0 owns the rebuild
+The data behind the **Served** tab. Five pure functions — four over a recording
+and one over what they returned — no React, every return frozen. agentfootprint 9.89.0 owns the rebuild
 (`servedAt`), the record (`receiptAt`), the hashes (`receiptHash`,
 `messageDigestInput`, `toolDigestInput`), the gap catalogue (`SERVED_GAPS`, `UNGAPPED_FIELDS`)
 and the epoch owner (`epochLocations`); this folder only resolves the lens's
@@ -13,6 +13,7 @@ cursor onto those and compares what they hand back.
 | `verify.ts` | per-field status from the law `hash(servedAt(k)) === receiptAt(k).hash`, computed ONLY with the library's `receiptHash` over `messageDigestInput` (a message) / `toolDigestInput` (a tool schema). |
 | `sincePrevious.ts` | two epochs of one run → what entered / left, by identity; the system text pair goes to `utils/diffPrompts`. |
 | `foldFactsAt.ts` | the agent's own keys at the stop (`iteration`, `currentSkillId`, `stepPointer`, `mapEngagement`, `activeInjections`, `hiddenSkillIds`), read from the FOLD through footprintjs's `stateAt`. A row the fold cannot read is DATA (`skipped` indices under footprintjs 9.18, `foldError` under 9.17), never a throw. No `identity`: the agent commits `runIdentity`, and nothing it commits names a role. |
+| `servedGraphAt.ts` | the same row as a PICTURE: three bands (held · served · withheld), one slot node per `ContextSlot`, one edge per piece / message / request-only line / tool carrying its badge and its `entered` / `left` / `unchanged` state. A projection — it reads nothing, folds nothing, and takes no cursor. |
 | `receiptShape.ts` | the narrowing the lens applies past the library's own: `receiptAt` refuses a value with no numeric `basis.epoch` and promises nothing more; a receipt missing `system` / `messages` / `tools` / `params` / `cache` is refused HERE with the same `cause: 'receipt-shape-rejected'`, so no half-shape is ever dereferenced. |
 
 ## The laws this folder keeps
@@ -86,6 +87,83 @@ cursor onto those and compares what they hand back.
    (`diffPromptsBounded` — `since.system.diff` is ABSENT past the cell cap,
    printed as "diff not computed"). `<ServedTab>` adds a boundary that renders
    a render throw as the Damaged badge plus the message.
+
+## The Served graph (0.49.0)
+
+`servedGraphAt({ row, fold, checks, since })` arranges what the other four
+already decided into **three bands, left to right**. It is a SECOND VIEW of one
+row — never a second data path, never a second cursor.
+
+1. **HELD** — what the record holds at this stop. The six `FOLD_FACT_KEYS`
+   plus the fold's own honesty flags (`basis`, `redacted`, `skipped`,
+   `foldError`). A key the fold holds no value for is a node marked
+   `'not-on-record'`; a fold that could not read a row is a node marked
+   `'damaged'`. Never an empty node.
+2. **SERVED** — what crossed into the call. Exactly three slot nodes
+   (`SERVED_SLOTS` = the library's `ContextSlot`, in request-assembly order),
+   each with the rebuilt count, the receipt's own count, the rows only one side
+   has, and the gaps that cover its fields. One EDGE per system piece, message,
+   request-only line and tool — each carrying the `FieldCheck` `verify`
+   decided for it.
+3. **WITHHELD** — held and not sent: `tools.withheld`,
+   `Receipt.omittedForAttention`, the `hiddenSkillIds` the caller's role could
+   not see (`from: 'fold'`), a redacted fold, and every gap the view declares
+   (`from: 'view'`, with the library's own `why` and the fields it covers).
+   Band 3 is the reason to build this: the model never learns what it was
+   denied, and the operator should.
+
+**What an edge leaves from.** A piece names its own `source`; a message and a
+request-only line name their own `role`. Both are the library's vocabularies,
+and the graph draws the node the RECORD names — it never maps one onto the
+other and never invents a source for a row that carries none. A tool row
+carries neither, so its `origin` is absent and it is drawn from its slot.
+
+**Edge state** is `sincePrevious`'s answer, per row rather than as a count:
+`system.enteredIndexes` / `system.leftPieces` and `messages.enteredIndexes` /
+`messages.leftEntries` name WHICH rows moved (the counts beside them are those
+lists' lengths, so the identity rule is spelled once), and tools move by name.
+A `left` row is on no current request, so no hash checks it: its badge is
+`'not-on-record'`. When the epoch before this one is not in this recording, NO
+state is claimed at all — `state` is simply absent.
+
+### The laws the graph keeps
+
+1. **One cursor.** The graph holds no position: it renders the row the cursor
+   already resolved, and the same cursor builds the same graph every time.
+2. **No sentence of its own.** Every reason on the withheld band is the
+   library's own string — a gap's `why`, `UNGAPPED_FIELDS`, a request-only
+   line's `reason`, a withheld-list value — printed verbatim.
+3. **A badge is never softened.** The badge is `verify`'s verdict, and
+   `<ServedBadge>` is one owner across both views: a Damaged row draws Damaged
+   in the list and in the picture.
+4. **Absent is not none.** A field a gap covers draws the gap; a fold that
+   could not read draws "not on record".
+5. **Authority omissions come from the FOLD.** Strip `hiddenSkillIds` from a
+   recording and they leave the withheld band; they are never on the receipt,
+   which by the library's first law carries no authority names.
+
+### Deliberately absent: the piece → writer edge
+
+There is no edge from a served piece back to the STAGE that wrote it (click a
+fragment, land on its commit). It needs a commit-log walk keyed by piece text
+or slot; that is the part most likely to rot as the assembly changes, and the
+question this view answers — *what was this one call made of, and what did we
+hold back?* — is answered without it. It is measured separately before it ships.
+
+```ts
+import { foldFactsAt, servedGraphAt, servedRowAt, verify } from 'agentfootprint-lens/core';
+
+const cursor = { runtimeStageId: 'call-llm#12', commitIdx: 11 };
+const row = servedRowAt(snapshot, cursor)!;
+const graph = servedGraphAt({
+  row,
+  fold: foldFactsAt(snapshot, cursor),
+  checks: verify(row.view, row.receipt, row.receipt?.basis.runId ?? '', row.receiptCause),
+});
+graph.served.map((s) => `${s.slot} ${s.rebuilt}/${s.onReceipt}`);  // ['system-prompt 1/1', …]
+graph.edges.filter((e) => e.state === 'entered').map((e) => e.origin);
+graph.withheld.filter((w) => w.from === 'fold').map((w) => w.name);  // ['payroll']
+```
 
 ## Example
 

@@ -1059,6 +1059,50 @@ on every epoch, no receipt was minted, and the tab says so with the library's
 `no-receipt-on-chart` gap and `cause: 'no-receipt-committed'` — every row
 **Reconstructed**, never a fabricated **Verified**.
 
+### The Served graph (0.49.0)
+
+A list is right for checking one row and wrong for seeing that the system string
+was assembled from a base plus one skill body plus two injections while three
+tools were withheld. That is one picture, and since 0.49.0 the Served tab has a
+**List ⇄ Graph** toggle (the list stays the default) that draws it: **HELD** —
+what the record holds at this stop, from the fold — then **SERVED** — what
+crossed into the call, one edge per system piece, message, request-only line and
+tool, each carrying its badge and, against the previous epoch, whether it
+*entered*, *left* or is *unchanged* — then **WITHHELD**: held and not sent. The
+withheld band is the reason to build it. The model never learns what it was
+denied; the operator should — the withheld tool list, the attention drops, the
+skills a role hid (read from the fold, since a receipt carries no authority
+names), a redacted fold, and every gap the view declares, each with the
+library's own sentence. Same cursor, same row, same badges: a Damaged row draws
+Damaged here too, and a field a gap covers draws the gap rather than an empty
+node.
+
+| graph | what it draws | the question it answers |
+|---|---|---|
+| **skill graph** (`<SkillGraph>`) | the skills, their steps and their edges | where a run MAY go, and where it went |
+| **data graph** (*Where from*) | a value's writers, back through the commit log | where THIS value came from |
+| **Served graph** (Served tab · Graph) | one call: held · served · withheld | what this ONE CALL was made of, and what we held back |
+
+```ts
+import { foldFactsAt, servedGraphAt, servedRowAt, verify } from 'agentfootprint-lens/core';
+
+const cursor = { runtimeStageId: 'call-llm#18', commitIdx: 15 };
+const row = servedRowAt(snapshot, cursor)!;
+const graph = servedGraphAt({
+  row,
+  fold: foldFactsAt(snapshot, cursor),
+  checks: verify(row.view, row.receipt, row.receipt?.basis.runId ?? '', row.receiptCause),
+});
+graph.served.map((s) => `${s.slot} ${s.rebuilt}`);                 // ['system-prompt 3', …]
+graph.edges.filter((e) => e.state === 'entered').map((e) => e.origin);  // ['instructions']
+graph.withheld.filter((w) => w.from === 'fold').map((w) => w.name);     // ['payroll']
+```
+
+`<ServedGraph graph>` is exported for shells that build the input themselves.
+**Deliberately absent:** an edge from a served piece back to the STAGE that
+wrote it. It needs a commit-log walk keyed by piece text or slot — the part most
+likely to rot — and the question above is answered without it.
+
 ---
 
 ## Bookmarks, and scrubbing by declared tag

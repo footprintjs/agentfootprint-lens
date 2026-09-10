@@ -140,7 +140,22 @@ export {
 // view mounts it as the right rail's second tab; exported for consumer-built
 // shells that hold the one cursor themselves. `LABELS` is every string the tab
 // owns — labels, never sentences about the run.
-export { ServedTab, LABELS as SERVED_LABELS, type ServedTabProps } from "./components/ServedTab.js";
+export {
+  ServedTab,
+  LABELS as SERVED_LABELS,
+  type ServedTabProps,
+  type ServedViewMode,
+} from "./components/ServedTab.js";
+// <ServedGraph> (0.49.0) — the same row as a picture: HELD (what the record
+// holds at this stop) · SERVED (what crossed into the call, one edge per piece
+// with its badge and its entered / left / unchanged state) · WITHHELD (held and
+// not sent, each with the library's own reason). The Served tab mounts it
+// behind a list ⇄ graph toggle; exported for consumer-built shells, which build
+// its input with `servedGraphAt` from `/core`.
+export { ServedGraph, GRAPH_LABELS as SERVED_GRAPH_LABELS, type ServedGraphProps } from "./components/ServedGraph.js";
+// The verdict badge, shared by both views — one owner, so a row cannot read
+// Damaged in the list and something softer in the graph.
+export { Badge as ServedBadge, BADGE_LABELS as SERVED_BADGE_LABELS } from "./components/ServedBadge.js";
 
 // <BookmarksTab> (0.48.0) — the reader's marks, riding the ONE cursor: a
 // toggle at the current stop, a list that jumps through the port's `toMark`,
