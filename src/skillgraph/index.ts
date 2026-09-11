@@ -67,7 +67,18 @@ export {
   type SelectSkillFrameContextArgs,
   type SkillFrameContext,
 } from '../core/selectors/selectSkillFrameContext.js';
+// DEPRECATED since 0.51.0 — the flattened reading of the ladder below. Kept,
+// unchanged, and still exported.
 export { stepForRuntimeStageId } from '../core/group/stepForRuntimeStageId.js';
+// ONE ADDRESS, ONE CURSOR (0.51.0) — the shape `<SkillGraphDebugger cursor>`
+// takes, and the builder for a host that holds the axis itself. A beat's
+// address resolves through `cursor.resolve`, which refuses honestly rather
+// than flattening to `-1`.
+export {
+  lensCursorFrom,
+  type LensCursor,
+  type LensCursorReading,
+} from '../core/cursor/lensCursor.js';
 // The same climb, with the rungs named: a beat's address → the host's step,
 // and an honest refusal (plus the nearest earlier stop, offered) when the
 // host's ruler cannot hold it.

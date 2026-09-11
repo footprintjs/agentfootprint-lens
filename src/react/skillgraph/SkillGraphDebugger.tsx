@@ -36,8 +36,18 @@
  * view never moves, which is the correct behaviour for a controlled component
  * whose owner ignored it.
  *
- * WIRED INTO `<Lens>`: mount it in the detail slot and forward the props the
- * slot already hands you — that is the whole integration.
+ * WIRED INTO `<Lens>`: mount it in the detail slot and hand it the ONE cursor
+ * the slot already gives you — that is the whole integration (0.51.0).
+ *
+ *   const detail = (p: LensDetailSlotProps) => (
+ *     <SkillGraphDebugger recorder={p.recorder} cursor={p.cursor} />
+ *   );
+ *   <Lens recorder={recorder} slots={{ detail }} />
+ *
+ * `cursor` supplies the address, the kind, the host's axis and both movers,
+ * and refuses an address the host's ruler cannot hold rather than moving
+ * somewhere nobody asked for. The longer wiring below still works unchanged,
+ * and is what to reach for when you want the refusal's own words on screen:
  *
  *   // The host holds ONE navigator, on <Lens> — this view owns no axis, so it
  *   // reports an ADDRESS and lets the cursor's owner resolve it.
@@ -69,6 +79,7 @@
 
 import React, { useMemo, useRef, useState } from 'react';
 
+import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
 import {
   selectSkillBeatAt,
@@ -107,8 +118,9 @@ export interface SkillGraphDebuggerProps {
    *  Wins over `recorder` for the routing facts; `recorder` is still read for
    *  the step graph that pairs a beat with the call it prepared. */
   readonly route?: SkillRoute;
-  /** THE cursor — a `runtimeStageId`, the lens's own address space. */
-  readonly cursorRuntimeStageId: string;
+  /** THE cursor — a `runtimeStageId`, the lens's own address space. Optional
+   *  since 0.51.0: pass `cursor` instead and this is read off `cursor.at`. */
+  readonly cursorRuntimeStageId?: string;
   /** The kind of stop the cursor is on, when the host knows it (`'group-start'`
    *  / `'group-end'` / `'user-in'` / `'user-out'`). Resolves the run's bookends. */
   readonly cursorKind?: string;
@@ -178,6 +190,30 @@ export interface SkillGraphDebuggerProps {
   readonly height?: number | string;
   readonly className?: string;
   readonly style?: React.CSSProperties;
+  /**
+   * THE CURSOR, in the one vocabulary every lens view is handed (0.51.0) — the
+   * NARROW form of the six props above, in one object.
+   *
+   * This is the whole integration now:
+   *
+   * ```tsx
+   * <Lens
+   *   recorder={recorder}
+   *   slots={{ detail: (p) => <SkillGraphDebugger recorder={p.recorder} cursor={p.cursor} /> }}
+   * />
+   * ```
+   *
+   * It supplies `cursorRuntimeStageId`, `cursorKind`, `step`, `totalSteps`,
+   * `onStepChange` and `onJumpTo` — and every one of those props still WINS
+   * when passed explicitly, so the older wiring is unchanged to the byte. The
+   * `onJumpTo` it supplies is `cursor.resolve` then `cursor.moveTo`: an
+   * address the host's ruler cannot hold NEVER moves the cursor, exactly as
+   * `navigateTo` refuses. (Want the refusal's own words on screen? Pass your
+   * own `onJumpTo` and render `cursor.resolve(id).message`.)
+   *
+   * The one-cursor law is untouched: this object holds no position either.
+   */
+  readonly cursor?: LensCursor;
 }
 
 export function SkillGraphDebugger({
@@ -189,6 +225,7 @@ export function SkillGraphDebugger({
   step,
   totalSteps,
   onStepChange,
+  cursor,
   snapSteps,
   transportKeyboard,
   declaredEdges,
@@ -199,6 +236,27 @@ export function SkillGraphDebugger({
   className,
   style,
 }: SkillGraphDebuggerProps): React.ReactElement {
+  // ONE ADDRESS, ONE CURSOR (0.51.0). The six scalar props and the one
+  // `cursor` object are the SAME cursor said two ways; the scalars win, so a
+  // host that wires both (or the older wiring alone) is unchanged. Resolved
+  // here, once, so every reader below this line asks one variable.
+  const address = cursorRuntimeStageId ?? cursor?.at.runtimeStageId ?? '';
+  const kindHere = cursorKind ?? cursor?.at.kind;
+  const hostStep = step ?? cursor?.at.step;
+  const hostTotal = totalSteps ?? cursor?.total;
+  const hostStepChange = onStepChange ?? cursor?.moveTo;
+  // An ADDRESS is not a POSITION: the axis answers whether it can hold one,
+  // and a refusal NEVER moves the cursor. That is `cursor.resolve` + the one
+  // funnel — the same two calls `navigateTo` makes.
+  const jump =
+    onJumpTo ??
+    (cursor !== undefined
+      ? (id: string): void => {
+          const to = cursor.resolve(id);
+          if (to.ok) cursor.moveTo(to.step);
+        }
+      : undefined);
+
   const [internalLens, setInternalLens] = useState<SkillLens>(defaultLens);
   const lens = lensProp ?? internalLens;
   const pickLens = (next: SkillLens): void => {
@@ -238,8 +296,8 @@ export function SkillGraphDebugger({
     [route],
   );
   const activeBeat = useMemo(
-    () => selectSkillBeatAt(beats, cursorRuntimeStageId, cursorKind),
-    [beats, cursorRuntimeStageId, cursorKind],
+    () => selectSkillBeatAt(beats, address, kindHere),
+    [beats, address, kindHere],
   );
   const activeIndex = activeBeat?.index;
   // The turn's routing verdict for the beat in view, joined on `turnIndex` —
@@ -294,17 +352,17 @@ export function SkillGraphDebugger({
    * `step`, or from where the cursor resolved) and a scrub reports a move
    * back out; nothing is stored here.
    */
-  const hostAxis = step !== undefined && totalSteps !== undefined && totalSteps > 0;
+  const hostAxis = hostStep !== undefined && hostTotal !== undefined && hostTotal > 0;
   const transport: BeatTransport = {
-    total: hostAxis ? totalSteps : beats.length,
-    focus: hostAxis ? step : (activeIndex ?? 0),
+    total: hostAxis ? hostTotal : beats.length,
+    focus: hostAxis ? hostStep : (activeIndex ?? 0),
     onFocusChange: (position: number): void => {
       if (hostAxis) {
-        onStepChange?.(position);
+        hostStepChange?.(position);
         return;
       }
       const id = beats[position]?.runtimeStageId;
-      if (id !== undefined) onJumpTo?.(id);
+      if (id !== undefined) jump?.(id);
     },
     keyboard: transportKeyboard ?? !hostAxis,
     axisLabel: hostAxis ? 'the run' : 'routing stops',
@@ -323,7 +381,7 @@ export function SkillGraphDebugger({
     if (spans.length === 0) return;
     const from = activeIndex ?? -1;
     const next = spans.find((b) => b.index > from) ?? spans[0];
-    if (next?.runtimeStageId !== undefined) onJumpTo?.(next.runtimeStageId);
+    if (next?.runtimeStageId !== undefined) jump?.(next.runtimeStageId);
   };
 
   const shell: React.CSSProperties = {
@@ -435,7 +493,7 @@ export function SkillGraphDebugger({
             <NarrativeRail
               beats={beats}
               {...(activeIndex !== undefined ? { activeIndex } : {})}
-              {...(onJumpTo !== undefined ? { onJumpTo } : {})}
+              {...(jump !== undefined ? { onJumpTo: jump } : {})}
             />
           ) : (
             <FrameFactsPanel
@@ -451,7 +509,7 @@ export function SkillGraphDebugger({
         {...(activeIndex !== undefined ? { activeIndex } : {})}
         lens={lens}
         transport={transport}
-        {...(onJumpTo !== undefined ? { onJumpTo } : {})}
+        {...(jump !== undefined ? { onJumpTo: jump } : {})}
       />
     </div>
   );

@@ -112,6 +112,11 @@ export { groupContainsCommit, type Group } from "./group/Group.js";
 // holds it. A view that wants to MOVE the one cursor knows a runtimeStageId,
 // and the axis at the current drill level may stop somewhere coarser (a whole
 // iteration rather than the stage inside it). One rule, one place.
+//
+// DEPRECATED since 0.51.0 in favour of `resolveNavigation` (below) — it is the
+// same ladder with its rungs NAMED, and it refuses honestly instead of
+// flattening the refusal to `-1`, which every consumer then re-invented a
+// meaning for. Still exported, still behaves byte for byte.
 export { stepForRuntimeStageId } from "./group/stepForRuntimeStageId.js";
 // The same question keyed by COMMIT INDEX — the unit the lens's two axes
 // share. A host holding one cursor across `granularity="step"` (commit axis)
@@ -131,6 +136,17 @@ export {
   type NavigationMatch,
   type NavigationMiss,
 } from "./group/resolveNavigation.js";
+// ONE ADDRESS, ONE CURSOR (0.51.0) — the shape EVERY view is handed: a
+// READING (`at`), the honest address query (`resolve`, the named ladder) and
+// the one funnel (`moveTo`). It holds no position of its own, so no view can
+// gain one. `<Lens>` hands it to the detail slot, the Served tab and
+// `<SkillGraphDebugger>`; `lensCursorFrom` builds it headlessly over any axis.
+// See src/core/cursor/README.md for the law and the three cases it names.
+export {
+  lensCursorFrom,
+  type LensCursor,
+  type LensCursorReading,
+} from "./cursor/lensCursor.js";
 // The scrub axis itself, as a pure function — the same positions `<Lens>`
 // scrubs at that granularity, computable with no React and nothing mounted.
 // Pair it with `resolveNavigation` / `stepForCommitIdx` to turn an address or

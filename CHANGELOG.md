@@ -5,6 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.51.0] - 2026-09-10
+
+**A stage id is an ADDRESS, not a POSITION.** It says WHICH stage, never WHERE
+on an axis; only an axis can answer that, and it may honestly answer *"not
+here"*. Until now the same one cursor reached three views in three vocabularies
+— the skill graph took `cursorRuntimeStageId` + `onJumpTo`, the Served tab took
+`cursorRuntimeStageId` + `commitIdx`, and a real consumer's data graph took
+`{ step, total, stepOf(id), onStep }` — so every new view invented a fourth. And
+address resolution was duplicated per view: `stepForRuntimeStageId` FLATTENS the
+named ladder to `-1`, and each consumer then re-invented what `-1` meant (draw
+the element unplaced, disable a jump, or HIDE it — a denial).
+
+### Added
+
+- **`LensCursor`** (`agentfootprint-lens/core`, `/why`, `/skillgraph`) — the one
+  shape every view is handed: `at` (a reading), `total`, `resolve(id)` (the
+  named ladder, refusing honestly with `reason` / `message` / `nearest`) and
+  `moveTo(step)` (the one funnel). It holds **no position of its own**, and no
+  view may gain one. Built by `lensCursorFrom(positions, step, moveTo)` — pure,
+  frozen, no React.
+- **`useLensCursor`** returns `cursor` beside `step` / `isLive` / `moveTo`, and
+  takes an optional `positions` so it can build it.
+- **`LensDetailSlotProps.cursor`** — `<Lens>` hands it to the detail slot.
+- **`<SkillGraphDebugger cursor>`** and **`<ServedTab cursor>`** — the narrow
+  form of the props they already took. One-line adoption:
+  `slots={{ detail: (p) => <SkillGraphDebugger recorder={p.recorder} cursor={p.cursor} /> }}`.
+- The law, the vocabulary table and a worked "place an element by address / draw
+  the unplaced case" example in the README, `src/core/cursor/README.md` and
+  `src/core/timeTravel/README.md`.
+
+### Deprecated
+
+- `stepForRuntimeStageId` — in favour of `resolveNavigation` / `cursor.resolve`,
+  the same ladder with its rungs named. Still exported, still byte-for-byte.
+
+### Unchanged
+
+Everything. Every existing prop and export keeps working; an explicit prop still
+WINS wherever both it and `cursor` are passed, pinned by byte-for-byte render
+tests on frozen fixtures. The three cases the contract names — *the axis does
+not stop there*, *the id belongs to an inner log*, *the event has no stage at
+all* — each have a test measured on a real recording in `test/served/fixtures/`.
+The lens still writes no sentence of its own: a refusal's words are
+`resolveNavigation`'s, and `test/served/no-own-claims.test.ts` now walks the new
+files too.
+
 ## [0.50.0] - 2026-09-10
 
 **A detail slot is one TAB, not a takeover.** A consumer that supplied

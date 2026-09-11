@@ -42,6 +42,7 @@ import {
   type LensCursorPlace,
 } from "./useLensCursor.js";
 import { openLensCursor, type LensCursorPort } from "../core/timeTravel/lensCursorPort.js";
+import type { LensCursor } from "../core/cursor/lensCursor.js";
 import type { CursorStepper } from "./TimeTravel.js";
 import { useLensNavigator, type LensNavigator } from "./useLensNavigator.js";
 import { useNarrowRow } from "./narrowLayout.js";
@@ -475,6 +476,26 @@ export interface LensDetailSlotProps {
   readonly recorder: LensRecorder;
   /** Move the ONE cursor — same funnel every built-in mover uses. */
   readonly onNavigate: (step: number) => void;
+  /**
+   * THE CURSOR, in the one vocabulary every view now shares (0.51.0) — the
+   * reading above (`cursor.at`), the axis's honest answer to an ADDRESS
+   * (`cursor.resolve(id)`), and the same funnel as `onNavigate`
+   * (`cursor.moveTo`).
+   *
+   * Everything else on this interface stays exactly as it was; this is the
+   * shape to reach for when your pane places elements BY ADDRESS, because the
+   * axis may honestly not stop where an address points:
+   *
+   * ```tsx
+   * const to = p.cursor.resolve(node.runtimeStageId);
+   * if (!to.ok) return <li data-unplaced title={to.message}>{node.name}</li>;
+   * return <li onClick={() => p.cursor.moveTo(to.step)}>{to.label}</li>;
+   * ```
+   *
+   * It holds no position of its own — it is rebuilt every render. Read it;
+   * never store it.
+   */
+  readonly cursor: LensCursor;
 }
 
 export const Lens: React.FC<LensProps> = ({
@@ -734,12 +755,19 @@ export const Lens: React.FC<LensProps> = ({
     step: focusStep,
     isLive,
     moveTo: handleFocusChange,
+    // ONE ADDRESS, ONE CURSOR (0.51.0). The same cursor, in the shape every
+    // view is handed: a reading, `resolve` (the named ladder), and this very
+    // funnel. Built here so no view has to assemble its own vocabulary — and
+    // built with the ACTIVE axis, so a tag pick or a drill changes what
+    // `resolve` can honestly answer at the same moment it changes the ruler.
+    cursor,
   } = useLensCursor({
     controlledStep,
     onStepChange,
     maxStep,
     describe: describeStep,
     port: cursorPort,
+    positions: cursorPositions,
   });
   // AXIS SWAP KEEPS THE COMMIT, NOT THE STEP NUMBER. A pick (or a Clear) is a
   // different LIST for the same one cursor; step 8 of one list is nowhere near
@@ -847,6 +875,7 @@ export const Lens: React.FC<LensProps> = ({
       isLive={isLive}
       stepper={stepper}
       cursorPort={cursorPort}
+      cursor={cursor}
       stepStrip={stepStrip}
       showSummary={showSummary}
       liveStreamLine={liveStreamLine}
@@ -1068,6 +1097,11 @@ const EngineerView: React.FC<{
   /** The same port, for the ADDRESS jump (a chart click, a provenance frame).
    *  Resolution stays the Lens's; the move is the library's. */
   cursorPort: LensCursorPort;
+  /** THE cursor in the one vocabulary every view is handed (0.51.0) — the
+   *  reading, `resolve`, and the same funnel as `onFocusChange`. Passed down
+   *  so the detail slot and the rail's tabs all read ONE shape instead of
+   *  three flattened ones. Holds no position; rebuilt every render. */
+  cursor: LensCursor;
   /** DECLARED TAGS (0.48.0): the legend and the pick that rebuilds the axis. */
   tagPicker?: {
     readonly legend: TagLegend;
@@ -1106,6 +1140,7 @@ const EngineerView: React.FC<{
   granularity,
   stepper,
   cursorPort,
+  cursor,
   tagPicker,
   bookmarks,
   slots,
@@ -1668,6 +1703,7 @@ const EngineerView: React.FC<{
         relatedNodes={cursorRelatedNodes}
         recorder={recorder}
         onNavigate={onFocusChange}
+        cursor={cursor}
       />
     ) : null;
 
@@ -2099,6 +2135,7 @@ const EngineerView: React.FC<{
                 cursorRuntimeStageId={cursorRuntimeStageId}
                 commitIdx={servedCommitIdxOf(cursorPositions[focusStep])}
                 onJumpTo={jumpToRuntimeStageId}
+                cursor={cursor}
               />
             ) : (
             <WhatHappenedTimeline

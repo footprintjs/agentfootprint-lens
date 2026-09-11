@@ -77,6 +77,14 @@ export {
   type NavigationMatch,
   type NavigationMiss,
 } from '../core/group/resolveNavigation.js';
+// ONE ADDRESS, ONE CURSOR (0.51.0) — the shape every lens view is handed: a
+// reading, the honest `resolve` above, and the one funnel. `lensCursorFrom`
+// builds it over any axis, with nothing mounted.
+export {
+  lensCursorFrom,
+  type LensCursor,
+  type LensCursorReading,
+} from '../core/cursor/lensCursor.js';
 export { stepBands, bandIndexOf, type StepBand } from '../core/group/stepBands.js';
 // MOVEMENT along that axis — footprintjs 9.17's reader cursor over the Why
 // Lens's own stops (lens 0.46.0). The same interface `<Lens>` moves through, so

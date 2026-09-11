@@ -1278,6 +1278,108 @@ Keep the slots object stable across renders (module scope or `useMemo`), same as
 
 ---
 
+## One address, one cursor — for every view
+
+> **A stage id is an ADDRESS, not a POSITION.** It says WHICH stage, never WHERE
+> on an axis. Only an axis can answer that, and it may honestly answer *"not
+> here"*.
+
+Until 0.51.0 the same one cursor reached three views in three vocabularies, and
+every new view invented a fourth:
+
+| view | handed | reads |
+|---|---|---|
+| skill graph | `cursorRuntimeStageId` + `onJumpTo` | the EVENT record |
+| a consumer's data graph | `{ step, total, stepOf(id), onStep }` | the COMMIT record |
+| Served tab / graph | `cursorRuntimeStageId` + `commitIdx` | the COMMIT record |
+
+`LensCursor` is their superset, and every view now gets exactly it. It is three
+things and deliberately nothing more:
+
+```ts
+interface LensCursor {
+  readonly at: LensCursorReading;              // step · totalSteps · runtimeStageId · commitIdx · label · kind
+  readonly total: number;
+  resolve(runtimeStageId: string): NavigationResult;   // an ADDRESS, answered honestly
+  moveTo(step: number): void;                          // the ONE funnel
+}
+```
+
+**It holds no position of its own**, and no view may gain one: `at` is derived
+from the axis and the step on every render, `resolve` is a pure query, and
+`moveTo` is the same funnel the step strip, the ◀ ▶ buttons and the live
+auto-advance go through. Read it; never store it.
+
+### Adopting it — one line
+
+```tsx
+<Lens
+  recorder={recorder}
+  slots={{ detail: (p) => <SkillGraphDebugger recorder={p.recorder} cursor={p.cursor} /> }}
+/>
+```
+
+`cursor` arrives on `LensDetailSlotProps` beside every prop that was already
+there, and `<SkillGraphDebugger cursor>` / `<ServedTab cursor>` are the narrow
+form of the props they already took. Nothing was removed; an explicit prop still
+wins wherever both are passed.
+
+### Placing an element by address
+
+This is the behaviour the packet generalises. A real consumer's data-graph view
+took `stepOf(id)` and drew an element `unplaced` when the answer came back below
+zero — a number every view had to invent a meaning for. Written against
+`resolve`, the meaning *and the words* come from the library:
+
+```tsx
+function Element({ cursor, runtimeStageId, name }) {
+  const to = cursor.resolve(runtimeStageId);
+  if (!to.ok) {
+    // Drawn, never hidden — omit never deny — and the sentence is the library's.
+    return <li data-unplaced title={to.message}>{name}</li>;
+  }
+  return (
+    <li data-enclosing={to.match === 'enclosing'} onClick={() => cursor.moveTo(to.step)}>
+      {to.label}
+    </li>
+  );
+}
+```
+
+### The three cases the contract names
+
+Each is a real run, and each has a test measured on a frozen fixture:
+
+1. **The axis does not stop there.** A filtered or tag axis over an untagged
+   stage. `resolve` refuses `'not-on-axis'`, carries a printable `message`, and
+   OFFERS the nearest earlier stop in `nearest` — an offer, never a move.
+2. **The id belongs to an inner log.** A subflow's stages commit into their own
+   isolated log, so the axis holds the MOUNT rather than the stage. The ladder's
+   `'enclosing'` rung answers `{ ok: true, match: 'enclosing' }` whose
+   `runtimeStageId` is the mount's — a true landing at the granularity this axis
+   has. Branch on `match` when you must tell "on it" from "inside it", and offer
+   a drill to go deeper.
+3. **The event has no stage at all.** Run start, run end. There is no id;
+   `resolve('')` refuses `'no-id'` and your view says so rather than inventing
+   an address.
+
+### Headless
+
+```ts
+import { scrubAxisFor, lensCursorFrom } from 'agentfootprint-lens/core';
+
+const positions = scrubAxisFor(recorder, 'step');
+const cursor = lensCursorFrom(positions, 0, (step) => setStep(step));
+const to = cursor.resolve('llm#7');
+const href = to.ok ? `/run/${runId}?step=${to.step}` : undefined;
+```
+
+`stepForRuntimeStageId` still ships and still behaves byte for byte; it is
+**deprecated** in favour of `resolveNavigation` / `cursor.resolve`, the same
+ladder with its rungs named instead of flattened to `-1`.
+
+---
+
 ## Theming
 
 **Lens inherits theme tokens from your app via CSS variables.** Set `--fp-*`

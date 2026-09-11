@@ -3,6 +3,13 @@
 The lens owns **which stops exist**. footprintjs owns **where a move lands**.
 This folder is that seam and nothing else: two files, no state, no React.
 
+> **A stage id is an ADDRESS, not a POSITION.** It says WHICH stage, never WHERE
+> on an axis; only an axis can answer that, and it may honestly answer "not
+> here". `toAddress` below is this folder's half of that law — the MOVE. The
+> half a VIEW is handed is `core/cursor/` (`LensCursor.resolve`), which names
+> the three cases a refusal can be: the axis does not stop there, the id belongs
+> to an inner log, or the event has no stage at all.
+
 - `lensStops.ts` — `lensStopsStrategy(positions)`: the lens's
   `CursorPosition[]` wearing footprintjs's `Stop`, in the same order, so
   `stop.step` IS the index into the position list.

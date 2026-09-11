@@ -21,9 +21,10 @@
  *   4. AUTHORITY OMISSIONS COME FROM THE FOLD. Hidden skill ids are read at the
  *      stop through footprintjs's `stateAt` (`foldFactsAt`), never from the
  *      receipt, and labelled "hidden from the model".
- *   5. ONE CURSOR. Props in (`cursorRuntimeStageId`, `commitIdx`), a jump
- *      request out (`onJumpTo`). The only local state is a diff toggle and
- *      which schemas are expanded — never a position.
+ *   5. ONE CURSOR. Props in (`cursorRuntimeStageId`, `commitIdx` — or, since
+ *      0.51.0, the whole `cursor` those two are read off), a jump request out
+ *      (`onJumpTo`). The only local state is a diff toggle and which schemas
+ *      are expanded — never a position.
  *
  * A RECORD CAN NEVER TAKE THE LENS DOWN. The tab reads a shape it does not own
  * off a recording that came from disk; the core narrows it (`receiptShape.ts`)
@@ -51,6 +52,7 @@ import {
   type ServedVerification,
   type SincePrevious,
 } from '../../core/served/index.js';
+import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import type { DiffSegment } from '../../core/utils/diffPrompts.js';
 // The badge is ONE owner across the tab's two views (list and graph) — see
 // `ServedBadge.tsx`. Re-exported below so its import path is unchanged.
@@ -159,12 +161,39 @@ export interface ServedTabProps {
   /** The runner whose last snapshot holds the log (`getLastSnapshot` is
    *  duck-checked), or the snapshot itself. */
   readonly runner: unknown;
-  /** THE cursor's address — the Why Lens's single position. */
-  readonly cursorRuntimeStageId: string;
-  /** THE cursor's commit anchor; `-1` when unknown. */
-  readonly commitIdx: number;
+  /** THE cursor's address — the Why Lens's single position. Optional since
+   *  0.51.0: pass `cursor` instead and this is read from `cursor.at`. */
+  readonly cursorRuntimeStageId?: string;
+  /** THE cursor's commit anchor; `-1` when unknown. Optional since 0.51.0 for
+   *  the same reason. */
+  readonly commitIdx?: number;
   /** Move the ONE cursor to an address (the call's own stop). */
   readonly onJumpTo?: (runtimeStageId: string) => void;
+  /**
+   * THE cursor, in the one vocabulary every view is handed (0.51.0).
+   *
+   * A shell that already holds a `LensCursor` — from `<Lens slots={{ detail }}>`
+   * or from `lensCursorFrom` — passes this ALONE:
+   *
+   * ```tsx
+   * <ServedTab runner={runner} cursor={p.cursor} />
+   * ```
+   *
+   * The two scalars above still work and still WIN when supplied, which is
+   * what keeps `<Lens>`'s own wiring byte for byte. This is the same one
+   * cursor either way: the tab reads a position, and holds none.
+   */
+  readonly cursor?: LensCursor;
+}
+
+/** The address + commit this tab reads, from whichever shape the host passed.
+ *  The explicit scalars win; the cursor is the fallback, so no host has two
+ *  sources of truth at once. */
+function cursorAnchor(props: ServedTabProps): { runtimeStageId: string; commitIdx: number } {
+  return {
+    runtimeStageId: props.cursorRuntimeStageId ?? props.cursor?.at.runtimeStageId ?? '',
+    commitIdx: props.commitIdx ?? props.cursor?.at.commitIdx ?? -1,
+  };
 }
 
 // `snapshotOfRunner` / `snapshotLogKey` (0.48.0): the runner's last snapshot
@@ -176,19 +205,17 @@ const logKeyOf = snapshotLogKey;
 /** The tab, inside the boundary that keeps a bad record from unmounting the
  *  Lens. `ServedTabBody` is the tab itself. */
 export function ServedTab(props: ServedTabProps): React.ReactElement {
+  const anchor = cursorAnchor(props);
   return (
-    <ServedTabBoundary resetKey={`${props.cursorRuntimeStageId}#${props.commitIdx}`}>
+    <ServedTabBoundary resetKey={`${anchor.runtimeStageId}#${anchor.commitIdx}`}>
       <ServedTabBody {...props} />
     </ServedTabBoundary>
   );
 }
 
-function ServedTabBody({
-  runner,
-  cursorRuntimeStageId,
-  commitIdx,
-  onJumpTo,
-}: ServedTabProps): React.ReactElement {
+function ServedTabBody(props: ServedTabProps): React.ReactElement {
+  const { runner, onJumpTo } = props;
+  const { runtimeStageId: cursorRuntimeStageId, commitIdx } = cursorAnchor(props);
   // The snapshot is re-read every render (cheap) but only ADOPTED when its log
   // key moves, so the derivation below — and the library's own per-snapshot
   // memos — hold across renders the cursor did not cause.
@@ -198,14 +225,15 @@ function ServedTabBody({
   const snapshot = useMemo(() => fresh, [runner, logKey]);
   // Derived from the cursor — nothing here remembers a position.
   const derived = useMemo(() => {
-    const cursor = { runtimeStageId: cursorRuntimeStageId, commitIdx };
-    const row = servedRowAt(snapshot, cursor);
+    // The ANCHOR, not a cursor — this tab holds no position, it reads one.
+    const at = { runtimeStageId: cursorRuntimeStageId, commitIdx };
+    const row = servedRowAt(snapshot, at);
     if (row === undefined) return undefined;
     const checks = verify(row.view, row.receipt, row.receipt?.basis.runId ?? '', row.receiptCause);
     const previous =
       row.previousEpoch !== undefined ? servedRowForEpoch(snapshot, row.previousEpoch) : undefined;
     const since = previous !== undefined ? sincePrevious(row, previous) : undefined;
-    const fold = foldFactsAt(snapshot, cursor);
+    const fold = foldFactsAt(snapshot, at);
     // The SECOND VIEW of the same row — no second read, no second cursor.
     const graph = servedGraphAt({ row, fold, checks, ...(since !== undefined ? { since } : {}) });
     return { row, checks, since, fold, graph };

@@ -18,34 +18,26 @@
  * state and today's auto-advance, byte for byte.
  */
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import {
+  lensCursorFrom,
+  type LensCursor,
+  type LensCursorReading,
+} from '../core/cursor/lensCursor.js';
+import type { CursorPosition } from '../core/group/cursorPositionsAtDrill.js';
 import type { LensCursorPort } from '../core/timeTravel/lensCursorPort.js';
 
 /**
  * Where the cursor landed, in all three units the lens knows — handed to
  * `onStepChange` alongside the step so a host never has to reverse-engineer
  * the lens's axis.
+ *
+ * It is a `LensCursorReading` (`/core`) plus the one thing a MOVE REPORT needs
+ * and a reading does not: `clamped`. One declaration of the reading's fields,
+ * so the report and the `LensCursor` every view is handed cannot drift.
  */
-export interface LensCursorAt {
-  /** The new cursor position, on the lens's step axis. Same number the
-   *  `step` prop takes. */
-  readonly step: number;
-  /** How many positions the axis has right now. Valid steps are
-   *  `0 … totalSteps - 1`. GROWS during a live run. */
-  readonly totalSteps: number;
-  /** The cursor's address in footprintjs's address space
-   *  (`[subflowPath/]stageId#executionIndex`) — the same string
-   *  `<TraceExplorerShell>` and `<RunSlider>` call `selectedRuntimeStageId` /
-   *  `cursorRuntimeStageId`. `''` when the axis is empty. */
-  readonly runtimeStageId: string;
-  /** The commit-log index this position anchors to. `-1` when unknown. */
-  readonly commitIdx: number;
-  /** The position's human label, as the step strip and the timeline spell it
-   *  ("Iteration 2", "Context 3", "Run · start"). */
-  readonly label: string;
-  /** What kind of stop this is. Absent when the axis is empty. */
-  readonly kind?: string;
+export interface LensCursorAt extends LensCursorReading {
   /**
    * `true` when this call is Lens CORRECTING a step that is not a position on
    * the axis it is now read against, not a move someone made. That is an
@@ -88,6 +80,18 @@ export interface UseLensCursorArgs {
    * owns before every question and remembers nothing between them.
    */
   readonly port?: LensCursorPort | undefined;
+  /**
+   * The ACTIVE scrub axis — the same list the lens draws its ruler from.
+   *
+   * Supplied only so this hook can also hand back the `LensCursor` every view
+   * receives (`cursor` below), which needs the axis to answer an ADDRESS. It
+   * is never consulted for movement: `maxStep`, `describe` and `port` decide
+   * that, exactly as they did before 0.51.0.
+   *
+   * Omit it and `cursor` is a cursor over an EMPTY axis — `resolve` refuses
+   * `'empty-axis'`, which is the honest answer for a caller that gave none.
+   */
+  readonly positions?: readonly CursorPosition[] | undefined;
 }
 
 export interface UseLensCursorResult {
@@ -97,6 +101,15 @@ export interface UseLensCursorResult {
   readonly isLive: boolean;
   /** The ONE way anything inside the lens moves the cursor. */
   readonly moveTo: (n: number) => void;
+  /**
+   * The same one cursor in the shape EVERY view is handed (0.51.0): a READING
+   * (`at`), the honest address query (`resolve`) and this very `moveTo`.
+   *
+   * Added BESIDE the three fields above — nothing moved, nothing was removed.
+   * It holds no position: it is rebuilt from (`positions`, `step`) on every
+   * render, so a view cannot end up rendering a stale copy.
+   */
+  readonly cursor: LensCursor;
 }
 
 /**
@@ -117,6 +130,7 @@ export function useLensCursor({
   maxStep,
   describe,
   port,
+  positions,
 }: UseLensCursorArgs): UseLensCursorResult {
   const isControlled = controlledStep !== undefined;
 
@@ -258,5 +272,14 @@ export function useLensCursor({
     notify(snapped, true);
   }, [controlledStep, internalStep, maxStep, notify]);
 
-  return { step, isLive, moveTo };
+  // The ONE cursor in the ONE vocabulary (0.51.0). Derived, never owned — it
+  // is `step` (already snapped onto the axis above) plus the axis plus THIS
+  // funnel, rebuilt whenever any of the three changes. No new state, no second
+  // owner, and nothing above it reads it back.
+  const cursor = useMemo(
+    () => lensCursorFrom(positions ?? [], step, moveTo),
+    [positions, step, moveTo],
+  );
+
+  return { step, isLive, moveTo, cursor };
 }

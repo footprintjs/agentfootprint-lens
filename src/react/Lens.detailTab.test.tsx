@@ -242,3 +242,110 @@ describe('<Lens slots.detail> · the rail keeps its tab strip', () => {
     expect(screen.getByTestId('host-detail')).toBeVisible();
   });
 });
+
+/**
+ * 0.51.0 — the slot receives THE cursor, in the one vocabulary every view now
+ * shares. Everything above still passes unchanged, which is the additive law;
+ * this pins that the new prop actually arrives, agrees with the old ones, and
+ * moves the same one cursor.
+ */
+describe('<Lens slots.detail> · one address, one cursor', () => {
+  /** A pane that reads ONLY `p.cursor` — the shape a new view is written to. */
+  const CursorPane: React.FC<LensDetailSlotProps> = ({ cursor }) => {
+    const inner = cursor.resolve('sf-llm-call/sf-tools#13');
+    const absent = cursor.resolve('nowhere-at-all#9999');
+    return (
+      <div
+        data-testid="cursor-pane"
+        data-step={String(cursor.at.step)}
+        data-total={String(cursor.total)}
+        data-address={cursor.at.runtimeStageId}
+        data-commit={String(cursor.at.commitIdx)}
+        data-inner-match={inner.ok ? inner.match : `refused:${inner.reason}`}
+        data-absent={absent.ok ? 'placed' : 'unplaced'}
+      >
+        <button data-testid="cursor-move" onClick={() => cursor.moveTo(0)}>
+          to the start
+        </button>
+      </div>
+    );
+  };
+
+  it('the cursor the slot receives agrees with the props beside it', () => {
+    const f = load('flat-dynamic-tools');
+    const seen: LensDetailSlotProps[] = [];
+    const Spy: React.FC<LensDetailSlotProps> = (p) => {
+      seen.push(p);
+      return <div data-testid="spy" />;
+    };
+    render(
+      <Lens
+        recorder={f.recorder}
+        runner={f.runner as never}
+        view="engineer"
+        granularity="group"
+        step={f.positions.length - 1}
+        slots={{ detail: Spy }}
+      />,
+    );
+    const last = seen[seen.length - 1]!;
+    // ONE cursor said two ways — the old scalars and the new object cannot
+    // disagree, because the object is built from the same axis and step.
+    expect(last.cursor.at.step).toBe(last.step);
+    expect(last.cursor.at.totalSteps).toBe(last.totalSteps);
+    expect(last.cursor.at.runtimeStageId).toBe(last.cursorRuntimeStageId);
+    expect(last.cursor.at.commitIdx).toBe(last.commitIdx);
+    expect(last.cursor.at.label).toBe(last.label);
+    expect(last.cursor.at.kind).toBe(last.kind);
+    expect(last.cursor.total).toBe(last.totalSteps);
+  });
+
+  it('a pane written against the cursor alone places, refuses and MOVES', async () => {
+    // The GROUPED turn: its pieces commit into the turn's own inner log, which
+    // is what makes the `enclosing` rung a real answer here rather than a
+    // contrived one.
+    const f = load('dynamic-grouped');
+    render(
+      <Lens
+        recorder={f.recorder}
+        runner={f.runner as never}
+        view="engineer"
+        granularity="group"
+        slots={{ detail: CursorPane }}
+      />,
+    );
+    const pane = screen.getByTestId('cursor-pane');
+    // An id in the injection engine's inner log lands on its MOUNT, named.
+    expect(pane.getAttribute('data-inner-match')).toBe('enclosing');
+    // An address this axis cannot hold is UNPLACED, not hidden and not guessed.
+    expect(pane.getAttribute('data-absent')).toBe('unplaced');
+    // Uncontrolled Lens follows the live edge, so the cursor starts at the end.
+    expect(pane.getAttribute('data-step')).toBe(
+      String(Number(pane.getAttribute('data-total')) - 1),
+    );
+
+    // `cursor.moveTo` IS the one funnel — the same move a strip click makes.
+    await userEvent.click(screen.getByTestId('cursor-move'));
+    expect(screen.getByTestId('cursor-pane').getAttribute('data-step')).toBe('0');
+  });
+
+  it('a legacy pane that ignores `cursor` renders exactly as before', () => {
+    const f = load('flat-dynamic-tools');
+    const props = {
+      recorder: f.recorder,
+      runner: f.runner as never,
+      view: 'engineer' as const,
+      granularity: 'group' as const,
+      step: f.positions.length - 1,
+      slots: { detail: HostPane, detailLabel: 'SEO bands' },
+    };
+    const first = render(<Lens {...props} />);
+    const html = first.container.innerHTML;
+    first.unmount();
+    // Rendered twice for the same reason a byte-for-byte pin exists: the new
+    // prop must add NOTHING to a pane that does not read it.
+    const again = render(<Lens {...props} />);
+    expect(again.container.innerHTML).toBe(html);
+    expect(screen.getByTestId('host-detail')).toBeVisible();
+  });
+});

@@ -45,6 +45,15 @@ import { resolveNavigation } from './resolveNavigation.js';
 /**
  * Resolve an address to a step on the given position list.
  *
+ * @deprecated since 0.51.0 — use `resolveNavigation(positions, id)` (or
+ * `cursor.resolve(id)` on the `LensCursor` every view is now handed). This
+ * function FLATTENS the ladder to `-1`, and each consumer then re-invents what
+ * `-1` means: one draws the element unplaced, one disables a jump, a third
+ * HIDES it — a denial. The named result carries `reason`, a printable
+ * `message` and the `nearest` offer, so a view states the truth instead of
+ * guessing at a number. Nothing is removed and the behaviour is unchanged;
+ * this is a signpost, not a schedule.
+ *
  * @param positions the cursor axis at the CURRENT drill level
  *                  (`useCursorPositions(recorder, drillPath)`).
  * @param runtimeStageId the address to move to.

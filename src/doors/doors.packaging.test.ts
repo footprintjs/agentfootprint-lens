@@ -33,6 +33,8 @@ const WHY_EXPORTS = [
   'stepForCommitIdx',
   'stepForRuntimeStageId',
   'resolveNavigation',
+  // 0.51.0 — the ONE cursor every view is handed, buildable with nothing mounted.
+  'lensCursorFrom',
   'stepBands',
   'bandIndexOf',
 ] as const;
@@ -46,6 +48,7 @@ const SKILLGRAPH_EXPORTS = [
   'selectSkillFrameContext',
   'stepForRuntimeStageId',
   'resolveNavigation',
+  'lensCursorFrom',
 ] as const;
 
 describe('package.json exports map (no build needed)', () => {

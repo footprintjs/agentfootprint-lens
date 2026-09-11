@@ -83,6 +83,10 @@ const FILES: string[] = [
   ...sources('core/served', (f) => f.endsWith('.ts')),
   ...sources('core/bookmarks', (f) => f.endsWith('.ts')),
   ...sources('core/tags', (f) => f.endsWith('.ts')),
+  // 0.51.0: the ONE cursor every view is handed. It carries no words at all —
+  // a refusal's `message` is `resolveNavigation`'s, handed through untouched —
+  // and this walk is what keeps it that way as views start reading it.
+  ...sources('core/cursor', (f) => f.endsWith('.ts')),
   ...sources('react/components', (f) => /^(Served|BookmarksTab|TagPicker).*\.tsx$/.test(f)),
   ...sources('react/hooks', (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
@@ -149,6 +153,9 @@ describe('the Served tab writes no claim sentences of its own', () => {
     expect(walked).toContain('servedGraphAt.ts');
     expect(walked).toContain('ServedGraph.tsx');
     expect(walked).toContain('ServedBadge.tsx');
+    // 0.51.0's new file is walked too — a cursor that grew a sentence of its
+    // own would reach every view at once.
+    expect(walked).toContain('lensCursor.ts');
   });
 
   it('every LABEL is a label: short, and no claim verb (one mandated note excepted)', () => {
