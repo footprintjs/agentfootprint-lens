@@ -494,8 +494,16 @@ export interface LensDetailSlotProps {
    *
    * It holds no position of its own — it is rebuilt every render. Read it;
    * never store it.
+   *
+   * OPTIONAL, and not because it can be missing: `<Lens>` always supplies it.
+   * It is optional because a consumer may CONSTRUCT these props — a test that
+   * renders its own pane, a wrapper type that extends this one — and a new
+   * REQUIRED field would break that consumer's compile on a minor. Measured on
+   * a real app at 0.51.0, whose `BandPaneProps extends LensDetailSlotProps`
+   * stopped compiling. A receiver that wants it without a guard can read it
+   * from `useLensCursor` instead. (0.51.1)
    */
-  readonly cursor: LensCursor;
+  readonly cursor?: LensCursor;
 }
 
 export const Lens: React.FC<LensProps> = ({

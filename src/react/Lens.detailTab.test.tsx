@@ -252,6 +252,10 @@ describe('<Lens slots.detail> · the rail keeps its tab strip', () => {
 describe('<Lens slots.detail> · one address, one cursor', () => {
   /** A pane that reads ONLY `p.cursor` — the shape a new view is written to. */
   const CursorPane: React.FC<LensDetailSlotProps> = ({ cursor }) => {
+    // `cursor` is optional on the props type so a consumer CONSTRUCTING them
+    // does not break on a minor (0.51.1) — `<Lens>` always supplies it, and
+    // this pane asserts that rather than rendering a fallback.
+    if (cursor === undefined) throw new Error('<Lens> must supply p.cursor');
     const inner = cursor.resolve('sf-llm-call/sf-tools#13');
     const absent = cursor.resolve('nowhere-at-all#9999');
     return (
@@ -289,15 +293,19 @@ describe('<Lens slots.detail> · one address, one cursor', () => {
       />,
     );
     const last = seen[seen.length - 1]!;
+    // Optional on the type so a consumer constructing these props keeps
+    // compiling (0.51.1); `<Lens>` always supplies it, which is the claim here.
+    expect(last.cursor).toBeDefined();
+    const cursor = last.cursor!;
     // ONE cursor said two ways — the old scalars and the new object cannot
     // disagree, because the object is built from the same axis and step.
-    expect(last.cursor.at.step).toBe(last.step);
-    expect(last.cursor.at.totalSteps).toBe(last.totalSteps);
-    expect(last.cursor.at.runtimeStageId).toBe(last.cursorRuntimeStageId);
-    expect(last.cursor.at.commitIdx).toBe(last.commitIdx);
-    expect(last.cursor.at.label).toBe(last.label);
-    expect(last.cursor.at.kind).toBe(last.kind);
-    expect(last.cursor.total).toBe(last.totalSteps);
+    expect(cursor.at.step).toBe(last.step);
+    expect(cursor.at.totalSteps).toBe(last.totalSteps);
+    expect(cursor.at.runtimeStageId).toBe(last.cursorRuntimeStageId);
+    expect(cursor.at.commitIdx).toBe(last.commitIdx);
+    expect(cursor.at.label).toBe(last.label);
+    expect(cursor.at.kind).toBe(last.kind);
+    expect(cursor.total).toBe(last.totalSteps);
   });
 
   it('a pane written against the cursor alone places, refuses and MOVES', async () => {

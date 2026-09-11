@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.51.1] - 2026-09-10
+
+### Fixed
+
+- **`LensDetailSlotProps.cursor` is optional, and not because it can be
+  missing.** `<Lens>` always supplies it. It was declared REQUIRED in 0.51.0,
+  which broke a consumer that CONSTRUCTS these props rather than only receiving
+  them — a test that renders its own pane, or a wrapper type extending this one.
+  Measured on a real app the same day: its `BandPaneProps extends
+  LensDetailSlotProps` stopped compiling on a minor, which is exactly what
+  0.51.0 promised would not happen ("every existing prop keeps working"). A new
+  required field on a props type a consumer can build is a breaking change
+  wearing a minor's clothes; the law is that the library may ADD what it hands
+  you, never REQUIRE more of what you hand it.
+
 ## [0.51.0] - 2026-09-10
 
 **A stage id is an ADDRESS, not a POSITION.** It says WHICH stage, never WHERE
