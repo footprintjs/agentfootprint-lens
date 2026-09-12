@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.52.1] - 2026-09-11
+
+### Fixed
+
+- **The pinned throw is closed upstream; the lens reads the library's
+  stored-receipt type.** agentfootprint 9.94.1 made a receipt with a basis
+  and no `cache` container BUILD a view where 9.93.0–9.94.0 threw out of
+  `servedAt` ("a reader reads the receipt it is handed; a missing container
+  is a vintage, never a throw"). The two tests that pinned the throw as a
+  library defect now state the new truth: the view builds, the lens's own
+  narrowing (`receiptShape.ts`) refuses the half-shape on the row — Damaged
+  on every row, the tab never in its error state, nothing Verified. With it,
+  `receiptAt` returns `StoredReceipt` (`cache?` and `cache.strategy?`
+  optional), so the lens's READ side is now typed as what it reads:
+  `verify`, `attentionOmissionStatus`, `pairEvictedTurns` and
+  `carriesCacheStrategy` take a `StoredReceipt`; `carriesCacheStrategy` is a
+  type guard (past `true`, `cache.strategy` is the string or `null` the
+  receipt wrote, and a receipt with no `cache` container is `false`, never a
+  throw); `ServedRow.receipt` is the receipt as `isReceiptShaped` admits it
+  (every container present, `strategy` the vintage's to say). Nothing at run
+  time changed — a 9.94.0 peer still works; only an unguarded `.cache.strategy`
+  read off a row now fails to compile instead of lying.
+
 ## [0.52.0] - 2026-09-11
 
 **The receipt says which strategy, and what the window dropped — and now the

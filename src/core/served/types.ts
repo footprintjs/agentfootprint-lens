@@ -8,6 +8,7 @@
 import type { Receipt, ServedGapCause, ServedView } from 'agentfootprint';
 
 import type { EvictedTurn } from './evictedTurns.js';
+import type { ShapedReceipt } from './receiptShape.js';
 
 /** The ONE cursor, as the Why Lens holds it: an address anchored to a commit. */
 export interface ServedCursor {
@@ -37,8 +38,10 @@ export interface ServedRow {
   readonly view: ServedView;
   /** The receipt the call committed — `receiptAt(k)`; absent when none was
    *  read, or when what was read is not receipt-shaped (`receiptCause` then
-   *  says `'receipt-shape-rejected'`). Never a half-shape. */
-  readonly receipt?: Receipt;
+   *  says `'receipt-shape-rejected'`). Never a half-shape: every container is
+   *  on it; only `cache.strategy` (the 9.93.0 key) is the vintage's to say —
+   *  read it through `carriesCacheStrategy`. */
+  readonly receipt?: ShapedReceipt;
   /**
    * `true` when the cursor is NOT on this epoch's llm-turn stop: the row is the
    * nearest PRECEDING call, and the tab says so ("as of call k").

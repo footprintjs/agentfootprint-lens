@@ -21,13 +21,23 @@
  * not own.
  */
 
-import type { Receipt } from 'agentfootprint';
+import type { Receipt, StoredReceipt } from 'agentfootprint';
+
+/**
+ * The receipt as the lens READS it — what `isReceiptShaped` admits. The
+ * library's `StoredReceipt` (agentfootprint 9.94.1) promises nothing past
+ * `basis`; the lens's own narrowing puts every container it dereferences on
+ * the record (`cache` included), and this type says so. What stays the
+ * vintage's to say is `cache.strategy`, the 9.93.0 key — read it through
+ * `carriesCacheStrategy`, never bare. `ServedRow.receipt` is one of these.
+ */
+export type ShapedReceipt = StoredReceipt & { readonly cache: NonNullable<StoredReceipt['cache']> };
 
 const isRecord = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /** Does `value` carry every container the lens reads off a receipt? */
-export function isReceiptShaped(value: unknown): value is Receipt {
+export function isReceiptShaped(value: unknown): value is ShapedReceipt {
   if (!isRecord(value)) return false;
   const { system, messages, tools, params, cache, basis } = value;
   if (isRecord(cache) && 'strategy' in cache && cache.strategy !== null && typeof cache.strategy !== 'string') {
@@ -64,11 +74,18 @@ export function isReceiptShaped(value: unknown): value is Receipt {
  *     the agent chart's window file every eviction there); absent on a receipt
  *     WITHOUT the key → nobody recorded a drop, so the field is not on record.
  *
+ * Takes the receipt AS STORED (`receiptAt`'s `StoredReceipt`): a receipt with
+ * no `cache` container at all is a vintage older than the container, and
+ * carries no key — `false`, never a throw. Narrows: past a `true`,
+ * `cache.strategy` is the string or `null` the receipt wrote.
+ *
  * @example
  * ```ts
  * carriesCacheStrategy(receiptAt(snapshot, 1)!); // true on a 9.93+ mint, '*' or null alike
  * ```
  */
-export function carriesCacheStrategy(receipt: Receipt): boolean {
-  return 'strategy' in receipt.cache;
+export function carriesCacheStrategy(
+  receipt: StoredReceipt,
+): receipt is StoredReceipt & { readonly cache: Receipt['cache'] } {
+  return receipt.cache !== undefined && 'strategy' in receipt.cache;
 }

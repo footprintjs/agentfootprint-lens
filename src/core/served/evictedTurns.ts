@@ -21,7 +21,7 @@
  * Pure: takes the receipts it needs and reads nothing else.
  */
 
-import type { Receipt } from 'agentfootprint';
+import type { Receipt, StoredReceipt } from 'agentfootprint';
 
 import { carriesCacheStrategy } from './receiptShape.js';
 
@@ -56,7 +56,7 @@ export interface EvictedTurn {
  */
 export type AttentionOmissionStatus = 'on-receipt' | 'none-on-receipt' | 'not-on-record';
 
-export function attentionOmissionStatus(receipt: Receipt | undefined): AttentionOmissionStatus {
+export function attentionOmissionStatus(receipt: StoredReceipt | undefined): AttentionOmissionStatus {
   if (receipt === undefined) return 'not-on-record';
   if (receipt.omittedForAttention !== undefined) return 'on-receipt';
   return carriesCacheStrategy(receipt) ? 'none-on-receipt' : 'not-on-record';
@@ -79,7 +79,7 @@ export function attentionOmissionStatus(receipt: Receipt | undefined): Attention
  */
 export function pairEvictedTurns(
   drops: AttentionOmission,
-  earlier: readonly Receipt[],
+  earlier: readonly StoredReceipt[],
 ): readonly EvictedTurn[] {
   return Object.freeze(
     drops.hashes.map((hash) => {

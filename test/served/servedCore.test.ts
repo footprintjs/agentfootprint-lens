@@ -95,26 +95,15 @@ describe('servedRowAt — the one cursor resolved to its epoch', () => {
     // agentfootprint's `readReceipt` narrows only `basis.epoch`; a record with a
     // basis but no system / messages / tools / params / cache comes back typed
     // as a Receipt. The lens narrows the rest, and treats a failure as damage.
-    // LIBRARY DEFECT, pinned (agentfootprint 9.93.0–9.94.0): `servedView.ts` ·
-    // `viewOf` reads `receipt.cache.strategy` to decide the `cache-transform`
-    // gap, past `readReceipt`'s basis-only narrowing — so a receipt with a
-    // basis but no `cache` container makes `servedAt` THROW where it used to
-    // build a view. The lens cannot narrow what the library reads before the
-    // library reads it, and never edits a record; `<ServedTab>`'s boundary is
-    // the path (Damaged + the thrown message). When the library refuses the
-    // shape itself, the first two shapes below return to the cause-on-the-row
-    // arm the third still drives.
+    // Library law since agentfootprint 9.94.1 ("a reader reads the receipt it
+    // is handed; a missing container is a fact about the vintage, never a
+    // throw"): a receipt with a basis and no `cache` container now BUILDS a
+    // view (the 9.93.0–9.94.0 throw is closed). The lens then narrows the rest
+    // and refuses these half-shapes on the row — the same arm every shape
+    // below drives, so the receipt-less first two joined the list.
     for (const half of [
       { basis: { epoch: 1, runId: 'x' } },
       { basis: { epoch: 1, runId: 'x' }, system: { hash: 'h', pieces: [] } },
-    ]) {
-      const f = loadTampered('flat-dynamic-tools', (r) => {
-        const bundle = r.snapshot.commitLog.find((b) => b.runtimeStageId === 'call-llm#18')!;
-        bundle.overwrite!.receipt = half;
-      });
-      expect(() => servedRowAt(f.snapshot, cursorOf(stopsOf(f, 'llm-turn')[0]!))).toThrow(/strategy/);
-    }
-    for (const half of [
       { basis: { epoch: 1, runId: 'x' }, cache: {} },
       { basis: { epoch: 1, runId: 'x' }, system: { hash: 'h', pieces: [] }, messages: { entries: [], requestOnly: [] }, tools: { names: [], schemaHashes: {} }, params: {}, cache: {} },
       // `cache.strategy` present but neither a string nor null: not a shape the lens owns.

@@ -32,6 +32,7 @@ import {
   SERVED_GAPS,
   type EpochLocation,
   type Receipt,
+  type StoredReceipt,
   type ServedGap,
   type ServedGapCause,
   type ServedView,
@@ -127,7 +128,7 @@ function evictedTurnsOf(
   at: number,
   drops: NonNullable<Receipt['omittedForAttention']>,
 ): readonly EvictedTurn[] {
-  const earlier: Receipt[] = [];
+  const earlier: StoredReceipt[] = [];
   for (const location of locations.slice(0, at)) {
     const read = receiptAt(recording, location.epoch);
     if (read !== undefined && isReceiptShaped(read)) earlier.push(read);

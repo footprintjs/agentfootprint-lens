@@ -147,7 +147,9 @@ describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
     const stop = stopsOf(f, 'iteration')[0]!;
     const { container } = mount(f, stop);
     const receipt = receiptAt(f.snapshot, 1)!;
-    expect(receipt.cache.strategy).toBeNull();
+    // A 9.94.1 `StoredReceipt`: the container is asserted, then read.
+    expect(receipt.cache).toBeDefined();
+    expect(receipt.cache?.strategy).toBeNull();
     // The strategy line: the receipt's own `null`, under the lens's label.
     const strategy = within(screen.getByTestId('served-strategy')).getByTestId('served-cache-strategy');
     expect(strategy).toHaveTextContent(LABELS.noCacheStrategy);
@@ -173,7 +175,9 @@ describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
   it('an agent on the mock provider: cache.strategy is the built-in pass-through, printed as itself ("*"), and cache-transform stays', () => {
     const f = load('flat-dynamic-tools');
     const { container } = mount(f, stopsOf(f, 'llm-turn')[0]!);
-    expect(receiptAt(f.snapshot, 1)!.cache.strategy).toBe('*');
+    const receipt = receiptAt(f.snapshot, 1)!;
+    expect(receipt.cache).toBeDefined();
+    expect(receipt.cache?.strategy).toBe('*');
     const strategy = within(screen.getByTestId('served-strategy')).getByTestId('served-cache-strategy');
     expect(strategy).toHaveTextContent('*');
     expect(strategy.dataset.strategy).toBe('*');
@@ -253,19 +257,22 @@ describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
     expect(ownText(container)).not.toMatch(/\bnone\b|\bempty\b|\bno previous\b/);
   });
 
-  it('a receipt with a basis but no cache: the LIBRARY throws out of servedAt (9.93.0 defect) and the boundary prints it as Damaged', () => {
-    // See servedCore.test.ts, the same arm: `viewOf` reads `receipt.cache.strategy`
-    // past `readReceipt`'s basis-only narrowing. The tab stays up — Damaged,
-    // and the thrown message as data — until the library refuses the shape.
+  it('a receipt with a basis but no cache: the library builds the view (9.94.1 vintage law) and the lens refuses the half-shape on every row', () => {
+    // Until agentfootprint 9.94.1 this shape made `servedAt` THROW and only the
+    // tab's boundary kept the Lens up. The library now reads a missing
+    // container as a vintage, the view builds, and the lens's own narrowing
+    // refuses the half-shape — Damaged on every row, the tab itself never in
+    // its error state, nothing Verified.
     const f = loadTampered('flat-dynamic-tools', (r) => {
       r.snapshot.commitLog.find((b) => b.runtimeStageId === 'call-llm#18')!.overwrite!.receipt = {
         basis: { epoch: 1, runId: 'x' },
       };
     });
     const { container } = mount(f, stopsOf(f, 'llm-turn')[0]!);
-    expect(screen.getByTestId('served-tab').dataset.served).toBe('error');
-    expect(badges(container).some((b) => b.dataset.status === 'damaged')).toBe(true);
-    expect(screen.getByTestId('served-tab-error')).toHaveTextContent(/strategy/);
+    expect(screen.getByTestId('served-tab').dataset.served).toBeUndefined();
+    expect(screen.getByTestId('served-epoch')).toHaveTextContent(`${LABELS.epoch} 1`);
+    expect(badges(container).filter((b) => b.dataset.status === 'damaged').length).toBeGreaterThan(0);
+    expect(badges(container).some((b) => b.dataset.status === 'verified')).toBe(false);
   });
 
   it('a half-shaped receipt (cache present, not a receipt) renders Damaged on every row — it never throws', () => {

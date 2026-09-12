@@ -181,6 +181,10 @@ if (wanted('llmcall')) {
     if (epochsOf(r) < 1) throw new Error('llmcall: no call-llm bundle recorded');
     const receipt = receiptAt(r.snapshot, 1);
     if (receipt === undefined) throw new Error('llmcall: the call minted no receipt (expected since 9.91.0)');
+    // `receiptAt` hands the receipt back AS STORED (9.94.1): a `cache`
+    // container is the mint's to write, so a fresh recording without one is
+    // a fact to name, not a throw to hide behind `!`.
+    if (receipt.cache === undefined) throw new Error('llmcall: the receipt carries no cache container (a 9.88.0+ mint writes one)');
     if (receipt.cache.strategy !== null) {
       throw new Error(`llmcall: expected cache.strategy null, got ${JSON.stringify(receipt.cache.strategy)}`);
     }

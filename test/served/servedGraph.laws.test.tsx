@@ -236,12 +236,13 @@ describe('PROBE — the third band is complete', () => {
         if (view.tools.withheld !== undefined) want.push(`tool-withheld:${view.tools.withheld}`);
         for (const id of fold.hiddenSkillIds ?? []) want.push(`hidden-skill:${id}`);
         // Attention drops, from the RECEIPT: one node per evicted hash; one
-        // Not-on-record node where no receipt can say (no receipt, or one
-        // minted before 9.93.0 wrote the field); NOTHING where a 9.93+ receipt
-        // carries none — the library's claim that nothing was dropped.
+        // Not-on-record node where no receipt can say (no receipt, one with no
+        // `cache` container, or one minted before 9.93.0 wrote the key);
+        // NOTHING where a 9.93+ receipt carries none — the library's claim
+        // that nothing was dropped.
         if (receipt?.omittedForAttention !== undefined) {
           for (const h of receipt.omittedForAttention.hashes) want.push(`attention-drop:${h}`);
-        } else if (receipt === undefined || !('strategy' in receipt.cache)) {
+        } else if (receipt?.cache === undefined || !('strategy' in receipt.cache)) {
           want.push('attention-drop:not-on-record');
         }
         if (fold.redacted) want.push('redacted:redacted');

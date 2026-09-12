@@ -52,6 +52,7 @@ import {
   messageDigestInput,
   receiptHash,
   type Receipt,
+  type StoredReceipt,
   type ReceiptMessage,
   type ReceiptPiece,
   type ServedGapCause,
@@ -303,7 +304,7 @@ function withoutReceipt(view: ServedView, absent: ServedFieldStatus): ServedVeri
  */
 export function verify(
   view: ServedView,
-  receipt: Receipt | undefined,
+  receipt: StoredReceipt | undefined,
   runId: string,
   cause?: ServedGapCause,
 ): ServedVerification {

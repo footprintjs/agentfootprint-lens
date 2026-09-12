@@ -61,5 +61,5 @@ export {
   type AttentionOmissionStatus,
   type EvictedTurn,
 } from './evictedTurns.js';
-export { carriesCacheStrategy } from './receiptShape.js';
+export { carriesCacheStrategy, type ShapedReceipt } from './receiptShape.js';
 export type { FieldCheck, ServedCursor, ServedFieldStatus, ServedRow } from './types.js';

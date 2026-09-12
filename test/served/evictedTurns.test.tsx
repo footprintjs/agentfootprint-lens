@@ -103,9 +103,17 @@ describe('the pairing rule — a dropped hash pairs with the latest earlier epoc
     expect(attentionOmissionStatus(receiptAt(f.snapshot, 3)!)).toBe('on-receipt');
     expect(attentionOmissionStatus(undefined)).toBe('not-on-record');
     // A receipt WITHOUT the 9.93.0 key: absence means nobody recorded a drop.
-    const { cache, ...rest } = receiptAt(f.snapshot, 1)!;
+    // Epoch 1 is a 9.93+ mint (the guard narrows it, so the container is read,
+    // never assumed); dropping the key makes the older vintage.
+    const minted = receiptAt(f.snapshot, 1)!;
+    if (!carriesCacheStrategy(minted)) throw new Error('window-evicts epoch 1 must carry cache.strategy');
+    const { cache, ...rest } = minted;
     const { strategy: _dropped, ...olderCache } = cache;
-    expect(attentionOmissionStatus({ ...rest, cache: olderCache } as never)).toBe('not-on-record');
+    expect(attentionOmissionStatus({ ...rest, cache: olderCache })).toBe('not-on-record');
+    // And a receipt with NO cache container at all — the shape `receiptAt`
+    // hands back from a pre-9.88.0 recording (9.94.1): a vintage, not a throw.
+    expect(carriesCacheStrategy(rest)).toBe(false);
+    expect(attentionOmissionStatus(rest)).toBe('not-on-record');
   });
 });
 
