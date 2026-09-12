@@ -1018,12 +1018,20 @@ composed them); tools as sent (names, expandable schemas, the forced tool
 marked, `withheld` shown as the library states it). **BASIS** — epoch, call id,
 commit index, model, provider, params (only the dials the receipt carries — an
 absent dial is not rendered as a default), cache (transform, breakpoints
-applied). **FOLD** — `iteration`, `currentSkillId`, `stepPointer`, engagement,
+applied, and since 0.52.0 the **cache strategy** as the receipt names it —
+`*` is the built-in pass-through, printed as itself; the receipt's `null`
+reads *no cache strategy*; a receipt from before agentfootprint 9.93.0 reads
+Not on record). **FOLD** — `iteration`, `currentSkillId`, `stepPointer`, engagement,
 active injections, hidden skill ids, read from the fold at the stop; a row the
 fold could not read is printed there as data (skipped indices, or the fold's
 error), beside a Damaged badge.
-**OMISSIONS** — attention drops from the receipt when present, else the
-library's `UNGAPPED_FIELDS` sentence for the field. **GAPS** — every gap on the
+**OMISSIONS** — the attention drops from the receipt (0.52.0): the count,
+then one line per turn the agent's window evicted for budget — its hash and
+the epoch it was **last served on**, paired by the library's own rule (the
+hash is that earlier receipt's `messages.entries[].hash`), or Not on record
+when no earlier receipt in this recording served it; a receipt that says
+nothing was dropped reads count 0, and a record that cannot say draws the
+badge. **GAPS** — every gap on the
 view: its kind, the fields it covers, its sentence verbatim, and its `cause`
 when the library established one (`receipt-shape-rejected` styled as damage).
 **SINCE PREVIOUS** — messages entered/left, tools added/removed, schemas whose
@@ -1072,7 +1080,8 @@ crossed into the call, one edge per system piece, message, request-only line and
 tool, each carrying its badge and, against the previous epoch, whether it
 *entered*, *left* or is *unchanged* — then **WITHHELD**: held and not sent. The
 withheld band is the reason to build it. The model never learns what it was
-denied; the operator should — the withheld tool list, the attention drops, the
+denied; the operator should — the withheld tool list, each evicted turn as an
+edge into the messages slot with the epoch that last served it (0.52.0), the
 skills a role hid (read from the fold, since a receipt carries no authority
 names), a redacted fold, and every gap the view declares, each with the
 library's own sentence. Same cursor, same row, same badges: a Damaged row draws

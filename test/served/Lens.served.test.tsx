@@ -60,9 +60,13 @@ describe('<Lens> · the Served tab on the right rail', () => {
   });
 
   it('a half-shaped receipt in the recording: the tab reads Damaged and the rest of the Lens stays mounted', () => {
+    // `cache: {}` keeps this on the lens's own refusal path; a receipt with NO
+    // `cache` makes agentfootprint 9.93.0's `servedAt` throw instead (pinned
+    // in ServedTab.test.tsx — the boundary keeps the Lens up there too).
     const f = loadTampered('flat-dynamic-tools', (r) => {
       r.snapshot.commitLog.find((b) => b.runtimeStageId === 'call-llm#18')!.overwrite!.receipt = {
         basis: { epoch: 1, runId: 'x' },
+        cache: {},
       };
     });
     const firstTurn = f.positions.findIndex((p) => p.milestone === 'llm-turn');

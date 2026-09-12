@@ -11,8 +11,8 @@
  * THE LAWS IT KEEPS (each is a test in `test/served/`):
  *   1. ONE CURSOR. Props in, nothing out. No state of its own at all.
  *   2. NO SENTENCE OF THE LENS'S OWN. Every explanation on screen is the
- *      library's own string — a gap's `why`, an ungapped sentence, a
- *      request-only line's `reason`, a withheld-list value — printed verbatim.
+ *      library's own string — a gap's `why`, a request-only line's `reason`,
+ *      a withheld-list value, a receipt field's name — printed verbatim.
  *      The strings this file owns are LABELS ({@link GRAPH_LABELS}), and
  *      `test/served/no-own-claims.test.ts` walks it to keep it that way.
  *   3. A BADGE IS NEVER SOFTENED. The badge is `ServedBadge.tsx`'s, shared
@@ -22,6 +22,9 @@
  *      committed value draws the Not-on-record badge, never an empty node.
  *   5. AUTHORITY OMISSIONS COME FROM THE FOLD. Hidden skills reach the
  *      withheld band with `from: 'fold'` — a receipt never names them.
+ *      ATTENTION OMISSIONS COME FROM THE RECEIPT (0.52.0): each evicted turn
+ *      is a withheld edge into the messages slot carrying the receipt's own
+ *      hash and the epoch that last served it — a number, or Not on record.
  *
  * DRAWN WITH NO DEPENDENCY. Flex and CSS grid, three bands that wrap on a
  * narrow rail; every long value truncates with its full text on `title`, so
@@ -77,9 +80,10 @@ export const GRAPH_LABELS = Object.freeze({
   redacted: 'redacted',
   gap: 'gap',
   toolWithheld: 'withheld',
-  count: 'count',
-  hashes: 'hashes',
   fold: 'fold',
+  cacheStrategy: 'cache strategy',
+  noCacheStrategy: 'no cache strategy',
+  lastServedOn: 'last served on',
 } as const);
 
 /** The word for a withheld node's kind — the record's own vocabulary. */
@@ -175,7 +179,34 @@ function CallCard({ call }: { call: CallNode }): React.ReactElement {
           </span>
         )}
       </div>
+      <div style={rowStyle} data-testid="graph-call-strategy">
+        <span style={mutedStyle}>{GRAPH_LABELS.cacheStrategy}</span>
+        <CacheStrategy value={call.cacheStrategy} />
+      </div>
     </div>
+  );
+}
+
+/**
+ * `Receipt.cache.strategy` as DATA: the name the receipt carries (`'*'` is the
+ * built-in pass-through, printed as itself, never translated), the label for
+ * the receipt's own `null` (no strategy stood between assembly and the port),
+ * or the Not-on-record badge where no receipt can say. Shared with the list
+ * view's cache section.
+ */
+export function CacheStrategy({ value }: { value: string | null | undefined }): React.ReactElement {
+  if (value === undefined) return <Badge check={{ status: 'not-on-record' }} />;
+  if (value === null) {
+    return (
+      <span style={mutedStyle} data-testid="served-cache-strategy" data-strategy="null">
+        {GRAPH_LABELS.noCacheStrategy}
+      </span>
+    );
+  }
+  return (
+    <span style={monoStyle} data-testid="served-cache-strategy" data-strategy={value}>
+      {value}
+    </span>
   );
 }
 
@@ -291,10 +322,13 @@ function SlotCard({
           data-kind={node.kind}
           data-name={node.name}
           data-slot={slot.slot}
+          data-hash={node.hash}
+          data-last-served-on={node.lastServedOn}
         >
           <Elbow />
           <span style={keyStyle}>{WITHHELD_LABELS[node.kind]}</span>
           <span style={monoMutedStyle}>{node.name}</span>
+          {node.hash !== undefined && <EvictedTurnFacts node={node} />}
         </div>
       ))}
       {slot.onReceiptOnly > 0 && (
@@ -370,6 +404,8 @@ function WithheldCard({ node }: { node: WithheldNode }): React.ReactElement {
       data-name={node.name}
       data-from={node.from}
       data-slot={node.slot}
+      data-hash={node.hash}
+      data-last-served-on={node.lastServedOn}
     >
       <div style={rowStyle}>
         <span style={keyStyle}>{WITHHELD_LABELS[node.kind]}</span>
@@ -379,13 +415,9 @@ function WithheldCard({ node }: { node: WithheldNode }): React.ReactElement {
         </span>
         {node.status !== undefined && <Badge check={{ status: node.status }} />}
       </div>
-      {node.count !== undefined && (
-        <div style={rowStyle} data-testid="graph-withheld-count">
-          <span style={keyStyle}>{GRAPH_LABELS.count}</span>
-          <span style={monoStyle}>{node.count}</span>
-          {node.hashes !== undefined && (
-            <span style={monoMutedStyle}>{node.hashes.join(' ')}</span>
-          )}
+      {node.hash !== undefined && (
+        <div style={rowStyle} data-testid="graph-withheld-turn">
+          <EvictedTurnFacts node={node} />
         </div>
       )}
       {node.cause !== undefined && (
@@ -413,6 +445,30 @@ function WithheldCard({ node }: { node: WithheldNode }): React.ReactElement {
         </p>
       )}
     </div>
+  );
+}
+
+/**
+ * One evicted turn's facts: the receipt's own hash for it, and the epoch the
+ * row paired it with (`core/served/evictedTurns.ts`) — a number where an
+ * earlier receipt in this recording served it, the Not-on-record badge where
+ * none did.
+ */
+function EvictedTurnFacts({ node }: { node: WithheldNode }): React.ReactElement {
+  return (
+    <>
+      <span style={monoMutedStyle} data-testid="graph-evicted-hash">
+        {node.hash}
+      </span>
+      <span style={mutedStyle}>{GRAPH_LABELS.lastServedOn}</span>
+      {node.lastServedOn !== undefined ? (
+        <span style={chipStyle(T.primary)} data-testid="graph-evicted-epoch">
+          {GRAPH_LABELS.epoch} {node.lastServedOn}
+        </span>
+      ) : (
+        <Badge check={{ status: 'not-on-record' }} />
+      )}
+    </>
   );
 }
 

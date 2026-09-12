@@ -61,16 +61,22 @@ describe('LAW 1 — one cursor: the graph holds no position, it renders the row 
 
 describe('LAW 2 — no sentence of the lens\'s own: every reason is the library\'s string', () => {
   it('a withheld node carries the library\'s own sentence, byte for byte', () => {
-    const f = load('llmcall');
-    const { graph } = graphAt(f, turnStops(f, 'llmcall')[0]!);
+    const f = load('no-receipt');
+    const { graph } = graphAt(f, turnStops(f, 'no-receipt')[0]!);
     const gaps = graph.withheld.filter((w) => w.kind === 'gap');
     expect(gaps.length).toBeGreaterThan(0);
     for (const node of gaps) {
       expect(node.why).toBe(SERVED_GAPS[node.name as keyof typeof SERVED_GAPS].why);
     }
-    // The field no gap explains prints the library's UNGAPPED sentence.
+    // With no receipt the attention drops are not on record: the badge, and
+    // NO sentence — the library retired `UNGAPPED_FIELDS.omittedForAttention`
+    // in 9.93.0 (the field is now named by `no-receipt-on-chart`), and the
+    // lens writes none of its own.
     const drops = graph.withheld.find((w) => w.kind === 'attention-drop')!;
-    expect(drops.why).toBe(UNGAPPED_FIELDS.omittedForAttention);
+    expect(drops.status).toBe('not-on-record');
+    expect(drops.why).toBeUndefined();
+    expect(UNGAPPED_FIELDS.omittedForAttention).toBeUndefined();
+    expect(SERVED_GAPS['no-receipt-on-chart'].fields).toContain('omittedForAttention');
   });
 
   it('a request-only line is labelled with the library\'s own `reason`', () => {
@@ -153,8 +159,8 @@ describe('LAW 4 — absent is not none', () => {
   });
 
   it('a run with no receipt at all: the basis is not-on-record, every row reconstructed, nothing empty', () => {
-    const f = load('llmcall');
-    const { graph } = graphAt(f, turnStops(f, 'llmcall')[0]!);
+    const f = load('no-receipt');
+    const { graph } = graphAt(f, turnStops(f, 'no-receipt')[0]!);
     expect(graph.call.basis).toBeUndefined();
     expect(graph.call.basisStatus).toBe('not-on-record');
     expect(graph.call.receiptCause).toBe('no-receipt-committed');

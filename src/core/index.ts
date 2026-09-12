@@ -262,6 +262,10 @@ export * from "./hitl/index.js";
 // 0.49.0: `servedGraphAt` projects the SAME row into three bands — held,
 // served, withheld — with one edge per piece carrying its badge and its
 // entered / left / unchanged state. Pure; frozen; no React.
+// 0.52.0: `pairEvictedTurns` / `attentionOmissionStatus` — the receipt's
+// attention drops (agentfootprint 9.93.0) paired with the epoch that last
+// served each, and what an absent field means; `carriesCacheStrategy` — the
+// receipt's own vintage discriminator.
 export {
   servedRowAt,
   servedRowForEpoch,
@@ -270,6 +274,11 @@ export {
   sincePrevious,
   foldFactsAt,
   servedGraphAt,
+  pairEvictedTurns,
+  attentionOmissionStatus,
+  carriesCacheStrategy,
+  type AttentionOmissionStatus,
+  type EvictedTurn,
   FOLD_FACT_KEYS,
   HELD_HONESTY_KEYS,
   HELD_KEYS,

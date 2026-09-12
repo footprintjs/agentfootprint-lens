@@ -11,7 +11,10 @@
  *     from the fold through footprintjs's `stateAt`;
  *   `servedGraphAt({ row, fold, checks, since })` — the same row as three
  *     bands (held · served · withheld) and the edges between them. A second
- *     VIEW, never a second data path.
+ *     VIEW, never a second data path;
+ *   `pairEvictedTurns(drops, earlier)` / `attentionOmissionStatus(receipt)` —
+ *     the receipt's attention drops paired with the epoch that last served
+ *     each (0.52.0), and what an absent field means on a given receipt.
  *
  * See README.md in this folder for the laws these keep.
  */
@@ -52,4 +55,11 @@ export {
   type FoldFactKey,
   type FoldFacts,
 } from './foldFactsAt.js';
+export {
+  attentionOmissionStatus,
+  pairEvictedTurns,
+  type AttentionOmissionStatus,
+  type EvictedTurn,
+} from './evictedTurns.js';
+export { carriesCacheStrategy } from './receiptShape.js';
 export type { FieldCheck, ServedCursor, ServedFieldStatus, ServedRow } from './types.js';

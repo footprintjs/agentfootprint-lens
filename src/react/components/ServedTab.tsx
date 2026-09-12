@@ -12,8 +12,8 @@
  *   1. OMIT, NEVER DENY. A field a gap covers is never rendered as "empty" or
  *      "none": the gap is the empty state, printed beside the field.
  *   2. NO CLAIM SENTENCES OF ITS OWN. Every explanatory sentence on this tab
- *      is `SERVED_GAPS[k].why` / `UNGAPPED_FIELDS[k]` VERBATIM, or is computed
- *      data (a status, a count, a hash, a diff). The strings this file owns are
+ *      is `SERVED_GAPS[k].why` VERBATIM, or is computed data (a status, a
+ *      count, a hash, an epoch number, a diff). The strings this file owns are
  *      LABELS — `LABELS` below — and `test/served/no-own-claims.test.ts` walks
  *      every literal to keep it that way.
  *   3. VERIFIED MEANS HASHES AGREE. The badge reads what `core/served/verify`
@@ -35,10 +35,11 @@
  */
 
 import React, { useMemo, useState } from 'react';
-import { SERVED_GAPS, UNGAPPED_FIELDS, type ServedGap } from 'agentfootprint';
+import { SERVED_GAPS, type ServedGap } from 'agentfootprint';
 
 import {
   EXCUSING_GAPS,
+  type AttentionOmissionStatus,
   foldFactsAt,
   servedGraphAt,
   servedRowAt,
@@ -57,7 +58,7 @@ import type { DiffSegment } from '../../core/utils/diffPrompts.js';
 // The badge is ONE owner across the tab's two views (list and graph) — see
 // `ServedBadge.tsx`. Re-exported below so its import path is unchanged.
 import { Badge, BADGE_LABELS } from './ServedBadge.js';
-import { ServedGraph, GRAPH_LABELS } from './ServedGraph.js';
+import { CacheStrategy, ServedGraph, GRAPH_LABELS } from './ServedGraph.js';
 import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRunner.js';
 import { T } from '../theme/index.js';
 
@@ -119,6 +120,9 @@ export const LABELS = Object.freeze({
   attentionDrops: 'attention drops',
   count: 'count',
   hashes: 'hashes',
+  lastServedOn: GRAPH_LABELS.lastServedOn,
+  cacheStrategy: GRAPH_LABELS.cacheStrategy,
+  noCacheStrategy: GRAPH_LABELS.noCacheStrategy,
   covers: 'covers',
   cause: 'cause',
   from: 'from',
@@ -154,7 +158,8 @@ const SECTION_FIELDS = Object.freeze({
   tools: ['tools.names', 'tools.schemaHashes', 'tools.forced', 'tools.withheld'],
   basis: ['basis.model', 'basis.provider', 'basis.runId', 'basis.epoch', 'epoch'],
   params: ['params'],
-  cache: ['cache.transform', 'cache.transformHash', 'cache.markersApplied'],
+  cache: ['cache.transform', 'cache.transformHash', 'cache.markersApplied', 'cache.strategy'],
+  omissions: ['omittedForAttention'],
 } as const);
 
 export interface ServedTabProps {
@@ -460,6 +465,18 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
             {checks.rebuiltOnly.toolNames.join(', ')}
           </DataLine>
         )}
+        {/* Schema NAMES hashed on one side only (`RowCounts.schemas`): the
+            forced tool's, under `forced-tool-schema`, is on the receipt only. */}
+        {checks.onReceiptOnly.schemas.length > 0 && (
+          <DataLine label={`${LABELS.schema} · ${LABELS.onReceiptOnly}`} testId="served-schemas-on-receipt-only">
+            <span style={monoStyle}>{checks.onReceiptOnly.schemas.join(', ')}</span>
+          </DataLine>
+        )}
+        {checks.rebuiltOnly.schemas.length > 0 && (
+          <DataLine label={`${LABELS.schema} · ${LABELS.rebuiltOnly}`} testId="served-schemas-rebuilt-only">
+            <span style={monoStyle}>{checks.rebuiltOnly.schemas.join(', ')}</span>
+          </DataLine>
+        )}
       </Section>
 
       {/* ── BASIS ──────────────────────────────────────────────────────── */}
@@ -520,6 +537,13 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
                 </span>
               )}
             </DataLine>
+            {/* WHICH strategy (agentfootprint 9.93.0), as the receipt says it:
+                a name, the label for its own `null`, or Not on record on a
+                receipt minted before the field existed. `graph.call` carries
+                the same value — one owner, `servedGraphAt` · `callNode`. */}
+            <DataLine label={LABELS.cacheStrategy} testId="served-strategy">
+              <CacheStrategy value={graph.call.cacheStrategy} />
+            </DataLine>
           </>
         ) : (
           <Presence label={LABELS.cache} />
@@ -532,17 +556,12 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
 
       {/* ── OMISSIONS ──────────────────────────────────────────────────── */}
       <SectionTitle>{LABELS.omissions}</SectionTitle>
-      <Section testId="served-omissions" title={LABELS.attentionDrops}>
-        {row.receipt?.omittedForAttention !== undefined ? (
-          <>
-            <DataLine label={LABELS.count}>{row.receipt.omittedForAttention.count}</DataLine>
-            <DataLine label={LABELS.hashes}>
-              <span style={monoMutedStyle}>{row.receipt.omittedForAttention.hashes.join(' ')}</span>
-            </DataLine>
-          </>
-        ) : (
-          <Library data-testid="served-omissions-why">{UNGAPPED_FIELDS.omittedForAttention}</Library>
-        )}
+      <Section
+        testId="served-omissions"
+        title={LABELS.attentionDrops}
+        gaps={gapsCovering(SECTION_FIELDS.omissions)}
+      >
+        <Omissions row={row} status={checks.omittedForAttention} />
       </Section>
 
       {/* ── GAPS ───────────────────────────────────────────────────────── */}
@@ -768,6 +787,54 @@ function GapCard({ gap }: { gap: ServedGap }): React.ReactElement {
       </div>
       <Library data-testid="served-gap-why">{SERVED_GAPS[gap.gap].why}</Library>
     </div>
+  );
+}
+
+/**
+ * The attention drops, as the receipt states them (0.52.0):
+ *   · rows on the receipt → the count, then one line per evicted turn: the
+ *     receipt's own hash and the epoch that last served it (a number, or the
+ *     Not-on-record badge when no earlier receipt in this recording did);
+ *   · none, on a receipt minted by a library whose window files every drop →
+ *     the receipt's own claim, printed as its count: 0;
+ *   · not on record (no receipt, or one from before the field was written) →
+ *     the badge; the gap chip beside the section names the field where the
+ *     `no-receipt-on-chart` gap covers it.
+ */
+function Omissions({
+  row,
+  status,
+}: {
+  row: ServedRow;
+  status: AttentionOmissionStatus;
+}): React.ReactElement {
+  if (status === 'not-on-record') return <Presence label={LABELS.attentionDrops} />;
+  const drops = row.receipt?.omittedForAttention;
+  return (
+    <>
+      <DataLine label={LABELS.count} testId="served-omissions-count">
+        {drops?.count ?? 0}
+      </DataLine>
+      {(row.evictedTurns ?? []).map((turn, i) => (
+        <DataLine
+          key={`${turn.hash}:${i}`}
+          label={LABELS.hashes}
+          testId="served-evicted-turn"
+        >
+          <span style={monoMutedStyle} data-testid="served-evicted-hash">
+            {turn.hash}
+          </span>{' '}
+          <span style={dataLabelStyle}>{LABELS.lastServedOn}</span>{' '}
+          {turn.lastServedOn !== undefined ? (
+            <span style={chipStyle(T.primary)} data-testid="served-evicted-epoch">
+              {LABELS.epoch} {turn.lastServedOn}
+            </span>
+          ) : (
+            <Badge check={{ status: 'not-on-record' }} />
+          )}
+        </DataLine>
+      ))}
+    </>
   );
 }
 

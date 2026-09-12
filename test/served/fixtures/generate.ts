@@ -10,8 +10,17 @@
  *                             call then done → two epochs, receipts on both.
  *   dynamic-grouped.json      the same turn under `'dynamic-grouped'` — the
  *                             epoch's pieces live in the turn's inner log.
- *   llmcall.json              an `LLMCall` chart: rebuilds, mints NO receipt →
- *                             gaps with `cause: 'no-receipt-committed'`.
+ *   llmcall.json              an `LLMCall` chart. Since agentfootprint 9.91.0
+ *                             it MINTS a receipt with `cache.strategy: null`
+ *                             (9.93.0: nothing stood between assembly and the
+ *                             port) → `cache-transform` is NOT raised, and
+ *                             `provider-defaults` is.
+ *   no-receipt.json           the same chart with `recordReceipt: false` — the
+ *                             library's own documented shape for a receipt-less
+ *                             view → `no-receipt-on-chart` with
+ *                             `cause: 'no-receipt-committed'`, and
+ *                             `cache-transform` raised because no receipt can
+ *                             say whether a strategy ran.
  *   paused-resumed-no-base.json  a pause + resume whose snapshot then travelled
  *                             WITHOUT `initialState` → `no-fold-base`. The
  *                             stripping is the one edit made to a real
@@ -37,8 +46,19 @@
  *                             tag (`audit`) beside milestone tags, no agent
  *                             events → the tag legend and picker on a name
  *                             the domain does not classify.
+ *   window-evicts.json        `.window(slidingWindow({ keepRecentTurns: 1 }))`
+ *                             on a run of three calls → the window drops
+ *                             turns at an iteration's head and the call-llm
+ *                             mint files them as `Receipt.omittedForAttention`
+ *                             (9.93.0): one hash per evicted turn, each the
+ *                             turn's own `messages.entries[].hash` as an
+ *                             earlier receipt served it.
+ *   wrap-up.json              `maxIterations: 2` on a model that always calls
+ *                             a tool → the iteration budget runs out and the
+ *                             wrap-up call (`wrapUpAtMaxIterations`, default
+ *                             on) goes out with `tools.withheld: 'wrap-up'`.
  *
- * Run:  npx tsx test/served/fixtures/generate.ts             all nine
+ * Run:  npx tsx test/served/fixtures/generate.ts             all twelve
  *       npx tsx test/served/fixtures/generate.ts <name>…     only those; the
  *       other files are not touched (every run mints a fresh runId, so a
  *       regenerated fixture never has the bytes it had).
@@ -54,7 +74,9 @@ import {
   defineTool,
   isPaused,
   pauseHere,
+  receiptAt,
   servedAt,
+  slidingWindow,
   type LLMRequest,
   type LLMResponse,
 } from 'agentfootprint';
@@ -142,7 +164,11 @@ for (const reactMode of ['dynamic', 'dynamic-grouped'] as const) {
   });
 }
 
-// ── 3: LLMCall — rebuilds, mints no receipt ───────────────────────────
+// ── 3: LLMCall — mints a receipt that SAYS no strategy ran ─────────────
+// agentfootprint 9.91.0 made `LLMCall` mint; 9.93.0 put `cache.strategy` on
+// the receipt (`null` here: nothing stands between assembly and the port), so
+// the `cache-transform` gap is NOT raised on this view. The receipt-less arm
+// this file used to drive moved to `no-receipt` below.
 if (wanted('llmcall')) {
   const llm = LLMCall.create({ provider: scripted([answer('done')]), model: 'mock' })
     .system('you are a probe')
@@ -153,6 +179,39 @@ if (wanted('llmcall')) {
   rec.stop();
   write('llmcall', frozen, (r) => {
     if (epochsOf(r) < 1) throw new Error('llmcall: no call-llm bundle recorded');
+    const receipt = receiptAt(r.snapshot, 1);
+    if (receipt === undefined) throw new Error('llmcall: the call minted no receipt (expected since 9.91.0)');
+    if (receipt.cache.strategy !== null) {
+      throw new Error(`llmcall: expected cache.strategy null, got ${JSON.stringify(receipt.cache.strategy)}`);
+    }
+    const gaps = servedAt(r.snapshot, 1)?.gaps.map((g) => g.gap) ?? [];
+    if (gaps.includes('cache-transform')) throw new Error('llmcall: cache-transform raised beside strategy null');
+  });
+}
+
+// ── 3b: the receipt-less arm — the mint DECLINED ──────────────────────
+// `recordReceipt: false` is the library's own documented way to a view with
+// `no-receipt-on-chart` + `cause: 'no-receipt-committed'` (9.91.0). Nothing
+// checks the rebuild, every receipt-only field is not on record, and
+// `cache-transform` stays raised: with no receipt, the record cannot say
+// whether a strategy ran.
+if (wanted('no-receipt')) {
+  const llm = LLMCall.create({ provider: scripted([answer('done')]), model: 'mock', recordReceipt: false })
+    .system('you are a probe')
+    .build();
+  const rec = recordRun(llm);
+  await llm.run({ message: 'the one turn that went out' });
+  const frozen = rec.toRecording() as Frozen;
+  rec.stop();
+  write('no-receipt', frozen, (r) => {
+    if (epochsOf(r) < 1) throw new Error('no-receipt: no call-llm bundle recorded');
+    if (receiptAt(r.snapshot, 1) !== undefined) throw new Error('no-receipt: a receipt was minted');
+    const gaps = servedAt(r.snapshot, 1)?.gaps ?? [];
+    const gap = gaps.find((g) => g.gap === 'no-receipt-on-chart');
+    if (gap?.cause !== 'no-receipt-committed') {
+      throw new Error(`no-receipt: expected cause no-receipt-committed, got ${JSON.stringify(gap?.cause)}`);
+    }
+    if (!gaps.some((g) => g.gap === 'cache-transform')) throw new Error('no-receipt: cache-transform not raised');
   });
 }
 
@@ -360,5 +419,75 @@ if (wanted('tagged-chart')) {
     const audits = log.filter((b) => b.tags?.includes('audit')).length;
     if (audits !== 2) throw new Error(`tagged-chart: expected 2 audit-tagged bundles, got ${audits}`);
     if (!JSON.stringify(r.structure).includes('"audit"')) throw new Error('tagged-chart: the structure lists no audit tag');
+  });
+}
+
+// ── 10: the window evicts, and the receipt says what left ───────────────
+// A sliding window keeping ONE recent turn on a run of three calls. The
+// window stage runs at the head of every iteration from the second on and
+// files what it dropped for that iteration's call-llm mint (9.93.0), which
+// hashes each evicted turn exactly as `messages.entries` hashed it when it
+// was served — so a drop on epoch k's receipt pairs with an earlier epoch's
+// entry. The check below drives that pairing law on the real run.
+if (wanted('window-evicts')) {
+  const agent = Agent.create({
+    provider: scripted([call('c1', 'lookup', { q: 'a' }), call('c2', 'lookup', { q: 'b' }), answer('done')]),
+    model: 'mock',
+    maxIterations: 6,
+  })
+    .system('bot')
+    .tool(tool('lookup'))
+    .window(slidingWindow({ keepRecentTurns: 1 }))
+    .build();
+  const rec = recordRun(agent);
+  await agent.run({ message: 'go' });
+  const frozen = rec.toRecording() as Frozen;
+  rec.stop();
+  write('window-evicts', frozen, (r) => {
+    const epochs = epochsOf(r);
+    if (epochs < 3) throw new Error(`window-evicts: expected ≥3 epochs, got ${epochs}`);
+    const evicting = [1, 2, 3].filter((k) => receiptAt(r.snapshot, k)?.omittedForAttention !== undefined);
+    if (evicting.length === 0) throw new Error('window-evicts: no receipt carries omittedForAttention');
+    for (const k of evicting) {
+      const drops = receiptAt(r.snapshot, k)!.omittedForAttention!;
+      const earlier = new Set(
+        Array.from({ length: k - 1 }, (_, i) => receiptAt(r.snapshot, i + 1))
+          .flatMap((rcpt) => rcpt?.messages.entries.map((e) => e.hash) ?? []),
+      );
+      const unpaired = drops.hashes.filter((h) => !earlier.has(h));
+      if (unpaired.length > 0) {
+        throw new Error(`window-evicts: epoch ${k} dropped ${unpaired.length} hash(es) no earlier receipt served`);
+      }
+    }
+  });
+}
+
+// ── 11: the iteration budget runs out and the wrap-up call withholds tools
+// `maxIterations: 2` on a model that never stops calling a tool. The route
+// stage sees the budget spent and asks for a wrap-up (`wrapUpAtMaxIterations`,
+// default on since 9.56.0): one more call, no tools, `tools.withheld:
+// 'wrap-up'` on its receipt — the library's own value for why the list is
+// empty when it would not otherwise be.
+if (wanted('wrap-up')) {
+  const agent = Agent.create({
+    provider: scripted([call('c1', 'lookup', { q: 'a' }), call('c2', 'lookup', { q: 'b' }), answer('wrapped')]),
+    model: 'mock',
+    maxIterations: 2,
+  })
+    .system('bot')
+    .tool(tool('lookup'))
+    .build();
+  const rec = recordRun(agent);
+  await agent.run({ message: 'go' });
+  const frozen = rec.toRecording() as Frozen;
+  rec.stop();
+  write('wrap-up', frozen, (r) => {
+    const epochs = epochsOf(r);
+    const withheld = Array.from({ length: epochs }, (_, i) => receiptAt(r.snapshot, i + 1)?.tools.withheld);
+    const at = withheld.findIndex((w) => w === 'wrap-up');
+    if (at < 0) throw new Error(`wrap-up: no receipt carries tools.withheld 'wrap-up' (${JSON.stringify(withheld)})`);
+    if (servedAt(r.snapshot, at + 1)?.tools.withheld !== 'wrap-up') {
+      throw new Error('wrap-up: the view does not carry the withheld reason');
+    }
   });
 }

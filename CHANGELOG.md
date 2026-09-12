@@ -5,6 +5,107 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.52.0] - 2026-09-11
+
+**The receipt says which strategy, and what the window dropped — and now the
+tab does too.** agentfootprint 9.93.0 put two facts on the receipt that the
+Served tab was already shaped to show and could only draw as "not on record":
+`cache.strategy` (WHICH cache strategy stood between assembly and the port —
+`'*'` for the built-in pass-through, `null` where nothing did) and a WRITTEN
+`omittedForAttention` (one hash per turn the agent's window evicted for budget
+at an iteration's head, each the turn's own `messages.entries[].hash` as an
+earlier receipt served it). This release draws both, on the real runs that
+produce them, without a sentence of its own. A minor, not a patch: `WithheldNode`
+changes shape (below), and the fixture set moves to 9.94.0.
+
+### Added
+
+- **`cache.strategy` on screen.** The list's cache section and the graph's
+  CALL node print the strategy name as DATA — `'*'` is printed as itself, never
+  translated; the receipt's `null` prints under the label *no cache strategy*;
+  a receipt minted before the field existed (no key) prints the Not-on-record
+  badge, never `null`. `CallNode.cacheStrategy` carries it for the graph,
+  present only where the receipt says. See it: open `llmcall` at its one
+  call — *no cache strategy*, and the `cache-transform` card is GONE (the
+  library lifts the gap where the receipt SAYS no strategy ran; the card was
+  always drawn from `view.gaps`, and now there is nothing there to draw).
+  Open any agent fixture — `*`, and the card stays, because a pass-through
+  could still have rewritten the request.
+- **Evicted turns, in the WITHHELD band and the OMISSIONS section.** Each
+  `omittedForAttention` row is a withheld edge into the MESSAGES slot carrying
+  the receipt's field name as its reason (verbatim), the hash, and **the epoch
+  it was last served on** — computed by the pairing rule the library states
+  (`core/served/evictedTurns.ts` · `pairEvictedTurns`: the LATEST earlier epoch
+  in this recording whose `messages.entries[].hash` equals it), printed as a
+  number, or the Not-on-record badge when no earlier receipt here served it (a
+  turn served on a leg this recording does not hold). `ServedRow.evictedTurns`
+  carries the pairs, computed once by `servedRowAt` — the graph stays a
+  projection. See it: `window-evicts.json` (`slidingWindow({ keepRecentTurns:
+  1 })`, three calls) at iteration 3 — two withheld message edges, both *last
+  served on epoch 2* (the assistant tool call and its result; epoch 1 served
+  only the user turn).
+- **What an ABSENT `omittedForAttention` means is decided in one place**
+  (`attentionOmissionStatus`): on a receipt that carries `cache.strategy` —
+  minted by a library whose window files every drop — it is the receipt's own
+  claim that nothing was dropped, drawn as count 0 and NOTHING on the withheld
+  band; on a receipt without the key, or with no receipt, it is not on record
+  (the badge; the `no-receipt-on-chart` chip names the field). The library
+  retired `UNGAPPED_FIELDS.omittedForAttention` in 9.93.0, and the tab prints
+  no sentence in its place — `test/served/no-own-claims.test.ts` walks the new
+  file.
+- **`RowCounts.schemas` in the list view** — schema NAMES hashed on one side
+  only are printed beside the tool names (`schema · on receipt only`, `schema ·
+  rebuilt only`); on `tool-forced` that is the forced tool's, the declared
+  `forced-tool-schema` hole.
+- **Three fixtures** (`test/served/fixtures/`, all generated): `window-evicts`
+  (above), `wrap-up` (`maxIterations: 2` on a model that keeps calling a tool
+  → epoch 3 goes out with `tools.withheld: 'wrap-up'`, rendered verbatim), and
+  `no-receipt` (`LLMCall` with `recordReceipt: false`).
+- `carriesCacheStrategy`, `pairEvictedTurns`, `attentionOmissionStatus`,
+  `EvictedTurn`, `AttentionOmissionStatus` exported from `/core`.
+
+### Changed
+
+- **Fixtures regenerated on agentfootprint 9.94.0 / footprintjs 9.23.1.**
+  Measured old against new, key path by key path: on every agent fixture the
+  ONLY new paths are `receipt.cache.strategy` (`'*'`), plus run ids, hashes and
+  timestamps. `llmcall.json` gained a whole receipt — agentfootprint **9.91.0**
+  made `LLMCall` mint one — so it no longer drives the receipt-less arm; that
+  arm moved to `no-receipt.json`, the library's own documented shape for
+  `no-receipt-on-chart` with `cause: 'no-receipt-committed'`. Every test that
+  pinned receipt-lessness now loads `no-receipt`; `llmcall` pins what an
+  `LLMCall` recording IS today: Verified rows, `strategy: null`, no
+  `cache-transform`.
+- **`WithheldNode`**: the aggregate `count` / `hashes` are gone; an
+  attention-drop node is ONE turn, with `hash` and `lastServedOn?`. The
+  Not-on-record node no longer carries a `why` (the library has no sentence
+  for it any more).
+- **`ServedVerification.omittedForAttention`** is an `AttentionOmissionStatus`
+  (`'on-receipt' | 'none-on-receipt' | 'not-on-record'`), not a
+  `ReceiptPresence`.
+- `receiptShape.ts` refuses a `cache.strategy` that is neither a string nor
+  `null`; the key itself stays optional (a pre-9.93 receipt has none).
+- devDependencies: agentfootprint `^9.94.0`, footprintjs `^9.23.1`. Peers
+  unchanged. The demo re-recorded on 9.94.0 (its agent has no window, so it
+  shows a strategy and no evictions).
+
+### Known — in the library, pinned here
+
+- agentfootprint 9.93.0–9.94.0: `servedView.ts` · `viewOf` reads
+  `receipt.cache.strategy` past `readReceipt`'s basis-only narrowing, so a
+  receipt with a basis but no `cache` container makes `servedAt` THROW where
+  9.92 built a view. The lens cannot narrow what the library reads before it
+  reads it and never edits a record; `<ServedTab>`'s boundary keeps the Lens up
+  (Damaged + the thrown message). Pinned in `servedCore.test.ts` and
+  `ServedTab.test.tsx`; the lens's own refusal arm still runs on a receipt
+  whose `cache` is present and wrong.
+
+### Unchanged
+
+`sincePrevious`, every badge rule, the one cursor. The tab still writes no
+sentence: every new string is a LABEL (`cache strategy`, `no cache strategy`,
+`last served on`) or the record's own word.
+
 ## [0.51.1] - 2026-09-10
 
 ### Fixed

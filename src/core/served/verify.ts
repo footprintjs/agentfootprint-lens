@@ -60,6 +60,7 @@ import {
   type ServedView,
 } from 'agentfootprint';
 
+import { attentionOmissionStatus, type AttentionOmissionStatus } from './evictedTurns.js';
 import { isReceiptShaped } from './receiptShape.js';
 import type { FieldCheck, ServedFieldStatus } from './types.js';
 
@@ -149,7 +150,9 @@ export interface ServedVerification {
   readonly basis: ReceiptPresence;
   readonly params: ReceiptPresence;
   readonly cache: ReceiptPresence;
-  readonly omittedForAttention: ReceiptPresence;
+  /** The attention drops: on the receipt, none by the receipt's own claim, or
+   *  not on record — `evictedTurns.ts` · `attentionOmissionStatus` decides. */
+  readonly omittedForAttention: AttentionOmissionStatus;
   /**
    * Rows the receipt hashed that the rebuild did not produce — the count the
    * `no-fold-base` / `no-run-log` gaps say "may be SHORT" about. Data, so a
@@ -432,7 +435,7 @@ export function verify(
     basis: 'on-receipt',
     params: 'on-receipt',
     cache: 'on-receipt',
-    omittedForAttention: receipt.omittedForAttention !== undefined ? 'on-receipt' : 'not-on-record',
+    omittedForAttention: attentionOmissionStatus(receipt),
     onReceiptOnly,
     rebuiltOnly,
     damaged: unexcusedShort || all.some((c) => c.status === 'damaged'),

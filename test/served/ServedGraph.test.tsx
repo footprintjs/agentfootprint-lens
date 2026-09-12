@@ -118,15 +118,21 @@ describe('LAW 1 — one cursor: the graph draws the row the cursor resolved', ()
 
 describe('LAW 2 — no sentence of the lens\'s own', () => {
   it('every explanation on the withheld band is a library constant, byte for byte', () => {
-    const f = load('llmcall');
-    const graph = mountGraph(f, firstTurn(f, 'llmcall'));
+    const f = load('no-receipt');
+    const graph = mountGraph(f, firstTurn(f, 'no-receipt'));
     const whys = within(graph)
       .getAllByTestId('graph-withheld-why')
       .map((el) => el.textContent ?? '');
     expect(whys.length).toBeGreaterThan(0);
     for (const why of whys) expect(LIBRARY_SENTENCES.has(why)).toBe(true);
     expect(whys).toContain(SERVED_GAPS['no-receipt-on-chart'].why);
-    expect(whys).toContain(UNGAPPED_FIELDS.omittedForAttention);
+    // The attention drops draw the badge with NO sentence: the library retired
+    // its ungapped sentence for the field in 9.93.0 and the lens writes none.
+    const drops = within(graph)
+      .getAllByTestId('graph-withheld')
+      .find((el) => el.dataset.kind === 'attention-drop')!;
+    expect(within(drops).queryByTestId('graph-withheld-why')).toBeNull();
+    expect(within(drops).getByTestId('served-badge')).toHaveTextContent(BADGE_LABELS.notOnRecord);
     // And the graph's own words never say a field is empty or none.
     expect(ownText(graph)).not.toMatch(/\bnone\b|\bempty\b/);
   });
@@ -181,8 +187,8 @@ describe('LAW 4 — absent is not none', () => {
   });
 
   it('a run with no receipt: nothing Verified, the basis Not on record, the gap sentence beside it', () => {
-    const f = load('llmcall');
-    const graph = mountGraph(f, firstTurn(f, 'llmcall'));
+    const f = load('no-receipt');
+    const graph = mountGraph(f, firstTurn(f, 'no-receipt'));
     const badges = within(graph).getAllByTestId('served-badge');
     expect(badges.some((b) => b.dataset.status === 'verified')).toBe(false);
     expect(badges.some((b) => b.dataset.status === 'reconstructed')).toBe(true);

@@ -5,6 +5,9 @@
  * in every round of hand-written prose about a run. So the Served tab writes
  * NONE: every explanatory sentence it prints is `SERVED_GAPS[k].why`,
  * `UNGAPPED_FIELDS[k]` or `RECEIPT_BOUNDARY` verbatim, or is computed data.
+ * (`UNGAPPED_FIELDS.omittedForAttention` left the library in 9.93.0, when the
+ * field started being written; the tab prints the field's rows or a badge in
+ * its place, and no sentence — 0.52.0.)
  * This test walks every string literal in `src/core/served/` and
  * `src/react/components/Served*.tsx` — the tab, the GRAPH (0.49.0) and the
  * badge they share — and requires each to be one of:
@@ -156,6 +159,9 @@ describe('the Served tab writes no claim sentences of its own', () => {
     // 0.51.0's new file is walked too — a cursor that grew a sentence of its
     // own would reach every view at once.
     expect(walked).toContain('lensCursor.ts');
+    // 0.52.0: the pairing rule for evicted turns. It prints nothing itself,
+    // and the walk is what keeps a "last served on…" sentence out of it.
+    expect(walked).toContain('evictedTurns.ts');
   });
 
   it('every LABEL is a label: short, and no claim verb (one mandated note excepted)', () => {

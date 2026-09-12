@@ -7,6 +7,8 @@
 
 import type { Receipt, ServedGapCause, ServedView } from 'agentfootprint';
 
+import type { EvictedTurn } from './evictedTurns.js';
+
 /** The ONE cursor, as the Why Lens holds it: an address anchored to a commit. */
 export interface ServedCursor {
   /** `[subflowPath/]stageId#executionIndex`, or a lens-synthetic bookend id. */
@@ -52,6 +54,13 @@ export interface ServedRow {
   /** Why there is no receipt, when the library or the lens's own shape guard
    *  established it — data, not prose. */
   readonly receiptCause?: ServedGapCause;
+  /**
+   * The receipt's `omittedForAttention` rows, one per dropped hash in the
+   * receipt's order, each paired with the epoch that last served it
+   * (`evictedTurns.ts` owns the rule). Present exactly when the receipt
+   * carries the field; what an ABSENT field means is `attentionOmissionStatus`.
+   */
+  readonly evictedTurns?: readonly EvictedTurn[];
 }
 
 /**

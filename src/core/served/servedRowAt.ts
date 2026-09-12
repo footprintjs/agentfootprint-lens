@@ -31,11 +31,13 @@ import {
   servedAt,
   SERVED_GAPS,
   type EpochLocation,
+  type Receipt,
   type ServedGap,
   type ServedGapCause,
   type ServedView,
 } from 'agentfootprint';
 
+import { pairEvictedTurns, type EvictedTurn } from './evictedTurns.js';
 import { isReceiptShaped } from './receiptShape.js';
 import type { ServedCursor, ServedRow } from './types.js';
 
@@ -107,7 +109,30 @@ function rowOf(
     betweenCalls,
     ...(previous !== undefined ? { previousEpoch: previous.epoch } : {}),
     ...(cause !== undefined ? { receiptCause: cause } : {}),
+    ...(receipt?.omittedForAttention !== undefined
+      ? { evictedTurns: evictedTurnsOf(recording, locations, at, receipt.omittedForAttention) }
+      : {}),
   });
+}
+
+/**
+ * The drops on this epoch's receipt, each paired with the epoch that last
+ * served it. The earlier receipts are read only on an epoch that carries
+ * drops — on every other row nothing beyond the row's own receipt is read.
+ * "Earlier" is earlier in THIS recording, as `previousEpoch` reads it.
+ */
+function evictedTurnsOf(
+  recording: unknown,
+  locations: readonly EpochLocation[],
+  at: number,
+  drops: NonNullable<Receipt['omittedForAttention']>,
+): readonly EvictedTurn[] {
+  const earlier: Receipt[] = [];
+  for (const location of locations.slice(0, at)) {
+    const read = receiptAt(recording, location.epoch);
+    if (read !== undefined && isReceiptShaped(read)) earlier.push(read);
+  }
+  return pairEvictedTurns(drops, earlier);
 }
 
 /**

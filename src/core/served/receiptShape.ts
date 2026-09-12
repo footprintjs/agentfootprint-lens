@@ -13,6 +13,12 @@
  * containers verify/sincePrevious/the tab read are present with the right
  * type (down to `cache.markersApplied`, which the tab maps over). It does not
  * validate hashes (that is `verify`'s job) or values.
+ *
+ * `cache.strategy` (agentfootprint 9.93.0) is OPTIONAL here: a receipt minted
+ * before that release has no key, and the library says a reader treats that
+ * as "cannot say". When the key is present it must be a string or `null` —
+ * both are printed as data, and anything else would be a shape the lens does
+ * not own.
  */
 
 import type { Receipt } from 'agentfootprint';
@@ -24,6 +30,9 @@ const isRecord = (v: unknown): v is Record<string, unknown> =>
 export function isReceiptShaped(value: unknown): value is Receipt {
   if (!isRecord(value)) return false;
   const { system, messages, tools, params, cache, basis } = value;
+  if (isRecord(cache) && 'strategy' in cache && cache.strategy !== null && typeof cache.strategy !== 'string') {
+    return false;
+  }
   return (
     isRecord(basis) &&
     typeof basis.epoch === 'number' &&
@@ -41,4 +50,25 @@ export function isReceiptShaped(value: unknown): value is Receipt {
     isRecord(cache) &&
     Array.isArray(cache.markersApplied)
   );
+}
+
+/**
+ * Was this receipt minted by a library that WRITES `cache.strategy`
+ * (agentfootprint 9.93.0)? The key is the one discriminator a receipt carries
+ * for its own vintage, and it decides what two absences mean:
+ *
+ *   · `cache.strategy` absent → "cannot say" whether a strategy ran (the
+ *     library's own reading — never `null`);
+ *   · `omittedForAttention` absent on a receipt WITH the key → the library's
+ *     claim that nothing was dropped before this call (the same release made
+ *     the agent chart's window file every eviction there); absent on a receipt
+ *     WITHOUT the key → nobody recorded a drop, so the field is not on record.
+ *
+ * @example
+ * ```ts
+ * carriesCacheStrategy(receiptAt(snapshot, 1)!); // true on a 9.93+ mint, '*' or null alike
+ * ```
+ */
+export function carriesCacheStrategy(receipt: Receipt): boolean {
+  return 'strategy' in receipt.cache;
 }

@@ -31,12 +31,15 @@ export type FixtureName =
   | 'flat-dynamic-tools'
   | 'dynamic-grouped'
   | 'llmcall'
+  | 'no-receipt'
   | 'paused-resumed-no-base'
   | 'tool-forced'
   | 'tool-set-changes'
   | 'hidden-skills'
   | 'instructions-move'
-  | 'tagged-chart';
+  | 'tagged-chart'
+  | 'window-evicts'
+  | 'wrap-up';
 
 export interface LoadedFixture {
   readonly recording: Recording;

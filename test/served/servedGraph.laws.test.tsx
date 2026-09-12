@@ -25,7 +25,7 @@ import { BADGE_LABELS } from '../../src/react/components/ServedBadge.js';
 import { LABELS as TAB_LABELS } from '../../src/react/components/ServedTab.js';
 import { load, loadTampered, stopsOf, tamperToolSchema, graphAt, type FixtureName, type LoadedFixture, type TamperableRecording } from './helpers.js';
 
-const ALL: FixtureName[] = ['flat-dynamic-tools','dynamic-grouped','llmcall','paused-resumed-no-base','tool-forced','tool-set-changes','hidden-skills','instructions-move','tagged-chart'];
+const ALL: FixtureName[] = ['flat-dynamic-tools','dynamic-grouped','llmcall','no-receipt','paused-resumed-no-base','tool-forced','tool-set-changes','hidden-skills','instructions-move','tagged-chart','window-evicts','wrap-up'];
 
 function allStops(f: LoadedFixture) {
   const t = stopsOf(f, 'llm-turn');
@@ -84,9 +84,11 @@ describe('PROBE b — every painted string traces to library / data / LABEL', ()
         for (const h of graph.held) { add(h.key); add(h.value); if (typeof h.value !== 'string' && h.value !== undefined) add(String(h.value)); }
         for (const s of graph.served) { add(s.slot); add(s.rebuilt); add(s.onReceipt); add(s.onReceiptOnly); add(s.rebuiltOnly); add(s.check?.onReceipt); add(s.check?.rebuilt); for (const g of s.gaps) add(g.gap); }
         for (const e of graph.edges) { add(e.label); add(e.text); add(e.origin); add(e.source); add(e.role); add(e.check.onReceipt); add(e.check.rebuilt); }
-        for (const w of graph.withheld) { add(w.name); add(w.from); add(w.count); w.hashes?.forEach(add); w.fields?.forEach(add); add(w.cause); }
+        for (const w of graph.withheld) { add(w.name); add(w.from); add(w.hash); add(w.lastServedOn); w.fields?.forEach(add); add(w.cause); }
         add(graph.call.epoch); add(graph.call.callRuntimeStageId); add(graph.call.commitIdx);
         add(graph.call.basis?.model); add(graph.call.basis?.provider); add(graph.call.basis?.runId); add(graph.call.receiptCause);
+        // `cache.strategy` is data: the receipt's own name ('*' printed as itself), or its `null` under a label.
+        add(graph.call.cacheStrategy);
         for (const s of textNodes(el)) {
           if (LABELS.has(s) || LIB.has(s) || data.has(s)) continue;
           // Composed rows: "<label> <number>", "from · x", "cause · x", "receipt n · rebuilt n"
@@ -143,8 +145,8 @@ describe('PROBE c — Damaged is drawn, Verified never where hashes disagree', (
 
 // ── LAW (d) absent is not none ───────────────────────────────────────
 describe('PROBE d — absent is not none', () => {
-  it('paused-resumed-no-base and llmcall: gaps drawn, not-on-record drawn, no "none" words', () => {
-    for (const name of ['paused-resumed-no-base', 'llmcall'] as FixtureName[]) {
+  it('paused-resumed-no-base and no-receipt: gaps drawn, not-on-record drawn, no "none" words', () => {
+    for (const name of ['paused-resumed-no-base', 'no-receipt'] as FixtureName[]) {
       const f = load(name);
       for (const stop of allStops(f)) {
         cleanup();
@@ -233,16 +235,28 @@ describe('PROBE — the third band is complete', () => {
         const want: string[] = [];
         if (view.tools.withheld !== undefined) want.push(`tool-withheld:${view.tools.withheld}`);
         for (const id of fold.hiddenSkillIds ?? []) want.push(`hidden-skill:${id}`);
-        want.push('attention-drop:omittedForAttention');
+        // Attention drops, from the RECEIPT: one node per evicted hash; one
+        // Not-on-record node where no receipt can say (no receipt, or one
+        // minted before 9.93.0 wrote the field); NOTHING where a 9.93+ receipt
+        // carries none — the library's claim that nothing was dropped.
+        if (receipt?.omittedForAttention !== undefined) {
+          for (const h of receipt.omittedForAttention.hashes) want.push(`attention-drop:${h}`);
+        } else if (receipt === undefined || !('strategy' in receipt.cache)) {
+          want.push('attention-drop:not-on-record');
+        }
         if (fold.redacted) want.push('redacted:redacted');
         for (const g of view.gaps) want.push(`gap:${g.gap}`);
-        const have = graph.withheld.map((w) => `${w.kind}:${w.name}`);
+        const have = graph.withheld.map((w) =>
+          w.kind === 'attention-drop' ? `attention-drop:${w.hash ?? w.status}` : `${w.kind}:${w.name}`,
+        );
         for (const w of want) if (!have.includes(w)) missing.push(`${name} ${stop.runtimeStageId} MISSING ${w}`);
         for (const h of have) if (!want.includes(h)) missing.push(`${name} ${stop.runtimeStageId} EXTRA ${h}`);
-        // A drop count on the receipt must reach the band with its count.
-        if (receipt?.omittedForAttention !== undefined) {
-          const node = graph.withheld.find((w) => w.kind === 'attention-drop')!;
-          expect(node.count).toBe(receipt.omittedForAttention.count);
+        // Every drop reaches the band as an edge into the messages slot, with
+        // the receipt's field name as its reason.
+        for (const node of graph.withheld.filter((w) => w.kind === 'attention-drop' && w.hash !== undefined)) {
+          expect(node.slot).toBe('messages');
+          expect(node.name).toBe('omittedForAttention');
+          expect(node.from).toBe('receipt');
         }
       }
     }

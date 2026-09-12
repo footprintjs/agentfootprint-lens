@@ -19,10 +19,12 @@
  *                 `verify` gave that row and, when a previous epoch is in this
  *                 recording, its `entered` / `left` / `unchanged` state.
  *   3. WITHHELD — held and not sent: the withheld tool list, the attention
- *                 drops, the skills the caller's role could not see (from the
- *                 FOLD — a receipt carries no authority names), a redacted
- *                 fold, and every gap the view declares. Each carries the
- *                 library's OWN string; this file composes none.
+ *                 drops (one node per evicted turn, each an edge into the
+ *                 messages slot, paired by `servedRowAt` with the epoch that
+ *                 last served it), the skills the caller's role could not see
+ *                 (from the FOLD — a receipt carries no authority names), a
+ *                 redacted fold, and every gap the view declares. Each carries
+ *                 the library's OWN string; this file composes none.
  *
  * ── WHAT AN EDGE LEAVES FROM ───────────────────────────────────────────────
  * A piece names its `source`; a message and a request-only line name their
@@ -40,7 +42,6 @@
 
 import {
   SERVED_GAPS,
-  UNGAPPED_FIELDS,
   type ServedGap,
   type ServedGapCause,
   type ServedGapKind,
@@ -49,6 +50,7 @@ import {
 } from 'agentfootprint';
 
 import { FOLD_FACT_KEYS, type FoldFactKey, type FoldFacts } from './foldFactsAt.js';
+import { carriesCacheStrategy } from './receiptShape.js';
 import type { SincePrevious } from './sincePrevious.js';
 import type { FieldCheck, ServedFieldStatus, ServedRow } from './types.js';
 import type { ServedVerification } from './verify.js';
@@ -187,18 +189,21 @@ export interface WithheldNode {
   /** The slot it would have crossed into, where the record names one. Absent
    *  where it does not — a slot is never inferred. */
   readonly slot?: ServedSlotName;
-  /** The library's own sentence for it, printed verbatim: a gap's `why`, or
-   *  the ungapped sentence for a field no gap explains. */
+  /** The library's own sentence for it, printed verbatim: a gap's `why`. */
   readonly why?: string;
   /** The receipt field paths a gap covers. */
   readonly fields?: readonly string[];
   /** What the read established, where the library computed it. */
   readonly cause?: ServedGapCause;
-  /** Counts and hashes the record carries (the attention drops). */
-  readonly count?: number;
-  readonly hashes?: readonly string[];
-  /** `'not-on-record'` when the field is absent on the record — drawn with
-   *  the library's own sentence beside it, never as an empty node. */
+  /** An evicted turn's own hash, as the receipt's `omittedForAttention` row
+   *  carries it (`kind: 'attention-drop'`). */
+  readonly hash?: string;
+  /** The latest earlier epoch in this recording that served the turn with
+   *  `hash` (`evictedTurns.ts` · `pairEvictedTurns`). Absent on a drop no
+   *  earlier receipt here served — drawn as Not on record, never a number. */
+  readonly lastServedOn?: number;
+  /** `'not-on-record'` when the field is absent on the record and no receipt
+   *  claims it empty — drawn with the badge, never as an empty node. */
   readonly status?: ServedFieldStatus;
 }
 
@@ -218,6 +223,14 @@ export interface CallNode {
   /** `'not-on-record'` when this epoch's call left no receipt to read a basis
    *  from; `'reconstructed'` is never claimed for it — nothing rebuilds it. */
   readonly basisStatus: ServedFieldStatus;
+  /**
+   * `Receipt.cache.strategy` (agentfootprint 9.93.0), printed as DATA: the
+   * strategy's own `providerName` (`'*'` is the built-in pass-through), or
+   * `null` — the receipt's fact that nothing stood between assembly and the
+   * port. ABSENT when there is no receipt, or the receipt was minted before the
+   * field existed: "cannot say", which a renderer draws as Not on record.
+   */
+  readonly cacheStrategy?: string | null;
   /** Why there is no receipt, when the library or the lens established it. */
   readonly receiptCause?: ServedGapCause;
   /** `true` when any row this call is made of is damaged. */
@@ -495,28 +508,36 @@ function withheldNodes(input: ServedGraphInput): readonly WithheldNode[] {
     out.push(Object.freeze({ kind: 'hidden-skill' as const, name: id, from: 'fold' as const }));
   }
 
-  const drops = row.receipt?.omittedForAttention;
-  out.push(
-    Object.freeze(
-      drops !== undefined
-        ? {
-            kind: 'attention-drop' as const,
-            name: 'omittedForAttention',
-            from: 'receipt' as const,
-            count: drops.count,
-            hashes: Object.freeze([...drops.hashes]),
-          }
-        : {
-            // Absent is not none: the library's own sentence for a field no gap
-            // explains, printed beside the Not-on-record badge.
-            kind: 'attention-drop' as const,
-            name: 'omittedForAttention',
-            from: 'receipt' as const,
-            status: 'not-on-record' as const,
-            why: UNGAPPED_FIELDS.omittedForAttention,
-          },
-    ),
-  );
+  // Attention omissions: read from the RECEIPT. One node per evicted turn,
+  // drawn into the messages slot (the record names it: the hash is a
+  // `messages.entries[].hash`), with the epoch `servedRowAt` paired it to.
+  // The receipt's field name is the reason, verbatim.
+  for (const turn of row.evictedTurns ?? []) {
+    out.push(
+      Object.freeze({
+        kind: 'attention-drop' as const,
+        name: 'omittedForAttention',
+        from: 'receipt' as const,
+        slot: 'messages' as const,
+        hash: turn.hash,
+        ...(turn.lastServedOn !== undefined ? { lastServedOn: turn.lastServedOn } : {}),
+      }),
+    );
+  }
+  // Absent is not none — unless the receipt itself says none. A receipt that
+  // carries no drops and was minted by a library whose window files every drop
+  // (`'none-on-receipt'`) withheld nothing here, and nothing is drawn; a
+  // record that cannot say draws the Not-on-record badge.
+  if (input.checks.omittedForAttention === 'not-on-record') {
+    out.push(
+      Object.freeze({
+        kind: 'attention-drop' as const,
+        name: 'omittedForAttention',
+        from: 'receipt' as const,
+        status: 'not-on-record' as const,
+      }),
+    );
+  }
 
   if (fold.redacted) {
     out.push(Object.freeze({ kind: 'redacted' as const, name: 'redacted', from: 'fold' as const }));
@@ -552,6 +573,11 @@ function callNode(input: ServedGraphInput, edges: readonly ServedEdge[]): CallNo
     ...(row.previousEpoch !== undefined ? { previousEpoch: row.previousEpoch } : {}),
     ...(basis !== undefined ? { basis } : {}),
     basisStatus: (basis !== undefined ? 'reconstructed' : 'not-on-record') as ServedFieldStatus,
+    // Present only where the receipt SAYS — a string or null. A receipt
+    // without the key (pre-9.93.0) leaves it absent: "cannot say".
+    ...(row.receipt !== undefined && carriesCacheStrategy(row.receipt)
+      ? { cacheStrategy: row.receipt.cache.strategy }
+      : {}),
     ...(row.receiptCause !== undefined ? { receiptCause: row.receiptCause } : {}),
     damaged: checks.damaged || edges.some((e) => e.check.status === 'damaged'),
   });

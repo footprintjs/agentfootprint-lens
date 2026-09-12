@@ -21,7 +21,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { receiptAt, servedAt, SERVED_GAPS, UNGAPPED_FIELDS } from 'agentfootprint';
 
 import { ServedTab, LABELS } from '../../src/react/components/ServedTab.js';
@@ -110,14 +110,17 @@ describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
     expect(screen.getByTestId('served-system').querySelector<HTMLElement>('[data-testid="served-badge"]')!.dataset.status).toBe('verified');
   });
 
-  it('LLMCall: the no-receipt gap sentence verbatim, its cause, and NO field reads none', () => {
-    const f = load('llmcall');
+  it('no receipt (recordReceipt: false): the no-receipt gap sentence verbatim, its cause, cache-transform still raised, and NO field reads none', () => {
+    const f = load('no-receipt');
     const stop = stopsOf(f, 'iteration')[0]!;
     const { container } = mount(f, stop);
     const whys = Array.from(container.querySelectorAll('[data-testid="served-gap-why"]')).map(
       (el) => el.textContent,
     );
     expect(whys).toContain(SERVED_GAPS['no-receipt-on-chart'].why);
+    // With no receipt the record cannot say whether a strategy ran, so the
+    // library keeps raising `cache-transform` here (9.93.0) — and the card
+    // prints its sentence verbatim.
     expect(whys).toContain(SERVED_GAPS['cache-transform'].why);
     const gap = container.querySelector<HTMLElement>('[data-gap="no-receipt-on-chart"][data-testid="served-gap"]')!;
     expect(gap.dataset.cause).toBe('no-receipt-committed');
@@ -127,12 +130,76 @@ describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
     expect(badges(container).filter((b) => b.dataset.status === 'not-on-record').length).toBeGreaterThan(0);
     // The word "none" / "empty" appears nowhere in the tab's OWN text.
     expect(ownText(container)).not.toMatch(/\bnone\b|\bempty\b/);
-    // The omissions section prints the library's sentence for the absent field.
-    expect(screen.getByTestId('served-omissions-why')).toHaveTextContent(
-      UNGAPPED_FIELDS.omittedForAttention!,
-    );
+    // The omissions section: the field is named by the no-receipt gap (the
+    // chip beside the section) and drawn as Not on record — no sentence, no
+    // count. `UNGAPPED_FIELDS.omittedForAttention` left the library in 9.93.0.
+    expect(UNGAPPED_FIELDS.omittedForAttention).toBeUndefined();
+    const omissions = screen.getByTestId('served-omissions');
+    expect(omissions.dataset.gapped).toContain('no-receipt-on-chart');
+    expect(within(omissions).getByTestId('served-badge').dataset.status).toBe('not-on-record');
+    expect(within(omissions).queryByTestId('served-omissions-count')).toBeNull();
     // Basis fields covered by the gap are highlighted as gapped.
     expect(screen.getByTestId('served-basis').dataset.gapped).toContain('no-receipt-on-chart');
+  });
+
+  it('LLMCall (mints since 9.91.0): cache.strategy null prints the label, the cache-transform card is GONE, provider-defaults stays', () => {
+    const f = load('llmcall');
+    const stop = stopsOf(f, 'iteration')[0]!;
+    const { container } = mount(f, stop);
+    const receipt = receiptAt(f.snapshot, 1)!;
+    expect(receipt.cache.strategy).toBeNull();
+    // The strategy line: the receipt's own `null`, under the lens's label.
+    const strategy = within(screen.getByTestId('served-strategy')).getByTestId('served-cache-strategy');
+    expect(strategy).toHaveTextContent(LABELS.noCacheStrategy);
+    expect(strategy.dataset.strategy).toBe('null');
+    // The gap card appears ONLY where the view carries the gap: the library
+    // lifts `cache-transform` where the receipt SAYS no strategy ran.
+    const gaps = Array.from(container.querySelectorAll<HTMLElement>('[data-testid="served-gap"]')).map(
+      (el) => el.dataset.gap,
+    );
+    expect(gaps).not.toContain('cache-transform');
+    expect(gaps).toContain('provider-defaults');
+    const whys = Array.from(container.querySelectorAll('[data-testid="served-gap-why"]')).map((el) => el.textContent);
+    expect(whys).not.toContain(SERVED_GAPS['cache-transform'].why);
+    expect(whys).toContain(SERVED_GAPS['provider-defaults'].why);
+    expect(screen.getByTestId('served-cache').dataset.gapped ?? '').not.toContain('cache-transform');
+    // A receipt with no window and no drops: the receipt's own claim, count 0.
+    expect(screen.getByTestId('served-omissions-count')).toHaveTextContent('0');
+    expect(screen.queryByTestId('served-evicted-turn')).toBeNull();
+    // And the rows now verify — the whole point of the 9.91.0 mint.
+    expect(badges(container).some((b) => b.dataset.status === 'verified')).toBe(true);
+  });
+
+  it('an agent on the mock provider: cache.strategy is the built-in pass-through, printed as itself ("*"), and cache-transform stays', () => {
+    const f = load('flat-dynamic-tools');
+    const { container } = mount(f, stopsOf(f, 'llm-turn')[0]!);
+    expect(receiptAt(f.snapshot, 1)!.cache.strategy).toBe('*');
+    const strategy = within(screen.getByTestId('served-strategy')).getByTestId('served-cache-strategy');
+    expect(strategy).toHaveTextContent('*');
+    expect(strategy.dataset.strategy).toBe('*');
+    expect(screen.getByTestId('served-cache').dataset.gapped).toContain('cache-transform');
+    const gaps = Array.from(container.querySelectorAll<HTMLElement>('[data-testid="served-gap"]')).map((el) => el.dataset.gap);
+    expect(gaps).toContain('cache-transform');
+  });
+
+  it('a receipt minted before cache.strategy existed: the strategy line reads Not on record, never null', () => {
+    // The one edit: the key is DELETED from every committed receipt, the shape
+    // a 9.92-and-earlier recording has.
+    const f = loadTampered('flat-dynamic-tools', (r) => {
+      for (const b of r.snapshot.commitLog) {
+        const receipt = b.overwrite?.receipt as { cache?: Record<string, unknown> } | undefined;
+        if (receipt?.cache !== undefined) delete receipt.cache.strategy;
+      }
+    });
+    mount(f, stopsOf(f, 'llm-turn')[0]!);
+    const line = screen.getByTestId('served-strategy');
+    expect(within(line).queryByTestId('served-cache-strategy')).toBeNull();
+    expect(within(line).getByTestId('served-badge').dataset.status).toBe('not-on-record');
+    // And an absent omittedForAttention on such a receipt is not on record
+    // either — nobody recorded a drop, which is not none.
+    const omissions = screen.getByTestId('served-omissions');
+    expect(within(omissions).getByTestId('served-badge').dataset.status).toBe('not-on-record');
+    expect(within(omissions).queryByTestId('served-omissions-count')).toBeNull();
   });
 
   it('no fold base: the gap sentence verbatim, rows reconstructed (not damaged), receipt-only counts as numbers', () => {
@@ -186,10 +253,26 @@ describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
     expect(ownText(container)).not.toMatch(/\bnone\b|\bempty\b|\bno previous\b/);
   });
 
-  it('a half-shaped receipt renders Damaged on every row — it never throws', () => {
+  it('a receipt with a basis but no cache: the LIBRARY throws out of servedAt (9.93.0 defect) and the boundary prints it as Damaged', () => {
+    // See servedCore.test.ts, the same arm: `viewOf` reads `receipt.cache.strategy`
+    // past `readReceipt`'s basis-only narrowing. The tab stays up — Damaged,
+    // and the thrown message as data — until the library refuses the shape.
     const f = loadTampered('flat-dynamic-tools', (r) => {
       r.snapshot.commitLog.find((b) => b.runtimeStageId === 'call-llm#18')!.overwrite!.receipt = {
         basis: { epoch: 1, runId: 'x' },
+      };
+    });
+    const { container } = mount(f, stopsOf(f, 'llm-turn')[0]!);
+    expect(screen.getByTestId('served-tab').dataset.served).toBe('error');
+    expect(badges(container).some((b) => b.dataset.status === 'damaged')).toBe(true);
+    expect(screen.getByTestId('served-tab-error')).toHaveTextContent(/strategy/);
+  });
+
+  it('a half-shaped receipt (cache present, not a receipt) renders Damaged on every row — it never throws', () => {
+    const f = loadTampered('flat-dynamic-tools', (r) => {
+      r.snapshot.commitLog.find((b) => b.runtimeStageId === 'call-llm#18')!.overwrite!.receipt = {
+        basis: { epoch: 1, runId: 'x' },
+        cache: {},
       };
     });
     const { container } = mount(f, stopsOf(f, 'llm-turn')[0]!);
@@ -234,13 +317,37 @@ describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
     expect(screen.queryByTestId('served-epoch')).toBeNull();
   });
 
-  it('forced tool marked; withheld rendered as the library states it when present', () => {
+  it('forced tool marked; its schema NAME listed as on-receipt-only beside the names (RowCounts.schemas)', () => {
     const f = load('tool-forced');
     mount(f, stopsOf(f, 'llm-turn')[0]!);
     expect(screen.getByTestId('served-forced')).toHaveTextContent(LABELS.forced);
     const tools = screen.getByTestId('served-tools');
     expect(tools.dataset.gapped).toContain('forced-tool-schema');
     expect(screen.queryByTestId('served-withheld')).toBeNull();
+    // The receipt hashed the forced tool's schema; the rebuild has none (the
+    // declared `forced-tool-schema` hole). Its NAME is printed, not a count.
+    expect(screen.getByTestId('served-schemas-on-receipt-only')).toHaveTextContent('respond_with_schema');
+    expect(screen.queryByTestId('served-schemas-rebuilt-only')).toBeNull();
+  });
+
+  it('wrap-up: the out-of-budget call withholds its tools, and the tab prints the library\'s reason verbatim', () => {
+    const f = load('wrap-up');
+    const turns = stopsOf(f, 'llm-turn');
+    expect(turns.length).toBe(3);
+    const receipt = receiptAt(f.snapshot, 3)!;
+    expect(receipt.tools.withheld).toBe('wrap-up');
+    mount(f, turns[2]!);
+    expect(screen.getByTestId('served-epoch')).toHaveTextContent(`${LABELS.epoch} 3`);
+    expect(screen.getByTestId('served-withheld')).toHaveTextContent('wrap-up');
+    // No tool row, and no "0 tools" of the tab's own: the count is the
+    // rebuild's, the receipt's list is empty too, and the reason is beside it.
+    expect(screen.queryByTestId('served-tool')).toBeNull();
+    expect(receipt.tools.names).toEqual([]);
+    // The two calls before it served the tool and withheld nothing.
+    cleanup();
+    mount(f, turns[1]!);
+    expect(screen.queryByTestId('served-withheld')).toBeNull();
+    expect(screen.getByTestId('served-tool')).toHaveTextContent('lookup');
   });
 
   it('hidden skills come from the fold, labelled "hidden from the model" — and never appear when the fold has none', () => {
