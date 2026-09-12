@@ -33,11 +33,29 @@
  * when the flow ends or the dialog closes: never `localStorage`, never a
  * cookie, never a log line, never the issue body, never a prop.
  *
+ * ## The door loads when the button is pressed
+ *
+ * `describeBugReport` and `exportBugReport` live on agentfootprint's `/observe`
+ * door, next to the trace toolpack, context-bisect and time-travel — several
+ * hundred KB a page that mounts one button never needs until it is clicked. So
+ * the door is `import()`ed in the click handler (the family's law since
+ * agentfootprint 9.94.0: an optional family is loaded when its option is
+ * enabled, never before), the pressed button shows the same `Working…` the
+ * submit modes show, and the three functions are read BY NAME off the loaded
+ * module. A bundler that follows names ships the three functions' own modules
+ * — as a chunk of their own, or beside the door's static imports when the page
+ * already has some — and none of the door's other families; nothing is handed
+ * a namespace object. Pinned by `test/packaging/side-effects.test.ts`.
+ *
  * ## Older agentfootprint
  *
- * The substrate shipped in agentfootprint 9.9.0. On anything older the button
- * does not render — a one-line hint says which version this needs, which is the
- * same degradation-stated rule the rest of Lens follows.
+ * The substrate shipped in agentfootprint 9.9.0. On anything older the door
+ * loads without those names, and the button gives way to a one-line hint that
+ * says which version this needs — the same degradation-stated rule the rest of
+ * Lens follows. A door that fails to load at all (a broken install, a chunk
+ * that did not arrive) gives way to `LABELS.doorUnavailable`, with the loader's
+ * own message on the element's `title`. A handed-in `api` prop is read at
+ * render, and no door is loaded for it.
  *
  * @example
  * ```tsx
@@ -52,7 +70,6 @@
  */
 
 import React from 'react';
-import * as afObserve from 'agentfootprint/observe';
 import { ensureLensStyles } from '../lensStyles.js';
 import {
   DEFAULT_MAX_BYTES,
@@ -74,28 +91,46 @@ import {
 } from '../../core/bugReport/index.js';
 
 /**
- * What the INSTALLED agentfootprint exports, read once by property access.
- *
- * A namespace import plus call-time access, never a named import: a named
- * import of a symbol an older agentfootprint does not export is a module-link
- * error, which would take the whole Lens bundle down instead of degrading this
- * one button. Reading properties off the namespace makes "absent" a value.
+ * Every string the click-time load can print. Labels, never sentences: the
+ * rule the Served tab, the Bookmarks tab and the tag picker keep
+ * (`test/served/no-own-claims.test.ts` checks the shape of each value).
  */
-const DOOR_API: BugReportApi = readDoor(afObserve as unknown as Record<string, unknown>);
+export const LABELS = Object.freeze({
+  /** The pressed button while the door is on its way — the modes' own word. */
+  working: 'Working…',
+  /** The door did not load. The loader's message rides on `title`, unedited. */
+  doorUnavailable: 'Bug reporting unavailable',
+});
 
-function readDoor(door: Record<string, unknown>): BugReportApi {
-  const fn = (name: string): ((...args: never[]) => unknown) | undefined =>
-    typeof door[name] === 'function' ? (door[name] as (...args: never[]) => unknown) : undefined;
+/**
+ * Load agentfootprint's `/observe` door and read the three functions BY NAME.
+ *
+ * Called from the click handler, never at module load: a static import of the
+ * door — even a namespace one — keeps the whole door in the bundle of every
+ * page that mounts this button, clicked or not. A dynamic import's module
+ * object is a plain object, so a name an older agentfootprint does not export
+ * reads as `undefined` here instead of failing the module link; "absent" stays
+ * a value, and the button degrades on its own.
+ */
+async function loadDoorApi(): Promise<BugReportApi> {
+  const { describeBugReport, exportBugReport, githubDeviceSignIn } = await import(
+    'agentfootprint/observe'
+  );
   return {
-    ...(fn('describeBugReport') && {
-      describeBugReport: door.describeBugReport as BugReportApi['describeBugReport'],
+    ...(typeof describeBugReport === 'function' && {
+      describeBugReport: describeBugReport as unknown as BugReportApi['describeBugReport'],
     }),
-    ...(fn('exportBugReport') && {
-      exportBugReport: door.exportBugReport as BugReportApi['exportBugReport'],
+    ...(typeof exportBugReport === 'function' && {
+      exportBugReport: exportBugReport as unknown as BugReportApi['exportBugReport'],
     }),
-    ...(fn('githubDeviceSignIn') && { signIn: door.githubDeviceSignIn as BugReportApi['signIn'] }),
+    ...(typeof githubDeviceSignIn === 'function' && {
+      signIn: githubDeviceSignIn as unknown as BugReportApi['signIn'],
+    }),
   };
 }
+
+const isUsable = (api: BugReportApi): boolean =>
+  typeof api.describeBugReport === 'function' && typeof api.exportBugReport === 'function';
 
 export interface BugReportButtonProps {
   /**
@@ -139,14 +174,59 @@ export interface BugReportButtonProps {
 /** Where the flow is. One state, so two modes can never run at once. */
 type Phase = 'form' | 'working' | 'device' | 'done';
 
+/**
+ * Where the door is. One state, so a click cannot open two dialogs or load
+ * the door twice: `closed` → `loading` → `open` (the dialog, over the api that
+ * arrived) | `unsupported` (it arrived without the substrate) | `failed` (it
+ * did not arrive). The two terminal states replace the button.
+ */
+type Door =
+  | { readonly state: 'closed' }
+  | { readonly state: 'loading' }
+  | { readonly state: 'open'; readonly api: BugReportApi }
+  | { readonly state: 'unsupported' }
+  | { readonly state: 'failed'; readonly reason: string };
+
+const CLOSED: Door = { state: 'closed' };
+
 export const BugReportButton: React.FC<BugReportButtonProps> = (props) => {
   ensureLensStyles();
-  const [open, setOpen] = React.useState(false);
-  const api = props.api ?? DOOR_API;
-  const usable =
-    typeof api.describeBugReport === 'function' && typeof api.exportBugReport === 'function';
+  const [door, setDoor] = React.useState<Door>(CLOSED);
+  // The loaded door, once it has arrived, so a second open is as immediate as
+  // the first was before the door became a click-time load.
+  const loadedRef = React.useRef<BugReportApi | undefined>(undefined);
+  // Set in the effect, not at declaration: StrictMode runs mount → unmount →
+  // mount, and a flag set once would stay false after the rehearsal.
+  const mounted = React.useRef(false);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
 
-  if (!usable) {
+  const open = async (): Promise<void> => {
+    const known = props.api ?? loadedRef.current;
+    if (known) {
+      setDoor(isUsable(known) ? { state: 'open', api: known } : { state: 'unsupported' });
+      return;
+    }
+    setDoor({ state: 'loading' });
+    let api: BugReportApi;
+    try {
+      api = await loadDoorApi();
+    } catch (err) {
+      if (mounted.current) setDoor({ state: 'failed', reason: messageOf(err) });
+      return;
+    }
+    if (!mounted.current) return;
+    loadedRef.current = api;
+    setDoor(isUsable(api) ? { state: 'open', api } : { state: 'unsupported' });
+  };
+
+  // A handed-in `api` is the whole answer, and it is read now: `{}` renders
+  // the hint at once, as it always has, and no door is loaded for it.
+  if (door.state === 'unsupported' || (props.api && !isUsable(props.api))) {
     return (
       <span className="lens-bug-report__unsupported" data-testid="bug-report-unsupported">
         Reporting a bug with this run requires agentfootprint 9.9 or newer — the installed
@@ -156,17 +236,36 @@ export const BugReportButton: React.FC<BugReportButtonProps> = (props) => {
     );
   }
 
+  if (door.state === 'failed') {
+    return (
+      <span
+        className="lens-bug-report__unsupported"
+        role="alert"
+        title={door.reason}
+        data-testid="bug-report-unavailable"
+      >
+        {LABELS.doorUnavailable}
+      </span>
+    );
+  }
+
+  const loading = door.state === 'loading';
   return (
     <>
       <button
         type="button"
         className="lens-bug-report__open"
         data-testid="bug-report-open"
-        onClick={() => setOpen(true)}
+        data-phase={door.state}
+        disabled={loading}
+        aria-busy={loading || undefined}
+        onClick={() => void open()}
       >
-        {props.label ?? 'Report a bug with this run'}
+        {loading ? LABELS.working : props.label ?? 'Report a bug with this run'}
       </button>
-      {open && <BugReportModal {...props} api={api} onClose={() => setOpen(false)} />}
+      {door.state === 'open' && (
+        <BugReportModal {...props} api={door.api} onClose={() => setDoor(CLOSED)} />
+      )}
     </>
   );
 };
@@ -714,7 +813,7 @@ const Modes: React.FC<{
       </>
     )}
 
-    {phase === 'working' && <p className="lens-bug-report__mode-note">Working…</p>}
+    {phase === 'working' && <p className="lens-bug-report__mode-note">{LABELS.working}</p>}
   </div>
 );
 

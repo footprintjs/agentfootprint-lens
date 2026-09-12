@@ -274,7 +274,10 @@ not one. Nothing leaves until a person ticks it.
 The evidence itself is agentfootprint's (9.9.0 or newer): `describeBugReport`
 measures the run, `exportBugReport` bundles the units that were kept. Lens
 renders the offer and hands the ids back — it never assembles a bundle and never
-decides what a unit is.
+decides what a unit is. The `/observe` door those live on is loaded when the
+button is **pressed**, not when your page imports it (0.52.2) — the pressed
+button reads `Working…` until it arrives, and a page that mounts the button
+carries none of the door's other families.
 
 ```tsx
 import { BugReportButton } from 'agentfootprint-lens';

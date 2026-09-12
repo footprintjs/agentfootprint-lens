@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.52.2] - 2026-09-12
+
+### Fixed
+
+- **The bug-report button loads agentfootprint's `/observe` door when it is
+  PRESSED, never at import.** `<BugReportButton>` read `describeBugReport` /
+  `exportBugReport` / `githubDeviceSignIn` off a `import * as` namespace of
+  the door at module load, which made every export of the door live in every
+  bundle that contained the component — the trace toolpack, context-bisect,
+  time-travel, and through the door's barrels the agent core — for a button
+  that needs three functions, and only once clicked. The click handler now
+  `import()`s the door (the family's law since agentfootprint 9.94.0: an
+  optional family is loaded when its option is enabled, never before) and
+  reads the three functions BY NAME; a bundler that follows names ships the
+  bug-report modules alone. The pressed button shows the modes' own pending
+  affordance (`Working…`, disabled, `aria-busy`) until the door arrives; a
+  door that arrives without the substrate gives way to the existing version
+  hint; a door that does not load gives way to `BUG_REPORT_LABELS.doorUnavailable`
+  — a label, with the loader's message on `title`. A handed-in `api` is read
+  at render and loads nothing. Pinned end to end over the installed
+  agentfootprint and the recorded turn (`BugReportButton.door.test.tsx`), with
+  the two degraded paths in their own files.
+- **`sideEffects: false`, audited and pinned.** The package declared nothing,
+  so every bundler had to presume each module ran something at load and could
+  not shake the root barrel — a page importing `SkillGraphFlow` carried the
+  whole Lens. The audit of every non-test module under `src/` found no
+  `document`/`window`/`globalThis` at load, no registration, no global; the
+  Lens sheet installs on first RENDER (`ensureLensStyles`); the one effect is
+  `import '@xyflow/react/dist/style.css'` in the three chart modules, each in
+  the same module as the chart that needs it, so a dropped module drops
+  nothing a kept chart needs. The four load-time factory calls
+  (`createContext`, `forwardRef`, `memo`, `makeTeachingHumanizer`) are marked
+  `/* @__PURE__ */`. `test/packaging/side-effects.test.ts` walks the built
+  dist and fails on any other top-level effect, and bundles `Lens`,
+  `SkillGraphFlow` and `BugReportButton` through Vite to pin that neither
+  shell carries a byte of the door's families. Measured with Vite, gzip, sync
+  closure, React external: `SkillGraphFlow` 390 → 83 KB; `Lens` 448 → 183 KB;
+  `BugReportButton` alone 398 → 127 KB (the door change is 390 → 109 of the
+  first; the flag the rest). publint's `sideEffects` suggestion is gone.
+
 ## [0.52.1] - 2026-09-11
 
 ### Fixed

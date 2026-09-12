@@ -61,6 +61,11 @@ import { LABELS as TAG_LABELS } from '../../src/react/components/TagPicker.js';
 // rule — its own labels, and every reason it prints is the library's string.
 import { GRAPH_LABELS } from '../../src/react/components/ServedGraph.js';
 import { BADGE_LABELS } from '../../src/react/components/ServedBadge.js';
+// 0.52.2: the bug-report button's two click-time words (the pending state,
+// the failed load). Its FILE is not walked — the dialog prints the library's
+// own failure messages and its own consent copy under a different rule — but
+// its labels are held to the same shape here.
+import { LABELS as BUG_REPORT_LABELS } from '../../src/react/components/BugReportButton.js';
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
@@ -70,6 +75,7 @@ const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
   TAG_LABELS,
   GRAPH_LABELS,
   BADGE_LABELS,
+  BUG_REPORT_LABELS,
 ];
 const LABEL_ENTRIES: readonly (readonly [string, string])[] = LABEL_SETS.flatMap((set) => Object.entries(set));
 const LABELS = SERVED_LABELS;

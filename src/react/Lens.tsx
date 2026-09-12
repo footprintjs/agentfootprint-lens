@@ -2303,7 +2303,7 @@ const EngineerView: React.FC<{
  *  event isn't in the log (subflow-scoped), so we narrate it from the stage's
  *  name + description. Shared by the cutoff-empty branch and the post-list
  *  fragment so the markup/style live in one place. */
-const SyntheticNowLine = React.forwardRef<HTMLDivElement, { line: string }>(
+const SyntheticNowLine = /* @__PURE__ */ React.forwardRef<HTMLDivElement, { line: string }>(
   function SyntheticNowLine({ line }, ref) {
     return (
       <div
@@ -2785,7 +2785,7 @@ function railTabStyle(active: boolean): React.CSSProperties {
   };
 }
 
-const HLinePill = memo(function HLinePill({
+const HLinePill = /* @__PURE__ */ memo(function HLinePill({
   label,
   detail,
   expanded,
@@ -2833,7 +2833,7 @@ const HLinePill = memo(function HLinePill({
   );
 });
 
-const VLinePill = memo(function VLinePill({
+const VLinePill = /* @__PURE__ */ memo(function VLinePill({
   label,
   expanded,
   side = "right",

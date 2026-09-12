@@ -28,7 +28,7 @@ import { T } from './theme/index.js';
 
 /** Marker attribute on the injected `<style>` — bump when the sheet changes. */
 const STYLE_MARKER = 'data-lens-styles';
-const STYLE_VERSION = 'v6';
+const STYLE_VERSION = 'v7';
 
 /**
  * The whole Lens stylesheet, as text. Exported so a server renderer can inline
@@ -264,7 +264,8 @@ export const LENS_STYLESHEET = `
   font-size: 11px;
   cursor: pointer;
 }
-.lens-bug-report__open:hover { color: ${T.textPrimary}; border-color: ${T.primary}; }
+.lens-bug-report__open:hover:not(:disabled) { color: ${T.textPrimary}; border-color: ${T.primary}; }
+.lens-bug-report__open:disabled { opacity: 0.5; cursor: not-allowed; }
 .lens-bug-report__unsupported {
   display: inline-block;
   max-width: 46ch;

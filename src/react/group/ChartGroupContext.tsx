@@ -17,7 +17,7 @@ import type { ChartGroupHighlight } from '../../core/group/activeChartGroup.js';
 
 /** `undefined` = not in group mode. Every node renders exactly as it always
  *  did — this is the seam that keeps STEP mode byte-identical. */
-export const ChartGroupContext = createContext<ChartGroupHighlight | undefined>(undefined);
+export const ChartGroupContext = /* @__PURE__ */ createContext<ChartGroupHighlight | undefined>(undefined);
 
 /** The active group, or `undefined` outside group mode. */
 export function useChartGroupHighlight(): ChartGroupHighlight | undefined {

@@ -172,9 +172,13 @@ export * from "./hooks/index.js";
 // modal shows every selectable unit of evidence (sizes, event/turn counts, the
 // redacted key names) before anything leaves, meters the selection against the
 // 24 MB ceiling, and offers whichever of the three submit modes you configured.
+// The `/observe` door it needs is loaded when the button is PRESSED, never at
+// import (0.52.2): a page that mounts it does not carry the trace toolpack.
 // Renders a version hint instead of itself on agentfootprint older than 9.9.
+// `LABELS` is the pressed state's word and the failed load's label.
 export {
   BugReportButton,
+  LABELS as BUG_REPORT_LABELS,
   type BugReportButtonProps,
 } from "./components/BugReportButton.js";
 

@@ -65,6 +65,7 @@
     "dist",
     "README.md"
   ],
+  "sideEffects": false,
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
@@ -132,6 +133,7 @@
     "react-dom": "^18.3.1",
     "tsup": "^8.0.0",
     "typescript": "~5.4.5",
+    "vite": "^8.2.1",
     "vitest": "^4.1.4",
     "zod": "^4.4.3"
   },

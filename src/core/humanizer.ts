@@ -389,5 +389,5 @@ export function makeTeachingHumanizer(
  * Default `teachingHumanizer` — uses `'Chatbot'` as the app name. For
  * consumer-specific naming, use `makeTeachingHumanizer({ appName })`.
  */
-export const teachingHumanizer: Humanizer = makeTeachingHumanizer();
+export const teachingHumanizer: Humanizer = /* @__PURE__ */ makeTeachingHumanizer();
 
