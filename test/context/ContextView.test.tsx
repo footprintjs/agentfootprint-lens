@@ -80,6 +80,28 @@ describe('<ContextView> handed the ONE cursor', () => {
   });
 });
 
+describe('<ContextView> handed the ONE cursor and the previous stop', () => {
+  it('measures entered / changed / unchanged against the previous stop the host names (0.53.3)', () => {
+    const fixture = load('flat-dynamic-tools');
+    const turns = stopsOf(fixture, 'llm-turn');
+    const positions = fixture.positions;
+    const step = positions.findIndex((p) => p.runtimeStageId === turns[1]!.runtimeStageId);
+    const before = positions[step - 1]!;
+    const cursor = lensCursorFrom(positions, step, () => undefined);
+    render(
+      <ContextView
+        runner={fixture.runner}
+        cursor={cursor}
+        previous={{ runtimeStageId: before.runtimeStageId, commitIdx: before.commitIdx }}
+      />,
+    );
+    const rows = screen.getAllByTestId('context-key');
+    const since = rows.map((r) => r.getAttribute('data-since'));
+    expect(since.every((s) => s === 'entered' || s === 'changed' || s === 'unchanged')).toBe(true);
+    expect(since.some((s) => s !== 'unchanged')).toBe(true);
+  });
+});
+
 describe('<ContextView> laws', () => {
   it('a key the log never attributes is shown UNATTRIBUTED — no owner invented', () => {
     const fixture = loadTampered('flat-dynamic-tools', (r) => {

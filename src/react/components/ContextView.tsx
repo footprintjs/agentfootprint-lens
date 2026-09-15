@@ -66,6 +66,13 @@ export interface ContextViewProps {
   readonly runner: unknown;
   /** THE cursor, when a host holds it. Absent: the view walks its own milestone axis. */
   readonly cursor?: LensCursor;
+  /**
+   * The previous stop on the HOST's axis, when it hands `cursor` (0.53.3) —
+   * what `since` (entered / changed / unchanged) and `left` are measured
+   * against. A standalone view knows its own previous stop; a slotted one
+   * cannot, and without this it claims no direction.
+   */
+  readonly previous?: ServedCursor;
   /** The recording's event stream, for the `why` band (a replay's `getEntries()`). */
   readonly events?: readonly EventLogEntry[];
   /** Show the fold as JSON instead of the key table. */
@@ -114,7 +121,7 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
   const context = useMemo(
     () =>
       contextAt(snapshot, servedCursorOf(cursor), {
-        previous: previousOf(cursor, ownPositions),
+        previous: props.previous ?? previousOf(cursor, ownPositions),
         events,
       }),
     [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, cursor.at.step, ownPositions, events],

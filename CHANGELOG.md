@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.53.3] - 2026-09-15
+
+### Added — `previous` on `<ContextView>`
+
+- A host that hands the ONE cursor can now also name the previous stop on
+  its axis (`previous={{ runtimeStageId, commitIdx }}`), so the view marks
+  every key entered / changed / unchanged and lists keys that left — the
+  growth the docs walkthrough is about. A standalone view already knew its
+  own previous stop; a slotted one could not, and claimed no direction.
+  Absent, nothing changes.
+
 ## [0.53.2] - 2026-09-15
 
 ### Fixed — 0.53.1 never reached npm; this is the same door on the substrate it targets
