@@ -161,7 +161,10 @@ export {
   type CursorPosition,
   type MilestoneClassifier,
 } from "./group/cursorPositionsAtDrill.js";
-export { buildCommitSyncMap, type CommitSyncEntry } from "./group/buildCommitSyncMap.js";
+export {
+  buildCommitSyncMap,
+  type CommitSyncEntry,
+} from "./group/buildCommitSyncMap.js";
 
 // TIME TRAVEL THROUGH ONE PORT (0.46.0) — cursor MOVEMENT is footprintjs
 // 9.17's `timeTravel()` now, over the Lens's own stops. `lensStopsStrategy`
@@ -183,7 +186,6 @@ export {
 // projects one position onto a `Stop`; keeping them module-private leaves that
 // projection free to change without a major.
 export { lensStopsStrategy } from "./timeTravel/lensStops.js";
-
 
 // Lens v0.1 translator pipeline — Runner → LensGroupOutput (UI-agnostic
 // graph of nodes + edges). The L3 React renderer consumes this; Vue / D3
@@ -215,7 +217,7 @@ export {
   type CursorProvenance,
   type KeyProvenance,
   type ProvenanceFrame,
-} from './cursorProvenance.js';
+} from "./cursorProvenance.js";
 export {
   explainableShellPropsFromRunner,
   type ExplainableShellInputs,
@@ -254,6 +256,20 @@ export * from "./artifacts/index.js";
 // the words are display; the structured decision is the record).
 // `<AwaitingPane>` composes them; a Vue or CLI shell can too.
 export * from "./hitl/index.js";
+
+// The Context view's data (0.53.0): the context object at a stop, key by key
+// — the fold's keys with the stage that wrote each (from the trace rows),
+// what moved since the previous stop, the Served row handed through at the
+// stop's epoch, and the event names beside the delta. THE JOIN over the
+// three records, writing none of its own. Pure; frozen returns; no React.
+// See src/core/context/README.md.
+export {
+  contextAt,
+  type ContextAt,
+  type ContextAtOptions,
+  type ContextKey,
+  type ContextServed,
+} from "./context/contextAt.js";
 
 // The Served tab's data (0.47.0): the ONE cursor resolved to its epoch, the
 // rebuilt request checked against the receipt with the library's own hashes,

@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.53.0] - 2026-09-15
+
+### Added — `<ContextView>`: the context object at the cursor, key by key
+
+- **What it shows.** The fold at the stop as a table of keys — each with the
+  stage that LAST wrote it (from its trace row), the commit it entered at,
+  the verb, and how it moved since the previous stop (entered / changed /
+  unchanged; keys that vanished listed as *left*) — a JSON mode of the same
+  object, the Served row's verdict badges for that epoch, and the event
+  names raised by the stages that wrote the delta. Standalone like the
+  Skill Graph (`<ContextView runner={recording} />` walks the library's
+  milestone tags with its own cursor) or handed the ONE cursor
+  (`cursor={p.cursor}` from `<Lens>`'s detail slot — then it offers no
+  mover and moves nothing).
+- **The core is pure and exported.** `contextAt(recording, cursor,
+  { previous?, events? })` on `agentfootprint-lens/core` is the join over
+  the three records — commit log ⟂ events by `runtimeStageId`, commit log ⟂
+  receipt by epoch through `servedRowAt` (the Served tab's own core, handed
+  through, never re-derived). It writes nothing of its own. A key with no
+  writer row (the run's base) is **unattributed**, never guessed; owners are
+  stage ids, not words; a fold or a served core that refuses reports its
+  message (`foldError` / `servedError`) instead of an empty object.
+- **Laws pinned.** `test/context/` (18 tests on recorded fixtures) and the
+  own-claims walker now covers `core/context/` and the component:
+  `CONTEXT_LABELS` is every string it owns. Design page:
+  `docs/design/2026-09-context-view.md` — including the proposal withdrawn
+  on re-evaluation (seven new tags → one milestone row in agentfootprint
+  9.98.1, the answer).
+- **Not yet:** the docs walkthrough still carries hand-written JSON; the
+  next packet mounts this view on a recorded run there.
+
 ## [0.52.2] - 2026-09-12
 
 ### Fixed

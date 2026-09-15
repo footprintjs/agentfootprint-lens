@@ -44,28 +44,29 @@
  *     `gap-sentences.test.ts` job, not this file's.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import ts from 'typescript';
-import { describe, expect, it } from 'vitest';
-import { RECEIPT_BOUNDARY, SERVED_GAPS, UNGAPPED_FIELDS } from 'agentfootprint';
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import ts from "typescript";
+import { describe, expect, it } from "vitest";
+import { RECEIPT_BOUNDARY, SERVED_GAPS, UNGAPPED_FIELDS } from "agentfootprint";
 
-import { LABELS as SERVED_LABELS } from '../../src/react/components/ServedTab.js';
+import { LABELS as SERVED_LABELS } from "../../src/react/components/ServedTab.js";
 // 0.48.0: the Bookmarks tab and the tag picker keep the same rule — every
 // printed string is a LABEL in the component's own set — so their files and
 // their cores are walked here too, against the union of the three sets.
-import { LABELS as BOOKMARK_LABELS } from '../../src/react/components/BookmarksTab.js';
-import { LABELS as TAG_LABELS } from '../../src/react/components/TagPicker.js';
+import { LABELS as BOOKMARK_LABELS } from "../../src/react/components/BookmarksTab.js";
+import { LABELS as TAG_LABELS } from "../../src/react/components/TagPicker.js";
 // 0.49.0: the Served GRAPH is a second view of the same row, under the same
 // rule — its own labels, and every reason it prints is the library's string.
-import { GRAPH_LABELS } from '../../src/react/components/ServedGraph.js';
-import { BADGE_LABELS } from '../../src/react/components/ServedBadge.js';
+import { GRAPH_LABELS } from "../../src/react/components/ServedGraph.js";
+import { BADGE_LABELS } from "../../src/react/components/ServedBadge.js";
 // 0.52.2: the bug-report button's two click-time words (the pending state,
 // the failed load). Its FILE is not walked — the dialog prints the library's
 // own failure messages and its own consent copy under a different rule — but
 // its labels are held to the same shape here.
-import { LABELS as BUG_REPORT_LABELS } from '../../src/react/components/BugReportButton.js';
+import { LABELS as BUG_REPORT_LABELS } from "../../src/react/components/BugReportButton.js";
+import { LABELS as CONTEXT_LABELS } from "../../src/react/components/ContextView.js";
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
@@ -76,28 +77,34 @@ const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
   GRAPH_LABELS,
   BADGE_LABELS,
   BUG_REPORT_LABELS,
+  CONTEXT_LABELS,
 ];
-const LABEL_ENTRIES: readonly (readonly [string, string])[] = LABEL_SETS.flatMap((set) => Object.entries(set));
+const LABEL_ENTRIES: readonly (readonly [string, string])[] =
+  LABEL_SETS.flatMap((set) => Object.entries(set));
 const LABELS = SERVED_LABELS;
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SRC = join(here, '..', '..', 'src');
+const SRC = join(here, "..", "..", "src");
 
 const sources = (dir: string, keep: (f: string) => boolean): string[] =>
   readdirSync(join(SRC, dir))
-    .filter((f) => keep(f) && !f.includes('.test.'))
+    .filter((f) => keep(f) && !f.includes(".test."))
     .map((f) => join(SRC, dir, f));
 
 const FILES: string[] = [
-  ...sources('core/served', (f) => f.endsWith('.ts')),
-  ...sources('core/bookmarks', (f) => f.endsWith('.ts')),
-  ...sources('core/tags', (f) => f.endsWith('.ts')),
+  ...sources("core/served", (f) => f.endsWith(".ts")),
+  ...sources("core/bookmarks", (f) => f.endsWith(".ts")),
+  ...sources("core/tags", (f) => f.endsWith(".ts")),
   // 0.51.0: the ONE cursor every view is handed. It carries no words at all —
   // a refusal's `message` is `resolveNavigation`'s, handed through untouched —
   // and this walk is what keeps it that way as views start reading it.
-  ...sources('core/cursor', (f) => f.endsWith('.ts')),
-  ...sources('react/components', (f) => /^(Served|BookmarksTab|TagPicker).*\.tsx$/.test(f)),
-  ...sources('react/hooks', (f) => /^useBookmarkSidecar\.ts$/.test(f)),
+  ...sources("core/cursor", (f) => f.endsWith(".ts")),
+  // 0.53.0: the Context view — the join over the three records, and its screen.
+  ...sources("core/context", (f) => f.endsWith(".ts")),
+  ...sources("react/components", (f) =>
+    /^(Served|BookmarksTab|TagPicker|ContextView).*\.tsx$/.test(f),
+  ),
+  ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
 
 const LIBRARY_SENTENCES = new Set<string>([
@@ -116,7 +123,8 @@ const CLAIM_VERB =
 
 /** A CSS value: every word a length, a number, or a border style. Style
  *  literals are printed to no one. */
-const CSS_VALUE = /^(\d+(\.\d+)?(px|em|rem|%)?|solid|dashed)( (\d+(\.\d+)?(px|em|rem|%)?|solid|dashed))+$/;
+const CSS_VALUE =
+  /^(\d+(\.\d+)?(px|em|rem|%)?|solid|dashed)( (\d+(\.\d+)?(px|em|rem|%)?|solid|dashed))+$/;
 
 interface Literal {
   readonly file: string;
@@ -128,23 +136,30 @@ interface Literal {
 function literalsOf(file: string): Literal[] {
   const source = ts.createSourceFile(
     file,
-    readFileSync(file, 'utf8'),
+    readFileSync(file, "utf8"),
     ts.ScriptTarget.Latest,
     true,
-    file.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
+    file.endsWith(".tsx") ? ts.ScriptKind.TSX : ts.ScriptKind.TS,
   );
   const out: Literal[] = [];
   const push = (node: ts.Node, text: string): void => {
-    const trimmed = text.replace(/\s+/g, ' ').trim();
-    if (trimmed === '') return;
-    const { line } = source.getLineAndCharacterOfPosition(node.getStart(source));
+    const trimmed = text.replace(/\s+/g, " ").trim();
+    if (trimmed === "") return;
+    const { line } = source.getLineAndCharacterOfPosition(
+      node.getStart(source),
+    );
     out.push({ file, line: line + 1, text: trimmed });
   };
   const walk = (node: ts.Node): void => {
     // Import/export specifiers are module paths, not prose.
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return;
-    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) push(node, node.text);
-    else if (ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node)) {
+    if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
+      push(node, node.text);
+    else if (
+      ts.isTemplateHead(node) ||
+      ts.isTemplateMiddle(node) ||
+      ts.isTemplateTail(node)
+    ) {
       push(node, node.text);
     } else if (ts.isJsxText(node)) push(node, node.text);
     ts.forEachChild(node, walk);
@@ -153,31 +168,34 @@ function literalsOf(file: string): Literal[] {
   return out;
 }
 
-const wordCount = (s: string): number => s.split(/\s+/).filter((w) => w.length > 0).length;
+const wordCount = (s: string): number =>
+  s.split(/\s+/).filter((w) => w.length > 0).length;
 
-describe('the Served tab writes no claim sentences of its own', () => {
-  it('walks the core files, the tab, the graph and the badge they share', () => {
+describe("the Served tab writes no claim sentences of its own", () => {
+  it("walks the core files, the tab, the graph and the badge they share", () => {
     expect(FILES.length).toBeGreaterThanOrEqual(5);
-    const walked = FILES.map((f) => f.split('/').pop());
-    expect(walked).toContain('servedGraphAt.ts');
-    expect(walked).toContain('ServedGraph.tsx');
-    expect(walked).toContain('ServedBadge.tsx');
+    const walked = FILES.map((f) => f.split("/").pop());
+    expect(walked).toContain("servedGraphAt.ts");
+    expect(walked).toContain("ServedGraph.tsx");
+    expect(walked).toContain("ServedBadge.tsx");
     // 0.51.0's new file is walked too — a cursor that grew a sentence of its
     // own would reach every view at once.
-    expect(walked).toContain('lensCursor.ts');
+    expect(walked).toContain("lensCursor.ts");
     // 0.52.0: the pairing rule for evicted turns. It prints nothing itself,
     // and the walk is what keeps a "last served on…" sentence out of it.
-    expect(walked).toContain('evictedTurns.ts');
+    expect(walked).toContain("evictedTurns.ts");
   });
 
-  it('every LABEL is a label: short, and no claim verb (one mandated note excepted)', () => {
+  it("every LABEL is a label: short, and no claim verb (one mandated note excepted)", () => {
     const offenders = LABEL_ENTRIES.filter(
-      ([, value]) => !MANDATED_NOTES.has(value) && (wordCount(value) > 7 || CLAIM_VERB.test(value)),
+      ([, value]) =>
+        !MANDATED_NOTES.has(value) &&
+        (wordCount(value) > 7 || CLAIM_VERB.test(value)),
     );
     expect(offenders).toEqual([]);
   });
 
-  it('every printable literal of two or more words is a label, a library sentence, or the mandated note', () => {
+  it("every printable literal of two or more words is a label, a library sentence, or the mandated note", () => {
     const offenders: Literal[] = [];
     for (const file of FILES) {
       for (const lit of literalsOf(file)) {
@@ -191,34 +209,45 @@ describe('the Served tab writes no claim sentences of its own', () => {
         offenders.push(lit);
       }
     }
-    const report = offenders.map((o) => `${o.file}:${o.line}  "${o.text}"`).join('\n');
-    expect(offenders, `literals the tab prints that are not labels or library sentences:\n${report}`).toEqual([]);
+    const report = offenders
+      .map((o) => `${o.file}:${o.line}  "${o.text}"`)
+      .join("\n");
+    expect(
+      offenders,
+      `literals the tab prints that are not labels or library sentences:\n${report}`,
+    ).toEqual([]);
   });
 
-  it('the rule is an allowlist: a planted sentence with no blacklisted verb is still caught', () => {
+  it("the rule is an allowlist: a planted sentence with no blacklisted verb is still caught", () => {
     // The walker's own decision, applied to the sentences that slipped the
     // earlier verb-blacklist form of this test.
     const planted = [
-      'Every tool the model saw matches the receipt.',
-      'The model received exactly this system prompt.',
-      'Nothing hidden from the model',
-      'Hashes agree — this request went out unchanged.',
-      'verified against the receipt',
+      "Every tool the model saw matches the receipt.",
+      "The model received exactly this system prompt.",
+      "Nothing hidden from the model",
+      "Hashes agree — this request went out unchanged.",
+      "verified against the receipt",
     ];
     for (const text of planted) {
       const allowed =
-        LIBRARY_SENTENCES.has(text) || LABEL_VALUES.has(text) || MANDATED_NOTES.has(text) || wordCount(text) < 2;
+        LIBRARY_SENTENCES.has(text) ||
+        LABEL_VALUES.has(text) ||
+        MANDATED_NOTES.has(text) ||
+        wordCount(text) < 2;
       expect(allowed, `"${text}" would pass`).toBe(false);
     }
   });
 
-  it('the library sentences the tab prints are byte-equal to the constants', () => {
+  it("the library sentences the tab prints are byte-equal to the constants", () => {
     // A copy of a sentence drifts; the tab must reference the constant. Every
     // gap `why` and UNGAPPED sentence is 6+ words, so a literal in these files
     // that EQUALS one would be a pasted copy.
     for (const file of FILES) {
       for (const lit of literalsOf(file)) {
-        expect(LIBRARY_SENTENCES.has(lit.text), `${file}:${lit.line} pastes a library sentence`).toBe(false);
+        expect(
+          LIBRARY_SENTENCES.has(lit.text),
+          `${file}:${lit.line} pastes a library sentence`,
+        ).toBe(false);
       }
     }
   });

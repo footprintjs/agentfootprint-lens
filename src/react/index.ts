@@ -82,8 +82,14 @@ export {
   withGroupEmphasis,
   withGroupEmphasisAll,
 } from "./group/groupEmphasis.js";
-export { GroupBoundary, type GroupBoundaryProps } from "./group/GroupBoundary.js";
-export { ChartGroupContext, useChartGroupHighlight } from "./group/ChartGroupContext.js";
+export {
+  GroupBoundary,
+  type GroupBoundaryProps,
+} from "./group/GroupBoundary.js";
+export {
+  ChartGroupContext,
+  useChartGroupHighlight,
+} from "./group/ChartGroupContext.js";
 // Renderer map for the chart's custom node types (slot pills / subflow boxes).
 // Exported so consumers don't hand-roll it. The Lens uses it for its
 // auto-derived chart when only `runner` is passed.
@@ -120,7 +126,11 @@ export {
 // Mount it in `<Lens slots={{ detail }}>` or compose the panes yourself.
 export * from "./skillgraph/index.js";
 export { SummaryCard } from "./SummaryCard.js";
-export { TimeTravel, type TimeTravelProps, type CursorStepper } from "./TimeTravel.js";
+export {
+  TimeTravel,
+  type TimeTravelProps,
+  type CursorStepper,
+} from "./TimeTravel.js";
 // WhereFrom — "Where did this come from?": the cursor stage's written keys
 // as chips → backward slice frames → one-cursor jump. Canonical fp slice
 // (same queries as the backtrack LLM tool + eui's Data Trace). The engineer
@@ -134,6 +144,18 @@ export {
   ToolChoicePanel,
   type ToolChoicePanelProps,
 } from "./components/ToolChoicePanel.js";
+
+// <ContextView> (0.53.0) — the context object at the cursor, key by key: who
+// wrote each, what moved since the previous stop, what was served beside it.
+// Standalone like the Skill Graph (walks its own milestone axis) or handed the
+// ONE cursor from `<Lens>`'s detail slot. `CONTEXT_LABELS` is every string it
+// owns — names, never a sentence about the run.
+export {
+  ContextView,
+  LABELS as CONTEXT_LABELS,
+  MILESTONE_AXIS as CONTEXT_MILESTONE_AXIS,
+  type ContextViewProps,
+} from "./components/ContextView.js";
 
 // <ServedTab> — at every LLM call, exactly what the model was served, provable
 // from the log (agentfootprint 9.88.0's `servedAt` / `receiptAt`). The engineer
@@ -152,19 +174,34 @@ export {
 // not sent, each with the library's own reason). The Served tab mounts it
 // behind a list ⇄ graph toggle; exported for consumer-built shells, which build
 // its input with `servedGraphAt` from `/core`.
-export { ServedGraph, GRAPH_LABELS as SERVED_GRAPH_LABELS, type ServedGraphProps } from "./components/ServedGraph.js";
+export {
+  ServedGraph,
+  GRAPH_LABELS as SERVED_GRAPH_LABELS,
+  type ServedGraphProps,
+} from "./components/ServedGraph.js";
 // The verdict badge, shared by both views — one owner, so a row cannot read
 // Damaged in the list and something softer in the graph.
-export { Badge as ServedBadge, BADGE_LABELS as SERVED_BADGE_LABELS } from "./components/ServedBadge.js";
+export {
+  Badge as ServedBadge,
+  BADGE_LABELS as SERVED_BADGE_LABELS,
+} from "./components/ServedBadge.js";
 
 // <BookmarksTab> (0.48.0) — the reader's marks, riding the ONE cursor: a
 // toggle at the current stop, a list that jumps through the port's `toMark`,
 // orphans greyed and labelled. The engineer view mounts it as the right
 // rail's third tab; exported for shells that hold the cursor themselves.
-export { BookmarksTab, LABELS as BOOKMARK_LABELS, type BookmarksTabProps } from "./components/BookmarksTab.js";
+export {
+  BookmarksTab,
+  LABELS as BOOKMARK_LABELS,
+  type BookmarksTabProps,
+} from "./components/BookmarksTab.js";
 // <TagPicker> (0.48.0) — the declared-tag legend (what the chart can produce,
 // what the run hit) and the pick that rebuilds the axis through `tagStops`.
-export { TagPicker, LABELS as TAG_PICKER_LABELS, type TagPickerProps } from "./components/TagPicker.js";
+export {
+  TagPicker,
+  LABELS as TAG_PICKER_LABELS,
+  type TagPickerProps,
+} from "./components/TagPicker.js";
 
 // Hooks — composable building blocks for consumer-built Lens layouts.
 export * from "./hooks/index.js";
@@ -189,7 +226,10 @@ export {
 // absence from the speak-time snapshot alone. Ships two built-ins: a rows
 // table for 'dataset/rows' and the honest metadata card every unknown kind
 // falls back to. Resolvers + transcript walkers live in `/core`.
-export { ArtifactPane, type ArtifactPaneProps } from "./artifacts/ArtifactPane.js";
+export {
+  ArtifactPane,
+  type ArtifactPaneProps,
+} from "./artifacts/ArtifactPane.js";
 export {
   registerArtifactComponent,
   artifactComponentFor,
