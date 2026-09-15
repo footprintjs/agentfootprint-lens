@@ -84,12 +84,17 @@ describe('observeRecording — the fixtures are the same turn', () => {
 });
 
 describe('observeRecording — a recording that captured its boundaries', () => {
-  it('rebuilds the step strip: 22 cursor positions, none of them invented', () => {
+  it('rebuilds the step strip: 23 cursor positions, none of them invented', () => {
     const observed = observeRecording(load(WITH_BOUNDARIES) as Recording);
 
     expect(observed.boundaryEvents).toBe(75);
     expect(observed.boundaryRanges).toBe(26);
-    expect(cursorPositions(observed)).toHaveLength(22);
+    // 22 until agentfootprint 9.98.1, which made the final branch's mount a
+    // milestone (`decision / Answer`): the SAME recording now yields one more
+    // stop, on the answer — the strip follows the substrate's declaration.
+    const positions = cursorPositions(observed);
+    expect(positions).toHaveLength(23);
+    expect(positions.filter((p) => p.label.startsWith('Answer'))).toHaveLength(1);
   });
 
   it('replays every event with none skipped, and reports the counts', () => {

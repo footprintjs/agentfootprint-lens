@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.53.2] - 2026-09-15
+
+### Fixed — 0.53.1 never reached npm; this is the same door on the substrate it targets
+
+- CI installs fresh and resolved agentfootprint 9.98.1, whose `MILESTONES`
+  table made the final branch's mount a `decision / Answer` stop — the SAME
+  recorded fixture yields 23 cursor positions instead of 22, and the one
+  test pinning the bare count failed (locally the dev tree still held
+  9.94.1). The test names the new stop now; the dev pin is `^9.98.1`, the
+  version the Context view's Answer step relies on. No source change.
+
 ## [0.53.1] - 2026-09-15
 
 ### Added — `agentfootprint-lens/context`, a door for the Context view
