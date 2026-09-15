@@ -25,14 +25,14 @@
  *
  * Pure; frozen returns; no React. Consumers with their own UI read this.
  */
-import { pathSegments, stateAt } from "footprintjs/trace";
-import type { FoldSource, FoldedState } from "footprintjs/trace";
+import { pathSegments, stateAt } from 'footprintjs/trace';
+import type { FoldSource, FoldedState } from 'footprintjs/trace';
 
-import type { EventLogEntry } from "../types.js";
-import { servedRowAt, servedRowForEpoch } from "../served/servedRowAt.js";
-import { sincePrevious, type SincePrevious } from "../served/sincePrevious.js";
-import { verify, type ServedVerification } from "../served/verify.js";
-import type { ServedCursor, ServedRow } from "../served/types.js";
+import type { EventLogEntry } from '../types.js';
+import { servedRowAt, servedRowForEpoch } from '../served/servedRowAt.js';
+import { sincePrevious, type SincePrevious } from '../served/sincePrevious.js';
+import { verify, type ServedVerification } from '../served/verify.js';
+import type { ServedCursor, ServedRow } from '../served/types.js';
 
 /** The slice of a footprintjs commit bundle this file reads — narrowed per row, never trusted whole. */
 interface TraceRow {
@@ -58,7 +58,7 @@ export interface ContextKey {
   /** The verb of the last write, from the trace row. */
   readonly verb?: string;
   /** How the key moved since the previous stop (absent when no previous stop was given). */
-  readonly since?: "entered" | "changed" | "unchanged";
+  readonly since?: 'entered' | 'changed' | 'unchanged';
 }
 
 /** What is served beside the object at this stop — the Served tab's own row, handed through. */
@@ -77,7 +77,7 @@ export interface ContextAt {
   /** The trace rows the stop's own bundle wrote — its delta as the log spells it. */
   readonly rows: readonly { readonly path: string; readonly verb: string }[];
   /** The fold's honesty facts, as `stateAt` reports them. */
-  readonly basis?: FoldedState["basis"];
+  readonly basis?: FoldedState['basis'];
   readonly redacted: boolean;
   readonly skipped?: readonly number[];
   readonly foldError?: string;
@@ -113,19 +113,12 @@ function logOf(snapshot: unknown): readonly CommitBundle[] {
 }
 
 /** Per top-level key, the first and last trace rows up to `commitIdx` (inclusive). */
-function writersUpTo(
-  log: readonly CommitBundle[],
-  commitIdx: number,
-): ReadonlyMap<string, WriterFacts> {
+function writersUpTo(log: readonly CommitBundle[], commitIdx: number): ReadonlyMap<string, WriterFacts> {
   const out = new Map<string, WriterFacts>();
   const last = Math.min(commitIdx, log.length - 1);
   for (let i = 0; i <= last; i++) {
     const bundle = log[i];
-    if (
-      bundle === undefined ||
-      typeof bundle.runtimeStageId !== "string" ||
-      !Array.isArray(bundle.trace)
-    )
+    if (bundle === undefined || typeof bundle.runtimeStageId !== 'string' || !Array.isArray(bundle.trace))
       continue;
     for (const row of bundle.trace) {
       const key = pathSegments(row.path)[0];
@@ -142,14 +135,9 @@ function writersUpTo(
   return out;
 }
 
-function foldAt(
-  snapshot: unknown,
-  commitIdx: number,
-): FoldedState | { readonly error: string } {
+function foldAt(snapshot: unknown, commitIdx: number): FoldedState | { readonly error: string } {
   const source: FoldSource | undefined =
-    typeof snapshot === "object" && snapshot !== null
-      ? (snapshot as FoldSource)
-      : undefined;
+    typeof snapshot === 'object' && snapshot !== null ? (snapshot as FoldSource) : undefined;
   try {
     return stateAt(source, commitIdx);
   } catch (e) {
@@ -157,8 +145,7 @@ function foldAt(
   }
 }
 
-const same = (a: unknown, b: unknown): boolean =>
-  JSON.stringify(a) === JSON.stringify(b);
+const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
 
 function servedFor(
   snapshot: unknown,
@@ -167,18 +154,10 @@ function servedFor(
   try {
     const row = servedRowAt(snapshot, cursor);
     if (row === undefined) return {};
-    const checks = verify(
-      row.view,
-      row.receipt,
-      row.receipt?.basis.runId ?? "",
-      row.receiptCause,
-    );
+    const checks = verify(row.view, row.receipt, row.receipt?.basis.runId ?? '', row.receiptCause);
     const previous =
-      row.previousEpoch !== undefined
-        ? servedRowForEpoch(snapshot, row.previousEpoch)
-        : undefined;
-    const since =
-      previous !== undefined ? sincePrevious(row, previous) : undefined;
+      row.previousEpoch !== undefined ? servedRowForEpoch(snapshot, row.previousEpoch) : undefined;
+    const since = previous !== undefined ? sincePrevious(row, previous) : undefined;
     return {
       served: Object.freeze({
         row,
@@ -191,10 +170,7 @@ function servedFor(
   }
 }
 
-function whyFor(
-  events: readonly EventLogEntry[] | undefined,
-  stages: ReadonlySet<string>,
-): ContextAt["why"] {
+function whyFor(events: readonly EventLogEntry[] | undefined, stages: ReadonlySet<string>): ContextAt['why'] {
   if (events === undefined || stages.size === 0) return Object.freeze([]);
   const out: { seq: number; name: string; runtimeStageId: string }[] = [];
   for (const entry of events) {
@@ -219,7 +195,7 @@ export function contextAt(
 ): ContextAt {
   const log = logOf(recording);
   const folded = foldAt(recording, cursor.commitIdx);
-  if ("error" in folded) {
+  if ('error' in folded) {
     return Object.freeze({
       cursor,
       keys: Object.freeze([]),
@@ -231,26 +207,20 @@ export function contextAt(
     });
   }
   const writers = writersUpTo(log, cursor.commitIdx);
-  const previous =
-    options.previous !== undefined
-      ? foldAt(recording, options.previous.commitIdx)
-      : undefined;
-  const previousState =
-    previous !== undefined && !("error" in previous)
-      ? previous.state
-      : undefined;
+  const previous = options.previous !== undefined ? foldAt(recording, options.previous.commitIdx) : undefined;
+  const previousState = previous !== undefined && !('error' in previous) ? previous.state : undefined;
 
   const keys: ContextKey[] = [];
   for (const [path, value] of Object.entries(folded.state)) {
     const w = writers.get(path);
-    const since: ContextKey["since"] | undefined =
+    const since: ContextKey['since'] | undefined =
       previousState === undefined
         ? undefined
         : !(path in previousState)
-          ? "entered"
+          ? 'entered'
           : same(previousState[path], value)
-            ? "unchanged"
-            : "changed";
+            ? 'unchanged'
+            : 'changed';
     keys.push(
       Object.freeze({
         path,
@@ -268,27 +238,17 @@ export function contextAt(
     );
   }
   const left =
-    previousState === undefined
-      ? []
-      : Object.keys(previousState).filter((k) => !(k in folded.state));
+    previousState === undefined ? [] : Object.keys(previousState).filter((k) => !(k in folded.state));
 
   const bundle = log[cursor.commitIdx];
   const rows = Array.isArray(bundle?.trace)
-    ? bundle.trace.map((r: TraceRow) =>
-        Object.freeze({ path: r.path, verb: r.verb }),
-      )
+    ? bundle.trace.map((r: TraceRow) => Object.freeze({ path: r.path, verb: r.verb }))
     : [];
 
   const stages = new Set<string>();
-  if (bundle !== undefined && typeof bundle.runtimeStageId === "string")
-    stages.add(bundle.runtimeStageId);
+  if (bundle !== undefined && typeof bundle.runtimeStageId === 'string') stages.add(bundle.runtimeStageId);
   for (const k of keys)
-    if (
-      k.since !== undefined &&
-      k.since !== "unchanged" &&
-      k.wroteBy !== undefined
-    )
-      stages.add(k.wroteBy);
+    if (k.since !== undefined && k.since !== 'unchanged' && k.wroteBy !== undefined) stages.add(k.wroteBy);
 
   const skipped =
     folded.skipped !== undefined && folded.skipped.length > 0

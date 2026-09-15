@@ -18,6 +18,7 @@ export default defineConfig({
     core: "src/core/index.ts",
     why: "src/why/index.ts",
     skillgraph: "src/skillgraph/index.ts",
+    context: "src/context/index.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

@@ -14,58 +14,51 @@
  * string this view owns — names for things on the screen, never a sentence
  * about the run (test/served/no-own-claims.test.ts walks this file).
  */
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState } from 'react';
 
-import {
-  contextAt,
-  type ContextAt,
-  type ContextKey,
-} from "../../core/context/contextAt.js";
-import type { LensCursor } from "../../core/cursor/lensCursor.js";
-import { lensCursorFrom } from "../../core/cursor/lensCursor.js";
-import type { CursorPosition } from "../../core/group/cursorPositionsAtDrill.js";
-import type { ServedCursor } from "../../core/served/types.js";
-import { tagAxisPositions } from "../../core/tags/tagAxis.js";
-import type { EventLogEntry } from "../../core/types.js";
-import {
-  snapshotLogKey,
-  snapshotOfRunner,
-} from "../../core/utils/snapshotOfRunner.js";
-import { Badge } from "./ServedBadge.js";
+import { contextAt, type ContextAt, type ContextKey } from '../../core/context/contextAt.js';
+import type { LensCursor } from '../../core/cursor/lensCursor.js';
+import { lensCursorFrom } from '../../core/cursor/lensCursor.js';
+import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
+import type { ServedCursor } from '../../core/served/types.js';
+import { tagAxisPositions } from '../../core/tags/tagAxis.js';
+import type { EventLogEntry } from '../../core/types.js';
+import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRunner.js';
+import { Badge } from './ServedBadge.js';
 
 export const LABELS = Object.freeze({
-  view: "Context",
-  keys: "keys",
-  wroteBy: "wrote by",
-  at: "at",
-  entered: "entered",
-  changed: "changed",
-  unchanged: "unchanged",
-  left: "left",
-  unattributed: "unattributed",
-  rows: "rows",
-  served: "served",
-  why: "why",
-  epoch: "epoch",
-  system: "system",
-  tools: "tools",
-  redacted: "redacted",
-  skipped: "skipped",
-  foldError: "fold error",
-  servedError: "served error",
-  previous: "previous",
-  next: "next",
-  json: "JSON",
-  empty: "{ }",
+  view: 'Context',
+  keys: 'keys',
+  wroteBy: 'wrote by',
+  at: 'at',
+  entered: 'entered',
+  changed: 'changed',
+  unchanged: 'unchanged',
+  left: 'left',
+  unattributed: 'unattributed',
+  rows: 'rows',
+  served: 'served',
+  why: 'why',
+  epoch: 'epoch',
+  system: 'system',
+  tools: 'tools',
+  redacted: 'redacted',
+  skipped: 'skipped',
+  foldError: 'fold error',
+  servedError: 'served error',
+  previous: 'previous',
+  next: 'next',
+  json: 'JSON',
+  empty: '{ }',
 });
 
 /** The milestone kinds a standalone view walks — the library's own tag vocabulary. */
 export const MILESTONE_AXIS: readonly string[] = Object.freeze([
-  "milestone:iteration",
-  "milestone:slot",
-  "milestone:llm-turn",
-  "milestone:tool-call",
-  "milestone:decision",
+  'milestone:iteration',
+  'milestone:slot',
+  'milestone:llm-turn',
+  'milestone:tool-call',
+  'milestone:decision',
 ]);
 
 export interface ContextViewProps {
@@ -76,7 +69,7 @@ export interface ContextViewProps {
   /** The recording's event stream, for the `why` band (a replay's `getEntries()`). */
   readonly events?: readonly EventLogEntry[];
   /** Show the fold as JSON instead of the key table. */
-  readonly initialMode?: "keys" | "json";
+  readonly initialMode?: 'keys' | 'json';
 }
 
 function positionsOf(snapshot: unknown): readonly CursorPosition[] {
@@ -96,9 +89,7 @@ function previousOf(
 ): ServedCursor | undefined {
   if (cursor.at.step <= 0) return undefined;
   const p = positions?.[cursor.at.step - 1];
-  return p !== undefined
-    ? { runtimeStageId: p.runtimeStageId, commitIdx: p.commitIdx }
-    : undefined;
+  return p !== undefined ? { runtimeStageId: p.runtimeStageId, commitIdx: p.commitIdx } : undefined;
 }
 
 export function ContextView(props: ContextViewProps): React.ReactElement {
@@ -118,9 +109,7 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
       Math.min(ownStep, Math.max(0, (ownPositions?.length ?? 1) - 1)),
       setOwnStep,
     );
-  const [mode, setMode] = useState<"keys" | "json">(
-    props.initialMode ?? "keys",
-  );
+  const [mode, setMode] = useState<'keys' | 'json'>(props.initialMode ?? 'keys');
 
   const context = useMemo(
     () =>
@@ -128,14 +117,7 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
         previous: previousOf(cursor, ownPositions),
         events,
       }),
-    [
-      snapshot,
-      cursor.at.runtimeStageId,
-      cursor.at.commitIdx,
-      cursor.at.step,
-      ownPositions,
-      events,
-    ],
+    [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, cursor.at.step, ownPositions, events],
   );
 
   return (
@@ -150,7 +132,7 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
         <span style={dim}>
           {cursor.at.label} · {cursor.at.step + 1}/{cursor.total}
         </span>
-        <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+        <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
           {props.cursor === undefined && (
             <>
               <button
@@ -176,8 +158,8 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
           <button
             type="button"
             style={btn}
-            aria-pressed={mode === "keys"}
-            onClick={() => setMode("keys")}
+            aria-pressed={mode === 'keys'}
+            onClick={() => setMode('keys')}
             data-testid="context-mode-keys"
           >
             {LABELS.keys}
@@ -185,8 +167,8 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
           <button
             type="button"
             style={btn}
-            aria-pressed={mode === "json"}
-            onClick={() => setMode("json")}
+            aria-pressed={mode === 'json'}
+            onClick={() => setMode('json')}
             data-testid="context-mode-json"
           >
             {LABELS.json}
@@ -194,43 +176,28 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
         </span>
       </div>
       <Facts context={context} />
-      {mode === "json" ? (
-        <JsonPane context={context} />
-      ) : (
-        <KeyTable context={context} />
-      )}
+      {mode === 'json' ? <JsonPane context={context} /> : <KeyTable context={context} />}
       <ServedBand context={context} />
       <WhyBand context={context} />
     </div>
   );
 }
 
-function Facts({
-  context,
-}: {
-  readonly context: ContextAt;
-}): React.ReactElement | null {
+function Facts({ context }: { readonly context: ContextAt }): React.ReactElement | null {
   const facts: string[] = [];
   if (context.redacted) facts.push(LABELS.redacted);
-  if (context.skipped !== undefined)
-    facts.push(`${LABELS.skipped} ${context.skipped.join(",")}`);
-  if (context.foldError !== undefined)
-    facts.push(`${LABELS.foldError}: ${context.foldError}`);
-  if (context.servedError !== undefined)
-    facts.push(`${LABELS.servedError}: ${context.servedError}`);
+  if (context.skipped !== undefined) facts.push(`${LABELS.skipped} ${context.skipped.join(',')}`);
+  if (context.foldError !== undefined) facts.push(`${LABELS.foldError}: ${context.foldError}`);
+  if (context.servedError !== undefined) facts.push(`${LABELS.servedError}: ${context.servedError}`);
   if (facts.length === 0) return null;
   return (
     <div style={dim} data-testid="context-facts">
-      {facts.join(" · ")}
+      {facts.join(' · ')}
     </div>
   );
 }
 
-function KeyTable({
-  context,
-}: {
-  readonly context: ContextAt;
-}): React.ReactElement {
+function KeyTable({ context }: { readonly context: ContextAt }): React.ReactElement {
   if (context.keys.length === 0 && context.left.length === 0) {
     return (
       <div style={mono} data-testid="context-empty">
@@ -245,12 +212,7 @@ function KeyTable({
           <KeyRow key={k.path} k={k} />
         ))}
         {context.left.map((path) => (
-          <tr
-            key={`left:${path}`}
-            data-testid="context-key"
-            data-since="left"
-            style={{ opacity: 0.6 }}
-          >
+          <tr key={`left:${path}`} data-testid="context-key" data-since="left" style={{ opacity: 0.6 }}>
             <td style={cell}>
               <code>{path}</code>
             </td>
@@ -269,8 +231,8 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
     <tr
       data-testid="context-key"
       data-path={k.path}
-      data-since={k.since ?? ""}
-      style={k.since === "unchanged" ? { opacity: 0.6 } : undefined}
+      data-since={k.since ?? ''}
+      style={k.since === 'unchanged' ? { opacity: 0.6 } : undefined}
     >
       <td style={cell}>
         <code>{k.path}</code>
@@ -282,7 +244,7 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
             <span style={dim}>{LABELS.wroteBy} </span>
             <code>{k.wroteBy}</code>
             <span style={dim}>
-              {" "}
+              {' '}
               {LABELS.at} #{k.wroteAt} · {k.verb}
             </span>
           </>
@@ -299,20 +261,11 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
 
 function ValueCell({ value }: { readonly value: unknown }): React.ReactElement {
   const text = JSON.stringify(value);
-  const short =
-    text === undefined
-      ? ""
-      : text.length > 160
-        ? `${text.slice(0, 157)}…`
-        : text;
+  const short = text === undefined ? '' : text.length > 160 ? `${text.slice(0, 157)}…` : text;
   return <span title={text}>{short}</span>;
 }
 
-function JsonPane({
-  context,
-}: {
-  readonly context: ContextAt;
-}): React.ReactElement {
+function JsonPane({ context }: { readonly context: ContextAt }): React.ReactElement {
   const object: Record<string, unknown> = {};
   for (const k of context.keys) object[k.path] = k.value;
   return (
@@ -322,11 +275,7 @@ function JsonPane({
   );
 }
 
-function ServedBand({
-  context,
-}: {
-  readonly context: ContextAt;
-}): React.ReactElement | null {
+function ServedBand({ context }: { readonly context: ContextAt }): React.ReactElement | null {
   const served = context.served;
   if (served === undefined) return null;
   const { row, checks } = served;
@@ -334,18 +283,14 @@ function ServedBand({
     <div style={band} data-testid="context-served" data-epoch={row.view.epoch}>
       <span style={dim}>
         {LABELS.served} · {LABELS.epoch} {row.view.epoch} · {LABELS.system}
-      </span>{" "}
-      <Badge check={checks.system} /> <span style={dim}>{LABELS.tools}</span>{" "}
+      </span>{' '}
+      <Badge check={checks.system} /> <span style={dim}>{LABELS.tools}</span>{' '}
       <Badge check={checks.toolNames} />
     </div>
   );
 }
 
-function WhyBand({
-  context,
-}: {
-  readonly context: ContextAt;
-}): React.ReactElement | null {
+function WhyBand({ context }: { readonly context: ContextAt }): React.ReactElement | null {
   if (context.why.length === 0) return null;
   return (
     <div style={band} data-testid="context-why">
@@ -362,50 +307,50 @@ function WhyBand({
 }
 
 const panel: React.CSSProperties = {
-  display: "flex",
-  flexDirection: "column",
+  display: 'flex',
+  flexDirection: 'column',
   gap: 8,
   padding: 10,
   fontSize: 13,
 };
 const header: React.CSSProperties = {
-  display: "flex",
-  alignItems: "center",
+  display: 'flex',
+  alignItems: 'center',
   gap: 10,
 };
 const title: React.CSSProperties = { fontWeight: 600 };
 const dim: React.CSSProperties = { opacity: 0.7 };
 const mono: React.CSSProperties = {
-  fontFamily: "monospace",
+  fontFamily: 'monospace',
   fontSize: 12,
 };
 const pre: React.CSSProperties = {
   margin: 0,
-  whiteSpace: "pre-wrap",
-  wordBreak: "break-word",
+  whiteSpace: 'pre-wrap',
+  wordBreak: 'break-word',
 };
 const table: React.CSSProperties = {
-  borderCollapse: "collapse",
-  width: "100%",
+  borderCollapse: 'collapse',
+  width: '100%',
 };
 const cell: React.CSSProperties = {
-  padding: "4px 6px",
-  verticalAlign: "top",
-  borderTop: "1px solid",
-  borderTopColor: "currentColor",
+  padding: '4px 6px',
+  verticalAlign: 'top',
+  borderTop: '1px solid',
+  borderTopColor: 'currentColor',
 };
 const pill: React.CSSProperties = {
   marginLeft: 6,
-  padding: "0 6px",
+  padding: '0 6px',
   borderRadius: 8,
   fontSize: 11,
-  border: "1px solid",
-  borderColor: "currentColor",
+  border: '1px solid',
+  borderColor: 'currentColor',
 };
 const band: React.CSSProperties = {
   paddingTop: 6,
-  borderTop: "1px solid",
-  borderTopColor: "currentColor",
+  borderTop: '1px solid',
+  borderTopColor: 'currentColor',
 };
-const list: React.CSSProperties = { margin: "4px 0 0", paddingLeft: 18 };
-const btn: React.CSSProperties = { fontSize: 12, padding: "2px 8px" };
+const list: React.CSSProperties = { margin: '4px 0 0', paddingLeft: 18 };
+const btn: React.CSSProperties = { fontSize: 12, padding: '2px 8px' };

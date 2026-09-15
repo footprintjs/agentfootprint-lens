@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.53.1] - 2026-09-15
+
+### Added — `agentfootprint-lens/context`, a door for the Context view
+
+- The docs walkthrough mounted `<ContextView>` from the root barrel; the
+  site's Lens demo imports the same barrel, so the bundler hoisted the whole
+  root barrel into one chunk both pages download and the deferred-demo budget
+  rose by 26 KB gzip for a component the demo never renders. A separate
+  entry (`src/context/index.ts` → `dist/context.js`, tsup + `exports` +
+  `typesVersions`) keeps the bytes with the page that uses them; the shared
+  cores stay shared. Same reason `/why` and `/skillgraph` exist; everything
+  on it is also on the root barrel. The packaging walk covers five entries
+  now.
+
 ## [0.53.0] - 2026-09-15
 
 ### Added — `<ContextView>`: the context object at the cursor, key by key

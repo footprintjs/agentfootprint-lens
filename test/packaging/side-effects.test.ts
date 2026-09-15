@@ -4,7 +4,7 @@
  * A bundler reads that flag as "no module here needs to be kept for what it
  * does at load; keep a module only for the exports of it you use". A false
  * `false` breaks consumers silently — a registration that never runs, a sheet
- * that never installs — so this file walks every ESM module the four entries
+ * that never installs — so this file walks every ESM module the five entries
  * reach and requires each top-level statement to be one of:
  *
  *   · a declaration (function, class, `export … from`),
@@ -48,7 +48,7 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const dist = resolve(repoRoot, 'dist');
-const ENTRIES = ['index.js', 'core.js', 'why.js', 'skillgraph.js'] as const;
+const ENTRIES = ['index.js', 'core.js', 'why.js', 'skillgraph.js', 'context.js'] as const;
 const built = ENTRIES.every((e) => existsSync(join(dist, e)));
 
 const XYFLOW_SHEET = '@xyflow/react/dist/style.css';
@@ -81,7 +81,7 @@ const PURE_CALLEES = new Set([
   'parseFloat',
 ]);
 
-/** The ESM modules reachable from the four entries, by following `./chunk-…` imports. */
+/** The ESM modules reachable from the five entries, by following `./chunk-…` imports. */
 function reachableModules(): string[] {
   const seen = new Set<string>();
   const queue: string[] = [...ENTRIES];

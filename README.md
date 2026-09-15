@@ -78,6 +78,7 @@ changes.
 |---|---|
 | `agentfootprint-lens/why` | Replay a recording as the agent's own milestones. `<WhyLens recording={...} />` takes the recording straight (`recordRun()`'s `{ snapshot, events, structure }`, or the `persistRecording` envelope), validates it at mount, and mounts the shipped `<Lens>` shell on the milestone axis — plus the axis helpers (`scrubAxisFor`, `stepForCommitIdx`, `stepForRuntimeStageId`, `resolveNavigation`) for hosts holding one cursor across views. |
 | `agentfootprint-lens/skillgraph` | Debug how a run routed through its skills. `<SkillGraphDebugger recorder={...} />` plus its headless selectors (`selectSkillRoute`, `selectSkillBeats`, `selectSkillTopology`, `selectSkillFrameContext`, `stepForRuntimeStageId`, `resolveNavigation`). |
+| `agentfootprint-lens/context` | The context object at a stop, key by key — who wrote each, what moved, what was served. `<ContextView runner={...} />` walks the milestone axis on its own; hand it `cursor` and it follows the ONE cursor (0.53.1). |
 
 The axis model in three sentences: one run leaves one causal trace, and each
 lens replays one AXIS of it — the Why reading scrubs the milestones, the Flow
