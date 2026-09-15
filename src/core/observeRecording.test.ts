@@ -94,7 +94,8 @@ describe('observeRecording — a recording that captured its boundaries', () => 
     // stop, on the answer — the strip follows the substrate's declaration.
     const positions = cursorPositions(observed);
     expect(positions).toHaveLength(23);
-    expect(positions.filter((p) => p.label.startsWith('Answer'))).toHaveLength(1);
+    const labels = positions.map((p) => (p as { label: string }).label);
+    expect(labels.filter((l) => l.startsWith('Answer'))).toHaveLength(1);
   });
 
   it('replays every event with none skipped, and reports the counts', () => {
