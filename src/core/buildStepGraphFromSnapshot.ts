@@ -94,7 +94,20 @@ interface BuilderContext {
   runStartMs: number;
 }
 
-function visit(stage: StageSnapshot, parentPath: readonly string[], ctx: BuilderContext): void {
+/**
+ * Walk one `next` chain — a LOOP, not a recursion (0.58.2). A long linear run
+ * links stages by `next` one level per stage; a recursive visit hit the
+ * engine's call-stack limit at ~10 000 stages in the browser, the same wall
+ * `JSON.stringify` hits on the record (footprintjs 9.26.0). `parentPath` is
+ * constant along the chain, so the loop is the recursion, exactly.
+ */
+function visit(first: StageSnapshot, parentPath: readonly string[], ctx: BuilderContext): void {
+  for (let stage: StageSnapshot | undefined = first; stage !== undefined; stage = stage.next) {
+    visitOne(stage, parentPath, ctx);
+  }
+}
+
+function visitOne(stage: StageSnapshot, parentPath: readonly string[], ctx: BuilderContext): void {
   const primitiveKind = parsePrimitiveKind(stage.description);
   const isPrimitive = primitiveKind !== undefined;
   const subflowPath = stage.subflowId ? [...parentPath, stage.subflowId] : parentPath;
@@ -179,7 +192,6 @@ function visit(stage: StageSnapshot, parentPath: readonly string[], ctx: Builder
         });
       }
     }
-    visit(stage.next, parentPath, ctx);
   }
 }
 

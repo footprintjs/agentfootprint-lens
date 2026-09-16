@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.58.2] - 2026-09-16
+
+### Fixed — the step graph walks a long run as a loop
+
+- `buildStepGraphFromSnapshot` visited the run tree's `next` chain by
+  recursion, one call per stage, so a long linear run (about ten thousand
+  stages) hit the engine's call-stack limit in the browser — the same wall
+  footprintjs 9.26.0 removed from the record's JSON. The chain is walked as
+  a loop now (the parent path is constant along it, so the loop is the
+  recursion exactly); pinned by a 20 000-stage chain that builds one node
+  per primitive stage. Found by footprintjs's read-side bench.
+
 ## [0.58.1] - 2026-09-16
 
 ### Fixed — no transport lit for an address the axis cannot hold
