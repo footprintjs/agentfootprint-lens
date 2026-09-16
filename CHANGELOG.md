@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.53.4] - 2026-09-15
+
+### Fixed — the lens bundles again on its declared footprintjs floor
+
+- `contextAt` imported `pathSegments` from `footprintjs/trace` by name — an
+  export that exists since footprintjs 9.22.0 — while the lens's peer range
+  says `^9.17.0`. On a consumer pinned to 9.21.1 (an on-prem app) the whole
+  lens failed to pre-bundle (`No matching export … "pathSegments"`) and its
+  dev server went down at start. The helper is read at call time now, the
+  way `tagStops` and `milestoneFromTags` are, and on a substrate without it
+  the first segment is taken the way that substrate spelled its paths
+  (dotted). New packaging test `test/packaging/floor-imports.test.ts` pins
+  the 9.17.0 export surface from that package's own d.ts and refuses any
+  static value import from `footprintjs` / `footprintjs/trace` that is not
+  on it — the class of defect, not the instance.
+
 ## [0.53.3] - 2026-09-15
 
 ### Added — `previous` on `<ContextView>`

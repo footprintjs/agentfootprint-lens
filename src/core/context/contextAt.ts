@@ -25,7 +25,8 @@
  *
  * Pure; frozen returns; no React. Consumers with their own UI read this.
  */
-import { pathSegments, stateAt } from 'footprintjs/trace';
+import * as trace from 'footprintjs/trace';
+import { stateAt } from 'footprintjs/trace';
 import type { FoldSource, FoldedState } from 'footprintjs/trace';
 
 import type { EventLogEntry } from '../types.js';
@@ -100,6 +101,23 @@ export interface ContextAtOptions {
   readonly events?: readonly EventLogEntry[];
 }
 
+/**
+ * The top-level key a trace-row path names. footprintjs 9.22.0 exports
+ * `pathSegments` (its paths are joined with U+001F since then); the lens's
+ * peer floor is 9.17.0, whose paths are dotted and which has no such export —
+ * so the helper is read at call time, the way `tagStops` is, and a floor
+ * substrate gets the split it used (0.53.4: a consumer on 9.21.1 could not
+ * even bundle the lens while this was a static import).
+ */
+export function firstSegment(path: string): string | undefined {
+  const helper = (trace as { pathSegments?: (p: string) => string[] }).pathSegments;
+  if (typeof helper === 'function') return helper(path)[0];
+  const unit = path.indexOf('\u001F');
+  if (unit >= 0) return path.slice(0, unit);
+  const dot = path.indexOf('.');
+  return dot >= 0 ? path.slice(0, dot) : path;
+}
+
 interface WriterFacts {
   readonly wroteBy: string;
   readonly wroteAt: number;
@@ -121,7 +139,7 @@ function writersUpTo(log: readonly CommitBundle[], commitIdx: number): ReadonlyM
     if (bundle === undefined || typeof bundle.runtimeStageId !== 'string' || !Array.isArray(bundle.trace))
       continue;
     for (const row of bundle.trace) {
-      const key = pathSegments(row.path)[0];
+      const key = firstSegment(row.path);
       if (key === undefined) continue;
       const prior = out.get(key);
       out.set(key, {
