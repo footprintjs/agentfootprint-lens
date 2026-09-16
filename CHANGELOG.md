@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.53.5] - 2026-09-16
+
+### Fixed — the Context view fits a narrow rail; one duplicate key in the skill graph
+
+- `<ContextView>`'s key table overflowed a 430px inspector column (a value
+  cell of JSON with no break points pushed the whole table sideways). The
+  table is fixed-layout with a column group (28 / 34 / rest) and cells break
+  anywhere, so a rail the width of the Lens's own shows every column.
+- `FrameFactsPanel` keyed injections by `slot-skillId`; a skill that
+  contributes two injections to one slot (seen live on an on-prem app:
+  `tools-<skill>` twice) produced React's duplicate-key warning on every
+  render. Keyed by index beside the pair now.
+
 ## [0.53.4] - 2026-09-15
 
 ### Fixed — the lens bundles again on its declared footprintjs floor

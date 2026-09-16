@@ -42,10 +42,7 @@ export interface FrameFactsPanelProps {
   readonly frameContext?: SkillFrameContext;
 }
 
-export function FrameFactsPanel({
-  beat,
-  frameContext,
-}: FrameFactsPanelProps): React.ReactElement {
+export function FrameFactsPanel({ beat, frameContext }: FrameFactsPanelProps): React.ReactElement {
   if (beat === undefined) {
     return (
       <div style={panelStyle} data-testid="frame-facts">
@@ -61,16 +58,13 @@ export function FrameFactsPanel({
   const reachableAsData = beat.reachable?.source === 'cursor-move';
   return (
     <div style={panelStyle} data-testid="frame-facts">
-      <Header
-        title="What the model saw"
-        subtitle={`${beat.label} · the call this stop prepared`}
-      />
+      <Header title="What the model saw" subtitle={`${beat.label} · the call this stop prepared`} />
 
       {hop.systemPromptText !== undefined && (
         <Section title="system prompt, as sent" count={1}>
           <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>
-            the assembled prompt, byte-for-byte as the provider received it (the producer opted
-            in with <code>recordSystemPrompt: true</code>)
+            the assembled prompt, byte-for-byte as the provider received it (the producer opted in with{' '}
+            <code>recordSystemPrompt: true</code>)
           </div>
           <Mono testId="system-prompt-text">{hop.systemPromptText}</Mono>
         </Section>
@@ -81,8 +75,8 @@ export function FrameFactsPanel({
           <Mono testId="read-skill-description">{hop.readSkillDescription}</Mono>
         ) : (
           <Absent>
-            This iteration&apos;s recording carries no <code>read_skill</code> description — either
-            the run had no gate tool on this call, or the tool catalog was not captured.
+            This iteration&apos;s recording carries no <code>read_skill</code> description — either the run
+            had no gate tool on this call, or the tool catalog was not captured.
           </Absent>
         )}
       </Section>
@@ -110,14 +104,12 @@ export function FrameFactsPanel({
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {hop.skillInjections.map((inj, i) => (
-              <div key={`${inj.slot}-${inj.skillId ?? i}`}>
+              <div key={`${inj.slot}-${inj.skillId ?? ''}-${i}`}>
                 <div style={{ fontSize: 10, color: T.textMuted, fontFamily: T.fontMono }}>
                   {inj.slot}
                   {inj.skillId !== undefined ? ` · ${inj.skillId}` : ''}
                 </div>
-                <div style={{ fontSize: 11.5, color: T.textSecondary }}>
-                  {inj.text ?? inj.summary}
-                </div>
+                <div style={{ fontSize: 11.5, color: T.textSecondary }}>{inj.text ?? inj.summary}</div>
                 {inj.text === undefined && inj.summary !== '' && (
                   <div style={{ fontSize: 10, color: T.textMuted }}>
                     (summary only — this recording did not capture the full text)
@@ -129,34 +121,27 @@ export function FrameFactsPanel({
         )}
       </Section>
 
-      <Section
-        title="engineered context on the call"
-        count={frameContext?.injections.length ?? 0}
-      >
+      <Section title="engineered context on the call" count={frameContext?.injections.length ?? 0}>
         {frameContext === undefined ? (
           <Absent>
-            No step graph was supplied, so this beat could not be paired with the call it
-            prepared. The skill-sourced injections above come from the routing events themselves.
+            No step graph was supplied, so this beat could not be paired with the call it prepared. The
+            skill-sourced injections above come from the routing events themselves.
           </Absent>
         ) : !frameContext.paired ? (
           <Absent>
-            No LLM call was recorded after this stop — the run ended here, or the call was not
-            captured.
+            No LLM call was recorded after this stop — the run ended here, or the call was not captured.
           </Absent>
         ) : frameContext.injections.length === 0 ? (
           <Absent>
             The call carried {frameContext.totalInjections} injection
-            {frameContext.totalInjections === 1 ? '' : 's'}, all of them baseline (the user
-            message, tool results, the static prompt and tool registry) — none engineered.
+            {frameContext.totalInjections === 1 ? '' : 's'}, all of them baseline (the user message, tool
+            results, the static prompt and tool registry) — none engineered.
           </Absent>
         ) : (
           <>
             <div style={{ fontSize: 10, color: T.textMuted, marginBottom: 4 }}>
-              {frameContext.injections.length} of {frameContext.totalInjections} injections were
-              engineered
-              {frameContext.stepRuntimeStageId !== undefined
-                ? ` · ${frameContext.stepRuntimeStageId}`
-                : ''}
+              {frameContext.injections.length} of {frameContext.totalInjections} injections were engineered
+              {frameContext.stepRuntimeStageId !== undefined ? ` · ${frameContext.stepRuntimeStageId}` : ''}
             </div>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
               {frameContext.injections.map((inj, i) => (
@@ -217,18 +202,18 @@ export function FrameFactsPanel({
           {!promptOnRecord && (
             <>
               {' '}
-              The system prompt as one assembled string is not recorded — the injections above
-              are the pieces it was composed from. Recording the assembled prompt is an explicit
-              opt-in (<code>recordSystemPrompt: true</code>); the default keeps it out of every
-              recording, because it carries everything injected into it.
+              The system prompt as one assembled string is not recorded — the injections above are the pieces
+              it was composed from. Recording the assembled prompt is an explicit opt-in (
+              <code>recordSystemPrompt: true</code>); the default keeps it out of every recording, because it
+              carries everything injected into it.
             </>
           )}
           {!reachableAsData && (
             <>
               {' '}
-              The reachable set is not recorded as data in this era&apos;s recording: it appears
-              as prose inside <code>read_skill</code>&apos;s description, and as a typed list
-              only when the gate refused a pick.
+              The reachable set is not recorded as data in this era&apos;s recording: it appears as prose
+              inside <code>read_skill</code>&apos;s description, and as a typed list only when the gate
+              refused a pick.
             </>
           )}{' '}
           Nothing absent is reconstructed here.

@@ -214,6 +214,11 @@ function KeyTable({ context }: { readonly context: ContextAt }): React.ReactElem
   }
   return (
     <table style={table} data-testid="context-keys">
+      <colgroup>
+        <col style={{ width: '28%' }} />
+        <col style={{ width: '34%' }} />
+        <col />
+      </colgroup>
       <tbody>
         {context.keys.map((k) => (
           <KeyRow key={k.path} k={k} />
@@ -339,8 +344,11 @@ const pre: React.CSSProperties = {
 const table: React.CSSProperties = {
   borderCollapse: 'collapse',
   width: '100%',
+  tableLayout: 'fixed',
 };
 const cell: React.CSSProperties = {
+  wordBreak: 'break-all',
+  overflowWrap: 'anywhere',
   padding: '4px 6px',
   verticalAlign: 'top',
   borderTop: '1px solid',
