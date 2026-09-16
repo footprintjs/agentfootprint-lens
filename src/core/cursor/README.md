@@ -68,3 +68,18 @@ One line, in the detail slot:
 ```
 
 Everything the old props did still works; nothing was removed.
+
+## One address, every axis (0.55.0)
+
+`sharedCursor.ts` is the layer a HOST needs when it mounts several lenses
+over one recording. A `CursorAddress` is where the cursor stands on the
+record — `runtimeStageId`, `commitIdx`, and the `drillPath` it was read
+under — never a step on an axis. `stepForAddress(positions, address)`
+derives the step an axis shows for it: the exact stage when the axis has it,
+else the stop that CONTAINS the commit (`stepForCommitIdx`), else `-1`.
+`cursorForAddress(positions, address, onMove)` is the `LensCursor` a lens
+reads for its axis; its `moveTo` hands the landed position's address to
+`onMove` — the one funnel. The React owner is `useSharedCursor` (react/).
+
+The law: a tab derives a step; only a mover changes the address; a visit to a
+coarser axis and back lands on the same commit (`test/cursor/`).

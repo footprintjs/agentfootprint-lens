@@ -147,6 +147,18 @@ export {
   type LensCursor,
   type LensCursorReading,
 } from "./cursor/lensCursor.js";
+// ONE ADDRESS, EVERY AXIS (0.55.0) — a host that mounts several lenses holds
+// a `CursorAddress` on the record, and each lens derives its own step from it
+// (`stepForAddress`: the exact stage, else the stop that contains the commit,
+// else none). `cursorForAddress` is the `LensCursor` a lens reads for its
+// axis; its `moveTo` hands the landed address back — the one funnel. The
+// React owner is `useSharedCursor` (root barrel).
+export {
+  addressOf,
+  cursorForAddress,
+  stepForAddress,
+  type CursorAddress,
+} from "./cursor/sharedCursor.js";
 // The scrub axis itself, as a pure function — the same positions `<Lens>`
 // scrubs at that granularity, computable with no React and nothing mounted.
 // Pair it with `resolveNavigation` / `stepForCommitIdx` to turn an address or

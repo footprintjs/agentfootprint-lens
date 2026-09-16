@@ -5,6 +5,38 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.55.0] - 2026-09-16
+
+### Added — the shared cursor: one address, every lens
+
+- `useSharedCursor(recorder)` (root barrel) is the ONE cursor a host keeps
+  across every lens it mounts. It holds an ADDRESS on the record
+  (`CursorAddress { runtimeStageId, commitIdx, drillPath? }`), never a step
+  on an axis, and hands each lens a `LensCursor` for the axis that lens draws
+  (`forAxis('step' | 'group', drillPath?)`). A click in any lens moves the
+  address; opening another tab derives that tab's step from it and rewrites
+  nothing — so a Flow click at a commit survives a visit to Why and back.
+  `onStepChange(step, at)` bridges the older step + report contract, so a
+  `<Lens step onStepChange>` or a Skill Graph transport keeps working while
+  a host migrates one lens at a time. Default: the run's end as an address
+  (one past the last commit, no stage named), from which each axis derives
+  its own last stop; a new recorder drops the held address.
+- Headless (`/core`): `stepForAddress(positions, address)` — the exact stage
+  when the axis has it, else the stop that contains the commit, else none —
+  and `cursorForAddress(positions, address, onMove, axisDrillPath?)`;
+  `addressOf(position, drillPath?)`. Across mounts a commit index is not
+  comparable (a subflow keeps its own log), so under a different drill path
+  only the exact stage resolves and an unnamed address reads as no position;
+  a move lands under the axis's own drill path. `forAxis` hands the same
+  cursor object for an axis until the address moves, so a memo keyed on it
+  holds.
+- Why: a debug tool that mounts Why, Flow, Context, Skill Graph and Data
+  Graph over one recording wrote this owner by hand — a `{ axis, step, at }`
+  state and a remap by commit index on every tab switch. The adapter belongs
+  in the library. Design: docs/design/2026-09-shared-cursor.md, which also
+  records what the fixtures taught: the two axes anchor the same stage at
+  different commit indices, so the exact stage lookup comes first.
+
 ## [0.54.0] - 2026-09-16
 
 ### Added — the Context view shows what the model HAD, then what it was built from

@@ -812,6 +812,37 @@ const href = to.ok ? `/runs/${runId}?step=${to.step}` : undefined;
 
 ---
 
+### One cursor across several lenses: `useSharedCursor`
+
+A debug tool that mounts Why, Flow, Context and the Skill Graph over one
+recording keeps ONE cursor. The lenses draw different axes — Flow every
+commit, Why and Context the agent's milestones — so what the host holds must
+be an ADDRESS on the record, not a step on an axis. `useSharedCursor` holds
+that address and hands each lens a `LensCursor` for the axis it draws:
+
+```tsx
+import { useSharedCursor, Lens, ContextView } from 'agentfootprint-lens';
+
+const shared = useSharedCursor(recorder);
+
+// Reads the address on the milestone axis; a click here moves the address.
+<ContextView runner={recording} cursor={shared.forAxis('group')} />
+
+// The older step + report contract, bridged into the same address — so a
+// `<Lens>` or a Skill Graph transport keeps working while you migrate one
+// lens at a time.
+<Lens recorder={recorder} granularity="step"
+      step={shared.forAxis('step').at.step} onStepChange={shared.onStepChange} />
+```
+
+The law: a tab DERIVES its step from the address (the exact stage when its
+axis has it, else the stop that contains the commit); only a MOVER changes
+the address; a visit to a coarser axis and back lands on the same commit.
+With no move yet the address is the run's end, from which each axis derives
+its own last stop; a new recorder drops the held address. Headless pieces on
+`/core`: `stepForAddress`, `cursorForAddress`, `addressOf`. Design and the
+facts the fixtures taught: docs/design/2026-09-shared-cursor.md.
+
 ## Time travel through one port
 
 **Nothing to do — this is how the cursor already moves.** Read it if you are
