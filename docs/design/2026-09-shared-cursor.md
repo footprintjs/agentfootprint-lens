@@ -85,7 +85,7 @@ remap the host wrote itself. The adapter belongs in the library.
 - [x] 4 neo drawer on the owner (`be-server/web/src/LensPanes.tsx` `useSharedCursor`; `ContextLensTab` takes `cursor` + the axis for `previous`), verified in the browser on a real run — Flow at commit 60 → Why stop 14 (call-llm#68, commit 59, contains it) → Context same → Flow back at commit 60 → Skill Graph commit 60; pushed
   FACT: with the owner the `<Lens>` is CONTROLLED from the first render (the default address is the run's end), where before it self-drove until the first move — same opening stop, no live auto-follow on a finished turn (none needed there)
   LEFT IN THE HOST for now: `scrubAxisFor(recorder, 'group')` to name the stop BEFORE the cursor for `previous` — 5c moves that into the lens
-- [x] 5a `<Lens shared>` (0.56.0; DECIDED for adoption: one word `shared`, one type, every lens; `SharedCursor.over(positions)` is the general form; a clamped correction never moves the address; the axis-swap re-seat is skipped with an owner)  · [ ] 5b Skill/Data Graph · [ ] 5c one transport · [ ] 5d Story
+- [x] 5a `<Lens shared>` (0.56.0; DECIDED for adoption: one word `shared`, one type, every lens; `SharedCursor.over(positions)` is the general form; a clamped correction never moves the address; the axis-swap re-seat is skipped with an owner); HOST LANDED: neo Why/Flow on `<Lens shared>` — verified a Why move (sf-messages#58, 47 on the milestone axis) reads on Flow/Skill Graph as that exact stage (48 on the commit axis: the anchoring fact, exact lookup first)  · [ ] 5b Skill/Data Graph · [ ] 5c one transport · [ ] 5d Story
 
 ## Review notes kept (5a)
 
