@@ -1160,6 +1160,8 @@ likely to rot — and the question above is answered without it.
 
 ---
 
+Since 0.59.0 the tab also draws the provider's **cache boundary** where the receipt says it fell — a line after the system piece, message or tool the breakpoint sat on, so the reusable prefix of a call is visible on the pieces themselves.
+
 ## Bookmarks, and scrubbing by declared tag
 
 **The reader's marks, kept beside the recording — and the author's tags, as a

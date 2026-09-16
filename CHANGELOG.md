@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.59.0] - 2026-09-16
+
+### Added — the Served tab draws the provider's cache boundary where it fell
+
+- When the receipt's `cache.markersApplied` names a place — a field and an
+  index — the Served tab draws a `cache boundary` line right after that
+  element, in the system pieces, the messages as sent, and the tools as
+  sent. Everything above the line was the reusable prefix of that call:
+  the prefill-once idea, read off the record. The line carries the
+  marker's own field, index and ttl; a receipt with no marker draws none.
+  Test ids: `served-cache-boundary` with `data-field` and `data-index`.
+- Not shown, on purpose: a reuse share. The record carries no cache-read
+  token count today; when a provider adapter records one, it joins here
+  as data, not as an estimate.
+
 ## [0.58.2] - 2026-09-16
 
 ### Fixed — the step graph walks a long run as a loop

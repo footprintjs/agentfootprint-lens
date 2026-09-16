@@ -71,6 +71,8 @@ import { T } from '../theme/index.js';
  */
 export const LABELS = Object.freeze({
   tab: 'Served',
+  /** The provider's cache breakpoint, placed where it fell: everything above it was the reusable prefix. */
+  cacheBoundary: 'cache boundary',
   epoch: 'epoch',
   call: 'call',
   commit: 'commit',
@@ -207,6 +209,47 @@ function cursorAnchor(props: ServedTabProps): { runtimeStageId: string; commitId
 const snapshotOf = snapshotOfRunner;
 const logKeyOf = snapshotLogKey;
 
+/**
+ * The provider's cache breakpoint, drawn where it fell (0.59.0): after the
+ * element at `index` of `field`, when the receipt's `cache.markersApplied`
+ * names that place. Everything above the line was the reusable prefix of
+ * the call — the prefill-once idea, read off the record, never inferred.
+ */
+function CacheBoundary({
+  markers,
+  field,
+  index,
+}: {
+  readonly markers: readonly { readonly field: string; readonly boundaryIndex: number; readonly ttl: string }[];
+  readonly field: 'system' | 'messages' | 'tools';
+  readonly index: number;
+}): React.ReactElement | null {
+  const here = markers.filter((m) => m.field === field && m.boundaryIndex === index);
+  if (here.length === 0) return null;
+  return (
+    <>
+      {here.map((m, k) => (
+        <div key={k} style={boundaryStyle} data-testid="served-cache-boundary" data-field={m.field} data-index={m.boundaryIndex}>
+          <span style={monoMutedStyle}>
+            {LABELS.cacheBoundary} · {m.field} · {m.boundaryIndex} · {m.ttl}
+          </span>
+        </div>
+      ))}
+    </>
+  );
+}
+
+// One-word CSS literals only: the own-claims walker reads every string.
+const boundaryStyle: React.CSSProperties = {
+  borderTopWidth: 1,
+  borderTopStyle: 'dashed',
+  borderTopColor: 'currentColor',
+  marginTop: 6,
+  marginBottom: 0,
+  paddingTop: 4,
+  opacity: 0.8,
+};
+
 /** The tab, inside the boundary that keeps a bad record from unmounting the
  *  Lens. `ServedTabBody` is the tab itself. */
 export function ServedTab(props: ServedTabProps): React.ReactElement {
@@ -262,6 +305,7 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
 
   const { row, checks, since, fold, graph } = derived;
   const view = row.view;
+  const markers = row.receipt?.cache.markersApplied ?? [];
   const gapsCovering = (fields: readonly string[]): readonly ServedGap[] =>
     view.gaps.filter((g) => g.fields.some((f) => fields.includes(f)));
   const excusing = (fields: readonly string[]): boolean =>
@@ -311,15 +355,18 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
         ) : (
           <>
             {view.system.pieces.map((piece, i) => (
-              <div key={i} style={pieceStyle} data-testid="served-piece">
-                <div style={pieceHeadStyle}>
-                  <span style={monoMutedStyle}>
-                    {piece.slot} · {piece.source}
-                  </span>
-                  <Badge check={checks.pieces[i] ?? { status: 'reconstructed' }} />
+              <React.Fragment key={i}>
+                <div style={pieceStyle} data-testid="served-piece">
+                  <div style={pieceHeadStyle}>
+                    <span style={monoMutedStyle}>
+                      {piece.slot} · {piece.source}
+                    </span>
+                    <Badge check={checks.pieces[i] ?? { status: 'reconstructed' }} />
+                  </div>
+                  <Mono>{piece.text}</Mono>
                 </div>
-                <Mono>{piece.text}</Mono>
-              </div>
+                <CacheBoundary markers={markers} field="system" index={i} />
+              </React.Fragment>
             ))}
             {checks.onReceiptOnly.pieces > 0 && (
               <DataLine label={`${LABELS.pieces} · ${LABELS.onReceiptOnly}`}>
@@ -352,7 +399,8 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
         gaps={gapsCovering(SECTION_FIELDS.messages)}
       >
         {view.messages.asSent.map((m, i) => (
-          <div key={i} style={messageStyle} data-testid="served-message" data-role={m.role}>
+          <React.Fragment key={i}>
+            <div style={messageStyle} data-testid="served-message" data-role={m.role}>
             <div style={pieceHeadStyle}>
               <span style={monoMutedStyle}>
                 {m.role}
@@ -368,7 +416,9 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
                 <span style={monoMutedStyle}>{safeJson(c.args)}</span>
               </div>
             ))}
-          </div>
+            </div>
+            <CacheBoundary markers={markers} field="messages" index={i} />
+          </React.Fragment>
         ))}
         {view.messages.requestOnly.map((line, i) => (
           <div key={`ro-${i}`} style={messageStyle} data-testid="served-request-only">
@@ -413,12 +463,13 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
             {view.tools.withheld}
           </DataLine>
         )}
-        {view.tools.names.map((name) => {
+        {view.tools.names.map((name, i) => {
           const schema = view.tools.schemas.find((s) => s.name === name);
           const isForced = view.tools.forced === name;
           const open = openSchemas.has(name);
           return (
-            <div key={name} style={toolStyle} data-testid="served-tool" data-tool={name}>
+            <React.Fragment key={name}>
+              <div style={toolStyle} data-testid="served-tool" data-tool={name}>
               <div style={pieceHeadStyle}>
                 <span>
                   <span style={monoStyle}>{name}</span>
@@ -452,7 +503,9 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
                 </span>
               </div>
               {open && schema !== undefined && <Mono>{safeJson(schema)}</Mono>}
-            </div>
+              </div>
+              <CacheBoundary markers={markers} field="tools" index={i} />
+            </React.Fragment>
           );
         })}
         {checks.onReceiptOnly.toolNames.length > 0 && (
