@@ -39,6 +39,17 @@ describe('stepForAddress', () => {
     expect(group[at + 1] === undefined || group[at + 1]!.commitIdx > between.commitIdx).toBe(true);
   });
 
+  it('several stops on ONE stage: the address’s commit index picks the right one', () => {
+    const { group } = axes();
+    // FACT (fixture): the milestone axis stops twice on the same stage —
+    // a route and the answer it produced — one commit apart.
+    const byStage = new Map<string, number[]>();
+    group.forEach((p, i) => byStage.set(p.runtimeStageId, [...(byStage.get(p.runtimeStageId) ?? []), i]));
+    const twice = [...byStage.values()].find((is) => is.length > 1);
+    expect(twice).toBeDefined();
+    for (const i of twice!) expect(stepForAddress(group, addressOf(group[i]!))).toBe(i);
+  });
+
   it('an address before the first stop of an axis is no position (-1), not the first stop', () => {
     const { group } = axes();
     const first = group[0]!;

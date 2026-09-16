@@ -28,10 +28,14 @@ import { contextAt, type ContextAt, type ContextKey } from '../../core/context/c
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import { lensCursorFrom } from '../../core/cursor/lensCursor.js';
 import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
+import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
+import type { LensRecorder } from '../../core/LensRecorder.js';
 import type { ServedCursor } from '../../core/served/types.js';
 import { tagAxisPositions } from '../../core/tags/tagAxis.js';
 import type { EventLogEntry } from '../../core/types.js';
 import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRunner.js';
+import { TimeTravel } from '../TimeTravel.js';
+import type { SharedCursor } from '../useSharedCursor.js';
 import { ServedTab } from './ServedTab.js';
 
 export const LABELS = Object.freeze({
@@ -54,8 +58,6 @@ export const LABELS = Object.freeze({
   skipped: 'skipped',
   foldError: 'fold error',
   servedError: 'served error',
-  previous: 'previous',
-  next: 'next',
   json: 'JSON',
   empty: '{ }',
   more: 'more',
@@ -84,6 +86,24 @@ export interface ContextViewProps {
    * cannot, and without this it claims no direction.
    */
   readonly previous?: ServedCursor;
+  /**
+   * The HOST's one cursor across every lens it mounts (0.58.0) — the owner
+   * `useSharedCursor(recorder)` hands back. The view reads the shared
+   * ADDRESS over its axis and its transport moves that address. With
+   * `recorder` the axis is the run's GROUPED axis — the same list a Why Lens
+   * at `granularity="group"` scrubs, so the two stand on the same stop;
+   * without one it is the view's own milestone axis (`MILESTONE_AXIS`, read
+   * off the snapshot). `previous` is then the stop before, on that axis.
+   * `cursor` wins when supplied.
+   *
+   * ```tsx
+   * const shared = useSharedCursor(recorder);
+   * <ContextView runner={recording} recorder={recorder} shared={shared} />
+   * ```
+   */
+  readonly shared?: SharedCursor;
+  /** The recorder whose grouped axis a `shared` view reads — omit to read the milestone axis off the snapshot. */
+  readonly recorder?: LensRecorder;
   /** The recording's event stream, for the `why` band (a replay's `getEntries()`). */
   readonly events?: readonly EventLogEntry[];
   /** Show the fold as JSON instead of the key table. */
@@ -111,22 +131,39 @@ function previousOf(
 }
 
 export function ContextView(props: ContextViewProps): React.ReactElement {
-  const { runner, events } = props;
+  const { runner, events, shared, recorder } = props;
   const fresh = snapshotOfRunner(runner);
   const logKey = snapshotLogKey(fresh);
   const snapshot = useMemo(() => fresh, [runner, logKey]);
+  // The axis this view reads when it is not handed a per-axis cursor: the
+  // recorder's grouped axis (parity with a Why Lens) when a recorder is
+  // given, else the milestone axis read off the snapshot. Rebuilt when the
+  // snapshot's log moves.
   const ownPositions = useMemo(
-    () => (props.cursor === undefined ? positionsOf(snapshot) : undefined),
-    [snapshot, props.cursor],
+    () =>
+      props.cursor !== undefined
+        ? undefined
+        : recorder !== undefined
+          ? scrubAxisFor(recorder, 'group')
+          : positionsOf(snapshot),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the recorder's axis moves with the log key
+    [snapshot, props.cursor, recorder, logKey],
   );
   const [ownStep, setOwnStep] = useState(0);
+  // ONE cursor: the host's per-axis reading, else the shared address read
+  // over this view's axis, else the view's own — never two.
   const cursor: LensCursor =
     props.cursor ??
-    lensCursorFrom(
-      ownPositions ?? [],
-      Math.min(ownStep, Math.max(0, (ownPositions?.length ?? 1) - 1)),
-      setOwnStep,
-    );
+    (shared !== undefined
+      ? shared.over(ownPositions ?? [])
+      : lensCursorFrom(
+          ownPositions ?? [],
+          Math.min(ownStep, Math.max(0, (ownPositions?.length ?? 1) - 1)),
+          setOwnStep,
+        ));
+  // A mover belongs here when the cursor is this view's own or the shared
+  // address — a per-axis `cursor` from a slot brings the host's mover.
+  const mover = props.cursor === undefined && cursor.total > 0;
   const [mode, setMode] = useState<'keys' | 'json'>(props.initialMode ?? 'keys');
 
   const context = useMemo(
@@ -151,28 +188,6 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
           {cursor.at.label} · {cursor.at.step + 1}/{cursor.total}
         </span>
         <span style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
-          {props.cursor === undefined && (
-            <>
-              <button
-                type="button"
-                style={btn}
-                disabled={cursor.at.step <= 0}
-                onClick={() => cursor.moveTo(cursor.at.step - 1)}
-                data-testid="context-prev"
-              >
-                {LABELS.previous}
-              </button>
-              <button
-                type="button"
-                style={btn}
-                disabled={cursor.at.step >= cursor.total - 1}
-                onClick={() => cursor.moveTo(cursor.at.step + 1)}
-                data-testid="context-next"
-              >
-                {LABELS.next}
-              </button>
-            </>
-          )}
           <button
             type="button"
             style={btn}
@@ -193,6 +208,19 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
           </button>
         </span>
       </div>
+      {mover && (
+        <div data-testid="context-transport">
+          {/* THE transport — the same component the Lens and the Skill Graph
+              mount, moving the same cursor through the same funnel. */}
+          <TimeTravel
+            total={cursor.total}
+            focusSeq={Math.max(0, cursor.at.step)}
+            onFocusChange={(n) => cursor.moveTo(n)}
+            isLive={false}
+            compact
+          />
+        </div>
+      )}
       <Facts context={context} />
       <ServedLayer context={context} runner={runner} cursor={cursor} />
       <div style={dim} data-testid="context-built-from">

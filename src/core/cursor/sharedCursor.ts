@@ -48,11 +48,21 @@ export function addressOf(position: CursorPosition, drillPath?: readonly string[
 }
 
 /**
- * The step `positions` derives for `address`: the exact stage, else the stop
- * that contains the commit, else `-1`.
+ * The step `positions` derives for `address`: the stop standing at BOTH the
+ * stage and the commit, else the exact stage (the library's own ladder),
+ * else the stop that contains the commit, else `-1`.
+ *
+ * Why the first rung: an axis can hold several stops on ONE stage — a
+ * milestone axis stops at a route decision and at the answer the same
+ * stage produced, one commit apart — so the stage name alone is ambiguous
+ * and the commit index is what tells them apart.
  */
 export function stepForAddress(positions: readonly CursorPosition[], address: CursorAddress): number {
   if (address.runtimeStageId !== '') {
+    const both = positions.findIndex(
+      (p) => p.runtimeStageId === address.runtimeStageId && p.commitIdx === address.commitIdx,
+    );
+    if (both >= 0) return both;
     const exact = stepForRuntimeStageId(positions, address.runtimeStageId);
     if (exact >= 0) return exact;
   }

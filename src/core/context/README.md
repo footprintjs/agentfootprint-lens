@@ -56,3 +56,11 @@ served document of the stop's epoch, verified against the receipt, with the
 delta since the previous model call — and prints `built from · N keys` on the
 seam. The core is unchanged: `served` is still `servedRowAt`'s row handed
 through; the view only chose to show all of it.
+
+## 0.58.0 — the shared cursor, the one transport
+
+`<ContextView shared recorder>` reads the host's shared address over the
+recorder's grouped axis (`scrubAxisFor(recorder, 'group')` — the Why Lens's
+own stops) and mounts `<TimeTravel>` as its mover; `previous` is the stop
+before on that axis, derived here. The core is untouched: `contextAt` still
+takes a `ServedCursor` and an optional `previous`.

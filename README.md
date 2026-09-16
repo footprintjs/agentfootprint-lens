@@ -825,9 +825,6 @@ import { useSharedCursor, Lens, ContextView } from 'agentfootprint-lens';
 
 const shared = useSharedCursor(recorder);
 
-// Reads the address on the milestone axis; a click here moves the address.
-<ContextView runner={recording} cursor={shared.forAxis('group')} />
-
 // The Lens on the same owner (0.56.0): it derives its own step over
 // whatever axis it draws — pick tags, drill, change granularity — and every
 // mover in it moves the shared address.
@@ -837,6 +834,11 @@ const shared = useSharedCursor(recorder);
 // run's commit axis, moves it from its own transport, and finds its own
 // snap stops — nothing else to hand it.
 <SkillGraphDebugger recorder={recorder} shared={shared} />
+
+// The Context view on the same owner (0.58.0): it reads the address over the
+// run's grouped axis — the Why Lens's own stops — with the same transport,
+// and names the stop before by itself.
+<ContextView runner={recording} recorder={recorder} shared={shared} />
 
 // A view still on the older step + report contract is bridged into the same
 // address with `shared.onStepChange`, so a host migrates one lens at a time.

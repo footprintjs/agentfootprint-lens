@@ -13,6 +13,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
 import { lensCursorFrom } from '../../src/core/cursor/lensCursor.js';
+import { scrubAxisFor } from '../../src/core/group/scrubAxisFor.js';
+import { useSharedCursor } from '../../src/react/useSharedCursor.js';
 import { tagAxisPositions } from '../../src/core/tags/tagAxis.js';
 import { ContextView, LABELS, MILESTONE_AXIS } from '../../src/react/components/ContextView.js';
 import { load, loadTampered, stopsOf } from '../served/helpers.js';
@@ -25,12 +27,13 @@ describe('<ContextView> standalone', () => {
     render(<ContextView runner={fixture.runner} events={fixture.recorder.getEntries()} />);
     const view = screen.getByTestId('context-view');
     expect(view.getAttribute('data-step')).toBe('0');
-    const prev = screen.getByTestId('context-prev') as HTMLButtonElement;
-    const next = screen.getByTestId('context-next') as HTMLButtonElement;
+    // The mover is THE transport the Lens and the Skill Graph mount.
+    expect(screen.getByTestId('context-transport')).toBeInTheDocument();
+    const prev = screen.getByLabelText('Previous step') as HTMLButtonElement;
     expect(prev.disabled).toBe(true);
-    fireEvent.click(next);
+    fireEvent.click(screen.getByLabelText('Next step'));
     expect(screen.getByTestId('context-view').getAttribute('data-step')).toBe('1');
-    fireEvent.click(screen.getByTestId('context-prev'));
+    fireEvent.click(screen.getByLabelText('Previous step'));
     expect(screen.getByTestId('context-view').getAttribute('data-step')).toBe('0');
   });
 
@@ -40,7 +43,7 @@ describe('<ContextView> standalone', () => {
     const turnStep = positions.findIndex((p) => p.label.startsWith('LLM turn'));
     expect(turnStep).toBeGreaterThan(0);
     render(<ContextView runner={fixture.runner} />);
-    for (let i = 0; i < turnStep; i++) fireEvent.click(screen.getByTestId('context-next'));
+    for (let i = 0; i < turnStep; i++) fireEvent.click(screen.getByLabelText('Next step'));
     const rows = screen.getAllByTestId('context-key');
     expect(rows.length).toBeGreaterThan(3);
     expect(
@@ -71,8 +74,7 @@ describe('<ContextView> handed the ONE cursor', () => {
     const cursor = lensCursorFrom(positions, step, (n) => moved.push(n));
     render(<ContextView runner={fixture.runner} cursor={cursor} />);
     expect(screen.getByTestId('context-view').getAttribute('data-commit')).toBe(String(turns[1]!.commitIdx));
-    expect(screen.queryByTestId('context-prev')).toBeNull();
-    expect(screen.queryByTestId('context-next')).toBeNull();
+    expect(screen.queryByTestId('context-transport')).toBeNull();
     // No `previous` was handed with the cursor: nothing claims a direction.
     const rows = screen.getAllByTestId('context-key');
     expect(rows.every((r) => r.getAttribute('data-since') === '')).toBe(true);
@@ -108,7 +110,7 @@ describe('<ContextView> two layers (0.54.0)', () => {
     const positions = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, [])!;
     const turnStep = positions.findIndex((p) => p.label.startsWith('LLM turn'));
     render(<ContextView runner={fixture.runner} />);
-    for (let i = 0; i < turnStep; i++) fireEvent.click(screen.getByTestId('context-next'));
+    for (let i = 0; i < turnStep; i++) fireEvent.click(screen.getByLabelText('Next step'));
     const served = screen.getByTestId('context-served');
     expect(served.getAttribute('data-epoch')).toBe('1');
     expect(within(served).getByTestId('served-tab')).toBeInTheDocument();
@@ -139,7 +141,7 @@ describe('<ContextView> two layers (0.54.0)', () => {
     const positions = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, [])!;
     const turnStep = positions.findIndex((p) => p.label.startsWith('LLM turn'));
     render(<ContextView runner={fixture.runner} />);
-    for (let i = 0; i < turnStep; i++) fireEvent.click(screen.getByTestId('context-next'));
+    for (let i = 0; i < turnStep; i++) fireEvent.click(screen.getByLabelText('Next step'));
     const toggles = screen.getAllByTestId('context-value-toggle');
     expect(toggles.length).toBeGreaterThan(0);
     expect(screen.queryByTestId('context-value-full')).toBeNull();
@@ -150,6 +152,53 @@ describe('<ContextView> two layers (0.54.0)', () => {
     expect(() => JSON.parse(full.textContent!)).not.toThrow();
     fireEvent.click(screen.getAllByTestId('context-value-toggle')[0]!);
     expect(screen.queryByTestId('context-value-full')).toBeNull();
+  });
+});
+
+describe('<ContextView shared> (0.58.0)', () => {
+  function Host({ fixture, withRecorder }: { readonly fixture: ReturnType<typeof load>; readonly withRecorder: boolean }) {
+    const shared = useSharedCursor(fixture.recorder);
+    return (
+      <>
+        <span data-testid="address">
+          {shared.address === undefined ? '' : `${shared.address.runtimeStageId}@${shared.address.commitIdx}`}
+        </span>
+        <ContextView
+          runner={fixture.runner}
+          shared={shared}
+          {...(withRecorder && { recorder: fixture.recorder })}
+          events={fixture.recorder.getEntries()}
+        />
+      </>
+    );
+  }
+
+  it('with a recorder it reads the shared address over the GROUPED axis — parity with a Why Lens — and its transport moves that address', () => {
+    const fixture = load('flat-dynamic-tools');
+    const group = scrubAxisFor(fixture.recorder, 'group');
+    render(<Host fixture={fixture} withRecorder />);
+    const view = screen.getByTestId('context-view');
+    expect(view.getAttribute('data-step')).toBe(String(group.length - 1));
+    expect(screen.getByTestId('address').textContent).toBe('');
+    fireEvent.click(screen.getByLabelText('Previous step'));
+    const before = group[group.length - 2]!;
+    expect(screen.getByTestId('address').textContent).toBe(`${before.runtimeStageId}@${before.commitIdx}`);
+    expect(screen.getByTestId('context-view').getAttribute('data-commit')).toBe(String(before.commitIdx));
+    // `previous` is derived here — the stop before on that axis — so the
+    // since marks are measured, not blank.
+    const since = screen.getAllByTestId('context-key').map((r) => r.getAttribute('data-since'));
+    expect(since.every((x) => x === 'entered' || x === 'changed' || x === 'unchanged' || x === 'left')).toBe(true);
+    expect(since.some((x) => x !== '')).toBe(true);
+  });
+
+  it('without a recorder it reads the shared address over its own milestone axis', () => {
+    const fixture = load('flat-dynamic-tools');
+    const own = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, [])!;
+    render(<Host fixture={fixture} withRecorder={false} />);
+    expect(screen.getByTestId('context-view').getAttribute('data-step')).toBe(String(own.length - 1));
+    fireEvent.click(screen.getByLabelText('Previous step'));
+    const before = own[own.length - 2]!;
+    expect(screen.getByTestId('address').textContent).toBe(`${before.runtimeStageId}@${before.commitIdx}`);
   });
 });
 

@@ -5,6 +5,30 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.58.0] - 2026-09-16
+
+### Added — `<ContextView shared>`, on the one transport
+
+- `<ContextView runner={recording} recorder={recorder} shared={shared}>`
+  reads the shared ADDRESS over the run's GROUPED axis — the same list a Why
+  Lens at `granularity="group"` scrubs, so the two stand on the same stop —
+  and derives `previous` (the stop before, on that axis) itself, so the
+  entered / changed / unchanged marks need nothing from the host. Without
+  `recorder` it reads the address over its own milestone axis. `cursor`
+  still wins when supplied.
+- The view's mover is now `<TimeTravel>` — the same transport the Lens and
+  the Skill Graph mount — whenever the cursor is the view's own or the
+  shared address (`context-transport`); a per-axis `cursor` from a slot
+  brings the host's mover, as before. The two home-made prev / next buttons
+  (`context-prev`, `context-next`) are gone.
+- Why: the third lens a debug tool mounts had the last home-made mover and
+  the last piece of host axis arithmetic (naming the stop before). One
+  transport, one address, every lens: `<Lens shared>`,
+  `<SkillGraphDebugger shared>`, `<ContextView shared>`.
+- Facts kept in docs/design/2026-09-shared-cursor.md: the view's milestone
+  axis is NOT the grouped axis (15 vs 13 stops on the fixture, anchored
+  differently), which is why a recorder is what buys parity.
+
 ## [0.57.0] - 2026-09-16
 
 ### Added — `<SkillGraphDebugger shared>`: the Skill Graph on the host's one cursor
