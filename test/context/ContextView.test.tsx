@@ -102,6 +102,57 @@ describe('<ContextView> handed the ONE cursor and the previous stop', () => {
   });
 });
 
+describe('<ContextView> two layers (0.54.0)', () => {
+  it('at a model-call stop the served document is on top — the Served tab itself, at that epoch — and the record beneath', () => {
+    const fixture = load('flat-dynamic-tools');
+    const positions = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, [])!;
+    const turnStep = positions.findIndex((p) => p.label.startsWith('LLM turn'));
+    render(<ContextView runner={fixture.runner} />);
+    for (let i = 0; i < turnStep; i++) fireEvent.click(screen.getByTestId('context-next'));
+    const served = screen.getByTestId('context-served');
+    expect(served.getAttribute('data-epoch')).toBe('1');
+    expect(within(served).getByTestId('served-tab')).toBeInTheDocument();
+    expect(
+      within(served).queryAllByTestId('served-piece').length + within(served).queryAllByTestId('served-message').length,
+    ).toBeGreaterThan(0);
+    // The record is still there, BENEATH — the served layer precedes the seam
+    // and the key table in document order.
+    const seam = screen.getByTestId('context-built-from');
+    expect(seam.textContent).toContain(LABELS.builtFrom);
+    expect(seam.textContent).toContain(String(screen.getAllByTestId('context-key').length));
+    expect(served.compareDocumentPosition(seam) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      served.compareDocumentPosition(screen.getByTestId('context-keys')) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(screen.getAllByTestId('context-key').length).toBeGreaterThan(3);
+  });
+
+  it('before any model call nothing is served and nothing claims to be', () => {
+    const fixture = load('flat-dynamic-tools');
+    render(<ContextView runner={fixture.runner} />);
+    expect(screen.getByTestId('context-view').getAttribute('data-step')).toBe('0');
+    expect(screen.queryByTestId('context-served')).toBeNull();
+  });
+
+  it('a long value opens in place and closes again', () => {
+    const fixture = load('flat-dynamic-tools');
+    const positions = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, [])!;
+    const turnStep = positions.findIndex((p) => p.label.startsWith('LLM turn'));
+    render(<ContextView runner={fixture.runner} />);
+    for (let i = 0; i < turnStep; i++) fireEvent.click(screen.getByTestId('context-next'));
+    const toggles = screen.getAllByTestId('context-value-toggle');
+    expect(toggles.length).toBeGreaterThan(0);
+    expect(screen.queryByTestId('context-value-full')).toBeNull();
+    expect(toggles[0]!.textContent).toBe(LABELS.more);
+    fireEvent.click(toggles[0]!);
+    const full = screen.getByTestId('context-value-full');
+    expect(full.textContent!.length).toBeGreaterThan(160);
+    expect(() => JSON.parse(full.textContent!)).not.toThrow();
+    fireEvent.click(screen.getAllByTestId('context-value-toggle')[0]!);
+    expect(screen.queryByTestId('context-value-full')).toBeNull();
+  });
+});
+
 describe('<ContextView> laws', () => {
   it('a key the log never attributes is shown UNATTRIBUTED — no owner invented', () => {
     const fixture = loadTampered('flat-dynamic-tools', (r) => {

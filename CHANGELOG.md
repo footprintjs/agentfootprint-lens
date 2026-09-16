@@ -5,6 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.54.0] - 2026-09-16
+
+### Added — the Context view shows what the model HAD, then what it was built from
+
+- `<ContextView>` is two layers on the ONE cursor. On top, the served document
+  of the stop's epoch — system pieces, messages, tools, each checked against
+  the receipt, and what changed since the previous model call — rendered by
+  `<ServedTab>`, the one owner of that rendering (the Why Lens's Served tab is
+  the same component; nothing is rendered twice by two implementations). The
+  layer is absent at a stop with no model call at or before it: nothing is
+  served, nothing is claimed. Beneath, a seam line (`built from · N keys`) and
+  the record as before — every key, its writer, what moved since the previous
+  stop.
+- A value longer than 160 characters opens in place (`more` / `less`), so a
+  system prompt injection or a tool schema is readable where it sits instead
+  of hiding in a tooltip. Test ids: `context-value`, `context-value-full`,
+  `context-value-toggle`, `context-built-from`.
+- Why now: a debug tool's Context tab that showed only the record's keys
+  answered "what does the run hold?" — the question a person brings to it is
+  "what did the model actually have?". Both are the record; the served one
+  goes on top.
+
+### Changed
+
+- The one-line served badge under the key table (`served · epoch N · system ✓
+  tools ✓`) is replaced by the full layer above it; `context-served` keeps its
+  `data-epoch`.
+
 ## [0.53.5] - 2026-09-16
 
 ### Fixed — the Context view fits a narrow rail; one duplicate key in the skill graph

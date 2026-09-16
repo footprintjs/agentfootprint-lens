@@ -9,10 +9,18 @@
  *     <ContextView runner={recording} />                       // its own cursor
  *     <ContextView runner={recording} cursor={p.cursor} />     // the Lens's
  *
+ * Two layers on the ONE cursor (0.54.0). On top, what the model HAD at this
+ * stop: the served document of the stop's epoch — system pieces, messages,
+ * tools, each checked against the receipt, and what changed since the
+ * previous model call — rendered by `<ServedTab>`, the one owner of that
+ * rendering (the Why Lens's Served tab is the same component). Beneath, what
+ * it was BUILT from: the record's keys at the stop, who wrote each, what moved
+ * since the previous stop; a long value opens in place.
+ *
  * Everything printed is the record: key paths, values, stage ids, commit
- * indices, event names, the Served row's verdict badge. `LABELS` is every
- * string this view owns — names for things on the screen, never a sentence
- * about the run (test/served/no-own-claims.test.ts walks this file).
+ * indices, event names, the Served row's pieces and verdicts. `LABELS` is
+ * every string this view owns — names for things on the screen, never a
+ * sentence about the run (test/served/no-own-claims.test.ts walks this file).
  */
 import React, { useMemo, useState } from 'react';
 
@@ -24,7 +32,7 @@ import type { ServedCursor } from '../../core/served/types.js';
 import { tagAxisPositions } from '../../core/tags/tagAxis.js';
 import type { EventLogEntry } from '../../core/types.js';
 import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRunner.js';
-import { Badge } from './ServedBadge.js';
+import { ServedTab } from './ServedTab.js';
 
 export const LABELS = Object.freeze({
   view: 'Context',
@@ -50,6 +58,9 @@ export const LABELS = Object.freeze({
   next: 'next',
   json: 'JSON',
   empty: '{ }',
+  more: 'more',
+  less: 'less',
+  builtFrom: 'built from',
 });
 
 /** The milestone kinds a standalone view walks — the library's own tag vocabulary. */
@@ -183,8 +194,11 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
         </span>
       </div>
       <Facts context={context} />
+      <ServedLayer context={context} runner={runner} cursor={cursor} />
+      <div style={dim} data-testid="context-built-from">
+        {LABELS.builtFrom} · {context.keys.length} {LABELS.keys}
+      </div>
       {mode === 'json' ? <JsonPane context={context} /> : <KeyTable context={context} />}
-      <ServedBand context={context} />
       <WhyBand context={context} />
     </div>
   );
@@ -271,10 +285,27 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
   );
 }
 
+/** A value, shortened past 160 characters — and opened in place on a click,
+ *  so a system prompt or a tool schema is readable where it sits. */
 function ValueCell({ value }: { readonly value: unknown }): React.ReactElement {
-  const text = JSON.stringify(value);
-  const short = text === undefined ? '' : text.length > 160 ? `${text.slice(0, 157)}…` : text;
-  return <span title={text}>{short}</span>;
+  const [open, setOpen] = useState(false);
+  const text = JSON.stringify(value) ?? '';
+  const long = text.length > 160;
+  if (!long) return <span>{text}</span>;
+  return (
+    <span data-testid="context-value" data-open={open}>
+      {open ? (
+        <pre style={{ ...mono, ...pre }} data-testid="context-value-full">
+          {text}
+        </pre>
+      ) : (
+        <span>{`${text.slice(0, 157)}…`}</span>
+      )}{' '}
+      <button type="button" style={btn} onClick={() => setOpen(!open)} data-testid="context-value-toggle">
+        {open ? LABELS.less : LABELS.more}
+      </button>
+    </span>
+  );
 }
 
 function JsonPane({ context }: { readonly context: ContextAt }): React.ReactElement {
@@ -287,17 +318,35 @@ function JsonPane({ context }: { readonly context: ContextAt }): React.ReactElem
   );
 }
 
-function ServedBand({ context }: { readonly context: ContextAt }): React.ReactElement | null {
+/** What the model HAD at this stop — the served document of the stop's
+ *  epoch, rendered by the one owner of that rendering. Absent when no model
+ *  call is at or before the stop: nothing is served, nothing is claimed. */
+function ServedLayer({
+  context,
+  runner,
+  cursor,
+}: {
+  readonly context: ContextAt;
+  readonly runner: unknown;
+  readonly cursor: LensCursor;
+}): React.ReactElement | null {
   const served = context.served;
   if (served === undefined) return null;
-  const { row, checks } = served;
   return (
-    <div style={band} data-testid="context-served" data-epoch={row.view.epoch}>
+    <div style={band} data-testid="context-served" data-epoch={served.row.view.epoch}>
       <span style={dim}>
-        {LABELS.served} · {LABELS.epoch} {row.view.epoch} · {LABELS.system}
-      </span>{' '}
-      <Badge check={checks.system} /> <span style={dim}>{LABELS.tools}</span>{' '}
-      <Badge check={checks.toolNames} />
+        {LABELS.served} · {LABELS.epoch} {served.row.view.epoch}
+      </span>
+      <ServedTab
+        runner={runner}
+        cursor={cursor}
+        // The tab's own jump (to a call's stop) moves THE cursor — a standalone
+        // view's own, a slotted view's host's — and a miss never moves it.
+        onJumpTo={(runtimeStageId) => {
+          const to = cursor.resolve(runtimeStageId);
+          if (to.ok && to.step !== undefined) cursor.moveTo(to.step);
+        }}
+      />
     </div>
   );
 }

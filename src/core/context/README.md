@@ -47,3 +47,12 @@ ctx.why;     // [{ seq, name: 'agentfootprint.agent.iteration_end', runtimeStage
 
 `<ContextView>` (`src/react/components/ContextView.tsx`) renders this — standalone
 over the library's milestone axis, or handed the ONE cursor.
+
+## 0.54.0 — the served row is rendered, not just badged
+
+`<ContextView>` mounts `<ServedTab runner cursor>` (the Why Lens's own Served
+tab) above the key table whenever `contextAt(...).served` is present — the
+served document of the stop's epoch, verified against the receipt, with the
+delta since the previous model call — and prints `built from · N keys` on the
+seam. The core is unchanged: `served` is still `servedRowAt`'s row handed
+through; the view only chose to show all of it.

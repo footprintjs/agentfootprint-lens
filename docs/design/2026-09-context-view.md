@@ -55,3 +55,14 @@ Nothing new is written; a key without a writer row is **unattributed**.
   paths; a later cut can open a key).
 - The docs page still carries hand-written JSON until it mounts this view on a
   recorded run — the next packet.
+
+## 0.54.0 — two layers, one cursor
+
+The owner's correction after mounting the view in a debug tool: the person
+opening a "Context" tab asks *what did the model actually have?*, and a table
+of the run's keys answers *what does the run hold?*. Both are the record, so
+the view shows both, in that order: the served document of the stop's epoch
+on top (rendered by `<ServedTab>` — one owner, the same component the Why
+Lens mounts), the record's keys beneath as *what it was built from*, and a
+long value opens in place. No new library data: `contextAt` already handed
+the served row through; the view had only badged it.
