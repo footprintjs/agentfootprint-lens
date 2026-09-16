@@ -73,6 +73,12 @@ export const LABELS = Object.freeze({
   tab: 'Served',
   /** The provider's cache breakpoint, placed where it fell: everything above it was the reusable prefix. */
   cacheBoundary: 'cache boundary',
+  /** The cache recorder's run totals (agentfootprint `cacheRecorder`), when a host attached it. */
+  cacheReadTotal: 'cache read tokens',
+  freshInputTotal: 'fresh input tokens',
+  hitRate: 'hit rate',
+  runTotal: 'run total',
+  unknown: 'unknown',
   epoch: 'epoch',
   call: 'call',
   commit: 'commit',
@@ -250,6 +256,42 @@ const boundaryStyle: React.CSSProperties = {
   opacity: 0.8,
 };
 
+/** A recorded claim, as agentfootprint's `Claim<T>` spells it: known with a value, or not. */
+type RecordedClaim =
+  | { readonly kind: 'known'; readonly value: number; readonly reason?: undefined }
+  | { readonly kind: string; readonly value?: undefined; readonly reason?: string };
+
+/** The cache recorder's run totals, read off the snapshot's recorder rows (0.60.0). Absent when no host attached one. */
+function cacheTotalsOf(snapshot: unknown): { readonly read?: RecordedClaim; readonly fresh?: RecordedClaim; readonly hitRate?: RecordedClaim } | undefined {
+  const rows = (snapshot as { recorders?: unknown } | null | undefined)?.recorders;
+  if (!Array.isArray(rows)) return undefined;
+  const row = rows.find((r) => (r as { id?: unknown } | null)?.id === 'cache-recorder') as { data?: unknown } | undefined;
+  const data = row?.data as Record<string, unknown> | undefined;
+  if (data === undefined || data === null || typeof data !== 'object') return undefined;
+  const claim = (v: unknown): RecordedClaim | undefined =>
+    v !== null && typeof v === 'object' && typeof (v as { kind?: unknown }).kind === 'string' ? (v as RecordedClaim) : undefined;
+  return {
+    ...(claim(data.cacheReadTokensTotal) !== undefined && { read: claim(data.cacheReadTokensTotal)! }),
+    ...(claim(data.freshInputTokensTotal) !== undefined && { fresh: claim(data.freshInputTokensTotal)! }),
+    ...(claim(data.hitRate) !== undefined && { hitRate: claim(data.hitRate)! }),
+  };
+}
+
+/** One recorded claim as a line: the value when known, the recorder's own reason when not. */
+function ClaimLine({ label, claim, testId, format }: { readonly label: string; readonly claim: RecordedClaim; readonly testId: string; readonly format?: (n: number) => string }): React.ReactElement {
+  return (
+    <DataLine label={`${label} · ${LABELS.runTotal}`} testId={testId}>
+      {claim.kind === 'known' ? (
+        <span style={monoStyle} data-kind="known">{format ? format((claim as { value: number }).value) : String((claim as { value: number }).value)}</span>
+      ) : (
+        <span style={monoMutedStyle} data-kind={claim.kind}>
+          {LABELS.unknown}{claim.reason !== undefined ? ` · ${claim.reason}` : ''}
+        </span>
+      )}
+    </DataLine>
+  );
+}
+
 /** The tab, inside the boundary that keeps a bad record from unmounting the
  *  Lens. `ServedTabBody` is the tab itself. */
 export function ServedTab(props: ServedTabProps): React.ReactElement {
@@ -306,6 +348,7 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
   const { row, checks, since, fold, graph } = derived;
   const view = row.view;
   const markers = row.receipt?.cache.markersApplied ?? [];
+  const cacheTotals = useMemo(() => cacheTotalsOf(snapshot), [snapshot]);
   const gapsCovering = (fields: readonly string[]): readonly ServedGap[] =>
     view.gaps.filter((g) => g.fields.some((f) => fields.includes(f)));
   const excusing = (fields: readonly string[]): boolean =>
@@ -571,6 +614,15 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
         )}
       </Section>
       <Section testId="served-cache" title={LABELS.cache} gaps={gapsCovering(SECTION_FIELDS.cache)}>
+        {cacheTotals?.read !== undefined && (
+          <ClaimLine label={LABELS.cacheReadTotal} claim={cacheTotals.read} testId="served-cache-read-total" />
+        )}
+        {cacheTotals?.fresh !== undefined && (
+          <ClaimLine label={LABELS.freshInputTotal} claim={cacheTotals.fresh} testId="served-cache-fresh-total" />
+        )}
+        {cacheTotals?.hitRate !== undefined && (
+          <ClaimLine label={LABELS.hitRate} claim={cacheTotals.hitRate} testId="served-cache-hit-rate" format={(n) => `${Math.round(n * 1000) / 10}%`} />
+        )}
         {row.receipt !== undefined ? (
           <>
             <DataLine label={LABELS.transform}>{row.receipt.cache.transform}</DataLine>

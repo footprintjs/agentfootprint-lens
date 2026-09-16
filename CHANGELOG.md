@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.60.0] - 2026-09-16
+
+### Added — the cache recorder's run totals on the Served tab
+
+- When the recording carries agentfootprint's cache recorder (`id:
+  'cache-recorder'` among the snapshot's recorder rows), the Served tab's
+  cache section shows its cache read tokens, fresh input tokens and hit
+  rate — each labelled `run total`, because that is what the recorder
+  measures; a claim the recorder could not make prints the recorder's own
+  reason; a recording without the recorder prints nothing. This is the
+  reuse share 0.59.0 left out, now that the data is known to exist on the
+  record. Test ids: `served-cache-read-total`, `served-cache-fresh-total`,
+  `served-cache-hit-rate` (`data-kind` carries the claim's kind).
+
 ## [0.59.0] - 2026-09-16
 
 ### Added — the Served tab draws the provider's cache boundary where it fell
