@@ -833,10 +833,13 @@ const shared = useSharedCursor(recorder);
 // mover in it moves the shared address.
 <Lens recorder={recorder} granularity="step" shared={shared} />
 
-// A view still on the older step + report contract, bridged into the same
-// address — so a Skill Graph transport keeps working while you migrate one
-// lens at a time.
-<SkillGraphDebugger step={shared.forAxis('step').at.step} onStepChange={shared.onStepChange} … />
+// The Skill Graph on the same owner (0.57.0): it reads the address over the
+// run's commit axis, moves it from its own transport, and finds its own
+// snap stops — nothing else to hand it.
+<SkillGraphDebugger recorder={recorder} shared={shared} />
+
+// A view still on the older step + report contract is bridged into the same
+// address with `shared.onStepChange`, so a host migrates one lens at a time.
 ```
 
 The law: a tab DERIVES its step from the address (the exact stage when its

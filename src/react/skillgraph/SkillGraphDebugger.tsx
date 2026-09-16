@@ -80,6 +80,9 @@
 import React, { useMemo, useRef, useState } from 'react';
 
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
+import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
+import { stepForRuntimeStageId } from '../../core/group/stepForRuntimeStageId.js';
+import type { SharedCursor } from '../useSharedCursor.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
 import {
   selectSkillBeatAt,
@@ -214,6 +217,21 @@ export interface SkillGraphDebuggerProps {
    * The one-cursor law is untouched: this object holds no position either.
    */
   readonly cursor?: LensCursor;
+  /**
+   * The HOST's one cursor across every lens it mounts (0.57.0) — the owner
+   * `useSharedCursor(recorder)` hands back. Pass it (with `recorder`) and the
+   * debugger reads the shared ADDRESS over the run's commit axis — the same
+   * list an undrilled `<Lens granularity="step">` scrubs — moves that address from its own
+   * transport and jumps, and derives the SNAP STOPS from its own beats over
+   * that axis, so a host hands nothing else. `cursor` and the step scalars
+   * win when supplied, as they always have.
+   *
+   * ```tsx
+   * const shared = useSharedCursor(recorder);
+   * <SkillGraphDebugger recorder={recorder} shared={shared} />
+   * ```
+   */
+  readonly shared?: SharedCursor;
 }
 
 export function SkillGraphDebugger({
@@ -225,6 +243,7 @@ export function SkillGraphDebugger({
   step,
   totalSteps,
   onStepChange,
+  shared,
   cursor,
   snapSteps,
   transportKeyboard,
@@ -240,20 +259,38 @@ export function SkillGraphDebugger({
   // `cursor` object are the SAME cursor said two ways; the scalars win, so a
   // host that wires both (or the older wiring alone) is unchanged. Resolved
   // here, once, so every reader below this line asks one variable.
-  const address = cursorRuntimeStageId ?? cursor?.at.runtimeStageId ?? '';
-  const kindHere = cursorKind ?? cursor?.at.kind;
-  const hostStep = step ?? cursor?.at.step;
-  const hostTotal = totalSteps ?? cursor?.total;
-  const hostStepChange = onStepChange ?? cursor?.moveTo;
+  // THE SHARED CURSOR (0.57.0): with a host owner and a recorder, this view
+  // reads the shared address over the run's commit axis (the root log,
+  // undrilled) — built here, and rebuilt only when a COMMIT lands: the commit
+  // axis is a projection of the commit log, so the recorder's per-event stamp
+  // would rebuild it for events that cannot move it.
+  const sharedAxisRecorder = shared !== undefined ? recorder : undefined;
+  const sharedAxisCommits =
+    sharedAxisRecorder !== undefined &&
+    typeof (sharedAxisRecorder as { getCommitCount?: unknown }).getCommitCount === 'function'
+      ? sharedAxisRecorder.getCommitCount()
+      : 0;
+  const sharedAxis = useMemo(
+    () => (sharedAxisRecorder !== undefined ? scrubAxisFor(sharedAxisRecorder, 'step') : undefined),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuilt when a commit lands
+    [sharedAxisRecorder, sharedAxisCommits],
+  );
+  const cursorIn =
+    cursor ?? (shared !== undefined && sharedAxis !== undefined ? shared.over(sharedAxis) : undefined);
+  const address = cursorRuntimeStageId ?? cursorIn?.at.runtimeStageId ?? '';
+  const kindHere = cursorKind ?? cursorIn?.at.kind;
+  const hostStep = step ?? cursorIn?.at.step;
+  const hostTotal = totalSteps ?? cursorIn?.total;
+  const hostStepChange = onStepChange ?? cursorIn?.moveTo;
   // An ADDRESS is not a POSITION: the axis answers whether it can hold one,
-  // and a refusal NEVER moves the cursor. That is `cursor.resolve` + the one
+  // and a refusal NEVER moves the cursor. That is `cursorIn.resolve` + the one
   // funnel — the same two calls `navigateTo` makes.
   const jump =
     onJumpTo ??
-    (cursor !== undefined
+    (cursorIn !== undefined
       ? (id: string): void => {
-          const to = cursor.resolve(id);
-          if (to.ok) cursor.moveTo(to.step);
+          const to = cursorIn.resolve(id);
+          if (to.ok) cursorIn.moveTo(to.step);
         }
       : undefined);
 
@@ -352,6 +389,20 @@ export function SkillGraphDebugger({
    * `step`, or from where the cursor resolved) and a scrub reports a move
    * back out; nothing is stored here.
    */
+  // The snap stops, derived here when a host hands `shared` and no
+  // `snapSteps`: each beat's stage placed on the commit axis — the same
+  // projection a host used to compute for the transport, now the view's own.
+  const ownSnapSteps = useMemo<readonly number[] | undefined>(() => {
+    if (sharedAxis === undefined || snapSteps !== undefined) return undefined;
+    const stops = new Set<number>();
+    for (const beat of beats) {
+      if (beat.runtimeStageId === undefined) continue;
+      const at = stepForRuntimeStageId(sharedAxis, beat.runtimeStageId);
+      if (at >= 0) stops.add(at);
+    }
+    return stops.size === 0 ? undefined : [...stops].sort((a, b) => a - b);
+  }, [sharedAxis, snapSteps, beats]);
+  const snaps = snapSteps ?? ownSnapSteps;
   const hostAxis = hostStep !== undefined && hostTotal !== undefined && hostTotal > 0;
   const transport: BeatTransport = {
     total: hostAxis ? hostTotal : beats.length,
@@ -370,7 +421,7 @@ export function SkillGraphDebugger({
     // handed us. Without one the transport is already scrubbing this view's
     // routing stops — every one of which changes the picture — so there is
     // nothing to narrow and the list is not forwarded.
-    ...(hostAxis && snapSteps !== undefined ? { snapSteps } : {}),
+    ...(hostAxis && snaps !== undefined ? { snapSteps: snaps } : {}),
   };
 
   /** Filter the ONE cursor to a skill's next span, wrapping to its first. */

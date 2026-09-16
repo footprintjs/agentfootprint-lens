@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.57.0] - 2026-09-16
+
+### Added — `<SkillGraphDebugger shared>`: the Skill Graph on the host's one cursor
+
+- `<SkillGraphDebugger recorder={recorder} shared={shared}>` reads the shared
+  ADDRESS over the run's commit axis — the same list an undrilled `<Lens
+  granularity="step">` scrubs, built by the view from its own recorder and
+  rebuilt only when a commit lands —
+  moves that address from its own transport and its jumps, and derives the
+  SNAP STOPS from its own beats over that axis, so a host hands nothing
+  else: no step, no total, no report, no snap list. `cursor` and the step
+  scalars still win when supplied. A recording with no commit log has no
+  axis to read an address on: the beats axis stays and nothing is claimed.
+- One line per lens now holds for the three lenses a debug tool mounts:
+  `<Lens shared>`, `<SkillGraphDebugger shared>`, and `<ContextView
+  cursor={shared.forAxis('group')}>` for the view that reads one axis.
+
 ## [0.56.0] - 2026-09-16
 
 ### Added — `<Lens shared>`: the lens on the host's one cursor
