@@ -81,6 +81,8 @@ remap the host wrote itself. The adapter belongs in the library.
 
 - [x] 1 core + tests (`test/cursor/sharedCursor.test.ts`)
 - [x] 2 hook + tests (`test/cursor/useSharedCursor.test.tsx`)
-- [x] 3 exports, docs; review took 2 real findings (cache key, cross-mount commit compare) + identity; [ ] 0.55.0 released
-- [ ] 4 neo drawer on the owner, Context tab native, verified, pushed
+- [x] 3 exports, docs; review took 2 real findings (cache key, cross-mount commit compare) + identity; [x] 0.55.0 released `bb6597c`
+- [x] 4 neo drawer on the owner (`be-server/web/src/LensPanes.tsx` `useSharedCursor`; `ContextLensTab` takes `cursor` + the axis for `previous`), verified in the browser on a real run — Flow at commit 60 → Why stop 14 (call-llm#68, commit 59, contains it) → Context same → Flow back at commit 60 → Skill Graph commit 60; pushed
+  FACT: with the owner the `<Lens>` is CONTROLLED from the first render (the default address is the run's end), where before it self-drove until the first move — same opening stop, no live auto-follow on a finished turn (none needed there)
+  LEFT IN THE HOST for now: `scrubAxisFor(recorder, 'group')` to name the stop BEFORE the cursor for `previous` — 5c moves that into the lens
 - [ ] 5a `<Lens cursor>`  · [ ] 5b Skill/Data Graph · [ ] 5c one transport · [ ] 5d Story
