@@ -9,7 +9,8 @@
  * wrote each key, what moved.
  *
  * Test types: Contract (a hand-built record renders, walks, folds) ·
- * Attribution (writers are the bundles' addresses).
+ * Attribution (writers are the bundles' addresses) · Honesty (a bundle the
+ * reader cannot read is reported on the view as skipped, nothing coerced).
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
@@ -68,9 +69,16 @@ describe('<ContextView> over a record built by hand', () => {
     expect(writers.every((w) => w.includes(LABELS.wroteBy) || w.includes(LABELS.unattributed))).toBe(true);
   });
 
-  // A bundle the reader cannot read (an unknown verb) is reported as
-  // `skipped` on the view — by footprintjs 9.27.0's reader. This lens still
-  // builds against 9.23.1, whose replay merges an unknown verb silently, so
-  // that proof joins when the floor moves; docs/design/2026-09-record-contract.md
-  // (footprintjs) tracks it.
+  it('a bundle the reader cannot read is shown as skipped, and the rest still folds (footprintjs 9.27.0 reader)', () => {
+    const record = handBuiltRecord();
+    const broken = { ...record.commitLog[1]!, trace: [{ path: 'items', verb: 'upsert' as never }] };
+    const damaged = { ...record, commitLog: [record.commitLog[0], broken, record.commitLog[2], record.commitLog[3]] };
+    render(<ContextView runner={damaged} />);
+    const next = () => screen.getByLabelText('Next step') as HTMLButtonElement;
+    for (let i = 0; i < 20 && !next().disabled; i++) fireEvent.click(next());
+    expect(screen.getByTestId('context-facts').textContent).toContain(LABELS.skipped);
+    const paths = screen.getAllByTestId('context-key').map((r) => r.getAttribute('data-path'));
+    expect(paths).toContain('profile');
+    expect(paths).toContain('items');
+  });
 });
