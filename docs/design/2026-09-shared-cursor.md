@@ -85,4 +85,9 @@ remap the host wrote itself. The adapter belongs in the library.
 - [x] 4 neo drawer on the owner (`be-server/web/src/LensPanes.tsx` `useSharedCursor`; `ContextLensTab` takes `cursor` + the axis for `previous`), verified in the browser on a real run — Flow at commit 60 → Why stop 14 (call-llm#68, commit 59, contains it) → Context same → Flow back at commit 60 → Skill Graph commit 60; pushed
   FACT: with the owner the `<Lens>` is CONTROLLED from the first render (the default address is the run's end), where before it self-drove until the first move — same opening stop, no live auto-follow on a finished turn (none needed there)
   LEFT IN THE HOST for now: `scrubAxisFor(recorder, 'group')` to name the stop BEFORE the cursor for `previous` — 5c moves that into the lens
-- [ ] 5a `<Lens cursor>`  · [ ] 5b Skill/Data Graph · [ ] 5c one transport · [ ] 5d Story
+- [x] 5a `<Lens shared>` (0.56.0; DECIDED for adoption: one word `shared`, one type, every lens; `SharedCursor.over(positions)` is the general form; a clamped correction never moves the address; the axis-swap re-seat is skipped with an owner)  · [ ] 5b Skill/Data Graph · [ ] 5c one transport · [ ] 5d Story
+
+## Review notes kept (5a)
+
+- `useLensCursor`'s out-of-range warning names `<Lens step>` even when the step came from `shared` — harmless, wording only; fold into 5c.
+- No test yet mounts two sibling `<Lens shared>` together; the derivation both would use is pinned headlessly and through the host spans. Add with 5b when the Skill Graph joins.

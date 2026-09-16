@@ -828,11 +828,15 @@ const shared = useSharedCursor(recorder);
 // Reads the address on the milestone axis; a click here moves the address.
 <ContextView runner={recording} cursor={shared.forAxis('group')} />
 
-// The older step + report contract, bridged into the same address — so a
-// `<Lens>` or a Skill Graph transport keeps working while you migrate one
+// The Lens on the same owner (0.56.0): it derives its own step over
+// whatever axis it draws — pick tags, drill, change granularity — and every
+// mover in it moves the shared address.
+<Lens recorder={recorder} granularity="step" shared={shared} />
+
+// A view still on the older step + report contract, bridged into the same
+// address — so a Skill Graph transport keeps working while you migrate one
 // lens at a time.
-<Lens recorder={recorder} granularity="step"
-      step={shared.forAxis('step').at.step} onStepChange={shared.onStepChange} />
+<SkillGraphDebugger step={shared.forAxis('step').at.step} onStepChange={shared.onStepChange} … />
 ```
 
 The law: a tab DERIVES its step from the address (the exact stage when its

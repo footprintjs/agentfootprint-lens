@@ -15,12 +15,14 @@
  * axis arithmetic of its own.
  *
  *   const shared = useSharedCursor(observed?.recorder);
+ *   <Lens recorder={recorder} shared={shared} />                     // 0.56.0
  *   <ContextView runner={runner} cursor={shared.forAxis('group')} />
- *   <Lens step={shared.forAxis('group').at.step} onStepChange={shared.onStepChange} />
+ *   <SkillGraphDebugger step=… onStepChange={shared.onStepChange} />  // bridged
  *
- * The second line is the BRIDGE: a `<Lens step onStepChange>` or a Skill
- * Graph transport that still speaks step + report keeps working, reporting
- * into the same address. It exists so hosts migrate one lens at a time.
+ * A view that takes `shared` derives its own step over whatever axis it
+ * draws (`over(positions)`). The last line is the BRIDGE: a view that still
+ * speaks step + report keeps working, reporting into the same address. It
+ * exists so hosts migrate one lens at a time.
  *
  * Default: with no move yet, the address is the run's END — one past the last
  * commit, no stage named — from which every axis derives its own last stop,
@@ -44,6 +46,13 @@ export interface SharedCursor {
   readonly address: CursorAddress | undefined;
   /** The `LensCursor` a lens drawing this axis reads; its `moveTo` moves the shared address. */
   forAxis(granularity: SharedAxis, drillPath?: readonly string[]): LensCursor;
+  /**
+   * The general form (0.56.0): the `LensCursor` over ANY positions a view
+   * draws — a tag-filtered axis, a drilled one — read under `drillPath`.
+   * `forAxis` is this over the library's own two axes. Same positions, same
+   * address → the same object, so a memo keyed on it holds.
+   */
+  over(positions: readonly CursorPosition[], drillPath?: readonly string[]): LensCursor;
   /** Move the ONE cursor to an address — what every mover ends in. */
   moveTo(address: CursorAddress): void;
   /** The older contract, bridged: a `<Lens onStepChange>` or a transport reporting a step lands here. */
@@ -99,15 +108,26 @@ export function useSharedCursor(recorder: LensRecorder | undefined): SharedCurso
     [moveTo],
   );
 
-  // One `LensCursor` per axis per address: the same object comes back until
-  // the address moves, so a consumer's memo keyed on it holds across renders.
-  const cursors = useMemo(() => new Map<string, LensCursor>(), [address, moveTo, positionsFor, recorder]);
-  const forAxis = useCallback(
-    (granularity: SharedAxis, drillPath: readonly string[] = []): LensCursor => {
-      const key = axisKey(granularity, drillPath);
-      const known = cursors.get(key);
+  // One `LensCursor` per positions list per address: the same object comes
+  // back until the address moves, so a consumer's memo keyed on it holds
+  // across renders. Keyed by the list's identity — `positionsFor` hands the
+  // same array back per axis, a view's own axis is its own memo.
+  const cursors = useMemo(
+    () => new WeakMap<readonly CursorPosition[], Map<string, LensCursor>>(),
+    [address, moveTo, recorder],
+  );
+  const over = useCallback(
+    (positions: readonly CursorPosition[], drillPath: readonly string[] = []): LensCursor => {
+      // Keyed by the list AND the drill path it is read under: the same list
+      // handed in under another mount is another cursor.
+      const drillKey = JSON.stringify(drillPath);
+      let byDrill = cursors.get(positions);
+      if (byDrill === undefined) {
+        byDrill = new Map();
+        cursors.set(positions, byDrill);
+      }
+      const known = byDrill.get(drillKey);
       if (known !== undefined) return known;
-      const positions = positionsFor(granularity, drillPath);
       // The run's END as an address: one past the last commit, no stage named.
       // Each axis derives its own last stop from it — the commit axis its last
       // visible stage, the milestone axis its absorbing end stop — because the
@@ -117,14 +137,19 @@ export function useSharedCursor(recorder: LensRecorder | undefined): SharedCurso
         address ??
         (recorder === undefined ? NOWHERE : { runtimeStageId: '', commitIdx: recorder.getCommitCount() });
       const cursor = cursorForAddress(positions, effective, moveTo, drillPath);
-      cursors.set(key, cursor);
+      byDrill.set(drillKey, cursor);
       return cursor;
     },
-    [positionsFor, address, moveTo, recorder, cursors],
+    [address, moveTo, recorder, cursors],
+  );
+  const forAxis = useCallback(
+    (granularity: SharedAxis, drillPath: readonly string[] = []): LensCursor =>
+      over(positionsFor(granularity, drillPath), drillPath),
+    [over, positionsFor],
   );
 
   return useMemo(
-    () => ({ address, forAxis, moveTo, onStepChange }),
-    [address, forAxis, moveTo, onStepChange],
+    () => ({ address, forAxis, over, moveTo, onStepChange }),
+    [address, forAxis, over, moveTo, onStepChange],
   );
 }

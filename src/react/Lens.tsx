@@ -44,6 +44,7 @@ import {
 import { openLensCursor, type LensCursorPort } from "../core/timeTravel/lensCursorPort.js";
 import type { LensCursor } from "../core/cursor/lensCursor.js";
 import type { CursorStepper } from "./TimeTravel.js";
+import type { SharedCursor } from './useSharedCursor.js';
 import { useLensNavigator, type LensNavigator } from "./useLensNavigator.js";
 import { useNarrowRow } from "./narrowLayout.js";
 import { useLensRecorder } from "./hooks/useLensRecorder.js";
@@ -347,6 +348,25 @@ export interface LensProps {
   readonly onStepChange?: (step: number, at: LensCursorAt) => void;
 
   /**
+   * The HOST's one cursor across every lens it mounts (0.56.0) — the owner
+   * `useSharedCursor(recorder)` hands back. Pass it and this lens derives its
+   * own step over whatever axis it is drawing (the commit axis, the milestone
+   * axis, a tag-filtered one, a drilled one) from the shared ADDRESS, and
+   * every mover here — the strip, ◀ ▶, a chart click, `navigatorRef` — moves
+   * that address. `step` is ignored while `shared` is given; `onStepChange`
+   * still fires as an observation hook. A correction the lens makes on its
+   * own (`at.clamped`, an address this axis cannot hold) never rewrites the
+   * address: a tab derives a step, only a mover changes the address.
+   *
+   * ```tsx
+   * const shared = useSharedCursor(recorder);
+   * <Lens recorder={recorder} shared={shared} granularity="group" />
+   * <ContextView runner={runner} cursor={shared.forAxis('group')} />
+   * ```
+   */
+  readonly shared?: SharedCursor;
+
+  /**
    * Move the cursor to a STAGE, by its address — the pointing half of the
    * cursor API. `step` / `onStepChange` let a host OWN the cursor; this lets
    * one SAY WHERE when all it knows is a `runtimeStageId` (a chat answer
@@ -520,8 +540,9 @@ export const Lens: React.FC<LensProps> = ({
   commentaryTemplates,
   toolChoice,
   granularity = 'step',
-  step: controlledStep,
-  onStepChange,
+  step: controlledStepProp,
+  onStepChange: onStepChangeProp,
+  shared,
   navigatorRef,
   slots,
   bookmarkStore,
@@ -759,6 +780,21 @@ export const Lens: React.FC<LensProps> = ({
     },
     [cursorPositions],
   );
+  // THE SHARED CURSOR (0.56.0): with a host owner, the step this lens shows
+  // is DERIVED from the shared address over the axis it is drawing right now
+  // — a pick, a Clear or a drill changes the list and the derivation follows,
+  // with nothing carried across by hand — and every move reports into it.
+  const sharedOver = shared !== undefined ? shared.over(cursorPositions, drillPath) : undefined;
+  const controlledStep = sharedOver !== undefined ? sharedOver.at.step : controlledStepProp;
+  const onStepChange = useCallback(
+    (n: number, at: LensCursorAt): void => {
+      // A correction is not a move: an address this axis cannot hold is shown
+      // at the nearest stop (`clamped`) and the address stays where it is.
+      if (sharedOver !== undefined && !at.clamped) sharedOver.moveTo(n);
+      onStepChangeProp?.(n, at);
+    },
+    [sharedOver, onStepChangeProp],
+  );
   const {
     step: focusStep,
     isLive,
@@ -790,6 +826,10 @@ export const Lens: React.FC<LensProps> = ({
     const prev = seatRef.current;
     seatRef.current = { positions: cursorPositions, step: focusStep, tagAxis };
     if (prev.tagAxis === tagAxis) return;
+    // With a shared owner the derivation above already re-seated the reader
+    // on the new list from the address; re-seating here would REPORT a move
+    // nobody made and rewrite the address with the containing stop.
+    if (shared !== undefined) return;
     const commit = prev.positions[prev.step]?.commitIdx;
     if (commit === undefined || commit < 0) return;
     const target = stepForCommitIdx(cursorPositions, commit);

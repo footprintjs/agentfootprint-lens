@@ -99,6 +99,20 @@ describe('useSharedCursor', () => {
     expect(result.current.forAxis('step').at.runtimeStageId).toBe(step[2]!.runtimeStageId);
   });
 
+  it('over(): the same list under another drill path is another cursor', () => {
+    const fixture = load('flat-dynamic-tools');
+    const step = scrubAxisFor(fixture.recorder, 'step');
+    const { result } = renderHook(() => useSharedCursor(fixture.recorder));
+    const root = result.current.over(step);
+    expect(result.current.over(step)).toBe(root);
+    const inMount = result.current.over(step, ['mount']);
+    expect(inMount).not.toBe(root);
+    // Under the mount the root address is only found by its exact stage —
+    // and the run's-end default names no stage, so it reads as no position.
+    expect(inMount.at.step).toBe(-1);
+    expect(root.at.step).toBe(step.length - 1);
+  });
+
   it('with no recorder it reads as no position and a move is harmless', () => {
     const { result } = renderHook(() => useSharedCursor(undefined));
     expect(result.current.forAxis('group').at.step).toBe(-1);

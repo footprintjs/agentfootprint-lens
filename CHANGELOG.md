@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.56.0] - 2026-09-16
+
+### Added — `<Lens shared>`: the lens on the host's one cursor
+
+- `<Lens shared={useSharedCursor(recorder)}>` derives its own step over
+  whatever axis it is drawing — the commit axis, the milestone axis, a
+  tag-filtered one, a drilled one — from the shared ADDRESS, and every mover
+  in it (the strip, ◀ ▶, a chart click, `navigatorRef`) moves that address.
+  `step` is ignored while `shared` is given; `onStepChange` still fires as an
+  observation hook. A correction the lens makes on its own (`clamped`, an
+  address this axis cannot hold) never rewrites the address, and the axis
+  swap re-seat is not needed with an owner: the derivation follows the list.
+- `SharedCursor.over(positions, drillPath?)` — the general form `forAxis`
+  is sugar over: the `LensCursor` over ANY positions a view draws. Same
+  positions, same address → the same object.
+- Adoption in one line per lens: hold `const shared = useSharedCursor(recorder)`
+  and pass `shared={shared}` to each `<Lens>`; views that take a per-axis
+  `cursor` get `shared.forAxis(...)`; a view still on step + report gets
+  `shared.onStepChange` until it is moved over.
+
 ## [0.55.0] - 2026-09-16
 
 ### Added — the shared cursor: one address, every lens
