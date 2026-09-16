@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.58.1] - 2026-09-16
+
+### Fixed — no transport lit for an address the axis cannot hold
+
+- `<ContextView shared>` showed its transport at stop 0 when the shared
+  address stood off this view's axis (`step -1`), claiming a position the
+  cursor did not hold. The transport now renders only while the cursor
+  stands on the axis; the view's own reading already said `-1`.
+
 ## [0.58.0] - 2026-09-16
 
 ### Added — `<ContextView shared>`, on the one transport

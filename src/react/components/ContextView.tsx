@@ -162,8 +162,10 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
           setOwnStep,
         ));
   // A mover belongs here when the cursor is this view's own or the shared
-  // address — a per-axis `cursor` from a slot brings the host's mover.
-  const mover = props.cursor === undefined && cursor.total > 0;
+  // address — a per-axis `cursor` from a slot brings the host's mover — and
+  // only while the cursor STANDS on this axis: an address this axis cannot
+  // hold reads as no position, and a transport lit at stop 0 would claim one.
+  const mover = props.cursor === undefined && cursor.total > 0 && cursor.at.step >= 0;
   const [mode, setMode] = useState<'keys' | 'json'>(props.initialMode ?? 'keys');
 
   const context = useMemo(

@@ -191,6 +191,24 @@ describe('<ContextView shared> (0.58.0)', () => {
     expect(since.some((x) => x !== '')).toBe(true);
   });
 
+  it('an address this axis cannot hold: no position shown and no transport lit — nothing claimed (0.58.1)', () => {
+    const fixture = load('flat-dynamic-tools');
+    function Off() {
+      const shared = useSharedCursor(fixture.recorder);
+      return (
+        <>
+          <button type="button" data-testid="off" onClick={() => shared.moveTo({ runtimeStageId: '', commitIdx: -1 })} />
+          <ContextView runner={fixture.runner} recorder={fixture.recorder} shared={shared} />
+        </>
+      );
+    }
+    render(<Off />);
+    expect(screen.getByTestId('context-transport')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('off'));
+    expect(screen.getByTestId('context-view').getAttribute('data-step')).toBe('-1');
+    expect(screen.queryByTestId('context-transport')).toBeNull();
+  });
+
   it('without a recorder it reads the shared address over its own milestone axis', () => {
     const fixture = load('flat-dynamic-tools');
     const own = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, [])!;
