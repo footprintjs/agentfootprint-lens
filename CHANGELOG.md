@@ -5,6 +5,64 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.61.0] - 2026-09-17
+
+### Added — the Findings band under the Context view (agentfootprint 9.101)
+
+- `<ContextView>` mounts `<FindingsBand>` under the record layer whenever
+  the fold at the cursor holds `findingsLedger` — an armed run
+  (`.findings()`), after its first declaration. The band folds the rows
+  client-side the way the library's own reader does (the LAST standing row
+  per `toolCallId` is the current one) into groups: facts (each stood-on
+  assertion: subject kind/id · predicate = value ← provenance), conflicts
+  first seen (each `ConflictRow` as written — the history of when its key
+  first disagreed, never a current set: the library recomputes
+  `foldLedger(...).conflicts` from the current fact values and the lens does
+  not re-derive that algebra — every witness stamped with the standing the
+  fold holds for it now, `data-standing`; no verdict), open (its
+  quoted assertion and `settles`), ruled out (its `line`), noise (count and
+  ids), undeclared (count and ids of the batch's `toolResults` no standing
+  row names — never `open`). An empty group is not rendered; an unarmed run
+  has no band; `data-since` carries the key's own since-mark. Every printed
+  string is a value off the record or a label; the own-claims walker now
+  covers `FindingsBand.tsx`. Test ids: `context-findings` (`data-rows`,
+  `data-since`), `context-findings-<group>` (`data-count`), and the rows
+  `context-findings-fact`, `context-findings-conflict` (`data-key`) with
+  `context-findings-witness`, `context-findings-open-row`,
+  `context-findings-ruled-out-row`, `context-findings-noise-id`,
+  `context-findings-undeclared-id`. `foldFindings(rows, toolResults)` is
+  the pure fold, exported from the component file.
+- The record at every stop: `FOLD_FACT_KEYS` gains `findingsLedger`, so
+  `foldFactsAt` reports the rows at the cursor and the Served graph draws
+  one held node for the key (Not on record on an unarmed run). The Served
+  tab's list view adds three omit-when-absent lines: `findings piece` (the
+  count of `source: 'findings'` system pieces, with that piece's own check
+  badge; `served-findings-piece`), `collapsed tickets` (the tool results
+  served as tickets on the wire, one chip per ticket with its standing;
+  `served-collapsed-tickets` / `served-collapsed-ticket`), and `findings
+  ledger` in the fold section (the row count and per-kind counts;
+  `served-findings-ledger`). A ticket is read by its shape
+  (`{"collapsed":true,"standing":…,"toolCallId":…}`); `contextAt` shows the
+  key like any other, `entered` at the first tool-calls stop that wrote it
+  and `changed` at the next.
+- A thirteenth recorded fixture, `findings-ledger.json` — an armed agent on
+  the mock provider with a planted fact, a noise result, a ruled-out result
+  with its line, an open result with `settles`, one conflict and an
+  undeclared result — generated alone on agentfootprint 9.101.1; the other
+  twelve fixtures are `cmp`-equal after.
+
+### Changed
+
+- The Served-graph README's HELD item counts the seven `FOLD_FACT_KEYS` and
+  names them; `test/served/foldFactKeys.test.ts` pins the list, the README's
+  count word and names, and one Held node per key on a real fixture
+  (`findingsLedger` is `not-on-record` on an unarmed run, `reconstructed`
+  on the armed one).
+- devDependency `agentfootprint` `^9.98.1` → `^9.101.1` (the lockfile
+  already resolved 9.101.1). The peer range is unchanged (`^7.0.0 ||
+  ^8.0.0 || ^9.0.0`): on a peer without the ledger the key is absent and
+  nothing new renders.
+
 ## [0.60.0] - 2026-09-16
 
 ### Added — the cache recorder's run totals on the Served tab

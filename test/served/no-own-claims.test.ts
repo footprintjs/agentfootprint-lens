@@ -67,6 +67,11 @@ import { BADGE_LABELS } from "../../src/react/components/ServedBadge.js";
 // its labels are held to the same shape here.
 import { LABELS as BUG_REPORT_LABELS } from "../../src/react/components/BugReportButton.js";
 import { LABELS as CONTEXT_LABELS } from "../../src/react/components/ContextView.js";
+// 0.61.0: the Findings band under the Context view's record layer — the
+// model's own ledger folded for reading. Its labels name groups and fields
+// (`facts`, `ruled out`, `settles`); every other string it prints is a value
+// off the record.
+import { LABELS as FINDINGS_LABELS } from "../../src/react/components/FindingsBand.js";
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
@@ -78,6 +83,7 @@ const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
   BADGE_LABELS,
   BUG_REPORT_LABELS,
   CONTEXT_LABELS,
+  FINDINGS_LABELS,
 ];
 const LABEL_ENTRIES: readonly (readonly [string, string])[] =
   LABEL_SETS.flatMap((set) => Object.entries(set));
@@ -102,7 +108,7 @@ const FILES: string[] = [
   // 0.53.0: the Context view — the join over the three records, and its screen.
   ...sources("core/context", (f) => f.endsWith(".ts")),
   ...sources("react/components", (f) =>
-    /^(Served|BookmarksTab|TagPicker|ContextView).*\.tsx$/.test(f),
+    /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand).*\.tsx$/.test(f),
   ),
   ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
@@ -184,6 +190,10 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // 0.52.0: the pairing rule for evicted turns. It prints nothing itself,
     // and the walk is what keeps a "last served on…" sentence out of it.
     expect(walked).toContain("evictedTurns.ts");
+    // 0.61.0: the Findings band prints the model's own words (a `line`, a
+    // `settles`) beside ids and values — the walk is what keeps a lens
+    // sentence from joining them.
+    expect(walked).toContain("FindingsBand.tsx");
   });
 
   it("every LABEL is a label: short, and no claim verb (one mandated note excepted)", () => {

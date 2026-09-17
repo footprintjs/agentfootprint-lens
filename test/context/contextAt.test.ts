@@ -139,3 +139,58 @@ describe('the standalone milestone axis', () => {
     expect(positions!.some((p) => p.label.startsWith('LLM turn'))).toBe(true);
   });
 });
+
+describe('contextAt — the findings ledger at every stop (agentfootprint 9.101.0)', () => {
+  const ledgerAt = (
+    fixture: ReturnType<typeof load>,
+    stop: { runtimeStageId: string; commitIdx: number },
+    previous?: { runtimeStageId: string; commitIdx: number },
+  ) =>
+    contextAt(fixture.snapshot, at(stop), previous !== undefined ? { previous: at(previous) } : {}).keys.find(
+      (k) => k.path === 'findingsLedger',
+    );
+  const kindsOf = (value: unknown): string[] =>
+    (value as { kind: string }[]).map((r) => r.kind);
+
+  it('`findingsLedger` ENTERS at the first tool-calls stop that wrote it and reads CHANGED at the next — measured against the stop before, never inferred', () => {
+    const fixture = load('findings-ledger');
+    const positions = fixture.positions;
+    const toolCalls = stopsOf(fixture, 'tool-call');
+    expect(toolCalls.length).toBeGreaterThanOrEqual(2);
+    // The first tool-calls stop that holds the key is the stop that wrote it:
+    // the stage files a call's declarations (here, batch 1's basis rows).
+    const first = toolCalls.find((p) => ledgerAt(fixture, p) !== undefined);
+    expect(first).toBeDefined();
+    const firstIdx = positions.indexOf(first!);
+    expect(firstIdx).toBeGreaterThan(0);
+    const before = positions[firstIdx - 1]!;
+    expect(ledgerAt(fixture, before)).toBeUndefined();
+    const entered = ledgerAt(fixture, first!, before);
+    expect(entered?.since).toBe('entered');
+    expect(entered?.wroteBy).toBe(first!.runtimeStageId);
+    expect(entered?.wroteAt).toBe(first!.commitIdx);
+    expect(entered?.enteredAt).toBe(first!.commitIdx);
+    expect(kindsOf(entered!.value).every((k) => k === 'basis')).toBe(true);
+    // The next tool-calls stop appended batch 2's standing rows: CHANGED.
+    const next = toolCalls[toolCalls.indexOf(first!) + 1];
+    expect(next).toBeDefined();
+    const changed = ledgerAt(fixture, next!, first!);
+    expect(changed?.since).toBe('changed');
+    expect(changed?.wroteBy).toBe(next!.runtimeStageId);
+    expect(changed?.wroteAt).toBe(next!.commitIdx);
+    expect(changed?.enteredAt).toBe(first!.commitIdx);
+    expect(kindsOf(changed!.value)).toContain('standing');
+    expect((changed!.value as unknown[]).length).toBeGreaterThan((entered!.value as unknown[]).length);
+    // A stop between the two wrote nothing to the key: UNCHANGED, still
+    // attributed to the first tool-calls stop.
+    const between = positions[firstIdx + 1]!;
+    const unchanged = ledgerAt(fixture, between, first!);
+    expect(unchanged?.since).toBe('unchanged');
+    expect(unchanged?.wroteBy).toBe(first!.runtimeStageId);
+  });
+
+  it('an unarmed run holds no `findingsLedger` at any stop — absent, never an empty ledger', () => {
+    const fixture = load('flat-dynamic-tools');
+    for (const p of fixture.positions) expect(ledgerAt(fixture, p)).toBeUndefined();
+  });
+});

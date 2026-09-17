@@ -15,7 +15,12 @@
  * previous model call — rendered by `<ServedTab>`, the one owner of that
  * rendering (the Why Lens's Served tab is the same component). Beneath, what
  * it was BUILT from: the record's keys at the stop, who wrote each, what moved
- * since the previous stop; a long value opens in place.
+ * since the previous stop; a long value opens in place. Under the record,
+ * when the fold at the stop holds `findingsLedger` (an armed run,
+ * agentfootprint 9.101.0), the Findings band (0.61.0): the model's own
+ * ledger folded for reading by `<FindingsBand>` — its rows and the state's
+ * `toolResults` are read off `contextAt(...).keys`, so the band stands on
+ * the same fold as the key table and moves with the ONE cursor.
  *
  * Everything printed is the record: key paths, values, stage ids, commit
  * indices, event names, the Served row's pieces and verdicts. `LABELS` is
@@ -36,6 +41,7 @@ import type { EventLogEntry } from '../../core/types.js';
 import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRunner.js';
 import { TimeTravel } from '../TimeTravel.js';
 import type { SharedCursor } from '../useSharedCursor.js';
+import { FindingsBand } from './FindingsBand.js';
 import { ServedTab } from './ServedTab.js';
 
 export const LABELS = Object.freeze({
@@ -229,8 +235,26 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
         {LABELS.builtFrom} · {context.keys.length} {LABELS.keys}
       </div>
       {mode === 'json' ? <JsonPane context={context} /> : <KeyTable context={context} />}
+      <FindingsLayer context={context} />
       <WhyBand context={context} />
     </div>
+  );
+}
+
+/** The Findings band, under the record: ONLY when the fold at the stop holds
+ *  `findingsLedger` — an armed run, after its first declaration. The rows and
+ *  the batch (`toolResults`) are the same keys the table above lists, read
+ *  off the one `contextAt` — no second fold, no second cursor. */
+function FindingsLayer({ context }: { readonly context: ContextAt }): React.ReactElement | null {
+  const ledger = context.keys.find((k) => k.path === 'findingsLedger');
+  if (ledger === undefined || !Array.isArray(ledger.value)) return null;
+  const results = context.keys.find((k) => k.path === 'toolResults')?.value;
+  return (
+    <FindingsBand
+      rows={ledger.value}
+      {...(Array.isArray(results) ? { toolResults: results } : {})}
+      {...(ledger.since !== undefined ? { since: ledger.since } : {})}
+    />
   );
 }
 

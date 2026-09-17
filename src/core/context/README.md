@@ -64,3 +64,80 @@ recorder's grouped axis (`scrubAxisFor(recorder, 'group')` — the Why Lens's
 own stops) and mounts `<TimeTravel>` as its mover; `previous` is the stop
 before on that axis, derived here. The core is untouched: `contextAt` still
 takes a `ServedCursor` and an optional `previous`.
+
+## 0.61.0 — the Findings band, under the record
+
+**Why.** An armed agent (`.findings()`, agentfootprint 9.101) commits its own
+findings ledger, `findingsLedger`: a `basis` row before each tool call, a
+`standing` row on each result the model later named (`fact` · `open` ·
+`noise` · `ruled-out`), a `conflict` row where two stood-on readings
+disagreed. It is append-only, so the key table above shows every row that
+ever landed and the current picture at a stop is spread across them. The
+Findings band (`src/react/components/FindingsBand.tsx`) takes the standings
+the way the library's own reader does — the LAST standing row per
+`toolCallId` is the current one — and groups them, so a reader sees at the
+stop what the model stands on, what it keeps open, what it ruled out, what it
+called noise, and which results it never named. Conflicts are the one group
+that is NOT a current set: the library writes a `conflict` row once per key,
+when two stood-on readings first disagreed, and a later `ruled-out` retires a
+witness in ITS fold (`foldLedger(...).conflicts` is recomputed from the
+current fact values — contextfootprint's algebra, which the lens does not
+re-derive) without touching the row. The band therefore prints the conflict
+rows as the history of when each was **first seen**, and beside every witness
+the standing the same fold holds for it now — so a retired witness reads
+`ruled-out` on the row and sits in the ruled-out group, and nothing on the
+band says whether the conflict still holds.
+
+`<ContextView>` mounts the band (`FindingsLayer`) under the key table ONLY
+when the fold at the cursor holds `findingsLedger`; the rows and the batch
+(`toolResults`) are read off the one `contextAt(...).keys`, so the band stands
+on the same fold as the table and moves with the ONE cursor. `data-since` on
+the band is the key's own since-mark (`entered` at the stop that first wrote
+it, `changed` at each later write).
+
+The laws it keeps: **never infer** — a result in the batch with no standing
+row is listed as `undeclared`, never as `open`; **no verdict** — a conflict is
+its `ConflictRow`'s key and every witness's identity, each with the standing
+the fold holds for it now, and nothing says which reading holds nor whether
+the conflict is still current; **omit, never deny** — an empty group is not rendered, an
+unarmed run has no band; **no sentence of its own** — every printed string is
+a value off the record (an id, a subject, a predicate, a value, a `settles`,
+a `line`) or a `LABELS` entry, and the own-claims walker
+(`test/served/no-own-claims.test.ts`) covers the file.
+
+```tsx
+<ContextView runner={recording} recorder={recorder} shared={shared} />
+```
+
+At the answer stop of the `findings-ledger` fixture (agentfootprint 9.101.1,
+one tool `lookup`, six calls `c1`…`c6`), under the key table:
+
+```
+findings · 12 rows
+facts · 2        port/fc1/7 · state = up ← tool:c1
+                 port/fc1/7 · state = down ← tool:c5
+conflicts first seen · 1
+                 port/fc1/7 · state ← c1 · fact
+                 port/fc1/7 · state ← c5 · fact
+open · 1         c4 · lookup
+                 port/fc1/7 · flapping = true
+                 settles · a second read of the port counters
+ruled out · 1    c3 · lookup
+                 line · the optic was not swapped this week
+noise · 1        c2
+undeclared · 1   c6
+```
+
+Test ids: `context-findings` (`data-rows`, `data-since`), one
+`context-findings-<group>` per non-empty group (`facts`, `conflicts`, `open`,
+`ruled-out`, `noise`, `undeclared`; `data-count`), and the rows inside —
+`context-findings-fact`, `context-findings-conflict` (`data-key`) holding one
+`context-findings-witness` per witness (`data-standing` = that witness's
+current standing, empty when no standing row names it),
+`context-findings-open-row`,
+`context-findings-ruled-out-row`, `context-findings-noise-id`,
+`context-findings-undeclared-id` — each with `data-tool-call-id` where a row
+is about one result. `foldFindings(rows, toolResults)` is the pure fold the
+band renders, exported from the component file for a consumer with its own
+UI (not on a barrel in this release). Pinned by
+`test/context/findingsBand.test.tsx`.

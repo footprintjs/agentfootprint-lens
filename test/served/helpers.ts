@@ -39,7 +39,8 @@ export type FixtureName =
   | 'instructions-move'
   | 'tagged-chart'
   | 'window-evicts'
-  | 'wrap-up';
+  | 'wrap-up'
+  | 'findings-ledger';
 
 export interface LoadedFixture {
   readonly recording: Recording;

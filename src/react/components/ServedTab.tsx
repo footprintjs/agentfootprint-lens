@@ -125,6 +125,10 @@ export const LABELS = Object.freeze({
   engagement: 'engagement',
   activeInjections: 'active injections',
   hiddenFromModel: 'hidden from the model',
+  /** The findings ledger (agentfootprint 9.101.0): its `source: 'findings'` system piece, the tickets on the wire, the rows on the fold. */
+  findingsPiece: 'findings piece',
+  collapsedTickets: 'collapsed tickets',
+  findingsLedger: 'findings ledger',
   attentionDrops: 'attention drops',
   count: 'count',
   hashes: 'hashes',
@@ -277,6 +281,35 @@ function cacheTotalsOf(snapshot: unknown): { readonly read?: RecordedClaim; read
   };
 }
 
+/**
+ * The ticket a served tool message carries in place of a result the model
+ * judged (agentfootprint 9.101.0, `findings/serve.ts · collapseJudged`):
+ * `{ collapsed: true, standing, toolCallId }` as JSON, no model words. Read
+ * by its SHAPE — the library names no guard on a barrel — and never
+ * inferred: a content that does not parse to that shape is a result.
+ */
+function collapsedTicketOf(content: unknown): { readonly standing: string; readonly toolCallId: string } | undefined {
+  if (typeof content !== 'string' || !content.startsWith('{')) return undefined;
+  try {
+    const parsed = JSON.parse(content) as { collapsed?: unknown; standing?: unknown; toolCallId?: unknown } | null;
+    if (parsed === null || typeof parsed !== 'object' || parsed.collapsed !== true) return undefined;
+    if (typeof parsed.standing !== 'string' || typeof parsed.toolCallId !== 'string') return undefined;
+    return { standing: parsed.standing, toolCallId: parsed.toolCallId };
+  } catch {
+    return undefined;
+  }
+}
+
+/** The ledger's rows counted by their own `kind`, first-seen order: `basis 6 · standing 4`. */
+function rowKindCounts(rows: readonly unknown[]): string {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    const kind = (row as { kind?: unknown } | null)?.kind;
+    if (typeof kind === 'string') counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  return Array.from(counts, ([kind, n]) => `${kind} ${n}`).join(' · ');
+}
+
 /** One recorded claim as a line: the value when known, the recorder's own reason when not. */
 function ClaimLine({ label, claim, testId, format }: { readonly label: string; readonly claim: RecordedClaim; readonly testId: string; readonly format?: (n: number) => string }): React.ReactElement {
   return (
@@ -349,6 +382,13 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
   const view = row.view;
   const markers = row.receipt?.cache.markersApplied ?? [];
   const cacheTotals = useMemo(() => cacheTotalsOf(snapshot), [snapshot]);
+  // The findings ledger on THIS wire (agentfootprint 9.101.0): the system
+  // piece(s) it composed, and the tool results it served as tickets.
+  const findingsPieces = view.system.pieces.filter((p) => p.source === 'findings').length;
+  const tickets = view.messages.asSent.flatMap((m) => {
+    const t = m.role === 'tool' ? collapsedTicketOf(m.content) : undefined;
+    return t !== undefined ? [t] : [];
+  });
   const gapsCovering = (fields: readonly string[]): readonly ServedGap[] =>
     view.gaps.filter((g) => g.fields.some((f) => fields.includes(f)));
   const excusing = (fields: readonly string[]): boolean =>
@@ -421,6 +461,20 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
                 {checks.rebuiltOnly.pieces}
               </DataLine>
             )}
+            {/* The ledger's own piece, named by its source, with the verdict
+                the check gave THAT piece. Absent when no piece carries the
+                source: an unarmed run, or an armed one before any standing
+                was declared — nothing is claimed either way. */}
+            {findingsPieces > 0 && (
+              <DataLine label={LABELS.findingsPiece} testId="served-findings-piece">
+                {findingsPieces}
+                {view.system.pieces.map((piece, i) =>
+                  piece.source === 'findings' ? (
+                    <Badge key={i} check={checks.pieces[i] ?? { status: 'reconstructed' }} />
+                  ) : null,
+                )}
+              </DataLine>
+            )}
             {view.system.pieces.length === 0 &&
               gapsCovering(SECTION_FIELDS.system).length === 0 && (
                 <DataLine label={LABELS.pieces}>0</DataLine>
@@ -482,6 +536,24 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
         {(checks.rebuiltOnly.messages > 0 || checks.rebuiltOnly.requestOnly > 0) && (
           <DataLine label={`${LABELS.messages} · ${LABELS.rebuiltOnly}`}>
             {checks.rebuiltOnly.messages + checks.rebuiltOnly.requestOnly}
+          </DataLine>
+        )}
+        {/* Results the model judged, served as tickets: the count, then each
+            ticket's own `toolCallId · standing` as the wire carries it.
+            Absent when no tool message carries one. */}
+        {tickets.length > 0 && (
+          <DataLine label={LABELS.collapsedTickets} testId="served-collapsed-tickets">
+            {tickets.length}
+            {tickets.map((t) => (
+              <span
+                key={t.toolCallId}
+                style={chipStyle(T.textMuted)}
+                data-testid="served-collapsed-ticket"
+                data-standing={t.standing}
+              >
+                {t.toolCallId} · {t.standing}
+              </span>
+            ))}
           </DataLine>
         )}
       </Section>
@@ -1005,6 +1077,19 @@ function FoldSection({ fold }: { fold: FoldFacts }): React.ReactElement {
             </span>
           ))}
           {fold.hiddenSkillIds.length === 0 && <Count n={0} />}
+        </DataLine>
+      )}
+      {/* The ledger's rows at this stop, as the fold holds them: the count,
+          then one count per row `kind` in first-seen order (`basis`,
+          `standing`, `conflict` — the record's own words). A reader folds
+          the rows; this line only says how many are on the record here. */}
+      {fold.findingsLedger !== undefined && (
+        <DataLine label={LABELS.findingsLedger} testId="served-findings-ledger">
+          {fold.findingsLedger.length}
+          <span style={monoMutedStyle}>
+            {' '}
+            {rowKindCounts(fold.findingsLedger)}
+          </span>
         </DataLine>
       )}
     </Section>

@@ -57,8 +57,17 @@
  *                             a tool → the iteration budget runs out and the
  *                             wrap-up call (`wrapUpAtMaxIterations`, default
  *                             on) goes out with `tools.withheld: 'wrap-up'`.
+ *   findings-ledger.json      an ARMED agent (`.findings()`, agentfootprint
+ *                             9.101.0) on the mock, `_findings` scripted on
+ *                             every call: a planted fact, a noise result, a
+ *                             ruled-out result with its line, an open result
+ *                             with what settles it, ONE conflict declared on
+ *                             the JSON answer, and one result nobody named
+ *                             (UNDECLARED). The answer call's wire carries
+ *                             the `source: 'findings'` system piece and two
+ *                             collapsed tickets.
  *
- * Run:  npx tsx test/served/fixtures/generate.ts             all twelve
+ * Run:  npx tsx test/served/fixtures/generate.ts             all thirteen
  *       npx tsx test/served/fixtures/generate.ts <name>…     only those; the
  *       other files are not touched (every run mints a fresh runId, so a
  *       regenerated fixture never has the bytes it had).
@@ -492,6 +501,144 @@ if (wanted('wrap-up')) {
     if (at < 0) throw new Error(`wrap-up: no receipt carries tools.withheld 'wrap-up' (${JSON.stringify(withheld)})`);
     if (servedAt(r.snapshot, at + 1)?.tools.withheld !== 'wrap-up') {
       throw new Error('wrap-up: the view does not carry the withheld reason');
+    }
+  });
+}
+
+// ── 12: the findings ledger — the model's own standings, on the record ──
+// An ARMED agent (`.findings()`, agentfootprint 9.101.0) on the mock, with
+// `_findings` scripted on every call. Batch 1 makes four calls, each with a
+// basis. Batch 2's first call declares the four results — a planted fact
+// (one assertion), a noise result, a ruled-out result with its line, an open
+// result with what settles it — and the JSON answer stands on a SECOND
+// reading of the planted fact's subject and predicate with a different
+// value, so `recordFindings` writes ONE conflict row (two witnesses). The
+// answer is peeled only under `.outputSchema()` (the no-outputSchema
+// last-batch law), and it names batch 2's first result alone: the other is
+// judged by nothing — UNDECLARED on the record, in `toolResults` with no
+// standing row. The tool-calls stage files a call's declarations before
+// dispatch, so the answer call's wire (epoch 3) carries the
+// `source: 'findings'` system piece and the noise and ruled-out results as
+// collapsed tickets; epochs 1 and 2 carry neither.
+if (wanted('findings-ledger')) {
+  const port = { kind: 'port', id: 'fc1/7' };
+  const lookup = (id: string, q: string, findings: Record<string, unknown>) => ({
+    id,
+    name: 'lookup',
+    args: { q, _findings: findings },
+  });
+  const batch = (calls: readonly { id: string; name: string; args: Record<string, unknown> }[]): Reply => ({
+    content: '',
+    toolCalls: [...calls],
+    stopReason: 'tool_use',
+  });
+  const agent = Agent.create({
+    provider: scripted([
+      batch([
+        lookup('c1', 'fc1/7 state', { basis: 'direct', expect: 'high' }),
+        lookup('c2', 'fc1/8 state', { basis: 'exploratory', expect: 'low' }),
+        lookup('c3', 'optic swaps', { basis: 'exploratory' }),
+        lookup('c4', 'fc1/7 counters', { basis: 'direct' }),
+      ]),
+      batch([
+        lookup('c5', 'fc1/7 state again', {
+          basis: 'direct',
+          previous: [
+            {
+              toolCallId: 'c1',
+              standing: 'fact',
+              sought: true,
+              assertions: [{ subject: port, predicate: 'state', value: 'up' }],
+            },
+            { toolCallId: 'c2', standing: 'noise' },
+            { toolCallId: 'c3', standing: 'ruled-out', line: 'the optic was not swapped this week' },
+            {
+              toolCallId: 'c4',
+              standing: 'open',
+              settles: 'a second read of the port counters',
+              assertions: [{ subject: port, predicate: 'flapping', value: true }],
+            },
+          ],
+        }),
+        lookup('c6', 'fc1/7 neighbour', { basis: 'exploratory' }),
+      ]),
+      answer(
+        JSON.stringify({
+          answer: 'fc1/7',
+          _findings: {
+            previous: [
+              {
+                toolCallId: 'c5',
+                standing: 'fact',
+                assertions: [{ subject: port, predicate: 'state', value: 'down' }],
+              },
+            ],
+          },
+        }),
+      ),
+    ]),
+    model: 'mock',
+    maxIterations: 6,
+  })
+    .system('bot')
+    .tool(tool('lookup'))
+    .findings()
+    .outputSchema({ parse: (value: unknown) => value } as never, { retries: 0 })
+    .build();
+  const rec = recordRun(agent);
+  await agent.run({ message: 'is fc1/7 up?' });
+  const frozen = rec.toRecording() as Frozen;
+  rec.stop();
+  write('findings-ledger', frozen, (r) => {
+    if (epochsOf(r) !== 3) throw new Error(`findings-ledger: expected 3 epochs, got ${epochsOf(r)}`);
+    interface Row {
+      kind: string;
+      toolCallId?: string;
+      standing?: string;
+      line?: string;
+      settles?: string;
+      witnesses?: unknown[];
+    }
+    const state = (r.snapshot as { sharedState?: { findingsLedger?: Row[]; toolResults?: { toolCallId: string }[] } }).sharedState;
+    const ledger = state?.findingsLedger;
+    if (!Array.isArray(ledger)) throw new Error('findings-ledger: the state carries no findingsLedger key');
+    const standing = new Map<string, Row>();
+    for (const row of ledger) if (row.kind === 'standing' && row.toolCallId !== undefined) standing.set(row.toolCallId, row);
+    const expected: Record<string, string> = { c1: 'fact', c2: 'noise', c3: 'ruled-out', c4: 'open', c5: 'fact' };
+    for (const [id, s] of Object.entries(expected)) {
+      if (standing.get(id)?.standing !== s) {
+        throw new Error(`findings-ledger: expected ${id} standing ${s}, got ${JSON.stringify(standing.get(id)?.standing)}`);
+      }
+    }
+    if (standing.has('c6')) throw new Error('findings-ledger: c6 must be undeclared (no standing row)');
+    if (standing.get('c3')?.line === undefined) throw new Error('findings-ledger: the ruled-out row carries no line');
+    if (standing.get('c4')?.settles === undefined) throw new Error('findings-ledger: the open row carries no settles');
+    const conflicts = ledger.filter((row) => row.kind === 'conflict');
+    if (conflicts.length !== 1 || conflicts[0]?.witnesses?.length !== 2) {
+      throw new Error(`findings-ledger: expected one conflict row with two witnesses, got ${JSON.stringify(conflicts)}`);
+    }
+    if (!(state?.toolResults ?? []).some((t) => t.toolCallId === 'c6')) {
+      throw new Error('findings-ledger: the undeclared result c6 is not in toolResults');
+    }
+    const ticket = (content: unknown): boolean => {
+      if (typeof content !== 'string') return false;
+      try {
+        const parsed = JSON.parse(content) as { collapsed?: unknown };
+        return parsed !== null && typeof parsed === 'object' && parsed.collapsed === true;
+      } catch {
+        return false;
+      }
+    };
+    for (const k of [1, 2, 3]) {
+      const view = servedAt(r.snapshot, k);
+      if (view === undefined) throw new Error(`findings-ledger: no served view at epoch ${k}`);
+      const piece = view.system.pieces.some((p) => p.source === 'findings');
+      const tickets = view.messages.asSent.filter((m) => m.role === 'tool' && ticket(m.content)).length;
+      if (k < 3 && (piece || tickets > 0)) {
+        throw new Error(`findings-ledger: epoch ${k} carries the piece or a ticket before any standing was declared`);
+      }
+      if (k === 3 && !piece) throw new Error('findings-ledger: epoch 3 carries no findings piece');
+      if (k === 3 && tickets !== 2) throw new Error(`findings-ledger: expected 2 collapsed tickets at epoch 3, got ${tickets}`);
     }
   });
 }

@@ -126,11 +126,15 @@ slot present — the tab reads the same one cursor either way.
 already decided into **three bands, left to right**. It is a SECOND VIEW of one
 row — never a second data path, never a second cursor.
 
-1. **HELD** — what the record holds at this stop. The six `FOLD_FACT_KEYS`
-   plus the fold's own honesty flags (`basis`, `redacted`, `skipped`,
-   `foldError`). A key the fold holds no value for is a node marked
-   `'not-on-record'`; a fold that could not read a row is a node marked
-   `'damaged'`. Never an empty node.
+1. **HELD** — what the record holds at this stop. The seven `FOLD_FACT_KEYS`
+   (`iteration`, `currentSkillId`, `stepPointer`, `mapEngagement`,
+   `activeInjections`, `hiddenSkillIds`, and since 0.61.0 `findingsLedger` —
+   the rows as committed, an armed run's own ledger) plus the fold's own
+   honesty flags (`basis`, `redacted`, `skipped`, `foldError`). The count and
+   the names here are pinned against the list by
+   `test/served/foldFactKeys.test.ts`. A key the fold holds no value for is a
+   node marked `'not-on-record'`; a fold that could not read a row is a node
+   marked `'damaged'`. Never an empty node.
 2. **SERVED** — what crossed into the call. Exactly three slot nodes
    (`SERVED_SLOTS` = the library's `ContextSlot`, in request-assembly order),
    each with the rebuilt count, the receipt's own count, the rows only one side

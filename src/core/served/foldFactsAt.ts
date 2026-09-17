@@ -37,6 +37,7 @@ export const FOLD_FACT_KEYS = Object.freeze([
   'mapEngagement',
   'activeInjections',
   'hiddenSkillIds',
+  'findingsLedger',
 ] as const);
 
 export type FoldFactKey = (typeof FOLD_FACT_KEYS)[number];
@@ -65,6 +66,13 @@ export interface FoldFacts {
   /** The skill ids the caller's role could not see at this stop. From the
    *  fold — never from a receipt. */
   readonly hiddenSkillIds?: readonly string[];
+  /** The model's own findings ledger (agentfootprint 9.101.0,
+   *  `AgentState.findingsLedger`): the rows AS COMMITTED at the stop — basis,
+   *  standing and conflict rows, append-only — never folded here. A reader
+   *  folds them (the last standing row per result id is the current one).
+   *  Absent when the agent was not armed (`.findings()`), or before its
+   *  first declaration. */
+  readonly findingsLedger?: readonly unknown[];
 }
 
 /** The indices of `FoldedState.skipped` (footprintjs 9.18's `LogGap[]`), or
@@ -109,6 +117,7 @@ export function foldFactsAt(recording: unknown, cursor: ServedCursor): FoldFacts
   }
   const hidden = out.hiddenSkillIds;
   const injections = out.activeInjections;
+  const ledger = out.findingsLedger;
   const skipped = skippedIndicesOf(folded);
   return Object.freeze({
     basis: folded.basis,
@@ -123,5 +132,6 @@ export function foldFactsAt(recording: unknown, cursor: ServedCursor): FoldFacts
     ...(Array.isArray(hidden) && hidden.every((h) => typeof h === 'string')
       ? { hiddenSkillIds: Object.freeze([...(hidden as string[])]) }
       : {}),
+    ...(Array.isArray(ledger) ? { findingsLedger: Object.freeze([...ledger]) } : {}),
   });
 }
