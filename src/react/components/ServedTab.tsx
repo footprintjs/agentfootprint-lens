@@ -288,7 +288,7 @@ function cacheTotalsOf(snapshot: unknown): { readonly read?: RecordedClaim; read
  * by its SHAPE — the library names no guard on a barrel — and never
  * inferred: a content that does not parse to that shape is a result.
  */
-function collapsedTicketOf(content: unknown): { readonly standing: string; readonly toolCallId: string } | undefined {
+export function collapsedTicketOf(content: unknown): { readonly standing: string; readonly toolCallId: string } | undefined {
   if (typeof content !== 'string' || !content.startsWith('{')) return undefined;
   try {
     const parsed = JSON.parse(content) as { collapsed?: unknown; standing?: unknown; toolCallId?: unknown } | null;

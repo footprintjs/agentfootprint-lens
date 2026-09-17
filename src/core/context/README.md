@@ -109,7 +109,7 @@ a `line`) or a `LABELS` entry, and the own-claims walker
 <ContextView runner={recording} recorder={recorder} shared={shared} />
 ```
 
-At the answer stop of the `findings-ledger` fixture (agentfootprint 9.101.1,
+At the answer stop of the `findings-ledger` fixture (agentfootprint 9.103.0,
 one tool `lookup`, six calls `c1`…`c6`), under the key table:
 
 ```
@@ -141,3 +141,105 @@ is about one result. `foldFindings(rows, toolResults)` is the pure fold the
 band renders, exported from the component file for a consumer with its own
 UI (not on a barrel in this release). Pinned by
 `test/context/findingsBand.test.tsx`.
+
+## 0.62.0 — the Reasoning lens, the same fold read by call
+
+**Why.** The Findings band groups the ledger by STANDING. A reader following
+the model's reasoning wants it the other way round — BY CALL: what the model
+declared before each tool call ran, what came back, what it declared about
+the result afterwards. `<ReasoningLens>`
+(`src/react/components/ReasoningLens.tsx`) draws one card per tool call in
+call order, from the fold at the cursor's stop, and one trailing card for
+the answer turn. It stands on `foldFindings` (reused, not re-derived —
+0.62.0 adds `standings`, the current row per `toolCallId`, to that fold) and
+looks everything else up by the result's id: the result itself from the
+state's `history` tool messages (then the batch, `toolResults`), the
+collapsed ticket from the served wire at the stop's epoch
+(`contextAt(...).served.row.view.messages.asSent`, read by
+`ServedTab.tsx · collapsedTicketOf`), the conflict rows from the same fold.
+
+Each card: the tool name, the id (shortened past 12 characters, the full id
+on hover), the iteration, the `basis` as a chip (`direct` / `exploratory`)
+and `expect` when declared; BEFORE — `proposition` (under the label
+`tested`) and `predicts`, quoted, when the record carries them (the fixture's
+`c3` declares both; the other calls declare neither and draw no BEFORE); AFTER — the current standing as a chip
+(`fact` · `open` · `noise` · `ruled-out`, the record's word, or the label
+`undeclared`), `sought`, `unknown id` (the library's flag that the id named
+no result in the batch), `collapsed` (with the ticket's own standing as the
+hover), `declared on` (the later call's id or `answer`), and ONE quoted line
+— the first assertion for a fact, the `settles` for an open result, the
+`line` for a ruled-out one. A `details` disclosure (a native `<details>`; its
+open bit is the browser's, not a second cursor) opens the full id, the
+result's size (`placed` ref and `bytes` from a placement ticket, else its
+chars), the ticket on the wire, every assertion, and the `settles` / `line`.
+A conflict row puts a `conflict` chip on BOTH witnesses' cards (the key on
+hover).
+
+The answer card appears once a standing row was declared on the answer
+(`declaredOn: 'answer'`) and counts the fold's buckets under the served
+piece's own field names — `facts` (stood-on assertions), `limitations`
+(ruled-out rows), `evidenceRefs` (open rows), `nextSteps` (open rows with a
+`settles`), `noise`, `undeclared` — the mapping `findings/serve.ts ·
+findingsLedgerPiece` uses to compose the piece; the counts are the fold's at
+the cursor, never a parse of the piece text, so at the answer stop they
+include the answer's own declarations. The run constants ride as chips when
+the record carries them: `serve` (`findingsServe`) and `answer ask`
+(`findingsAnswerAsk`) — absent otherwise.
+
+ONE cursor: the lens takes `cursor` (a host's per-axis reading) or `shared`
+(the host's address, read over the recorder's grouped axis or the milestone
+axis) exactly as `<ContextView>` does, and holds no cursor of its own — with
+neither it reads the run's end, stateless, and mounts no mover. Calls after
+the cursor are not drawn because the fold at the stop does not hold their
+basis rows yet.
+
+```tsx
+const shared = useSharedCursor(recorder);
+<ContextView runner={recording} recorder={recorder} shared={shared} />
+<ReasoningLens runner={recording} recorder={recorder} shared={shared} />
+```
+
+At the answer stop of the `findings-ledger` fixture:
+
+```
+Reasoning · 6 calls
+lookup c1 · iteration 1 · [direct] [expect high] [conflict]
+  standing [fact] [sought] · declared on c5
+  port/fc1/7 · state = up
+lookup c2 · iteration 1 · [exploratory] [expect low]
+  standing [noise] [collapsed] · declared on c5
+lookup c3 · iteration 1 · [exploratory]
+  tested "the optic on fc1/7 was swapped this week"
+  predicts "a swap event for fc1/7 dated within seven days"
+  standing [ruled-out] [collapsed] · declared on c5
+  line "the optic was not swapped this week"
+lookup c4 · iteration 1 · [direct]
+  standing [open] · declared on c5
+  settles "a second read of the port counters"
+lookup c5 · iteration 2 · [direct] [conflict]
+  standing [fact] · declared on answer
+  port/fc1/7 · state = down
+lookup c6 · iteration 2 · [exploratory]
+  standing [undeclared]
+answer · [serve ledger-and-facts]
+  facts 2 · limitations 1 · evidenceRefs 1 · nextSteps 1 · noise 1 · undeclared 1
+```
+
+The laws it keeps are the band's: **omit, never deny** (no ledger at the
+stop, nothing drawn — the root is absent on an unarmed run; no field a row
+does not carry), **never infer** (`undeclared`, never `open`), **no sentence
+of its own** (`LABELS`, walked by `test/served/no-own-claims.test.ts`), and
+**one cursor**. Test ids: `reasoning-lens` (`data-step`, `data-commit`,
+`data-calls`), `reasoning-card` (`data-tool-call-id`, `data-basis`,
+`data-standing`), the chips `reasoning-basis`, `reasoning-expect`,
+`reasoning-malformed`, `reasoning-conflict`, `reasoning-standing`,
+`reasoning-sought`, `reasoning-unknown-id`, `reasoning-collapsed`, the
+blocks `reasoning-before` (`reasoning-proposition`, `reasoning-predicts`),
+`reasoning-after`, `reasoning-declared-on`, `reasoning-line`,
+`reasoning-details` (`reasoning-result` with `data-chars` or
+`data-placed`, `reasoning-ticket`, `reasoning-assertion`), and
+`reasoning-answer` (`data-answer-ask`; `reasoning-count` per bucket with
+`data-bucket` / `data-count`; `reasoning-serve`, `reasoning-answer-ask`).
+`foldReasoning(input)` is the pure fold, exported with the component from
+the root barrel and the `/context` door. Pinned by
+`test/context/reasoningLens.test.tsx`.

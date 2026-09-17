@@ -5,6 +5,44 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.62.0] - 2026-09-17
+
+### Added — the Reasoning lens: the model's declared reasoning, by call
+
+- `<ReasoningLens>` (root barrel and the `/context` door; `REASONING_LABELS`,
+  `foldReasoning`) draws ONE CARD PER TOOL CALL in call order from the fold
+  at the cursor's stop — the same `findingsLedger` the Findings band groups
+  by standing, read the other way round. Each card: the tool name, the id
+  (short, the full id on hover), the iteration, the `basis` chip (`direct` /
+  `exploratory`) and `expect`; BEFORE — `proposition` (labelled `tested`) and
+  `predicts`, quoted, when the record carries them; AFTER — the current
+  standing as a chip (`fact` · `open` · `noise` · `ruled-out`, or the label
+  `undeclared` — never `open` for a result no row names), `sought`,
+  `unknown id`, `collapsed` (the wire at the stop's epoch carried the result
+  as a ticket; the ticket's standing on hover), `declared on` (the later
+  call's id or `answer`), and one quoted line (the first assertion, the
+  `settles`, or the `line`); a native `<details>` disclosure opens the full
+  id, the result's size (`placed` ref + `bytes` from a placement ticket, else
+  chars), the ticket, every assertion. A conflict row chips BOTH witnesses'
+  cards. A trailing `answer` card, once a standing was declared on the
+  answer, counts the fold's buckets under the served piece's field names
+  (`facts`, `limitations`, `evidenceRefs`, `nextSteps`, `noise`,
+  `undeclared`) and carries the run constants `findingsServe` /
+  `findingsAnswerAsk` when the record has them.
+- ONE cursor: the lens takes `cursor` or `shared` (+ `recorder`) exactly as
+  `<ContextView>` does and holds no cursor of its own — with neither it
+  reads the run's end and mounts no mover. Omit, never deny: on an unarmed
+  run, or before the first declaration, the root is absent. Every printed
+  string is a value off the record or a `LABELS` entry; the own-claims
+  walker covers `ReasoningLens.tsx`.
+- `foldFindings` (the band's fold) gains `standings` — the current standing
+  row per `toolCallId` — and `StandingShape` carries `ref`, `sought`,
+  `declaredOn`, `iteration` and `unknownId` as the row spells them.
+  `ServedTab.tsx · collapsedTicketOf` is exported for the lens. Test ids
+  and the walkthrough: `src/core/context/README.md` (0.62.0).
+- The `findings-ledger` fixture is regenerated alone on agentfootprint 9.103.0 (devDependency bumped): its `c3` call now declares a `proposition` and `predicts`, and the run carries the `answerAsk: 'quote-facts'` constant, so the lens's BEFORE block and answer-ask chip are pinned by a recorded run; the twelve other fixtures are byte-identical.
+
+
 ## [0.61.1] - 2026-09-17
 
 ### Fixed — a held value opens in place on the Served graph

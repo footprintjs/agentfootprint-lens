@@ -29,6 +29,18 @@ export {
   MILESTONE_AXIS as CONTEXT_MILESTONE_AXIS,
   type ContextViewProps,
 } from '../react/components/ContextView.js';
+// 0.62.0: the Reasoning lens, beside the Context view — the same fold read
+// BY CALL. An addition to the door, never a move; also on the root barrel.
+export {
+  ReasoningLens,
+  LABELS as REASONING_LABELS,
+  foldReasoning,
+  type ReasoningLensProps,
+  type ReasoningFold,
+  type ReasoningCard,
+  type ReasoningInput,
+  type AnswerCard as ReasoningAnswerCard,
+} from '../react/components/ReasoningLens.js';
 export {
   contextAt,
   type ContextAt,

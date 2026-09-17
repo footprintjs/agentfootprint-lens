@@ -161,6 +161,22 @@ export {
   type ContextViewProps,
 } from "./components/ContextView.js";
 
+// <ReasoningLens> (0.62.0) — the model's declared reasoning BY CALL: one card
+// per tool call at the cursor (basis before, result, current standing after),
+// and a trailing answer card. Reads the same fold the Findings band reads;
+// takes the ONE cursor (`cursor` or `shared`) and holds none of its own.
+// `REASONING_LABELS` is every string it owns — names, never a sentence.
+export {
+  ReasoningLens,
+  LABELS as REASONING_LABELS,
+  foldReasoning,
+  type ReasoningLensProps,
+  type ReasoningFold,
+  type ReasoningCard,
+  type ReasoningInput,
+  type AnswerCard as ReasoningAnswerCard,
+} from "./components/ReasoningLens.js";
+
 // <ServedTab> — at every LLM call, exactly what the model was served, provable
 // from the log (agentfootprint 9.88.0's `servedAt` / `receiptAt`). The engineer
 // view mounts it as the right rail's second tab; exported for consumer-built

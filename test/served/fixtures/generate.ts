@@ -57,8 +57,8 @@
  *                             a tool → the iteration budget runs out and the
  *                             wrap-up call (`wrapUpAtMaxIterations`, default
  *                             on) goes out with `tools.withheld: 'wrap-up'`.
- *   findings-ledger.json      an ARMED agent (`.findings()`, agentfootprint
- *                             9.101.0) on the mock, `_findings` scripted on
+ *   findings-ledger.json      an ARMED agent (`.findings({ answerAsk })`, agentfootprint
+ *                             9.103.0) on the mock, `_findings` scripted on
  *                             every call: a planted fact, a noise result, a
  *                             ruled-out result with its line, an open result
  *                             with what settles it, ONE conflict declared on
@@ -537,7 +537,11 @@ if (wanted('findings-ledger')) {
       batch([
         lookup('c1', 'fc1/7 state', { basis: 'direct', expect: 'high' }),
         lookup('c2', 'fc1/8 state', { basis: 'exploratory', expect: 'low' }),
-        lookup('c3', 'optic swaps', { basis: 'exploratory' }),
+        lookup('c3', 'optic swaps', {
+          basis: 'exploratory',
+          proposition: 'the optic on fc1/7 was swapped this week',
+          predicts: 'a swap event for fc1/7 dated within seven days',
+        }),
         lookup('c4', 'fc1/7 counters', { basis: 'direct' }),
       ]),
       batch([
@@ -582,7 +586,7 @@ if (wanted('findings-ledger')) {
   })
     .system('bot')
     .tool(tool('lookup'))
-    .findings()
+    .findings({ answerAsk: 'quote-facts' })
     .outputSchema({ parse: (value: unknown) => value } as never, { retries: 0 })
     .build();
   const rec = recordRun(agent);

@@ -72,6 +72,10 @@ import { LABELS as CONTEXT_LABELS } from "../../src/react/components/ContextView
 // (`facts`, `ruled out`, `settles`); every other string it prints is a value
 // off the record.
 import { LABELS as FINDINGS_LABELS } from "../../src/react/components/FindingsBand.js";
+// 0.62.0: the Reasoning lens — the same ledger read BY CALL. Its labels name
+// fields and chips (`tested`, `predicts`, `declared on`, `undeclared`); the
+// model's own words (a proposition, a `line`) are printed as quoted data.
+import { LABELS as REASONING_LABELS } from "../../src/react/components/ReasoningLens.js";
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
@@ -84,6 +88,7 @@ const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
   BUG_REPORT_LABELS,
   CONTEXT_LABELS,
   FINDINGS_LABELS,
+  REASONING_LABELS,
 ];
 const LABEL_ENTRIES: readonly (readonly [string, string])[] =
   LABEL_SETS.flatMap((set) => Object.entries(set));
@@ -108,7 +113,7 @@ const FILES: string[] = [
   // 0.53.0: the Context view — the join over the three records, and its screen.
   ...sources("core/context", (f) => f.endsWith(".ts")),
   ...sources("react/components", (f) =>
-    /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand).*\.tsx$/.test(f),
+    /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand|ReasoningLens).*\.tsx$/.test(f),
   ),
   ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
@@ -194,6 +199,9 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // `settles`) beside ids and values — the walk is what keeps a lens
     // sentence from joining them.
     expect(walked).toContain("FindingsBand.tsx");
+    // 0.62.0: the Reasoning lens quotes the model's words per call — the
+    // walk is what keeps a lens sentence from standing beside them.
+    expect(walked).toContain("ReasoningLens.tsx");
   });
 
   it("every LABEL is a label: short, and no claim verb (one mandated note excepted)", () => {

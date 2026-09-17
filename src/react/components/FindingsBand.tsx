@@ -80,6 +80,9 @@ export interface AssertionShape {
   readonly provenance?: string;
 }
 
+/** Where a standing was declared: on a later tool call (its id) or on the answer. */
+export type DeclaredOnShape = { readonly toolCallId: string } | 'answer';
+
 /** A standing row, as read: the result judged, its standing, what it carries. */
 export interface StandingShape {
   readonly toolCallId: string;
@@ -88,6 +91,16 @@ export interface StandingShape {
   readonly assertions: readonly AssertionShape[];
   readonly settles?: string;
   readonly line?: string;
+  /** The placement ticket's ref when the judged result was placed (0.62.0). */
+  readonly ref?: string;
+  /** The model's own flag that this result was the one it was after (0.62.0). */
+  readonly sought?: true;
+  /** Where the row was declared, as the record spells it (0.62.0). */
+  readonly declaredOn?: DeclaredOnShape;
+  /** The declaring iteration (0.62.0). */
+  readonly iteration?: number;
+  /** Set by the library when the id named no result in the previous batch (0.62.0). */
+  readonly unknownId?: true;
 }
 
 export interface WitnessShape {
@@ -140,6 +153,7 @@ function assertionOf(v: unknown): AssertionShape | undefined {
 function standingOf(row: unknown): StandingShape | undefined {
   if (!isRecord(row) || row.kind !== 'standing') return undefined;
   if (typeof row.toolCallId !== 'string' || typeof row.standing !== 'string') return undefined;
+  const declaredOn = declaredOnOf(row.declaredOn);
   const assertions = Array.isArray(row.assertions)
     ? row.assertions.flatMap((a) => {
         const shaped = assertionOf(a);
@@ -153,7 +167,19 @@ function standingOf(row: unknown): StandingShape | undefined {
     ...(typeof row.toolName === 'string' ? { toolName: row.toolName } : {}),
     ...(typeof row.settles === 'string' ? { settles: row.settles } : {}),
     ...(typeof row.line === 'string' ? { line: row.line } : {}),
+    ...(typeof row.ref === 'string' ? { ref: row.ref } : {}),
+    ...(row.sought === true ? { sought: true } : {}),
+    ...(declaredOn !== undefined ? { declaredOn } : {}),
+    ...(typeof row.iteration === 'number' ? { iteration: row.iteration } : {}),
+    ...(row.unknownId === true ? { unknownId: true } : {}),
   };
+}
+
+/** `declaredOn` as the record spells it: `'answer'` or `{ toolCallId }`; anything else is absent. */
+function declaredOnOf(v: unknown): DeclaredOnShape | undefined {
+  if (v === 'answer') return 'answer';
+  if (isRecord(v) && typeof v.toolCallId === 'string') return { toolCallId: v.toolCallId };
+  return undefined;
 }
 
 function witnessOf(v: unknown): WitnessShape | undefined {
@@ -207,6 +233,12 @@ export interface FindingsFold {
   readonly noise: readonly string[];
   /** The ids in `toolResults` with NO standing row — undeclared, never `open`. */
   readonly undeclared: readonly string[];
+  /**
+   * The CURRENT standing row per `toolCallId` — the last one written — in
+   * first-declared order (0.62.0). The groups above are views of this map;
+   * a reader that walks the calls one by one (`<ReasoningLens>`) asks it.
+   */
+  readonly standings: ReadonlyMap<string, StandingShape>;
 }
 
 /**
@@ -265,6 +297,7 @@ export function foldFindings(rows: readonly unknown[], toolResults?: readonly un
     ruledOut: Object.freeze(ruledOut),
     noise: Object.freeze(noise),
     undeclared: Object.freeze(undeclared),
+    standings: standing,
   });
 }
 
