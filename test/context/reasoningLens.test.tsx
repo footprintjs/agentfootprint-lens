@@ -246,6 +246,42 @@ describe('<ReasoningLens> laws', () => {
   });
 });
 
+describe('<ReasoningLens> carries the transport when it holds the shared address (0.63.1)', () => {
+  function Alone({ fixture }: { readonly fixture: Fixture }) {
+    const shared = useSharedCursor(fixture.recorder);
+    return <ReasoningLens runner={fixture.runner} recorder={fixture.recorder} shared={shared} />;
+  }
+
+  it('mounts the same transport the Context view mounts, and stepping it back trims the calls', () => {
+    const fixture = load('findings-ledger');
+    render(<Alone fixture={fixture} />);
+    const lastStep = fixture.positions.length - 1;
+    expect(screen.getByTestId('reasoning-transport')).toBeInTheDocument();
+    expect(screen.getByTestId('reasoning-lens').getAttribute('data-step')).toBe(String(lastStep));
+    const [first] = stopsOf(fixture, 'tool-call');
+    const firstStep = stepOf(fixture, first!);
+    for (let i = 0; i < lastStep - firstStep; i++) fireEvent.click(screen.getByLabelText('Previous step'));
+    expect(screen.getByTestId('reasoning-lens').getAttribute('data-step')).toBe(String(firstStep));
+    expect(cards().map((c) => c.getAttribute('data-tool-call-id'))).toEqual(['c1', 'c2', 'c3', 'c4']);
+    // Forward again to the end: the same address, the same cards.
+    for (let i = 0; i < lastStep - firstStep; i++) fireEvent.click(screen.getByLabelText('Next step'));
+    expect(cards()).toHaveLength(6);
+  });
+
+  it('a per-axis `cursor` from a slot brings the host’s mover — none is mounted here', () => {
+    const fixture = load('findings-ledger');
+    const last = fixture.positions[fixture.positions.length - 1]!;
+    render(
+      <ReasoningLens
+        runner={fixture.runner}
+        cursor={lensCursorFrom(fixture.positions, fixture.positions.length - 1, () => undefined)}
+      />,
+    );
+    void last;
+    expect(screen.queryByTestId('reasoning-transport')).toBeNull();
+  });
+});
+
 describe('<ReasoningLens> moves with the ONE cursor', () => {
   function Host({ fixture }: { readonly fixture: Fixture }) {
     const shared = useSharedCursor(fixture.recorder);
@@ -268,7 +304,7 @@ describe('<ReasoningLens> moves with the ONE cursor', () => {
     expect(cards()).toHaveLength(6);
     expect(screen.getByTestId('reasoning-answer')).toBeInTheDocument();
     const back = (n: number) => {
-      for (let i = 0; i < n; i++) fireEvent.click(screen.getByLabelText('Previous step'));
+      for (let i = 0; i < n; i++) fireEvent.click(within(screen.getByTestId('context-transport')).getByLabelText('Previous step'));
     };
     // One step before the answer's declaration: no answer card, c5 undeclared.
     back(lastStep - secondStep);
@@ -595,7 +631,7 @@ describe('<ReasoningLens view="exchange"> moves with the ONE cursor', () => {
     const lastStep = fixture.positions.length - 1;
     expect(beats()).toHaveLength(14);
     const back = (n: number) => {
-      for (let i = 0; i < n; i++) fireEvent.click(screen.getByLabelText('Previous step'));
+      for (let i = 0; i < n; i++) fireEvent.click(within(screen.getByTestId('context-transport')).getByLabelText('Previous step'));
     };
     back(lastStep - secondStep);
     expect(screen.getByTestId('reasoning-lens').getAttribute('data-step')).toBe(String(secondStep));

@@ -69,6 +69,7 @@ import { tagAxisPositions } from '../../core/tags/tagAxis.js';
 import type { EventLogEntry } from '../../core/types.js';
 import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRunner.js';
 import { T } from '../theme/index.js';
+import { TimeTravel } from '../TimeTravel.js';
 import type { SharedCursor } from '../useSharedCursor.js';
 import { MILESTONE_AXIS } from './ContextView.js';
 import { foldFindings, type AssertionShape, type FindingsFold, type StandingShape } from './FindingsBand.js';
@@ -611,6 +612,14 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
     });
   }, [context, rows]);
 
+  // THE transport (0.63.1): the same component the Lens, the Skill Graph and
+  // the Context view mount, moving the same address through the same funnel.
+  // It belongs here when the cursor is the shared address — a per-axis
+  // `cursor` from a slot brings the host's mover — and only while the address
+  // stands on this axis (a transport lit at stop 0 would claim a position).
+  // A run with no ledger yet at the end draws nothing, transport included.
+  const mover = props.cursor === undefined && shared !== undefined && cursor.total > 0 && cursor.at.step >= 0;
+
   // Omit, never deny: no ledger at the stop, nothing drawn.
   if (exchange === undefined) return null;
   const fold = exchange.reasoning;
@@ -630,6 +639,17 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
         </span>
         <ViewToggle view={view} onView={setView} />
       </div>
+      {mover && (
+        <div data-testid="reasoning-transport">
+          <TimeTravel
+            total={cursor.total}
+            focusSeq={Math.max(0, cursor.at.step)}
+            onFocusChange={(n) => cursor.moveTo(n)}
+            isLive={false}
+            compact
+          />
+        </div>
+      )}
       {view === 'cards' && (
         <div style={column} data-testid="reasoning-cards">
           {fold.cards.map((card) => (

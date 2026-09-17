@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.63.1] - 2026-09-17
+
+### Fixed — the Reasoning lens carries the transport
+
+- When the lens holds the shared address it mounts the same transport the
+  Lens, the Skill Graph and the Context view mount, so a reader can step the
+  exchange back and forward from this tab without leaving it. A per-axis
+  cursor from a slot still brings the host's mover; a run with no ledger draws
+  nothing, transport included.
+
 ## [0.63.0] - 2026-09-17
 
 ### Added — the Reasoning lens's exchange view: the same beats as a transcript
