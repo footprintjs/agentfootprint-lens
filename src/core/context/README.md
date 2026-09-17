@@ -243,3 +243,146 @@ blocks `reasoning-before` (`reasoning-proposition`, `reasoning-predicts`),
 `foldReasoning(input)` is the pure fold, exported with the component from
 the root barrel and the `/context` door. Pinned by
 `test/context/reasoningLens.test.tsx`.
+
+## 0.63.0 — the exchange view, the same beats as a transcript
+
+**Why.** The cards read the ledger's declarations; a reader checking the
+model's account against the wire wants to see what actually crossed it, as
+the JSON it was — the model's call with its `_findings` declaration, the
+tool's result, the ticket the model was served instead of a result it had
+ruled out, the findings piece composed for the answer turn, and the answer.
+`<ReasoningLens>` now carries a `view` toggle (two real tabs, `cards` —
+today's default — and `exchange`; React state, not the cursor; `defaultView`
+opens on either) and, under `exchange`, lays the SAME beats out as the
+exchange between the two parties: the model's beats on the left, the tools'
+on the right, in wire order per call up to the cursor's stop. A reader sees
+the loop the record holds: declare → call → result → standing → served →
+answer.
+
+What each beat reads, and from where:
+
+- **call** (model, left) — the assistant message in `history` whose
+  `toolCalls[]` carries the id: its `name`, the id, and `args._findings`
+  pretty-printed as its own block first (basis / expect / proposition /
+  predicts / `previous[]`), then the remaining `args`. The emission is
+  verbatim there by the record's law and is never rebuilt from the ledger.
+  When `history` no longer carries it (an evicted turn), the ledger's basis
+  row stands in — `basis`, `expect`, `proposition`, `predicts` as the row
+  spells them — under the chip `from ledger`, and no `args` block.
+- **result** (tool, right) — the tool message's `content` in `history` (then
+  the batch, `toolResults`): pretty-printed when it parses as JSON, else
+  verbatim; a placement ticket drawn as the ticket (`placed` ref · `bytes`).
+  When the served wire at the stop's epoch (`served.row.view.messages.asSent`)
+  carries this id as a collapsed ticket, a chip `collapsed <standing>` and the
+  ticket JSON under `ticket` — what came back beside what the model was
+  served. Then the standing a later call (or the answer) declared for it —
+  the cards' AFTER reused: the `standing` chip (or `undeclared`), `declared
+  on`, and the one quoted line.
+- **served** (model, left) — the served view's `source: 'findings'` piece at
+  the stop's epoch, its `text` verbatim under the piece's own source name;
+  absent when no such piece was served (the fixture's epochs 1 and 2).
+- **answer** (model, left) — `history`'s closing assistant message (content,
+  no tool calls), else `finalContent`, else `llmLatestContent` once
+  `llmLatestToolCalls` carries no call; the field it was read from is printed
+  beside the label. Absent while the run has not answered at the stop.
+
+Every block longer than 12 lines is clipped, the rest behind a native
+`<details>` (`N lines` on the summary — the browser's bit, not a second
+cursor). Layout: a column of beats, each half the panel's width on a wide
+panel and the whole width on a narrow one (`max(50%,min(100%,320px))`, no
+media query — the own-claims walker forbids a multi-word CSS string, and
+the inline style cannot carry one), the model's beats aligned left and the
+tools' right.
+
+```tsx
+<ReasoningLens runner={recording} recorder={recorder} shared={shared} defaultView="exchange" />
+```
+
+At the answer stop of the `findings-ledger` fixture (abridged; `c2`, `c4`,
+`c6` follow the same shape):
+
+```
+Reasoning · 6 calls                                   [cards] [exchange]
+┌ model · call · lookup c1 ─────────────┐
+│ _findings                              │
+│ { "basis": "direct", "expect": "high" }│
+│ args                                   │
+│ { "q": "fc1/7 state" }                 │
+└────────────────────────────────────────┘
+                     ┌ tool · result · lookup c1 ──────────────┐
+                     │ lookup result                            │
+                     │ standing [fact] · declared on c5         │
+                     │ port/fc1/7 · state = up                  │
+                     └──────────────────────────────────────────┘
+┌ model · call · lookup c3 ─────────────┐
+│ _findings                              │
+│ { "basis": "exploratory",              │
+│   "proposition": "the optic on fc1/7   │
+│      was swapped this week",           │
+│   "predicts": "a swap event for fc1/7  │
+│      dated within seven days" }        │
+│ args                                   │
+│ { "q": "optic swaps" }                 │
+└────────────────────────────────────────┘
+                     ┌ tool · result · lookup c3 [collapsed ruled-out] ┐
+                     │ lookup result                                    │
+                     │ ticket                                           │
+                     │ { "collapsed": true, "standing": "ruled-out",    │
+                     │   "toolCallId": "c3" }                           │
+                     │ standing [ruled-out] · declared on c5            │
+                     │ line "the optic was not swapped this week"       │
+                     └──────────────────────────────────────────────────┘
+┌ model · call · lookup c5 ─────────────┐
+│ _findings                              │
+│ { "basis": "direct",                   │
+│   "previous": [ { "toolCallId": "c1",  │
+│     "standing": "fact", "sought": true,│
+│     "assertions": [ … ] }, … ] }       │
+│ ▸ 32 lines                             │
+│ args                                   │
+│ { "q": "fc1/7 state again" }           │
+└────────────────────────────────────────┘
+                     ┌ tool · result · lookup c5 ──────────────┐
+                     │ lookup result                            │
+                     │ standing [fact] · declared on answer     │
+                     │ port/fc1/7 · state = down                │
+                     └──────────────────────────────────────────┘
+┌ model · served · findings ─────────────┐
+│ [AgentFootprint findings ledger — a     │
+│ system instruction composed from the   │
+│ record, not a user message. …]         │
+│ facts (declared by the model):         │
+│ port/fc1/7 · state = up ← tool:c1      │
+│ ▸ 16 lines                             │
+└────────────────────────────────────────┘
+┌ model · answer · llmLatestContent ─────┐
+│ {"answer":"fc1/7"}                     │
+└────────────────────────────────────────┘
+```
+
+The laws are the cards': **omit, never deny** (no ledger at the stop, no
+lens; no served beat without the piece, no answer beat without the answer,
+no `args` block when the emission is off the record), **never infer**
+(`undeclared`, never `open`; `from ledger` says when a call is not the
+emission), **no sentence of its own** (the new labels — `view`, `cards`,
+`exchange`, `model`, `tool`, `call`, `served`, `args`, `_findings`, `from
+ledger`, `lines` — live in the same `LABELS`, walked by
+`test/served/no-own-claims.test.ts`; everything else printed is a value off
+the record), and **one cursor** (the view toggle is the only state, and it
+is not a position). Test ids: `reasoning-view-toggle` (`role="tablist"`),
+`reasoning-view-cards` / `reasoning-view-exchange` (`role="tab"`,
+`aria-selected`), `reasoning-lens` gains `data-view`; `reasoning-cards`
+wraps the cards; `reasoning-exchange` (`data-beats`) holds one
+`reasoning-beat` per beat (`data-side` `model` | `tool`, `data-kind` `call`
+| `result` | `served` | `answer`, `data-tool-call-id` on the first two);
+inside: `reasoning-from-ledger`, `reasoning-beat-findings`,
+`reasoning-beat-args`, `reasoning-beat-content`, `reasoning-beat-ticket`,
+`reasoning-answer-from`, each clipped block `reasoning-clipped`
+(`data-lines`) with its `reasoning-pre` blocks and `reasoning-more`
+disclosure; the result beat reuses `reasoning-collapsed`, `reasoning-after`,
+`reasoning-standing`, `reasoning-declared-on`, `reasoning-line`.
+`foldExchange(input)` is the pure fold (`ExchangeFold.beats`, standing on
+`foldReasoning`), exported with the beat shapes from the root barrel and the
+`/context` door; `ReasoningInput` gains `pieces`, `finalContent`,
+`llmLatestContent`, `llmLatestToolCalls`. Pinned by
+`test/context/reasoningLens.test.tsx`.

@@ -39,8 +39,25 @@
  * consumer with its own UI. The card's `details` disclosure is a native
  * `<details>` element: the open/closed bit is the browser's, not a second
  * cursor.
+ *
+ * THE EXCHANGE VIEW (0.63.0). A second view of the SAME beats, laid out as
+ * the exchange between the two parties — the model on the left, the tools on
+ * the right — showing only what crossed the wire, as the JSON it was: per
+ * tool call the model's emission with its `_findings` declaration (the
+ * assistant message in `history` whose `toolCalls[]` carries the id — verbatim
+ * by the record's law, never rebuilt from the ledger; when `history` no longer
+ * carries it the ledger's basis row stands in, labelled `from ledger`), the
+ * tool's result as the tool message holds it (a placement ticket drawn as the
+ * ticket; the collapsed ticket the wire at the stop's epoch served instead,
+ * when it did), the standing the next call declared for it (the cards'
+ * AFTER, reused); then, at the answer epoch, what was served for the answer
+ * turn (the served view's `source: 'findings'` piece, its `text` verbatim)
+ * and the answer the model gave (`history`'s closing assistant message, else
+ * `finalContent`, else `llmLatestContent` once `llmLatestToolCalls` is empty
+ * — the record's own field named on the beat). The view toggle is React
+ * state — it is not the cursor. `foldExchange(...)` is its pure fold.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import { contextAt, type ContextAt } from '../../core/context/contextAt.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
@@ -93,6 +110,18 @@ export const LABELS = Object.freeze({
   noise: 'noise',
   serve: 'serve',
   answerAsk: 'answer ask',
+  /** The exchange view (0.63.0). */
+  view: 'view',
+  cards: 'cards',
+  exchange: 'exchange',
+  model: 'model',
+  tool: 'tool',
+  call: 'call',
+  served: 'served',
+  args: 'args',
+  findings: '_findings',
+  fromLedger: 'from ledger',
+  lines: 'lines',
 });
 
 // ─── The row shapes this lens reads beyond the band's ────────────────────
@@ -174,13 +203,19 @@ function resultsById(history: readonly unknown[] | undefined, toolResults: reado
   return out;
 }
 
+/** A collapsed ticket as the wire carried it: the standing, and the content string itself. */
+export interface CollapsedShape {
+  readonly standing: string;
+  readonly content: string;
+}
+
 /** The collapsed tickets on the wire at the epoch, by the result's id. */
-function collapsedById(asSent: readonly unknown[] | undefined): ReadonlyMap<string, string> {
-  const out = new Map<string, string>();
+function collapsedById(asSent: readonly unknown[] | undefined): ReadonlyMap<string, CollapsedShape> {
+  const out = new Map<string, CollapsedShape>();
   for (const m of asSent ?? []) {
-    if (!isRecord(m) || m.role !== 'tool') continue;
+    if (!isRecord(m) || m.role !== 'tool' || typeof m.content !== 'string') continue;
     const t = collapsedTicketOf(m.content);
-    if (t !== undefined) out.set(t.toolCallId, t.standing);
+    if (t !== undefined) out.set(t.toolCallId, { standing: t.standing, content: m.content });
   }
   return out;
 }
@@ -234,6 +269,13 @@ export interface ReasoningInput {
   readonly asSent?: readonly unknown[];
   readonly findingsServe?: unknown;
   readonly findingsAnswerAsk?: unknown;
+  /** The served view's `system.pieces` at the stop's epoch (0.63.0, the exchange's served beat). */
+  readonly pieces?: readonly unknown[];
+  /** The state's `finalContent` at the stop (0.63.0, the answer beat). */
+  readonly finalContent?: unknown;
+  /** The state's `llmLatestContent` / `llmLatestToolCalls` at the stop (0.63.0, the answer beat). */
+  readonly llmLatestContent?: unknown;
+  readonly llmLatestToolCalls?: unknown;
 }
 
 /**
@@ -269,7 +311,7 @@ export function foldReasoning(input: ReasoningInput): ReasoningFold {
         toolCallId: id,
         before,
         ...(results.has(id) ? { result: resultShapeOf(results.get(id)) } : {}),
-        ...(onWire !== undefined ? { collapsed: onWire } : {}),
+        ...(onWire !== undefined ? { collapsed: onWire.standing } : {}),
         ...(after !== undefined ? { after } : {}),
         conflicts: Object.freeze(witnessed.get(id) ?? []),
       }),
@@ -295,6 +337,191 @@ export function foldReasoning(input: ReasoningInput): ReasoningFold {
   });
 }
 
+// ─── The exchange fold (0.63.0) ───────────────────────────────────────────
+
+/** The emission as the assistant message in `history` carries it: `toolCalls[i]`. */
+export interface EmittedCallShape {
+  readonly id: string;
+  readonly name?: string;
+  readonly args?: Record<string, unknown>;
+}
+
+/** The tool calls the record's assistant messages emitted, by id, first message wins. */
+function emittedById(history: readonly unknown[] | undefined): ReadonlyMap<string, EmittedCallShape> {
+  const out = new Map<string, EmittedCallShape>();
+  for (const m of history ?? []) {
+    if (!isRecord(m) || m.role !== 'assistant' || !Array.isArray(m.toolCalls)) continue;
+    for (const c of m.toolCalls) {
+      if (!isRecord(c) || typeof c.id !== 'string' || out.has(c.id)) continue;
+      out.set(c.id, {
+        id: c.id,
+        ...(typeof c.name === 'string' ? { name: c.name } : {}),
+        ...(isRecord(c.args) ? { args: c.args } : {}),
+      });
+    }
+  }
+  return out;
+}
+
+/** The model's beat for one call: the emission, split into its `_findings` block and the rest. */
+export interface CallBeat {
+  readonly kind: 'call';
+  readonly side: 'model';
+  readonly toolCallId: string;
+  readonly toolName?: string;
+  /** `args._findings` as emitted — or, `fromLedger`, the basis row's own declaration. */
+  readonly findings?: unknown;
+  /** The remaining args as emitted; absent when the emission is not on the record. */
+  readonly args?: Record<string, unknown>;
+  /** `history` no longer carries the emission; the ledger's basis row stands in. */
+  readonly fromLedger: boolean;
+}
+
+/** The tool's beat for one call: the result as the tool message holds it, and what the wire served instead. */
+export interface ResultBeat {
+  readonly kind: 'result';
+  readonly side: 'tool';
+  readonly toolCallId: string;
+  readonly toolName?: string;
+  /** The content as the record holds it (a string, or the batch's value). */
+  readonly content: unknown;
+  /** The placement ticket, when the content is one. */
+  readonly placed?: PlacedShape;
+  /** The ticket the wire at the stop's epoch carried in place of this result. */
+  readonly collapsed?: CollapsedShape;
+  /** The standing a later call (or the answer) declared for it — the cards' AFTER. */
+  readonly after?: StandingShape;
+}
+
+/** What was served for the answer turn: the `source: 'findings'` piece, its text verbatim. */
+export interface ServedBeat {
+  readonly kind: 'served';
+  readonly side: 'model';
+  readonly source: string;
+  readonly text: string;
+}
+
+/** The answer the model gave, and which field of the record holds it. */
+export interface AnswerBeat {
+  readonly kind: 'answer';
+  readonly side: 'model';
+  readonly text: string;
+  readonly from: 'history' | 'finalContent' | 'llmLatestContent';
+}
+
+export type ExchangeBeat = CallBeat | ResultBeat | ServedBeat | AnswerBeat;
+
+export interface ExchangeFold {
+  readonly beats: readonly ExchangeBeat[];
+  /** The cards' fold, which this one stands on. */
+  readonly reasoning: ReasoningFold;
+}
+
+/** The basis row's declaration as the ledger spells it, for a call `history` no longer carries. */
+function ledgerFindings(before: BasisShape): Record<string, unknown> {
+  return {
+    basis: before.basis,
+    ...(before.expect !== undefined ? { expect: before.expect } : {}),
+    ...(before.proposition !== undefined ? { proposition: before.proposition } : {}),
+    ...(before.predicts !== undefined ? { predicts: before.predicts } : {}),
+  };
+}
+
+function callBeatOf(card: ReasoningCard, emitted: ReadonlyMap<string, EmittedCallShape>): CallBeat {
+  const id = card.toolCallId;
+  const e = emitted.get(id);
+  const toolName = e?.name ?? card.before.toolName;
+  if (e === undefined) {
+    return Object.freeze({
+      kind: 'call',
+      side: 'model',
+      toolCallId: id,
+      ...(toolName !== undefined ? { toolName } : {}),
+      findings: ledgerFindings(card.before),
+      fromLedger: true,
+    });
+  }
+  const { _findings, ...rest } = e.args ?? {};
+  return Object.freeze({
+    kind: 'call',
+    side: 'model',
+    toolCallId: id,
+    ...(toolName !== undefined ? { toolName } : {}),
+    ...(_findings !== undefined ? { findings: _findings } : {}),
+    ...(e.args !== undefined ? { args: Object.freeze(rest) } : {}),
+    fromLedger: false,
+  });
+}
+
+function resultBeatOf(card: ReasoningCard, content: unknown, collapsed: CollapsedShape | undefined, toolName: string | undefined): ResultBeat {
+  const placed = placedTicketOf(content);
+  return Object.freeze({
+    kind: 'result',
+    side: 'tool',
+    toolCallId: card.toolCallId,
+    ...(toolName !== undefined ? { toolName } : {}),
+    content,
+    ...(placed !== undefined ? { placed } : {}),
+    ...(collapsed !== undefined ? { collapsed } : {}),
+    ...(card.after !== undefined ? { after: card.after } : {}),
+  });
+}
+
+/** The served view's first `source: 'findings'` piece, read by shape. */
+function findingsPieceOf(pieces: readonly unknown[] | undefined): ServedBeat | undefined {
+  for (const p of pieces ?? []) {
+    if (!isRecord(p) || p.source !== 'findings' || typeof p.text !== 'string') continue;
+    return Object.freeze({ kind: 'served', side: 'model', source: p.source, text: p.text });
+  }
+  return undefined;
+}
+
+const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+
+/**
+ * The answer as the record holds it: `history`'s closing assistant message
+ * (content, no tool calls, after the last tool message), else `finalContent`,
+ * else `llmLatestContent` once `llmLatestToolCalls` carries no call. Absent
+ * when none of the three holds one — the run has not answered at the stop.
+ */
+function answerOf(input: ReasoningInput): AnswerBeat | undefined {
+  const history = input.history ?? [];
+  const last = history[history.length - 1];
+  if (isRecord(last) && last.role === 'assistant' && nonEmpty(last.content) && (!Array.isArray(last.toolCalls) || last.toolCalls.length === 0)) {
+    return Object.freeze({ kind: 'answer', side: 'model', text: last.content, from: 'history' });
+  }
+  if (nonEmpty(input.finalContent)) return Object.freeze({ kind: 'answer', side: 'model', text: input.finalContent, from: 'finalContent' });
+  const calls = input.llmLatestToolCalls;
+  if (nonEmpty(input.llmLatestContent) && (!Array.isArray(calls) || calls.length === 0)) {
+    return Object.freeze({ kind: 'answer', side: 'model', text: input.llmLatestContent, from: 'llmLatestContent' });
+  }
+  return undefined;
+}
+
+/**
+ * Fold the exchange, in wire order per call: the model's emission, the tool's
+ * result; then what was served for the answer turn and the answer. Stands on
+ * `foldReasoning` (the calls, the standings, the wire's tickets) and looks the
+ * emission up in `history` by id. Pure; a beat prints only what its row holds.
+ */
+export function foldExchange(input: ReasoningInput): ExchangeFold {
+  const reasoning = foldReasoning(input);
+  const emitted = emittedById(input.history);
+  const results = resultsById(input.history, input.toolResults);
+  const collapsed = collapsedById(input.asSent);
+  const beats: ExchangeBeat[] = [];
+  for (const card of reasoning.cards) {
+    const call = callBeatOf(card, emitted);
+    beats.push(call);
+    if (results.has(card.toolCallId)) beats.push(resultBeatOf(card, results.get(card.toolCallId), collapsed.get(card.toolCallId), call.toolName));
+  }
+  const served = findingsPieceOf(input.pieces);
+  if (served !== undefined) beats.push(served);
+  const answer = answerOf(input);
+  if (answer !== undefined) beats.push(answer);
+  return Object.freeze({ beats: Object.freeze(beats), reasoning });
+}
+
 // ─── The lens ─────────────────────────────────────────────────────────────
 
 export interface ReasoningLensProps {
@@ -313,7 +540,12 @@ export interface ReasoningLensProps {
   readonly recorder?: LensRecorder;
   /** The recording's event stream, handed to `contextAt` (a replay's `getEntries()`). */
   readonly events?: readonly EventLogEntry[];
+  /** The view the lens opens on (0.63.0); the toggle is React state, not the cursor. */
+  readonly defaultView?: ReasoningView;
 }
+
+/** The two views of the same beats: the cards, or the exchange between model and tools. */
+export type ReasoningView = 'cards' | 'exchange';
 
 function positionsOf(snapshot: unknown): readonly CursorPosition[] {
   return tagAxisPositions(snapshot, MILESTONE_AXIS, []) ?? [];
@@ -333,6 +565,7 @@ function arrayValue(context: ContextAt, path: string): readonly unknown[] | unde
 
 export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | null {
   const { runner, events, shared, recorder } = props;
+  const [view, setView] = useState<ReasoningView>(props.defaultView ?? 'cards');
   const fresh = snapshotOfRunner(runner);
   const logKey = snapshotLogKey(fresh);
   const snapshot = useMemo(() => fresh, [runner, logKey]);
@@ -358,36 +591,81 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
     [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, events],
   );
   const rows = arrayValue(context, 'findingsLedger');
-  const fold = useMemo(() => {
+  const exchange = useMemo(() => {
     if (rows === undefined) return undefined;
     const toolResults = arrayValue(context, 'toolResults');
     const history = arrayValue(context, 'history');
     const wire = context.served?.row.view.messages.asSent;
-    return foldReasoning({
+    const pieces = context.served?.row.view.system.pieces;
+    return foldExchange({
       rows,
       ...(toolResults !== undefined ? { toolResults } : {}),
       ...(history !== undefined ? { history } : {}),
       ...(Array.isArray(wire) ? { asSent: wire } : {}),
+      ...(Array.isArray(pieces) ? { pieces } : {}),
       findingsServe: keyValue(context, 'findingsServe'),
       findingsAnswerAsk: keyValue(context, 'findingsAnswerAsk'),
+      finalContent: keyValue(context, 'finalContent'),
+      llmLatestContent: keyValue(context, 'llmLatestContent'),
+      llmLatestToolCalls: keyValue(context, 'llmLatestToolCalls'),
     });
   }, [context, rows]);
 
   // Omit, never deny: no ledger at the stop, nothing drawn.
-  if (fold === undefined) return null;
+  if (exchange === undefined) return null;
+  const fold = exchange.reasoning;
   return (
-    <div style={panel} data-testid="reasoning-lens" data-step={cursor.at.step} data-commit={cursor.at.commitIdx} data-calls={fold.cards.length}>
+    <div
+      style={panel}
+      data-testid="reasoning-lens"
+      data-step={cursor.at.step}
+      data-commit={cursor.at.commitIdx}
+      data-calls={fold.cards.length}
+      data-view={view}
+    >
       <div style={header}>
         <span style={title}>{LABELS.lens}</span>
         <span style={dim}>
           {fold.cards.length} {LABELS.calls}
         </span>
+        <ViewToggle view={view} onView={setView} />
       </div>
-      {fold.cards.map((card) => (
-        <Card key={card.toolCallId} card={card} />
-      ))}
-      {fold.answer !== undefined && <Answer answer={fold.answer} />}
+      {view === 'cards' && (
+        <div style={column} data-testid="reasoning-cards">
+          {fold.cards.map((card) => (
+            <Card key={card.toolCallId} card={card} />
+          ))}
+          {fold.answer !== undefined && <Answer answer={fold.answer} />}
+        </div>
+      )}
+      {view === 'exchange' && <Exchange beats={exchange.beats} />}
     </div>
+  );
+}
+
+/**
+ * The cards ⇄ exchange toggle: two real buttons in a `tablist`, so the
+ * keyboard reaches them and the focus ring is the platform's own (the
+ * Served tab's list ⇄ graph toggle, the same shape).
+ */
+function ViewToggle({ view, onView }: { readonly view: ReasoningView; readonly onView: (view: ReasoningView) => void }): React.ReactElement {
+  const button = (value: ReasoningView, label: string) => (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={view === value}
+      data-testid={`reasoning-view-${value}`}
+      style={toggleButton(view === value)}
+      onClick={() => onView(value)}
+    >
+      {label}
+    </button>
+  );
+  return (
+    <span role="tablist" aria-label={LABELS.view} style={toggleRow} data-testid="reasoning-view-toggle">
+      {button('cards', LABELS.cards)}
+      {button('exchange', LABELS.exchange)}
+    </span>
   );
 }
 
@@ -645,6 +923,180 @@ function Answer({ answer }: { readonly answer: AnswerCard }): React.ReactElement
   );
 }
 
+// ─── The exchange view (0.63.0) ───────────────────────────────────────────
+
+/** The beats in wire order, the model's on the left and the tools' on the right. */
+function Exchange({ beats }: { readonly beats: readonly ExchangeBeat[] }): React.ReactElement {
+  return (
+    <div style={exchangeStyle} data-testid="reasoning-exchange" data-beats={beats.length}>
+      {beats.map((beat, i) => (
+        <Beat key={i} beat={beat} />
+      ))}
+    </div>
+  );
+}
+
+function Beat({ beat }: { readonly beat: ExchangeBeat }): React.ReactElement {
+  const side = beat.side === 'model' ? modelBeat : toolBeat;
+  const id = beat.kind === 'call' || beat.kind === 'result' ? beat.toolCallId : undefined;
+  return (
+    <div
+      style={{ ...cardStyle, ...side }}
+      data-testid="reasoning-beat"
+      data-side={beat.side}
+      data-kind={beat.kind}
+      {...(id !== undefined ? { 'data-tool-call-id': id } : {})}
+    >
+      {beat.kind === 'call' && <CallBody beat={beat} />}
+      {beat.kind === 'result' && <ResultBody beat={beat} />}
+      {beat.kind === 'served' && <ServedBody beat={beat} />}
+      {beat.kind === 'answer' && <AnswerBody beat={beat} />}
+    </div>
+  );
+}
+
+/** The emission: tool name, id, the `_findings` block first, then the remaining args. */
+function CallBody({ beat }: { readonly beat: CallBeat }): React.ReactElement {
+  return (
+    <>
+      <div style={row}>
+        <span style={dim}>{LABELS.model}</span>
+        <span style={strong}>{LABELS.call}</span>
+        {beat.toolName !== undefined && <code style={strong}>{beat.toolName}</code>}
+        <code style={mono}>{beat.toolCallId}</code>
+        {beat.fromLedger && (
+          <Chip testId="reasoning-from-ledger" color={T.warning}>
+            {LABELS.fromLedger}
+          </Chip>
+        )}
+      </div>
+      {beat.findings !== undefined && (
+        <div data-testid="reasoning-beat-findings">
+          <span style={dim}>{LABELS.findings}</span>
+          <Clipped text={pretty(beat.findings)} />
+        </div>
+      )}
+      {beat.args !== undefined && (
+        <div data-testid="reasoning-beat-args">
+          <span style={dim}>{LABELS.args}</span>
+          <Clipped text={pretty(beat.args)} />
+        </div>
+      )}
+    </>
+  );
+}
+
+/** The result as the tool returned it, the ticket the wire served instead, and the standing declared for it. */
+function ResultBody({ beat }: { readonly beat: ResultBeat }): React.ReactElement {
+  const standing = beat.after?.standing;
+  return (
+    <>
+      <div style={row}>
+        <span style={dim}>{LABELS.tool}</span>
+        <span style={strong}>{LABELS.result}</span>
+        {beat.toolName !== undefined && <code style={strong}>{beat.toolName}</code>}
+        <code style={mono}>{beat.toolCallId}</code>
+        {beat.collapsed !== undefined && (
+          <Chip testId="reasoning-collapsed" color={T.textMuted} title={beat.collapsed.standing}>
+            {LABELS.collapsed} {beat.collapsed.standing}
+          </Chip>
+        )}
+      </div>
+      {beat.placed !== undefined ? <ResultLine result={{ placed: beat.placed }} /> : <Clipped text={prettyContent(beat.content)} testId="reasoning-beat-content" />}
+      {beat.collapsed !== undefined && (
+        <div data-testid="reasoning-beat-ticket">
+          <span style={dim}>{LABELS.ticket}</span>
+          <Clipped text={prettyContent(beat.collapsed.content)} />
+        </div>
+      )}
+      <div style={row} data-testid="reasoning-after">
+        <span style={dim}>{LABELS.standing}</span>
+        <Chip testId="reasoning-standing" color={standing !== undefined ? standingColor(standing) : T.textMuted}>
+          {standing ?? LABELS.undeclared}
+        </Chip>
+        {beat.after?.declaredOn !== undefined && (
+          <span style={dim} data-testid="reasoning-declared-on">
+            {LABELS.declaredOn}{' '}
+            <code style={mono}>{beat.after.declaredOn === 'answer' ? beat.after.declaredOn : beat.after.declaredOn.toolCallId}</code>
+          </span>
+        )}
+      </div>
+      {beat.after !== undefined && <QuotedLine after={beat.after} />}
+    </>
+  );
+}
+
+/** The findings piece as served for the answer turn, under its own source name. */
+function ServedBody({ beat }: { readonly beat: ServedBeat }): React.ReactElement {
+  return (
+    <>
+      <div style={row}>
+        <span style={dim}>{LABELS.model}</span>
+        <span style={strong}>{LABELS.served}</span>
+        <code style={mono}>{beat.source}</code>
+      </div>
+      <Clipped text={beat.text} testId="reasoning-beat-content" />
+    </>
+  );
+}
+
+/** The answer as the record holds it, and the field it was read from. */
+function AnswerBody({ beat }: { readonly beat: AnswerBeat }): React.ReactElement {
+  return (
+    <>
+      <div style={row}>
+        <span style={dim}>{LABELS.model}</span>
+        <span style={strong}>{LABELS.answer}</span>
+        <code style={mono} data-testid="reasoning-answer-from">
+          {beat.from}
+        </code>
+      </div>
+      <Clipped text={beat.text} testId="reasoning-beat-content" />
+    </>
+  );
+}
+
+const CLIP_LINES = 12;
+
+/** A `<pre>` of the first lines; the rest behind a native `<details>` (the browser's bit, not a cursor). */
+function Clipped({ text, testId }: { readonly text: string; readonly testId?: string }): React.ReactElement {
+  const lines = text.split('\n');
+  const head = lines.slice(0, CLIP_LINES).join('\n');
+  const tail = lines.slice(CLIP_LINES);
+  return (
+    <div data-testid={testId ?? 'reasoning-clipped'} data-lines={lines.length}>
+      <pre style={pre} data-testid="reasoning-pre">
+        {head}
+      </pre>
+      {tail.length > 0 && (
+        <details style={detailsStyle} data-testid="reasoning-more">
+          <summary style={summaryStyle}>
+            {tail.length} {LABELS.lines}
+          </summary>
+          <pre style={pre} data-testid="reasoning-pre">
+            {tail.join('\n')}
+          </pre>
+        </details>
+      )}
+    </div>
+  );
+}
+
+/** A value as JSON, two-space indented. */
+function pretty(value: unknown): string {
+  return JSON.stringify(value, null, 2) ?? String(value);
+}
+
+/** A content string pretty-printed when it parses as JSON, else verbatim; a non-string as JSON. */
+function prettyContent(content: unknown): string {
+  if (typeof content !== 'string') return pretty(content);
+  try {
+    return pretty(JSON.parse(content));
+  } catch {
+    return content;
+  }
+}
+
 // ─── Chips and styles ─────────────────────────────────────────────────────
 
 function standingColor(standing: string): string {
@@ -706,6 +1158,27 @@ const chip: React.CSSProperties = {
   whiteSpace: 'nowrap',
 };
 const detailsStyle: React.CSSProperties = { fontSize: 12 };
+// The exchange: a column of beats, each at most half the width on a wide
+// panel and the whole width on a narrow one — `max(50%,min(100%,320px))`
+// — the model's on the left, the tools' on the right.
+const column: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 8 };
+const exchangeStyle: React.CSSProperties = column;
+const modelBeat: React.CSSProperties = { alignSelf: 'flex-start', width: 'max(50%,min(100%,320px))', borderColor: T.primary };
+const toolBeat: React.CSSProperties = { alignSelf: 'flex-end', width: 'max(50%,min(100%,320px))', borderColor: T.border };
+const pre: React.CSSProperties = { ...mono, margin: '2px 0 0', whiteSpace: 'pre-wrap', maxWidth: '100%' };
+const toggleRow: React.CSSProperties = { display: 'inline-flex', gap: 4, marginLeft: 'auto' };
+function toggleButton(on: boolean): React.CSSProperties {
+  return {
+    fontSize: 10.5,
+    padding: '1px 6px',
+    borderRadius: 6,
+    border: '1px solid',
+    borderColor: on ? T.primary : T.border,
+    background: on ? T.bgTertiary : T.bgElevated,
+    color: on ? T.textPrimary : T.textSecondary,
+    cursor: 'pointer',
+  };
+}
 const summaryStyle: React.CSSProperties = { cursor: 'pointer', color: T.textMuted };
 const detailsBody: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 2, paddingTop: 4 };
 const list: React.CSSProperties = { margin: '2px 0 0', paddingLeft: 18 };

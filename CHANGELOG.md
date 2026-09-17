@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.63.0] - 2026-09-17
+
+### Added — the Reasoning lens's exchange view: the same beats as a transcript
+
+- `<ReasoningLens>` carries a `view` toggle — two real tabs, `cards` (the
+  default) and `exchange`; React state, never the cursor; `defaultView`
+  opens on either. Under `exchange` the SAME beats are laid out as the
+  exchange between the two parties, the model's on the left and the tools'
+  on the right, in wire order per call up to the cursor's stop, showing only
+  what crossed the wire as the JSON it was: the model's **call** — the
+  assistant message in `history` whose `toolCalls[]` carries the id, its
+  `args._findings` block first (basis / expect / proposition / predicts /
+  `previous[]`), then the remaining args; never rebuilt from the ledger, and
+  when `history` no longer carries it the ledger's basis row stands in under
+  the chip `from ledger`; the tool's **result** — the tool message's content,
+  pretty-printed when it parses as JSON, else verbatim, a placement ticket
+  drawn as the ticket, and when the wire at the stop's epoch served a
+  collapsed ticket instead, the chip `collapsed <standing>` and the ticket
+  JSON beside what came back; then the standing a later call declared for it
+  (the cards' AFTER, reused); the **served** beat — the served view's
+  `source: 'findings'` piece, its text verbatim, only when one was served;
+  the **answer** beat — `history`'s closing assistant message, else
+  `finalContent`, else `llmLatestContent` once `llmLatestToolCalls` is empty,
+  the field named beside the label. Every block past 12 lines is clipped
+  behind a native `<details>`.
+- `foldExchange(input)` is the pure fold (`ExchangeFold`, `ExchangeBeat` and
+  the four beat shapes, `ReasoningView`), exported from the root barrel and
+  the `/context` door; `ReasoningInput` gains `pieces`, `finalContent`,
+  `llmLatestContent`, `llmLatestToolCalls`. New labels (`view`, `cards`,
+  `exchange`, `model`, `tool`, `call`, `served`, `args`, `_findings`, `from
+  ledger`, `lines`) live in the same `LABELS`; the own-claims walker covers
+  the file unchanged. Omit, never deny: an unarmed run draws no exchange
+  either. Test ids and an example transcript:
+  `src/core/context/README.md` (0.63.0).
+
 ## [0.62.0] - 2026-09-17
 
 ### Added — the Reasoning lens: the model's declared reasoning, by call

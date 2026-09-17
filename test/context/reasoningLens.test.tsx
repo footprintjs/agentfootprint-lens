@@ -10,18 +10,24 @@
  * stands before its call; the collapsed chip follows the epoch's wire) · Unit
  * (`foldReasoning`: the proposition and the prediction are quoted verbatim
  * when a record carries them; a placement ticket is read by shape; a row
- * that does not fit is passed over).
+ * that does not fit is passed over) · Exchange (0.63.0: the toggle switches
+ * views; beats in wire order per call up to the cursor; the model beat's
+ * `_findings` is the emission in `history`, verbatim; the tool beat's content
+ * round-trips to the tool message's; the collapsed ticket and the served
+ * piece follow the epoch's wire; the answer beat is the record's field; a
+ * call `history` no longer carries reads `from ledger`).
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
+import { contextAt } from '../../src/core/context/contextAt.js';
 import { lensCursorFrom } from '../../src/core/cursor/lensCursor.js';
 import { foldFactsAt } from '../../src/core/served/index.js';
 import { ContextView } from '../../src/react/components/ContextView.js';
 import { foldFindings } from '../../src/react/components/FindingsBand.js';
-import { LABELS, ReasoningLens, foldReasoning } from '../../src/react/components/ReasoningLens.js';
+import { LABELS, ReasoningLens, foldExchange, foldReasoning } from '../../src/react/components/ReasoningLens.js';
 import { useSharedCursor } from '../../src/react/useSharedCursor.js';
 import { load, loadTampered, stopsOf, type FixtureBundle } from '../served/helpers.js';
 
@@ -356,5 +362,312 @@ describe('foldReasoning — the fold the lens reads', () => {
     expect(fold.cards[0]!.collapsed).toBe('fact');
     expect(fold.cards[0]!.after?.unknownId).toBe(true);
     expect(fold.cards[0]!.after?.declaredOn).toEqual({ toolCallId: 'b' });
+  });
+});
+
+// ─── The exchange view (0.63.0) ───────────────────────────────────────────
+
+type HistoryMessage = { role: string; content: string; toolCallId?: string; toolCalls?: { id: string; name: string; args: Record<string, unknown> }[] };
+
+const beats = (): HTMLElement[] => screen.getAllByTestId('reasoning-beat');
+const beatOf = (id: string, side: 'model' | 'tool'): HTMLElement => {
+  const beat = beats().find((b) => b.getAttribute('data-tool-call-id') === id && b.getAttribute('data-side') === side);
+  if (beat === undefined) throw new Error(`no ${side} beat for ${id}`);
+  return beat;
+};
+/** The text of a clipped block: the head `<pre>` and the tail behind the disclosure, joined as the record had them. */
+const clippedText = (block: HTMLElement): string =>
+  within(block)
+    .getAllByTestId('reasoning-pre')
+    .map((p) => p.textContent ?? '')
+    .join('\n');
+const toExchange = (): void => {
+  fireEvent.click(screen.getByTestId('reasoning-view-exchange'));
+};
+
+describe('<ReasoningLens view> — the exchange', () => {
+  const fixture = load('findings-ledger');
+  const last = fixture.positions.length - 1;
+  const lastStop = fixture.positions[last]!;
+  /** The record at the answer stop, read through the join the lens itself reads. */
+  const recordAt = (path: string): unknown =>
+    contextAt(fixture.snapshot, { runtimeStageId: lastStop.runtimeStageId, commitIdx: lastStop.commitIdx }, {}).keys.find((k) => k.path === path)?.value;
+  const history = recordAt('history') as HistoryMessage[];
+  const emitted = new Map(history.flatMap((m) => (m.toolCalls ?? []).map((c) => [c.id, c] as const)));
+  const toolMessages = new Map(history.filter((m) => m.role === 'tool').map((m) => [m.toolCallId!, m] as const));
+
+  it('the toggle is two real tabs; cards by default, the exchange on click, and back — the cursor untouched', () => {
+    renderAt(fixture, last);
+    const lens = screen.getByTestId('reasoning-lens');
+    expect(lens.getAttribute('data-view')).toBe('cards');
+    const tabs = screen.getByTestId('reasoning-view-toggle');
+    expect(tabs.getAttribute('role')).toBe('tablist');
+    const cardsTab = screen.getByTestId('reasoning-view-cards');
+    const exchangeTab = screen.getByTestId('reasoning-view-exchange');
+    expect(cardsTab.tagName).toBe('BUTTON');
+    expect(cardsTab.getAttribute('aria-selected')).toBe('true');
+    expect(exchangeTab.getAttribute('aria-selected')).toBe('false');
+    expect(cardsTab.textContent).toBe(LABELS.cards);
+    expect(exchangeTab.textContent).toBe(LABELS.exchange);
+    expect(screen.getByTestId('reasoning-cards')).toBeInTheDocument();
+    expect(screen.queryByTestId('reasoning-exchange')).toBeNull();
+    toExchange();
+    expect(lens.getAttribute('data-view')).toBe('exchange');
+    expect(exchangeTab.getAttribute('aria-selected')).toBe('true');
+    expect(cardsTab.getAttribute('aria-selected')).toBe('false');
+    expect(screen.queryByTestId('reasoning-cards')).toBeNull();
+    expect(screen.queryAllByTestId('reasoning-card')).toHaveLength(0);
+    expect(screen.getByTestId('reasoning-exchange')).toBeInTheDocument();
+    expect(lens.getAttribute('data-step')).toBe(String(last));
+    fireEvent.click(cardsTab);
+    expect(screen.getByTestId('reasoning-cards')).toBeInTheDocument();
+    expect(screen.queryByTestId('reasoning-exchange')).toBeNull();
+  });
+
+  it('`defaultView="exchange"` opens on the exchange', () => {
+    render(<ReasoningLens runner={fixture.runner} cursor={lensCursorFrom(fixture.positions, last, () => undefined)} defaultView="exchange" />);
+    expect(screen.getByTestId('reasoning-lens').getAttribute('data-view')).toBe('exchange');
+    expect(screen.getByTestId('reasoning-view-exchange').getAttribute('aria-selected')).toBe('true');
+  });
+
+  it('beats run in wire order — model then tool per call, c1…c6 — then the served piece and the answer', () => {
+    renderAt(fixture, last);
+    toExchange();
+    const shape = beats().map((b) => [b.getAttribute('data-kind'), b.getAttribute('data-side'), b.getAttribute('data-tool-call-id')]);
+    expect(shape).toEqual([
+      ['call', 'model', 'c1'],
+      ['result', 'tool', 'c1'],
+      ['call', 'model', 'c2'],
+      ['result', 'tool', 'c2'],
+      ['call', 'model', 'c3'],
+      ['result', 'tool', 'c3'],
+      ['call', 'model', 'c4'],
+      ['result', 'tool', 'c4'],
+      ['call', 'model', 'c5'],
+      ['result', 'tool', 'c5'],
+      ['call', 'model', 'c6'],
+      ['result', 'tool', 'c6'],
+      ['served', 'model', null],
+      ['answer', 'model', null],
+    ]);
+    expect(screen.getByTestId('reasoning-exchange').getAttribute('data-beats')).toBe('14');
+  });
+
+  it('the model beat prints the emission from `history`: the `_findings` block verbatim, then the remaining args — never from the ledger', () => {
+    renderAt(fixture, last);
+    toExchange();
+    for (const id of ['c1', 'c2', 'c3', 'c4', 'c5', 'c6']) {
+      const call = emitted.get(id)!;
+      const beat = beatOf(id, 'model');
+      expect(beat.textContent).toContain(call.name);
+      expect(within(beat).queryByTestId('reasoning-from-ledger')).toBeNull();
+      const findings = within(beat).getByTestId('reasoning-beat-findings');
+      expect(findings.textContent).toContain(LABELS.findings);
+      expect(JSON.parse(clippedText(findings))).toEqual(call.args._findings);
+      const { _findings, ...rest } = call.args;
+      const args = within(beat).getByTestId('reasoning-beat-args');
+      expect(args.textContent).toContain(LABELS.args);
+      expect(JSON.parse(clippedText(args))).toEqual(rest);
+    }
+    // c5 carries the `previous[]` declarations — the whole block, as emitted.
+    const c5 = JSON.parse(clippedText(within(beatOf('c5', 'model')).getByTestId('reasoning-beat-findings'))) as { previous: unknown[] };
+    expect(c5.previous).toHaveLength(4);
+    expect(within(within(beatOf('c5', 'model')).getByTestId('reasoning-beat-findings')).getByTestId('reasoning-clipped').getAttribute('data-lines')).toBe(String(JSON.stringify(emitted.get('c5')!.args._findings, null, 2).split('\n').length));
+    expect(within(beatOf('c5', 'model')).getByTestId('reasoning-more')).toBeInTheDocument();
+    expect(within(beatOf('c1', 'model')).queryByTestId('reasoning-more')).toBeNull();
+  });
+
+  it('the tool beat prints the tool message’s content; the collapsed ones carry the chip with the ticket’s standing and the ticket itself', () => {
+    renderAt(fixture, last);
+    toExchange();
+    for (const id of ['c1', 'c2', 'c3', 'c4', 'c5', 'c6']) {
+      const beat = beatOf(id, 'tool');
+      expect(clippedText(within(beat).getByTestId('reasoning-beat-content'))).toBe(toolMessages.get(id)!.content);
+      expect(beat.textContent).toContain('lookup');
+    }
+    const collapsed = beats().filter((b) => within(b).queryByTestId('reasoning-collapsed') !== null);
+    expect(collapsed.map((b) => b.getAttribute('data-tool-call-id'))).toEqual(['c2', 'c3']);
+    const c3 = beatOf('c3', 'tool');
+    expect(within(c3).getByTestId('reasoning-collapsed').textContent).toBe(`${LABELS.collapsed} ruled-out`);
+    expect(JSON.parse(clippedText(within(c3).getByTestId('reasoning-beat-ticket')))).toEqual({ collapsed: true, standing: 'ruled-out', toolCallId: 'c3' });
+    expect(within(beatOf('c2', 'tool')).getByTestId('reasoning-collapsed').textContent).toBe(`${LABELS.collapsed} noise`);
+    expect(within(beatOf('c1', 'tool')).queryByTestId('reasoning-beat-ticket')).toBeNull();
+    // The standing the next call declared, drawn on the tool beat — the cards' AFTER, reused.
+    expect(within(c3).getByTestId('reasoning-standing').textContent).toBe('ruled-out');
+    expect(within(c3).getByTestId('reasoning-line').textContent).toBe(`${LABELS.line} the optic was not swapped this week`);
+    expect(within(beatOf('c1', 'tool')).getByTestId('reasoning-line').textContent).toBe('port/fc1/7 · state = up');
+    expect(within(beatOf('c1', 'tool')).getByTestId('reasoning-declared-on').textContent).toBe(`${LABELS.declaredOn} c5`);
+    expect(within(beatOf('c6', 'tool')).getByTestId('reasoning-standing').textContent).toBe(LABELS.undeclared);
+    expect(within(beatOf('c6', 'tool')).queryByTestId('reasoning-line')).toBeNull();
+  });
+
+  it('a tool message that parses as JSON is pretty-printed and round-trips to the same object', () => {
+    const fixtureJson = loadTampered('findings-ledger', (recording) => {
+      for (const b of recording.snapshot.commitLog) {
+        const h = b.overwrite?.history as HistoryMessage[] | undefined;
+        if (!Array.isArray(h)) continue;
+        for (const m of h) if (m.role === 'tool' && m.toolCallId === 'c1') m.content = JSON.stringify({ port: 'fc1/7', state: 'up', counters: [1, 2, 3] });
+      }
+    });
+    renderAt(fixtureJson, fixtureJson.positions.length - 1);
+    toExchange();
+    const content = within(beatOf('c1', 'tool')).getByTestId('reasoning-beat-content');
+    expect(JSON.parse(clippedText(content))).toEqual({ port: 'fc1/7', state: 'up', counters: [1, 2, 3] });
+    expect(clippedText(content)).toBe(JSON.stringify({ port: 'fc1/7', state: 'up', counters: [1, 2, 3] }, null, 2));
+  });
+
+  it('the served beat prints the findings piece’s text under its own source; the answer beat the record’s `llmLatestContent`, named', () => {
+    renderAt(fixture, last);
+    toExchange();
+    const served = beats().find((b) => b.getAttribute('data-kind') === 'served')!;
+    expect(served.getAttribute('data-side')).toBe('model');
+    expect(served.textContent).toContain(LABELS.served);
+    expect(served.textContent).toContain('findings');
+    const text = clippedText(within(served).getByTestId('reasoning-beat-content'));
+    expect(text.split('\n')[0]).toContain('[AgentFootprint findings ledger');
+    expect(text).toContain('port/fc1/7 · state = up ← tool:c1');
+    expect(within(served).getByTestId('reasoning-more')).toBeInTheDocument();
+    const answer = beats().find((b) => b.getAttribute('data-kind') === 'answer')!;
+    expect(answer.textContent).toContain(LABELS.answer);
+    expect(within(answer).getByTestId('reasoning-answer-from').textContent).toBe('llmLatestContent');
+    const latest = recordAt('llmLatestContent') as string;
+    expect(clippedText(within(answer).getByTestId('reasoning-beat-content'))).toBe(latest);
+    expect(JSON.parse(latest)).toEqual({ answer: 'fc1/7' });
+  });
+
+  it('at the second tool-calls stop the wire had collapsed nothing, no findings piece was served, and no answer stands', () => {
+    const [, second] = stopsOf(fixture, 'tool-call');
+    renderAt(fixture, stepOf(fixture, second!));
+    toExchange();
+    expect(beats().map((b) => b.getAttribute('data-kind'))).toEqual(Array(12).fill(null).map((_, i) => (i % 2 === 0 ? 'call' : 'result')));
+    expect(screen.queryByTestId('reasoning-collapsed')).toBeNull();
+    expect(screen.queryByTestId('reasoning-beat-ticket')).toBeNull();
+    expect(within(beatOf('c3', 'tool')).getByTestId('reasoning-standing').textContent).toBe('ruled-out');
+    expect(within(beatOf('c5', 'tool')).getByTestId('reasoning-standing').textContent).toBe(LABELS.undeclared);
+  });
+
+  it('a call `history` no longer carries is drawn from the ledger’s basis row and says so', () => {
+    const evicted = loadTampered('findings-ledger', (recording) => {
+      for (const b of recording.snapshot.commitLog) {
+        const h = b.overwrite?.history as HistoryMessage[] | undefined;
+        if (!Array.isArray(h)) continue;
+        for (const m of h) if (m.role === 'assistant' && m.toolCalls !== undefined) m.toolCalls = m.toolCalls.filter((c) => c.id !== 'c3');
+      }
+    });
+    renderAt(evicted, evicted.positions.length - 1);
+    toExchange();
+    const c3 = beatOf('c3', 'model');
+    expect(within(c3).getByTestId('reasoning-from-ledger').textContent).toBe(LABELS.fromLedger);
+    expect(JSON.parse(clippedText(within(c3).getByTestId('reasoning-beat-findings')))).toEqual({
+      basis: 'exploratory',
+      proposition: 'the optic on fc1/7 was swapped this week',
+      predicts: 'a swap event for fc1/7 dated within seven days',
+    });
+    expect(within(c3).queryByTestId('reasoning-beat-args')).toBeNull();
+    expect(within(beatOf('c1', 'model')).queryByTestId('reasoning-from-ledger')).toBeNull();
+  });
+
+  it('the unarmed fixture draws no exchange either — the root is absent', () => {
+    const unarmed = load('flat-dynamic-tools');
+    render(<ReasoningLens runner={unarmed.runner} cursor={lensCursorFrom(unarmed.positions, unarmed.positions.length - 1, () => undefined)} defaultView="exchange" />);
+    expect(screen.queryByTestId('reasoning-lens')).toBeNull();
+    expect(screen.queryByTestId('reasoning-exchange')).toBeNull();
+  });
+});
+
+describe('<ReasoningLens view="exchange"> moves with the ONE cursor', () => {
+  function Host({ fixture }: { readonly fixture: Fixture }) {
+    const shared = useSharedCursor(fixture.recorder);
+    return (
+      <>
+        <ContextView runner={fixture.runner} recorder={fixture.recorder} shared={shared} />
+        <ReasoningLens runner={fixture.runner} recorder={fixture.recorder} shared={shared} defaultView="exchange" />
+      </>
+    );
+  }
+
+  it('walking back removes the served and answer beats, then the second batch’s beats, then the lens', () => {
+    const fixture = load('findings-ledger');
+    const [first, second] = stopsOf(fixture, 'tool-call');
+    const firstStep = stepOf(fixture, first!);
+    const secondStep = stepOf(fixture, second!);
+    render(<Host fixture={fixture} />);
+    const lastStep = fixture.positions.length - 1;
+    expect(beats()).toHaveLength(14);
+    const back = (n: number) => {
+      for (let i = 0; i < n; i++) fireEvent.click(screen.getByLabelText('Previous step'));
+    };
+    back(lastStep - secondStep);
+    expect(screen.getByTestId('reasoning-lens').getAttribute('data-step')).toBe(String(secondStep));
+    expect(screen.getByTestId('reasoning-lens').getAttribute('data-view')).toBe('exchange');
+    expect(beats()).toHaveLength(12);
+    expect(beats().map((b) => b.getAttribute('data-kind'))).not.toContain('served');
+    expect(beats().map((b) => b.getAttribute('data-kind'))).not.toContain('answer');
+    expect(screen.queryByTestId('reasoning-collapsed')).toBeNull();
+    back(secondStep - firstStep);
+    expect(beats().map((b) => b.getAttribute('data-tool-call-id'))).toEqual(['c1', 'c1', 'c2', 'c2', 'c3', 'c3', 'c4', 'c4']);
+    for (const b of beats().filter((b) => b.getAttribute('data-side') === 'tool')) {
+      expect(within(b).getByTestId('reasoning-standing').textContent).toBe(LABELS.undeclared);
+    }
+    back(1);
+    expect(screen.queryByTestId('reasoning-lens')).toBeNull();
+  });
+});
+
+describe('foldExchange — the fold the exchange reads', () => {
+  const basis = (toolCallId: string, extra: Record<string, unknown> = {}) => ({ kind: 'basis', toolCallId, toolName: 't', iteration: 1, basis: 'direct', ...extra });
+
+  it('the emission is read from `history` by id; a call not there is `fromLedger` with the basis row’s declaration', () => {
+    const fold = foldExchange({
+      rows: [basis('a'), basis('b', { expect: 'low', proposition: 'p', predicts: 'q' })],
+      history: [
+        { role: 'assistant', content: '', toolCalls: [{ id: 'a', name: 'tool-a', args: { q: 1, _findings: { basis: 'direct' } } }] },
+        { role: 'tool', toolCallId: 'a', content: 'seven c' },
+      ],
+    });
+    expect(fold.beats).toEqual([
+      { kind: 'call', side: 'model', toolCallId: 'a', toolName: 'tool-a', findings: { basis: 'direct' }, args: { q: 1 }, fromLedger: false },
+      { kind: 'result', side: 'tool', toolCallId: 'a', toolName: 'tool-a', content: 'seven c' },
+      { kind: 'call', side: 'model', toolCallId: 'b', toolName: 't', findings: { basis: 'direct', expect: 'low', proposition: 'p', predicts: 'q' }, fromLedger: true },
+    ]);
+    expect(Object.isFrozen(fold)).toBe(true);
+    expect(Object.isFrozen(fold.beats[0])).toBe(true);
+    expect(fold.reasoning.cards).toHaveLength(2);
+  });
+
+  it('a placement ticket, a collapsed ticket and the standing ride the result beat; the served piece and the answer close the exchange', () => {
+    const ticket = { placed: true, ref: 'art_1', bytes: 5000 };
+    const fold = foldExchange({
+      rows: [basis('a'), { kind: 'standing', toolCallId: 'a', standing: 'noise', assertions: [], declaredOn: 'answer', iteration: 2 }],
+      toolResults: [{ toolCallId: 'a', result: ticket }],
+      asSent: [{ role: 'tool', toolCallId: 'a', content: JSON.stringify({ collapsed: true, standing: 'noise', toolCallId: 'a' }) }],
+      pieces: [
+        { slot: 'system-prompt', source: 'base', text: 'bot' },
+        { slot: 'system-prompt', source: 'findings', text: 'ledger text' },
+      ],
+      finalContent: 'the answer',
+      llmLatestContent: 'later',
+    });
+    const [, result, served, answer] = fold.beats;
+    expect(result).toMatchObject({ kind: 'result', content: ticket, placed: { ref: 'art_1', bytes: 5000 }, collapsed: { standing: 'noise' } });
+    expect((result as { collapsed: { content: string } }).collapsed.content).toBe('{"collapsed":true,"standing":"noise","toolCallId":"a"}');
+    expect((result as { after: { standing: string } }).after.standing).toBe('noise');
+    expect(served).toEqual({ kind: 'served', side: 'model', source: 'findings', text: 'ledger text' });
+    expect(answer).toEqual({ kind: 'answer', side: 'model', text: 'the answer', from: 'finalContent' });
+  });
+
+  it('the answer is `history`’s closing assistant message first; `llmLatestContent` only once `llmLatestToolCalls` is empty; none otherwise', () => {
+    const rows = [basis('a')];
+    const closing = [{ role: 'tool', toolCallId: 'a', content: 'r' }, { role: 'assistant', content: 'done' }];
+    const lastBeat = (input: Parameters<typeof foldExchange>[0]) => {
+      const b = foldExchange(input).beats;
+      return b[b.length - 1];
+    };
+    expect(lastBeat({ rows, history: closing, finalContent: 'x' })).toEqual({ kind: 'answer', side: 'model', text: 'done', from: 'history' });
+    expect(lastBeat({ rows, llmLatestContent: 'late', llmLatestToolCalls: [] })).toEqual({ kind: 'answer', side: 'model', text: 'late', from: 'llmLatestContent' });
+    expect(foldExchange({ rows, llmLatestContent: 'late', llmLatestToolCalls: [{ id: 'b' }] }).beats.map((b) => b.kind)).toEqual(['call']);
+    expect(foldExchange({ rows, finalContent: '', llmLatestContent: '' }).beats.map((b) => b.kind)).toEqual(['call']);
+    // An assistant message with tool calls is not an answer.
+    expect(foldExchange({ rows, history: [{ role: 'assistant', content: 'c', toolCalls: [{ id: 'a' }] }] }).beats.map((b) => b.kind)).toEqual(['call']);
   });
 });

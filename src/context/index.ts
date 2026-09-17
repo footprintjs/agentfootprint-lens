@@ -40,6 +40,17 @@ export {
   type ReasoningCard,
   type ReasoningInput,
   type AnswerCard as ReasoningAnswerCard,
+  // 0.63.0: the exchange view's pure fold and its beat shapes.
+  foldExchange,
+  type ReasoningView,
+  type ExchangeFold,
+  type ExchangeBeat,
+  type CallBeat as ReasoningCallBeat,
+  type ResultBeat as ReasoningResultBeat,
+  type ServedBeat as ReasoningServedBeat,
+  type AnswerBeat as ReasoningAnswerBeat,
+  type CollapsedShape as ReasoningCollapsedShape,
+  type EmittedCallShape as ReasoningEmittedCallShape,
 } from '../react/components/ReasoningLens.js';
 export {
   contextAt,
