@@ -282,3 +282,42 @@ describe('edge state — what entered and what left, on the picture', () => {
     expect(within(graph).queryAllByTestId('graph-edge-state')).toHaveLength(0);
   });
 });
+
+describe('a held key with a structured value opens in place (0.61.1)', () => {
+  const lastLlmTurn = (f: LoadedFixture) => {
+    const stops = stopsOf(f, 'llm-turn');
+    return stops[stops.length - 1]!;
+  };
+  const openGraph = async (f: LoadedFixture) => {
+    const stop = lastLlmTurn(f);
+    render(<ServedTab runner={f.runner} cursorRuntimeStageId={stop.runtimeStageId} commitIdx={stop.commitIdx} />);
+    await userEvent.setup().click(screen.getByTestId('served-view-graph'));
+  };
+
+  it('is clipped to one line by default and opens to the whole value under the same key — the browser holds the bit, not the graph', async () => {
+    const f = load('findings-ledger');
+    await openGraph(f);
+    const held = document.querySelector('[data-testid="graph-held"][data-key="findingsLedger"]') as HTMLElement;
+    expect(held).not.toBeNull();
+    const details = within(held).getByTestId('graph-held-details') as HTMLDetailsElement;
+    expect(details.open).toBe(false);
+    // The count on the caret is the record's own row count at this stop, and
+    // the whole value is in the DOM already — a reader who cannot click still has it.
+    const count = Number(within(held).getByTestId('graph-held-toggle').getAttribute('aria-label')!.replace(/[^0-9]/g, ''));
+    expect(count).toBeGreaterThan(0);
+    const value = within(held).getByTestId('graph-held-value');
+    expect(value.tagName).toBe('PRE');
+    expect(value.textContent).toContain('"kind": "basis"');
+    expect((JSON.parse(value.textContent!) as unknown[]).length).toBe(count);
+    fireEvent.click(within(held).getByTestId('graph-held-toggle'));
+    expect(details.open).toBe(true);
+  });
+
+  it('a scalar held key has no caret', async () => {
+    const f = load('findings-ledger');
+    await openGraph(f);
+    const held = document.querySelector('[data-testid="graph-held"][data-key="iteration"]') as HTMLElement;
+    expect(held).not.toBeNull();
+    expect(within(held).queryByTestId('graph-held-toggle')).toBeNull();
+  });
+});

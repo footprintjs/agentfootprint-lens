@@ -81,7 +81,13 @@ describe('PROBE b — every painted string traces to library / data / LABEL', ()
         // Everything the graph object itself carries, as strings.
         const data = new Set<string>();
         const add = (v: unknown) => { if (v !== undefined && v !== null) data.add(typeof v === 'string' ? v : JSON.stringify(v)); };
-        for (const h of graph.held) { add(h.key); add(h.value); if (typeof h.value !== 'string' && h.value !== undefined) add(String(h.value)); }
+        for (const h of graph.held) {
+          add(h.key); add(h.value);
+          if (typeof h.value !== 'string' && h.value !== undefined) add(String(h.value));
+          // A structured held value is also painted pretty-printed (0.61.1: the
+          // row opens in place) — the same data, indented.
+          if (h.value !== null && typeof h.value === 'object') add(JSON.stringify(h.value, null, 2));
+        }
         for (const s of graph.served) { add(s.slot); add(s.rebuilt); add(s.onReceipt); add(s.onReceiptOnly); add(s.rebuiltOnly); add(s.check?.onReceipt); add(s.check?.rebuilt); for (const g of s.gaps) add(g.gap); }
         for (const e of graph.edges) { add(e.label); add(e.text); add(e.origin); add(e.source); add(e.role); add(e.check.onReceipt); add(e.check.rebuilt); }
         for (const w of graph.withheld) { add(w.name); add(w.from); add(w.hash); add(w.lastServedOn); w.fields?.forEach(add); add(w.cause); }

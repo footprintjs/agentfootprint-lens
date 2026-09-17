@@ -231,10 +231,31 @@ function Band({
 
 function HeldRow({ node }: { node: HeldNode }): React.ReactElement {
   const value = node.value === undefined ? undefined : safeJson(node.value);
+  // A structured value (an array or an object — the findings ledger, the
+  // active injections) is clipped to one line by default and opens IN PLACE
+  // to the whole value, pretty-printed, inside its own bounded scroll, so a
+  // long record never stretches the band and is never denied. The graph holds
+  // no state (one cursor: PROBE a), so the open/closed bit is the browser's —
+  // a native <details>. The count beside the caret is the record's own (array
+  // length or key count), a number, not a claim.
+  const structured = node.value !== null && typeof node.value === 'object';
+  const count = structured ? (Array.isArray(node.value) ? node.value.length : Object.keys(node.value as object).length) : undefined;
   return (
     <div style={heldStyle} data-testid="graph-held" data-key={node.key} data-status={node.status}>
       <span style={keyStyle}>{node.key}</span>
-      {value !== undefined ? (
+      {value !== undefined && structured ? (
+        <details style={heldDetailsStyle} data-testid="graph-held-details">
+          <summary style={heldSummaryStyle} data-testid="graph-held-toggle" aria-label={`${node.key} · ${count}`}>
+            <span style={countStyle}>{count}</span>
+            <span style={valueStyle} title={value} data-testid="graph-held-clipped">
+              {value}
+            </span>
+          </summary>
+          <pre style={heldValueOpenStyle} data-testid="graph-held-value">
+            {prettyJson(node.value)}
+          </pre>
+        </details>
+      ) : value !== undefined ? (
         <span style={valueStyle} title={value}>
           {value}
         </span>
@@ -485,6 +506,14 @@ function stateColor(state: ServedEdgeState): string {
   return T.textMuted;
 }
 
+function prettyJson(value: unknown): string {
+  try {
+    return JSON.stringify(value, null, 2) ?? String(value);
+  } catch {
+    return String(value);
+  }
+}
+
 function safeJson(value: unknown): string {
   if (typeof value === 'string') return value;
   try {
@@ -534,6 +563,26 @@ const rowStyle: React.CSSProperties = {
   margin: '2px 0',
 };
 const heldStyle: React.CSSProperties = { ...rowStyle, borderTop: `1px dashed ${T.border}`, paddingTop: 3 };
+const heldDetailsStyle: React.CSSProperties = { flex: '1 1 0', minWidth: 0 };
+const heldSummaryStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'baseline',
+  gap: 6,
+  minWidth: 0,
+  cursor: 'pointer',
+  listStyle: 'revert',
+};
+const heldValueOpenStyle: React.CSSProperties = {
+  flex: '1 1 100%',
+  margin: 0,
+  fontFamily: T.fontMono,
+  fontSize: 10.5,
+  color: T.textPrimary,
+  whiteSpace: 'pre',
+  overflow: 'auto',
+  maxHeight: 240,
+  minWidth: 0,
+};
 const slotStyle: React.CSSProperties = {
   border: `1px solid ${T.border}`,
   borderRadius: 6,

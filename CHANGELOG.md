@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.61.1] - 2026-09-17
+
+### Fixed — a held value opens in place on the Served graph
+
+- A held key whose value is an array or an object (the findings ledger, the
+  active injections) was clipped to one line with no way to read it. The row
+  now opens in place to the whole value, pretty-printed, inside its own
+  bounded scroll, under the same key; the count on the caret is the record's
+  own. The graph stays stateless (one cursor): the open/closed bit is the
+  browser's, a native `details` element, so the row follows the cursor like
+  every other held row.
+
 ## [0.61.0] - 2026-09-17
 
 ### Added — the Findings band under the Context view (agentfootprint 9.101)
