@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.64.0] - 2026-09-17
+
+### Added — the Ontology view: the declared map drawn from the record
+
+- `<OntologyView runner recorder? shared? cursor?>` (root barrel and the
+  `/context` door) draws the map an agent DECLARED (`.ontology(...)`,
+  agentfootprint 9.106.0) from the run constant `AgentState.ontology` at the
+  cursor's stop: a small SVG chart with no library — sources in one column
+  (id, meaning, coverage clipped, a `configured` chip only when the author
+  wrote it), the terms they hold in the next (id, meaning clipped, the unit as
+  a chip), the terms no source holds in a third under the declaration's own
+  heading `known, not held here`, `held by` as source→term edges labelled with
+  the `via` tool names, relations as term→term elbows labelled with the
+  author's relation word — and beside it the same data as a list (terms,
+  sources, held by, relations, the unheld) for a screen reader and for a
+  test. A header prints the map's id, version, hash (short, whole on hover)
+  and the counts. Layout is a function of the spec alone (nodes sorted by id,
+  one lane per relation): a run's map draws the same bytes twice. Omit, never
+  deny: no `ontology` key at the stop, nothing drawn — an agent that declared
+  no map has no view. One cursor: `cursor` or `shared` as `<ReasoningLens>`
+  takes them, the shared transport mounted when the view holds the address;
+  the map is a run constant, so stepping moves the cursor and not the map.
+  `foldOntology`, `layoutOntology`, `ontologyRecordOf`, `ONTOLOGY_GEOMETRY`
+  and the shapes are exported beside it; `ONTOLOGY_LABELS` is every string
+  it owns, walked by the own-claims test. A holding that names a source the
+  map never declared (a tampered record; the library refuses it at define
+  time) is dropped by the fold, so chart and list agree and the term counts
+  as unheld; a source's `<title>` carries its coverage whole beside its
+  meaning, the same line the box clips.
+- Fixture `test/served/fixtures/ontology.json` — an agent with a declared
+  map (two sources, four terms one of which no source holds, two relations,
+  one `via` naming the registered tool) and two tool calls, generated alone
+  on agentfootprint 9.106.0; the thirteen other fixtures are byte-identical.
+- devDependency `agentfootprint` 9.103.0 → 9.106.0 (the `agentfootprint/ontology` door).
+
 ## [0.63.1] - 2026-09-17
 
 ### Fixed — the Reasoning lens carries the transport

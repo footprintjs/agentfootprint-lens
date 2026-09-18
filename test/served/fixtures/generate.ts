@@ -66,8 +66,16 @@
  *                             (UNDECLARED). The answer call's wire carries
  *                             the `source: 'findings'` system piece and two
  *                             collapsed tickets.
+ *   ontology.json             an agent that DECLARED a map (`.ontology(...)`,
+ *                             agentfootprint 9.106.0) on the mock: two
+ *                             sources (one `configured`), four terms — one
+ *                             held via a registered tool, one with a unit and
+ *                             aliases, one held by two sources, one held by
+ *                             none — two relations, and two tool calls. The
+ *                             run constant `ontology` is seeded once and the
+ *                             `source: 'ontology'` piece rides every call.
  *
- * Run:  npx tsx test/served/fixtures/generate.ts             all thirteen
+ * Run:  npx tsx test/served/fixtures/generate.ts             all fourteen
  *       npx tsx test/served/fixtures/generate.ts <name>…     only those; the
  *       other files are not touched (every run mints a fresh runId, so a
  *       regenerated fixture never has the bytes it had).
@@ -90,6 +98,7 @@ import {
   type LLMResponse,
 } from 'agentfootprint';
 import { defineInstruction, defineSkill, skillGraph } from 'agentfootprint/context';
+import { defineOntology } from 'agentfootprint/ontology';
 import { PermissionPolicy } from 'agentfootprint/security';
 import { recordRun } from 'agentfootprint/observe';
 import { mock } from 'agentfootprint/providers';
@@ -643,6 +652,74 @@ if (wanted('findings-ledger')) {
       }
       if (k === 3 && !piece) throw new Error('findings-ledger: epoch 3 carries no findings piece');
       if (k === 3 && tickets !== 2) throw new Error(`findings-ledger: expected 2 collapsed tickets at epoch 3, got ${tickets}`);
+    }
+  });
+}
+
+// ── 13: the declared ontology — the map, seeded once, served on every call ──
+// An agent built with `.ontology(defineOntology({...}))` (agentfootprint
+// 9.106.0) on the mock. The map: two sources — `inventory` (configured, with
+// a coverage sentence) and `telemetry` (nothing said about configuration);
+// four terms — `port` held by `inventory` via the registered `lookup` tool
+// with its own coverage sentence, `port_error_rate` (a unit) held by
+// `telemetry`, `optic` (aliases) held by BOTH sources, and
+// `maintenance_window` held by no source at all (the declaration's `known,
+// not held here`); two relations in the author's words. Two tool calls, then
+// an answer. `seed` writes the whole spec ONCE as the run constant
+// `ontology`; the `source: 'ontology'` system piece is on every epoch's
+// served view. The library infers nothing from the map — nor does this
+// fixture: the checks below read the record only.
+if (wanted('ontology')) {
+  const map = defineOntology({
+    id: 'fleet',
+    version: '1',
+    sources: {
+      inventory: { meaning: 'the switch inventory export', coverage: 'every port on every switch in the fleet', configured: true },
+      telemetry: { meaning: 'the streaming counters feed' },
+    },
+    nodes: {
+      port: {
+        meaning: 'a physical switch port',
+        sources: [{ source: 'inventory', via: ['lookup'], coverage: 'each port by its switch and name' }],
+      },
+      port_error_rate: { meaning: 'CRC errors per minute on a port', unit: 'errors/min', sources: [{ source: 'telemetry' }] },
+      optic: { meaning: 'the transceiver seated in a port', aliases: ['sfp', 'transceiver'], sources: [{ source: 'inventory' }, { source: 'telemetry' }] },
+      maintenance_window: { meaning: 'a scheduled change on a switch' },
+    },
+    edges: [
+      { from: 'port_error_rate', to: 'port', relation: 'measured-on' },
+      { from: 'optic', to: 'port', relation: 'seated-in', meaning: 'one optic per port' },
+    ],
+  });
+  const agent = Agent.create({
+    provider: scripted([call('c1', 'lookup', { q: 'fc1/7' }), call('c2', 'lookup', { q: 'fc1/8' }), answer('done')]),
+    model: 'mock',
+    maxIterations: 6,
+  })
+    .system('bot')
+    .tool(tool('lookup'))
+    .ontology(map)
+    .build();
+  const rec = recordRun(agent);
+  await agent.run({ message: 'is fc1/7 up?' });
+  const frozen = rec.toRecording() as Frozen;
+  rec.stop();
+  write('ontology', frozen, (r) => {
+    if (epochsOf(r) !== 3) throw new Error(`ontology: expected 3 epochs, got ${epochsOf(r)}`);
+    const state = (r.snapshot as { sharedState?: { ontology?: { id: string; version: string; hash: string; spec: unknown } } }).sharedState;
+    const record = state?.ontology;
+    if (record === undefined) throw new Error('ontology: the state carries no ontology key');
+    if (record.id !== map.id || record.version !== map.version || record.hash !== map.hash) {
+      throw new Error(`ontology: the record's identity differs from the map's (${JSON.stringify({ id: record.id, version: record.version, hash: record.hash })})`);
+    }
+    const seeds = (r.snapshot as { commitLog: { overwrite?: Record<string, unknown> }[] }).commitLog.filter(
+      (b) => b.overwrite !== undefined && 'ontology' in b.overwrite,
+    ).length;
+    if (seeds !== 1) throw new Error(`ontology: expected the key written once, got ${seeds} bundles`);
+    for (const k of [1, 2, 3]) {
+      const view = servedAt(r.snapshot, k);
+      if (view === undefined) throw new Error(`ontology: no served view at epoch ${k}`);
+      if (!view.system.pieces.some((p) => p.source === 'ontology')) throw new Error(`ontology: epoch ${k} carries no ontology piece`);
     }
   });
 }

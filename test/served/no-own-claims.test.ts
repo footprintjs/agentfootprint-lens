@@ -76,6 +76,12 @@ import { LABELS as FINDINGS_LABELS } from "../../src/react/components/FindingsBa
 // fields and chips (`tested`, `predicts`, `declared on`, `undeclared`); the
 // model's own words (a proposition, a `line`) are printed as quoted data.
 import { LABELS as REASONING_LABELS } from "../../src/react/components/ReasoningLens.js";
+// 0.64.0: the Ontology view — the declared map drawn from the record. Its
+// labels name headings and fields (`held by`, `via`, `unit`, `configured`)
+// and quote the declaration's own heading for a term with no source (`known,
+// not held here` — the served piece's line); every other string it prints is
+// the author's own (an id, a meaning, a coverage sentence, a relation word).
+import { LABELS as ONTOLOGY_LABELS } from "../../src/react/components/OntologyView.js";
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
@@ -89,6 +95,7 @@ const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
   CONTEXT_LABELS,
   FINDINGS_LABELS,
   REASONING_LABELS,
+  ONTOLOGY_LABELS,
 ];
 const LABEL_ENTRIES: readonly (readonly [string, string])[] =
   LABEL_SETS.flatMap((set) => Object.entries(set));
@@ -113,7 +120,7 @@ const FILES: string[] = [
   // 0.53.0: the Context view — the join over the three records, and its screen.
   ...sources("core/context", (f) => f.endsWith(".ts")),
   ...sources("react/components", (f) =>
-    /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand|ReasoningLens).*\.tsx$/.test(f),
+    /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand|ReasoningLens|OntologyView).*\.tsx$/.test(f),
   ),
   ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
@@ -202,6 +209,10 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // 0.62.0: the Reasoning lens quotes the model's words per call — the
     // walk is what keeps a lens sentence from standing beside them.
     expect(walked).toContain("ReasoningLens.tsx");
+    // 0.64.0: the Ontology view prints the author's map — meanings, coverage
+    // sentences, relation words — and the walk is what keeps a sentence of
+    // the lens's own from standing beside them.
+    expect(walked).toContain("OntologyView.tsx");
   });
 
   it("every LABEL is a label: short, and no claim verb (one mandated note excepted)", () => {

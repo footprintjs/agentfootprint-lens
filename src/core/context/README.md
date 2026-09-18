@@ -386,3 +386,115 @@ disclosure; the result beat reuses `reasoning-collapsed`, `reasoning-after`,
 `/context` door; `ReasoningInput` gains `pieces`, `finalContent`,
 `llmLatestContent`, `llmLatestToolCalls`. Pinned by
 `test/context/reasoningLens.test.tsx`.
+
+## 0.64.0 — the Ontology view, the declared map drawn from the record
+
+**Why.** An agent built with `.ontology(defineOntology({...}))`
+(agentfootprint 9.106.0, the `agentfootprint/ontology` door) seeds its whole
+map ONCE as the run constant `AgentState.ontology` — `{ id, version, hash,
+spec }` — and every call of the run is served one system piece composed from
+it (`source: 'ontology'` on the served view's `system.pieces`). The owner's
+sentence: *an ontology is a map — it does not provide a way to get data; it
+tells and reasons about each node and how to reach a node, so a model that
+finds no data can say which node or source would help further.* A reader
+checking what the model was told the world looks like wants that map drawn,
+not read line by line off the piece. `<OntologyView>`
+(`src/react/components/OntologyView.tsx`) draws it from the record: a small
+SVG chart (no library) with the SOURCES in one column (a square-cornered box
+with a thick border: id, meaning and the coverage sentence clipped, a
+`configured` chip only when the author wrote it), the TERMS they hold in the
+next (rounded boxes: id, meaning clipped, the unit as a chip), the terms no
+source holds in a third column under the declaration's own heading — `known,
+not held here`, the served piece's line, never a verdict — `held by` as
+source→term edges labelled with the `via` tool names when declared, and
+relations as term→term elbows labelled with the author's own relation word.
+Beside the chart, the SAME data as a list — terms (meaning, unit, aliases),
+sources (meaning, `configured`, coverage quoted), `held by` (term ← source,
+`via`, coverage quoted), relations (from · word · to, meaning quoted), the
+unheld — for a screen reader, and for a test. A header line prints the map's
+id, version, hash (short, whole on hover) and the counts (nodes, sources,
+edges) — numbers are data.
+
+Layout is a function of the spec alone: nodes sorted by id (the served
+piece's own order), rows by index, a straight line per holding and one lane
+per relation in declaration order — no force layout, no measurement, no
+randomness. A run's map draws the same bytes twice. Colours are the theme
+tokens the Skill Graph uses (`T.srcTool` for a source and its holdings,
+`T.primary` for a held term and a relation, `T.textMuted` dashed for an
+unheld term).
+
+ONE cursor: the view takes `cursor` or `shared` (with `recorder`) exactly as
+`<ReasoningLens>` does, reads the fold at that stop through `contextAt`, and
+mounts the shared transport when it holds the address — the key is a run
+constant, so the map is the same at every stop after the seed, and a stop
+before the seed draws nothing. With neither prop it reads the run's end,
+stateless, and mounts no mover.
+
+```tsx
+import { OntologyView } from 'agentfootprint-lens/context';
+
+const shared = useSharedCursor(recorder);
+<ContextView runner={recording} recorder={recorder} shared={shared} />
+<OntologyView runner={recording} recorder={recorder} shared={shared} />
+```
+
+At any stop of the `ontology` fixture (two sources, four terms, two
+relations, one `via` tool):
+
+```
+Ontology fleet · version 1 · hash 9919b454a3bd… · 4 nodes · 2 sources · 6 edges
+
+ sources                 nodes                      known, not held here
+┏━━━━━━━━━━━━━━━━━━┓    ╭──────────────────────╮    ╭ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ╮
+┃ inventory        ┃───▶│ optic                │    ╎ maintenance_window  ╎
+┃ the switch inv…  ┃─┐  │ the transceiver se…  │    ╎ a scheduled chang…  ╎
+┗━━━━━━━━━━━━━━━━━━┛ │  ╰──────────────────────╯◀┐  ╰ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ╯
+┏━━━━━━━━━━━━━━━━━━┓ │ lookup                    │ seated-in
+┃ telemetry        ┃─┼─▶╭──────────────────────╮ │
+┃ the streaming c… ┃ └─▶│ port                 │◀┘ measured-on
+┗━━━━━━━━━━━━━━━━━━┛    ╰──────────────────────╯
+                        ╭──────────────────────╮
+                     ──▶│ port_error_rate  errors/min
+                        ╰──────────────────────╯
+
+nodes · 4          maintenance_window  a scheduled change on a switch
+                   optic  the transceiver seated in a port · aliases sfp, transceiver
+                   port  a physical switch port
+                   port_error_rate  CRC errors per minute on a port [unit errors/min]
+sources · 2        inventory  the switch inventory export [configured true] coverage "every port on every switch in the fleet"
+                   telemetry  the streaming counters feed
+held by · 4        optic ← inventory
+                   optic ← telemetry
+                   port ← inventory via lookup coverage "each port by its switch and name"
+                   port_error_rate ← telemetry
+relations · 2      port_error_rate measured-on port
+                   optic seated-in port "one optic per port"
+known, not held here · 1   maintenance_window
+```
+
+The laws it keeps: **omit, never deny** (no `ontology` key at the stop, no
+view; no `configured` chip on a source that said nothing; no `via` label on
+a holding that named no tool), **no sentence of its own** (every printed
+string is the author's — an id, a meaning, a unit, an alias, a coverage
+sentence, a relation word, a tool name — or a `LABELS` entry; a long value
+is clipped with the whole on hover, never paraphrased; the own-claims walker
+`test/served/no-own-claims.test.ts` covers the file), **the same bytes
+twice**, and **one cursor**. Test ids: `ontology-view` (`data-id`,
+`data-version`, `data-hash`, `data-step`, `data-commit`), `ontology-header`
+(`ontology-id`, `ontology-hash`, `ontology-counts`), `ontology-transport`,
+`ontology-chart` with `ontology-chart-node` (`data-kind` `source` | `term`,
+`data-node`, `data-held` on a term) and `ontology-chart-edge` (`data-kind`
+`held` | `relation`, `data-from`, `data-to`, `data-relation`) and the
+heading `ontology-chart-unheld`; `ontology-list` with the groups
+`ontology-nodes`, `ontology-sources`, `ontology-held-by`,
+`ontology-relations`, `ontology-unheld-group` (each `data-count`) and their
+rows `ontology-node` (`data-node`, `data-held`; `ontology-unit`,
+`ontology-aliases`), `ontology-source` (`data-source`, `data-configured`
+when declared; `ontology-configured`, `ontology-source-coverage`),
+`ontology-held` (`data-node`, `data-source`; `ontology-via`,
+`ontology-held-coverage`), `ontology-edge` (`data-from`, `data-to`,
+`data-relation`; `ontology-edge-meaning`), `ontology-unheld` (`data-node`).
+`foldOntology(record)` is the pure fold and `layoutOntology(fold)` the pure
+layout (`GEOMETRY`, exported as `ONTOLOGY_GEOMETRY`, the constants they share), `ontologyRecordOf(value)` the
+shape guard — exported with the component from the root barrel and the
+`/context` door. Pinned by `test/context/ontologyView.test.tsx`.

@@ -40,7 +40,8 @@ export type FixtureName =
   | 'tagged-chart'
   | 'window-evicts'
   | 'wrap-up'
-  | 'findings-ledger';
+  | 'findings-ledger'
+  | 'ontology';
 
 export interface LoadedFixture {
   readonly recording: Recording;

@@ -188,6 +188,29 @@ export {
   type EmittedCallShape as ReasoningEmittedCallShape,
 } from "./components/ReasoningLens.js";
 
+// <OntologyView> (0.64.0) — the map the application DECLARED, drawn from the
+// run constant `ontology` (agentfootprint 9.106.0): sources, the terms they
+// hold, the terms no source holds, `held by` and relation edges — a chart and
+// the same data as a list. Takes the ONE cursor (`cursor` or `shared`) and
+// holds none of its own. `ONTOLOGY_LABELS` is every string it owns — names,
+// never a sentence.
+export {
+  OntologyView,
+  LABELS as ONTOLOGY_LABELS,
+  foldOntology,
+  layoutOntology,
+  ontologyRecordOf,
+  GEOMETRY as ONTOLOGY_GEOMETRY,
+  type OntologyViewProps,
+  type OntologyFold,
+  type OntologyLayout,
+  type OntologyRecordShape,
+  type TermShape as OntologyTermShape,
+  type SourceShape as OntologySourceShape,
+  type HeldShape as OntologyHeldShape,
+  type RelationShape as OntologyRelationShape,
+} from "./components/OntologyView.js";
+
 // <ServedTab> — at every LLM call, exactly what the model was served, provable
 // from the log (agentfootprint 9.88.0's `servedAt` / `receiptAt`). The engineer
 // view mounts it as the right rail's second tab; exported for consumer-built

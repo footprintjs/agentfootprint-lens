@@ -52,6 +52,25 @@ export {
   type CollapsedShape as ReasoningCollapsedShape,
   type EmittedCallShape as ReasoningEmittedCallShape,
 } from '../react/components/ReasoningLens.js';
+// 0.64.0: the Ontology view — the map the application declared, drawn from
+// the run constant `ontology` (agentfootprint 9.106.0). An addition to the
+// door, never a move; also on the root barrel.
+export {
+  OntologyView,
+  LABELS as ONTOLOGY_LABELS,
+  foldOntology,
+  layoutOntology,
+  ontologyRecordOf,
+  GEOMETRY as ONTOLOGY_GEOMETRY,
+  type OntologyViewProps,
+  type OntologyFold,
+  type OntologyLayout,
+  type OntologyRecordShape,
+  type TermShape as OntologyTermShape,
+  type SourceShape as OntologySourceShape,
+  type HeldShape as OntologyHeldShape,
+  type RelationShape as OntologyRelationShape,
+} from '../react/components/OntologyView.js';
 export {
   contextAt,
   type ContextAt,
