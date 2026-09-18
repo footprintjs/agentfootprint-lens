@@ -20,9 +20,12 @@
  * THE LAWS THIS FILE KEEPS:
  *
  *   1. OMIT, NEVER DENY. The lens renders nothing at all when the fold at the
- *      stop holds no `findingsLedger` (an unarmed run, or a stop before the
- *      first declaration); a card prints no field the row does not carry; a
- *      result no standing row names is UNDECLARED — that word, never `open`.
+ *      stop holds neither `findingsLedger` nor `coverageDeclared` (an unarmed
+ *      run whose tools declared nothing, or a stop before the first
+ *      declaration of either); with declarations and no ledger it draws the
+ *      Coverage band alone (0.65.0) — no cards, no count, no view toggle; a
+ *      card prints no field the row does not carry; a result no standing row
+ *      names is UNDECLARED — that word, never `open`.
  *   2. NO SENTENCE OF ITS OWN. Every printed string is a value off the record
  *      — a basis, a proposition, an assertion, a `settles`, a `line`, an id —
  *      or a `LABELS` entry; `test/served/no-own-claims.test.ts` walks this file.
@@ -56,6 +59,17 @@
  * `finalContent`, else `llmLatestContent` once `llmLatestToolCalls` is empty
  * — the record's own field named on the beat). The view toggle is React
  * state — it is not the cursor. `foldExchange(...)` is its pure fold.
+ *
+ * THE COVERAGE BAND (0.65.0). Under either view, the tools' DECLARED
+ * coverage at the same stop — `coverageDeclared`, the tracked key the
+ * dispatch loop appends to when a tool returns `coverage(...)` or
+ * `absent(...)` (agentfootprint 9.109) — drawn by `<CoverageRows>`
+ * (`CoverageBand.tsx`) from the rows this lens already read at the stop, so
+ * the stop is folded once. The owner's ruling: the boundary the library used
+ * to append to the answer belongs in the lens, so a reader sees the merged
+ * boundary (with the tool that declared each item) and every declaration by
+ * call under the cards, moving with the same cursor. The band is the one
+ * thing drawn when the record carries declarations but no ledger.
  */
 import React, { useMemo, useState } from 'react';
 
@@ -72,6 +86,7 @@ import { T } from '../theme/index.js';
 import { TimeTravel } from '../TimeTravel.js';
 import type { SharedCursor } from '../useSharedCursor.js';
 import { MILESTONE_AXIS } from './ContextView.js';
+import { CoverageRows } from './CoverageBand.js';
 import { foldFindings, type AssertionShape, type FindingsFold, type StandingShape } from './FindingsBand.js';
 import { collapsedTicketOf } from './ServedTab.js';
 
@@ -592,6 +607,10 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
     [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, events],
   );
   const rows = arrayValue(context, 'findingsLedger');
+  // 0.65.0: the tools' declared coverage at the same stop — a tracked key,
+  // so the fold at the stop already holds what had landed by then.
+  const coverage = arrayValue(context, 'coverageDeclared');
+  const declared = coverage !== undefined && coverage.length > 0 ? coverage : undefined;
   const exchange = useMemo(() => {
     if (rows === undefined) return undefined;
     const toolResults = arrayValue(context, 'toolResults');
@@ -617,27 +636,32 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
   // It belongs here when the cursor is the shared address — a per-axis
   // `cursor` from a slot brings the host's mover — and only while the address
   // stands on this axis (a transport lit at stop 0 would claim a position).
-  // A run with no ledger yet at the end draws nothing, transport included.
+  // A run with neither a ledger nor a declaration at the stop draws nothing,
+  // transport included.
   const mover = props.cursor === undefined && shared !== undefined && cursor.total > 0 && cursor.at.step >= 0;
 
-  // Omit, never deny: no ledger at the stop, nothing drawn.
-  if (exchange === undefined) return null;
-  const fold = exchange.reasoning;
+  // Omit, never deny: neither a ledger nor a declaration at the stop, nothing
+  // drawn. Declarations alone draw the Coverage band alone — no cards, no
+  // count, no toggle (0.65.0).
+  if (exchange === undefined && declared === undefined) return null;
+  const fold = exchange?.reasoning;
   return (
     <div
       style={panel}
       data-testid="reasoning-lens"
       data-step={cursor.at.step}
       data-commit={cursor.at.commitIdx}
-      data-calls={fold.cards.length}
+      {...(fold !== undefined ? { 'data-calls': fold.cards.length } : {})}
       data-view={view}
     >
       <div style={header}>
         <span style={title}>{LABELS.lens}</span>
-        <span style={dim}>
-          {fold.cards.length} {LABELS.calls}
-        </span>
-        <ViewToggle view={view} onView={setView} />
+        {fold !== undefined && (
+          <span style={dim}>
+            {fold.cards.length} {LABELS.calls}
+          </span>
+        )}
+        {fold !== undefined && <ViewToggle view={view} onView={setView} />}
       </div>
       {mover && (
         <div data-testid="reasoning-transport">
@@ -650,7 +674,7 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
           />
         </div>
       )}
-      {view === 'cards' && (
+      {fold !== undefined && view === 'cards' && (
         <div style={column} data-testid="reasoning-cards">
           {fold.cards.map((card) => (
             <Card key={card.toolCallId} card={card} />
@@ -658,7 +682,12 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
           {fold.answer !== undefined && <Answer answer={fold.answer} />}
         </div>
       )}
-      {view === 'exchange' && <Exchange beats={exchange.beats} />}
+      {exchange !== undefined && view === 'exchange' && <Exchange beats={exchange.beats} />}
+      {declared !== undefined && (
+        <div data-testid="reasoning-coverage">
+          <CoverageRows rows={declared} step={cursor.at.step} commit={cursor.at.commitIdx} />
+        </div>
+      )}
     </div>
   );
 }

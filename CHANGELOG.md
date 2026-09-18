@@ -5,6 +5,54 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.65.0] - 2026-09-18
+
+### Added — the Coverage band: what the tools declared they checked, did not check, and cannot cover
+
+- `<CoverageBand runner recorder? shared? cursor? events?>` (root barrel and
+  the `/context` door) draws the tools' DECLARED coverage at the cursor's
+  stop — `AgentState.coverageDeclared` (agentfootprint 9.109), the tracked
+  key the dispatch loop appends to when a tool returns `coverage(result,
+  {...})` or `absent({...})`. Two parts, one over the other: **the answer's
+  boundary** — the merged view the library used to append to the answer
+  under `.limitsTravelWithTheAnswer()`, the same three sections in the same
+  order (`checked` · `notChecked` · `cannotCover`, the record's own field
+  names as coloured chips), deduped by the library's own `sameItem` rule
+  (the same `what` AND the same `why`; two entries that differ only in `why`
+  stay two), each item stamped with the tool names that declared it
+  (`data-declared-by` — the append never said which), folded at twelve with
+  `+K more` on a native `<details>`; and **by call** — one block per
+  declaration in landed order: tool, short id (whole on hover), iteration,
+  the record's word for `kind` (`absence` / `ledger`) as a chip, `looked
+  for` on an absence, and that call's three lists with no dedupe. The
+  owner's ruling: the boundary is the reader's, not the customer's — the app
+  stops appending the block to the answer once the lens draws it, so the
+  band shows everything the append showed and more. Omit, never deny: no
+  declaration at the stop, nothing drawn; a stop before the first
+  declaration draws nothing and a later stop draws what had landed by then
+  (the key is tracked, so the fold at the stop already says). One cursor:
+  `cursor` or `shared` as `<ReasoningLens>` takes them; the band mounts no
+  mover of its own. `foldCoverage`, `coverageRecordOf` (every row narrowed
+  by shape, malformed rows dropped one by one), `COVERAGE_LABELS` and the
+  shapes are exported beside it; `<CoverageRows rows>` and `sameItem` are
+  exported from the component file.
+- `<ReasoningLens>` mounts the band under the cards (and under the exchange)
+  from the rows it already read at the stop, so the neo Reasoning tab gets it
+  with no host change. A run whose tools declared coverage but whose model
+  kept no ledger used to draw nothing; it now draws the transport (when the
+  lens holds the shared address) and the Coverage band alone — no cards, no
+  `N calls` count, no view toggle, no `data-calls`. A run with neither still
+  draws nothing.
+- Fixture `test/served/fixtures/coverage.json` — an agent with three tools
+  (one returning `coverage(...)`, one `absent(...)`, one a bare string),
+  three calls in three iterations, no `.findings()`, and
+  `.limitsTravelWithTheAnswer()` on so the `agentfootprint.agent.turn_end`
+  event carries the library's own composed block as the oracle the band's
+  boundary is pinned against; generated alone on agentfootprint 9.109.1, the
+  fourteen other fixtures byte-identical.
+- devDependency `agentfootprint` 9.106.0 → 9.109.1 (`coverage` / `absent` on
+  the main barrel; `coverageDeclared` on the state).
+
 ## [0.64.0] - 2026-09-17
 
 ### Added — the Ontology view: the declared map drawn from the record

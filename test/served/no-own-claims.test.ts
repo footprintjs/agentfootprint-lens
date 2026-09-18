@@ -82,6 +82,13 @@ import { LABELS as REASONING_LABELS } from "../../src/react/components/Reasoning
 // not held here` — the served piece's line); every other string it prints is
 // the author's own (an id, a meaning, a coverage sentence, a relation word).
 import { LABELS as ONTOLOGY_LABELS } from "../../src/react/components/OntologyView.js";
+// 0.65.0: the Coverage band — what the tools declared they checked, did not
+// check and can never cover. Its labels name the band, its two parts and its
+// fields (`by call`, `looked for`, `more`); the three section headings are
+// the record's own field names (`checked` · `notChecked` · `cannotCover`);
+// every other string it prints is the tool author's own (a `what`, a `why`,
+// a `lookedFor`) or the record's word for `kind`.
+import { LABELS as COVERAGE_LABELS } from "../../src/react/components/CoverageBand.js";
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
@@ -96,6 +103,7 @@ const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
   FINDINGS_LABELS,
   REASONING_LABELS,
   ONTOLOGY_LABELS,
+  COVERAGE_LABELS,
 ];
 const LABEL_ENTRIES: readonly (readonly [string, string])[] =
   LABEL_SETS.flatMap((set) => Object.entries(set));
@@ -120,7 +128,7 @@ const FILES: string[] = [
   // 0.53.0: the Context view — the join over the three records, and its screen.
   ...sources("core/context", (f) => f.endsWith(".ts")),
   ...sources("react/components", (f) =>
-    /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand|ReasoningLens|OntologyView).*\.tsx$/.test(f),
+    /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand|ReasoningLens|OntologyView|CoverageBand).*\.tsx$/.test(f),
   ),
   ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
@@ -213,6 +221,10 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // sentences, relation words — and the walk is what keeps a sentence of
     // the lens's own from standing beside them.
     expect(walked).toContain("OntologyView.tsx");
+    // 0.65.0: the Coverage band prints the tool authors' own words — a
+    // `what`, a `why`, a `lookedFor` — and the walk is what keeps a sentence
+    // of the lens's own from standing beside them.
+    expect(walked).toContain("CoverageBand.tsx");
   });
 
   it("every LABEL is a label: short, and no claim verb (one mandated note excepted)", () => {

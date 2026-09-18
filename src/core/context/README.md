@@ -498,3 +498,107 @@ when declared; `ontology-configured`, `ontology-source-coverage`),
 layout (`GEOMETRY`, exported as `ONTOLOGY_GEOMETRY`, the constants they share), `ontologyRecordOf(value)` the
 shape guard — exported with the component from the root barrel and the
 `/context` door. Pinned by `test/context/ontologyView.test.tsx`.
+
+## 0.65.0 — the Coverage band, the answer's boundary read in the lens
+
+**Why.** A tool that returns `coverage(result, {...})` or `absent({...})`
+(agentfootprint 9.109) hands the run three lists only the tool knows —
+`checked`, `notChecked`, `cannotCover` — and the dispatch loop appends one
+`DeclaredCoverage` row per declaration to the TRACKED key
+`AgentState.coverageDeclared`, in the order the results landed. Under
+`.limitsTravelWithTheAnswer()` the library folds every row into one block and
+appends it to the answer (`Coverage of this answer — declared by the tools
+that produced it, not by the model`): the three sections in that order, each
+deduped by the library's own `sameItem` (the same `what` AND the same `why`)
+and folded at twelve entries. The owner's ruling (2026-09-18): that boundary
+is the READER'S, not the customer's — it belongs in the lens, not on the
+answer the end user reads — and the app will stop appending it once the lens
+draws it. So the Coverage band (`src/react/components/CoverageBand.tsx`) shows
+everything the append showed, and more: the merged boundary WITH the tool
+names that declared each item (the append never said which), and under it
+every declaration by call as the record holds it — tool, id, iteration, the
+record's own word for `kind` (`absence` / `ledger`), `lookedFor` on an
+absence, and that call's three lists with no dedupe. The key is tracked, so
+the fold at a stop already answers "what had landed by then": a stop before
+the first declaration draws nothing, a later stop draws what the tools had
+declared by that stop.
+
+`<ReasoningLens>` mounts the band under the cards (and under the exchange)
+from the rows it already read at the stop — the stop is folded once — so the
+neo Reasoning tab gets it with no host change; and a run whose tools declared
+coverage but whose model kept no ledger now draws the band ALONE (the
+transport too, when the lens holds the shared address) where it used to draw
+nothing — no cards, no count, no view toggle. Standalone,
+`<CoverageBand runner recorder? shared? cursor? events?>` takes the ONE
+cursor exactly as `<ReasoningLens>` does and mounts no mover: a band sits
+under a view, and the view holds the transport.
+
+```tsx
+import { CoverageBand, ReasoningLens } from 'agentfootprint-lens/context';
+
+const shared = useSharedCursor(recorder);
+<ReasoningLens runner={recording} recorder={recorder} shared={shared} />   // the band rides under the cards
+<CoverageBand runner={recording} recorder={recorder} shared={shared} />    // or alone, following the same cursor
+```
+
+At the end of the `coverage` fixture (three tools, three calls; the ledger
+tool `zone_membership` and the absence tool `flogi_for_port` declared, the
+third declared nothing):
+
+```
+coverage · 2 declarations
+the answer’s boundary
+  [checked] 3
+    shq-fab-a: the live fcns database ← zone_membership, flogi_for_port
+    window: the last 24h — the active zoneset is read live ← zone_membership
+    window: the last 24h — FLOGI history retention on this fabric ← flogi_for_port
+  [notChecked] 1
+    the archived zoneset history — older than the 24h window ← zone_membership
+  [cannotCover] 2
+    ports on the peer fabric — this collector is scoped to one fabric ← zone_membership, flogi_for_port
+    host-side multipathing — no collector runs on the ESX hosts ← zone_membership
+by call
+  zone_membership c1 · iteration 1 · [ledger]
+    [checked] 2 · [notChecked] 1 · [cannotCover] 2   (that call's lists, as declared)
+  flogi_for_port c2 · iteration 2 · [absence]
+    looked for "FLOGI entries on fc1/3"
+    [checked] 2 · [cannotCover] 1
+```
+
+The two `window: the last 24h` entries are two entries here because they are
+two in the library's block — different `why`s are different ground under
+`sameItem` — and the shared fcns and peer-fabric entries are one each,
+declared by both tools. The section headings are the record's own field
+names, printed as chips in a colour (`checked` the success colour,
+`notChecked` muted, `cannotCover` the warning colour) — a chip colour, never
+a sentence.
+
+The laws it keeps: **omit, never deny** (no `coverageDeclared` at the stop,
+or an empty one, and nothing is drawn; an empty section is not rendered; a
+row prints no field it does not carry), **the library's own equality**
+(`sameItem` copied byte for byte from `agentfootprint · coverage/items.ts`;
+pinned in the test against the block the library composed onto the fixture's
+answer, on the `agentfootprint.agent.turn_end` event's `payload.finalContent`),
+**no sentence of its own** (every printed string is the tool author's — a
+`what`, a `why`, a `lookedFor`, a tool name — an id, the record's word for
+`kind`, or a `LABELS` entry; the own-claims walker
+`test/served/no-own-claims.test.ts` covers the file), **one cursor**,
+**a shape the lens does not own** (`coverageRecordOf` narrows every row;
+a row that does not fit is dropped one by one, a malformed item inside a row
+likewise), and **stateless** (the fold past twelve entries opens in a native
+`<details>` under `+K more`). Test ids: `coverage-band` (`data-declarations`,
+`data-step`, `data-commit`), `coverage-boundary`, `coverage-calls`,
+`coverage-section` (`data-section` = `checked` | `notChecked` |
+`cannotCover`, `data-count`; `coverage-section-chip`), `coverage-item`
+(`data-declared-by` = the tool names comma-joined, on the boundary only;
+`coverage-what`, `coverage-why`, `coverage-declared-by`), `coverage-more`
+(`data-count`), `coverage-call` (`data-tool-call-id`, `data-tool`,
+`data-kind`, `data-iteration`; `coverage-call-id`, `coverage-kind`),
+`coverage-looked-for`; inside the lens the band sits in `reasoning-coverage`.
+`foldCoverage(rows)` is the pure fold (`{ boundary: { checked, notChecked,
+cannotCover } — each item { what, why?, declaredBy } · calls }`),
+`coverageRecordOf(value)` the shape guard, `COVERAGE_LABELS` every string it
+owns — exported with the component from the root barrel and the `/context`
+door; `<CoverageRows rows>` (the band over rows already in hand) and
+`sameItem` are exported from the component file for a view that folded the
+stop once. Pinned by `test/context/coverageBand.test.tsx`.

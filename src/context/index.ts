@@ -71,6 +71,24 @@ export {
   type HeldShape as OntologyHeldShape,
   type RelationShape as OntologyRelationShape,
 } from '../react/components/OntologyView.js';
+// 0.65.0: the Coverage band — what the tools declared they checked, did not
+// check and can never cover (agentfootprint 9.109, `coverageDeclared`), the
+// merged boundary and every declaration by call. `<ReasoningLens>` mounts it
+// under the cards. An addition to the door, never a move; also on the root
+// barrel.
+export {
+  CoverageBand,
+  LABELS as COVERAGE_LABELS,
+  foldCoverage,
+  coverageRecordOf,
+  type CoverageBandProps,
+  type CoverageFold,
+  type CoverageBoundary,
+  type CoverageSection,
+  type BoundaryItem as CoverageBoundaryItem,
+  type CoverageItemShape,
+  type DeclaredCoverageShape,
+} from '../react/components/CoverageBand.js';
 export {
   contextAt,
   type ContextAt,

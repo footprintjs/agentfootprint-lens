@@ -41,7 +41,8 @@ export type FixtureName =
   | 'window-evicts'
   | 'wrap-up'
   | 'findings-ledger'
-  | 'ontology';
+  | 'ontology'
+  | 'coverage';
 
 export interface LoadedFixture {
   readonly recording: Recording;

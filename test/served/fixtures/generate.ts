@@ -74,8 +74,20 @@
  *                             none — two relations, and two tool calls. The
  *                             run constant `ontology` is seeded once and the
  *                             `source: 'ontology'` piece rides every call.
+ *   coverage.json             an agent whose tools DECLARE their coverage
+ *                             (agentfootprint 9.109) on the mock: one tool
+ *                             returns `coverage(verdict, {...})`, one returns
+ *                             `absent({...})`, one returns a bare string;
+ *                             three calls in three iterations, so the tracked
+ *                             key `coverageDeclared` grows a row per stop.
+ *                             Two items shared word-for-word by both declaring
+ *                             tools, one `what` under two different `why`s.
+ *                             NO `.findings()` — declarations and no ledger;
+ *                             `.limitsTravelWithTheAnswer()` on, so the
+ *                             record's `finalContent` carries the library's
+ *                             own composed block.
  *
- * Run:  npx tsx test/served/fixtures/generate.ts             all fourteen
+ * Run:  npx tsx test/served/fixtures/generate.ts             all fifteen
  *       npx tsx test/served/fixtures/generate.ts <name>…     only those; the
  *       other files are not touched (every run mints a fresh runId, so a
  *       regenerated fixture never has the bytes it had).
@@ -87,7 +99,10 @@ import { fileURLToPath } from 'node:url';
 
 import {
   Agent,
+  COVERAGE_BLOCK_HEADING,
   LLMCall,
+  absent,
+  coverage,
   defineTool,
   isPaused,
   pauseHere,
@@ -720,6 +735,111 @@ if (wanted('ontology')) {
       const view = servedAt(r.snapshot, k);
       if (view === undefined) throw new Error(`ontology: no served view at epoch ${k}`);
       if (!view.system.pieces.some((p) => p.source === 'ontology')) throw new Error(`ontology: epoch ${k} carries no ontology piece`);
+    }
+  });
+}
+
+// ── 14: declared coverage — what the tools said they checked, did not check, and can never cover ──
+// An agent whose tools return the two reserved shapes (agentfootprint 9.109):
+// `zone_membership` returns `coverage(verdict, {...})` — a ledger around a
+// verdict — and `flogi_for_port` returns `absent({...})` — a search that found
+// nothing and names the ground it covered; `port_state` returns a bare string
+// and declares nothing. Three calls in three iterations, so the TRACKED key
+// `coverageDeclared` grows one row per declaring stop: one row at the first
+// tool-calls stop, two at the second, still two at the third. Two items are
+// shared word-for-word by both declaring tools (a `checked` entry, and a
+// `cannotCover` entry with its `why`), so the answer-level merge lists each
+// once; one `checked` entry has the same `what` under two different `why`s,
+// which the library's `sameItem` keeps as two. NO `.findings()` — the record
+// carries declarations and no ledger. `.limitsTravelWithTheAnswer()` is ON,
+// so the record's `finalContent` carries the library's own composed block —
+// the oracle the Coverage band's boundary is pinned against.
+if (wanted('coverage')) {
+  const port = { type: 'object', properties: { port: { type: 'string' } } };
+  const zoneMembership = defineTool({
+    name: 'zone_membership',
+    description: 'zone membership of one interface',
+    inputSchema: port,
+    execute: () =>
+      coverage('fc1/3 is a member of zone Z_ESX07 in the active zoneset', {
+        checked: ['shq-fab-a: the live fcns database', { what: 'window: the last 24h', why: 'the active zoneset is read live' }],
+        notChecked: [{ what: 'the archived zoneset history', why: 'older than the 24h window' }],
+        cannotCover: [
+          { what: 'ports on the peer fabric', why: 'this collector is scoped to one fabric' },
+          { what: 'host-side multipathing', why: 'no collector runs on the ESX hosts' },
+        ],
+      }),
+  });
+  const flogiForPort = defineTool({
+    name: 'flogi_for_port',
+    description: 'FLOGI entries for one interface',
+    inputSchema: port,
+    execute: () =>
+      absent({
+        what: 'FLOGI entries on fc1/3',
+        checked: ['shq-fab-a: the live fcns database', { what: 'window: the last 24h', why: 'FLOGI history retention on this fabric' }],
+        cannotCover: [{ what: 'ports on the peer fabric', why: 'this collector is scoped to one fabric' }],
+        tryInstead: 'Ask for a different interface, or query the peer fabric by name.',
+      }),
+  });
+  const portState = defineTool({
+    name: 'port_state',
+    description: 'the operational state of one interface',
+    inputSchema: port,
+    execute: () => 'fc1/3: up',
+  });
+  const agent = Agent.create({
+    provider: scripted([
+      call('c1', 'zone_membership', { port: 'fc1/3' }),
+      call('c2', 'flogi_for_port', { port: 'fc1/3' }),
+      call('c3', 'port_state', { port: 'fc1/3' }),
+      answer('fc1/3 is up and zoned, with no FLOGI in the last 24h.'),
+    ]),
+    model: 'mock',
+    maxIterations: 6,
+  })
+    .system('bot')
+    .tools([zoneMembership, flogiForPort, portState])
+    .limitsTravelWithTheAnswer()
+    .build();
+  const rec = recordRun(agent);
+  await agent.run({ message: 'is fc1/3 logged in?' });
+  const frozen = rec.toRecording() as Frozen;
+  rec.stop();
+  write('coverage', frozen, (r) => {
+    if (epochsOf(r) !== 4) throw new Error(`coverage: expected 4 epochs, got ${epochsOf(r)}`);
+    interface Row {
+      kind: string;
+      toolName: string;
+      toolCallId?: string;
+      iteration: number;
+      lookedFor?: string;
+    }
+    const state = (r.snapshot as { sharedState?: { coverageDeclared?: Row[]; findingsLedger?: unknown } }).sharedState;
+    const rows = state?.coverageDeclared;
+    if (!Array.isArray(rows)) throw new Error('coverage: the state carries no coverageDeclared key');
+    const shape = rows.map((row) => `${row.toolName}:${row.kind}:${row.iteration}`).join(' ');
+    if (shape !== 'zone_membership:ledger:1 flogi_for_port:absence:2') throw new Error(`coverage: unexpected rows ${shape}`);
+    if (rows[1]?.lookedFor !== 'FLOGI entries on fc1/3') throw new Error('coverage: the absence row carries no lookedFor');
+    if (rows.some((row) => row.toolCallId === undefined)) throw new Error('coverage: a row carries no toolCallId');
+    if (state?.findingsLedger !== undefined) throw new Error('coverage: the record carries a findings ledger — the no-ledger arm is lost');
+    // The tracked key grows across stops: the first row lands as a `set` at
+    // one tool-calls stop, the second as an `append` at a later one (the
+    // recording is delta-encoded), so the fold at the first stop holds one
+    // row and the fold at the second holds two.
+    const verbs = (r.snapshot as { commitLog: { trace?: { path?: string; verb?: string }[] }[] }).commitLog
+      .flatMap((b) => (b.trace ?? []).filter((row) => row.path === 'coverageDeclared').map((row) => row.verb))
+      .join(',');
+    if (verbs !== 'set,append') throw new Error(`coverage: expected the key written as set then append, got ${verbs}`);
+    // The library's own block rides the answer — the boundary the band is
+    // pinned against. The composed answer is filed by the `final` subflow
+    // (its own log) and on the `agentfootprint.agent.turn_end` event's
+    // `payload.finalContent` — the root state's `finalContent` is not it.
+    const events = r.events as { type?: string; payload?: { finalContent?: unknown } }[];
+    const turnEnd = events.find((e) => e.type === 'agentfootprint.agent.turn_end');
+    const answered = turnEnd?.payload?.finalContent;
+    if (typeof answered !== 'string' || !answered.includes(COVERAGE_BLOCK_HEADING)) {
+      throw new Error('coverage: the turn_end event carries no coverage block on finalContent');
     }
   });
 }

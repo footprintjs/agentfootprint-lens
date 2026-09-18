@@ -211,6 +211,27 @@ export {
   type RelationShape as OntologyRelationShape,
 } from "./components/OntologyView.js";
 
+// <CoverageBand> (0.65.0) — what the tools DECLARED they checked, did not
+// check and can never cover, at the cursor (agentfootprint 9.109,
+// `coverageDeclared`): the merged boundary the library used to append to the
+// answer, with the tool that declared each item, and every declaration by
+// call. `<ReasoningLens>` mounts it under the cards; standalone it takes the
+// ONE cursor (`cursor` or `shared`) and mounts no mover. `COVERAGE_LABELS` is
+// every string it owns — names, never a sentence.
+export {
+  CoverageBand,
+  LABELS as COVERAGE_LABELS,
+  foldCoverage,
+  coverageRecordOf,
+  type CoverageBandProps,
+  type CoverageFold,
+  type CoverageBoundary,
+  type CoverageSection,
+  type BoundaryItem as CoverageBoundaryItem,
+  type CoverageItemShape,
+  type DeclaredCoverageShape,
+} from "./components/CoverageBand.js";
+
 // <ServedTab> — at every LLM call, exactly what the model was served, provable
 // from the log (agentfootprint 9.88.0's `servedAt` / `receiptAt`). The engineer
 // view mounts it as the right rail's second tab; exported for consumer-built
