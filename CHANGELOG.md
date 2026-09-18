@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.67.0] - 2026-09-18
+
+### Added — the story's marks: the beats joined to the ledger, as chips a host hands the player
+
+- `storyMarks(trace, record)` (root barrel and the `/context` door; `src/react/components/storyMarks.ts`,
+  a pure fold, no React) joins the Story Lens's beats — the AgentThinkingUI player's trace, whose
+  ask and return beats carry a `toolCallId` since agentfootprint 9.111.0 — to the ledger at ONE
+  stop, and returns one array of chips per beat in the player's own `Mark` shape (`{ label, tone,
+  title? }`, `marks[i]` decorates `trace.steps[i]`), for the player's `marks` prop. The player
+  stays generic; the join is data logic and lives here. Per beat: an `ask` with a basis row gets
+  the basis word (`direct`; `exploratory` under `hypothesis`), `expect <level>` when declared, the
+  model's `proposition` clipped to 40 characters with the whole in the title, and `predicts:` its
+  words likewise; a `return` gets the result's CURRENT standing (`fact` · `open` · `noise` ·
+  `ruled-out`, the last row wins) or `undeclared` when no row names it — never `open` — plus
+  `sought` and `judged <standing>` beside the model's; the `answer` gets `stood on N · open N ·
+  noise N · ruled-out N` (non-zero buckets only), `contingent N` and `unsupported N`, once the
+  record names the answer. A beat with no `toolCallId` gets nothing — never a join by tool name
+  or order; an unarmed record (no ledger row) gets nothing on any beat. The record is
+  `contextAt(...).keys` or the object form, so the marks are the stop's own picture and a host
+  re-folds per stop. `STORY_MARK_LABELS` is every string the fold owns; the own-claims walker
+  covers the file. The `story-marks` fixture (generated alone on agentfootprint 9.111.0) carries
+  the player's trace as a fourth key, `trace`, beside the recording.
+
+### Changed
+
+- devDependency `agentfootprint` 9.110.0 → 9.111.0 (the `toolCallId` on the story's beats).
+
 ## [0.66.2] - 2026-09-18
 
 ### Changed — the counts are data at every stop

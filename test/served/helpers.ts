@@ -43,7 +43,8 @@ export type FixtureName =
   | 'findings-ledger'
   | 'ontology'
   | 'coverage'
-  | 'proof-map';
+  | 'proof-map'
+  | 'story-marks';
 
 export interface LoadedFixture {
   readonly recording: Recording;

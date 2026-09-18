@@ -722,3 +722,111 @@ the constants — exported with the component from the root barrel and the
 `<ContextView>`: a host lays the map beside them on the shared cursor.
 Pinned by `test/context/proofMap.test.tsx` on the `proof-map` fixture
 (generated alone on agentfootprint 9.110.0).
+
+## 0.67.0 — the story's marks, the beats joined to the ledger
+
+**Why.** The Story Lens — the AgentThinkingUI player, `prompt → ask → return
+→ answer` — is the most used view, and the record now declares, per call,
+what the model was doing before it asked and what it made of each result
+after. A person watching the story should see that on the beats: a chip
+that says the model was testing a hypothesis, one that says what it
+expected, one that says the result now stands as a fact, or as noise, or
+was never named at all. But the PLAYER stays generic — it renders a `Trace`
+and a `marks` prop (agentthinkingui 0.33.0: `marks[i]` decorates
+`trace.steps[i]`, a mark is `{ label, tone?, title? }`) and knows nothing of
+a ledger — and the JOIN is data logic, which lives here, in the lens, as a
+pure fold. Four layers kept apart: the player (a component), the fold (data
+logic), the record (data), the host (which stop). `storyMarks(trace, record)`
+(`src/react/components/storyMarks.ts`, no React) is that fold: it reads the
+story's beats and the record at ONE stop and returns one array of chips per
+beat, or `undefined` for a beat with nothing to say.
+
+The join is the `toolCallId` agentfootprint 9.111.0's `agentThinkingTrace()`
+stamps on the story's ask and return beats — and ONLY that: a beat with no
+`toolCallId` gets no marks, never a join by tool name or by order; a row the
+ledger never wrote is never drawn. The rows are narrowed by the folds the
+Findings band, the Reasoning lens and the Proof map already use
+(`foldFindings` — the LAST standing row per result is the current one;
+`foldReasoning` for the basis rows; `foldProofMap` for the contingent and
+judgment rows and `unsupportedValues`), reused, never rewritten.
+
+Per beat:
+
+- `ask`, with a basis row for its call: the basis word — `direct` as the
+  record spells it (neutral), `exploratory` under the story's word
+  `hypothesis` (muted, the record's word in the title); `expect <low|medium|
+  high>` when declared (high good, medium neutral, low muted); the
+  `proposition` as a chip whose label is the model's own words clipped to 40
+  characters with the whole in the title, never paraphrased; `predicts:` and
+  the model's words likewise.
+- `return`, with a `toolCallId`: the CURRENT standing of that result — `fact`
+  (good) · `open` (neutral) · `noise` (warn) · `ruled-out` (bad); no standing
+  row → `undeclared` (muted), never `open`; `sought` (muted) when the model
+  flagged it; `judged <standing>` (muted) beside the model's when a
+  `judgment` row from the judge names the result.
+- `answer`: one chip with the fold's counts — `stood on N · open N · noise N
+  · ruled-out N`, only the non-zero buckets, in that order, N = results whose
+  current standing is that word — plus `contingent N` (warn) when the ledger
+  holds contingent rows declared on the answer, plus `unsupported N` (bad)
+  when `unsupportedValues.values` is non-empty. The chips appear only once
+  the record NAMES the answer (a standing declared on it, a contingent row
+  on it, or the gate's key) — before that the answer beat has none.
+- `prompt` and any other kind: `undefined`.
+- An unarmed record (no ledger row at the stop): `undefined` on every beat —
+  zero-cost; a host on a run without `.findings()` hands the player nothing.
+
+**The stop's own picture.** The record handed in is the fold at ONE stop —
+`contextAt(...).keys` (the rows are read by `path`), or the object form
+(`snapshot.sharedState` at the run's end, or `{ findingsLedger,
+unsupportedValues }` hand-built) — so the marks reflect that stop. A return
+beat whose standing is declared later reads `undeclared` at an earlier stop
+and `noise` at a later one; the answer beat gains its chip at the stop where
+the answer's standing lands. A host that already reads `contextAt` per stop
+re-folds the marks per stop the same way:
+
+```tsx
+import { AgentThinkingUI } from 'agentthinkingui';
+import { contextAt, storyMarks } from 'agentfootprint-lens/context';
+
+const at = contextAt(snapshot, { runtimeStageId, commitIdx }, {});
+<AgentThinkingUI trace={trace} marks={storyMarks(trace, at.keys)} />
+
+// or the run's end, stateless:
+<AgentThinkingUI trace={trace} marks={storyMarks(trace, snapshot.sharedState)} />
+```
+
+At the end of the `story-marks` fixture (both doors armed, the trace
+recorder watching; c1 exploratory with a proposition and a prediction, later
+`noise`; c2 direct, expect high, `fact` + `sought` on the answer; c3 never
+named; the answer quotes `fc1/7`, carried only by c1, and `fc9/9`, carried by
+nothing):
+
+```
+prompt   —
+ask c1   [hypothesis] [the port fc1/7 is down because the optic…] [predicts: state=down on fc1/7]
+return   [noise]
+ask c2   [direct] [expect high]
+return   [fact] [sought]
+ask c3   [hypothesis]
+return   [undeclared]
+answer   [stood on 1 · noise 1] [contingent 1] [unsupported 1]
+```
+
+At the last llm-turn stop before the answer, the same trace reads `noise`
+on c1 already, `undeclared` on c2 and c3, and nothing on the answer beat.
+
+The laws it keeps: **never infer** (the `toolCallId` is the only join; a
+result no standing row names is `undeclared`), **zero-cost when unarmed**,
+**the stop's own picture**, **no sentence of its own** (every chip label is
+the model's own words verbatim, a word off the record — a basis, a standing,
+a count — or a `STORY_MARK_LABELS` entry; the own-claims walker
+`test/served/no-own-claims.test.ts` covers the file), **the same bytes
+twice** (pure; frozen), and **a shape the fold does not own** (the three
+folds above; a row that does not fit is passed over). `storyMarks`,
+`STORY_MARK_LABELS`, `STORY_MARK_CLIP` (40) and the types `StoryMark`,
+`StoryMarks`, `StoryTone`, `StoryRecord`, `StoryTraceShape`, `StoryBeatShape`,
+`StoryKeyShape` are exported from the root barrel and the `/context` door.
+Nothing is mounted: the player is the host's. Pinned by
+`test/context/storyMarks.test.ts` on hand-built records and on the
+`story-marks` fixture (generated alone on agentfootprint 9.111.0, the trace
+riding the file as a fourth key, `trace`).

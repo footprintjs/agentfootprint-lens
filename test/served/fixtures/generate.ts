@@ -97,8 +97,20 @@
  *                             carried (→ one `contingent` row on the answer)
  *                             and a value nothing carried (→
  *                             `unsupportedValues`, posture assist).
+ *   story-marks.json          the proof-map run with an `agentThinkingTrace()`
+ *                             recorder WATCHING (agentfootprint 9.111.0, which
+ *                             stamps `toolCallId` on the story's ask and
+ *                             return beats) and no ontology; c1 exploratory
+ *                             with a `proposition` and a `predicts`, declared
+ *                             `noise` on c2's `_findings.previous`; c2 direct,
+ *                             `expect: 'high'`, declared `fact` + `sought` on
+ *                             the answer; c3 undeclared; the answer quotes a
+ *                             value only c1 carried (→ a `contingent` row) and
+ *                             one nothing carried (→ `unsupportedValues`). The
+ *                             player's trace rides the file as a fourth key,
+ *                             `trace`, beside the recording.
  *
- * Run:  npx tsx test/served/fixtures/generate.ts             all sixteen
+ * Run:  npx tsx test/served/fixtures/generate.ts             all seventeen
  *       npx tsx test/served/fixtures/generate.ts <name>…     only those; the
  *       other files are not touched (every run mints a fresh runId, so a
  *       regenerated fixture never has the bytes it had).
@@ -126,7 +138,7 @@ import {
 import { defineInstruction, defineSkill, skillGraph } from 'agentfootprint/context';
 import { defineOntology } from 'agentfootprint/ontology';
 import { PermissionPolicy } from 'agentfootprint/security';
-import { recordRun } from 'agentfootprint/observe';
+import { agentThinkingTrace, recordRun } from 'agentfootprint/observe';
 import { mock } from 'agentfootprint/providers';
 import { flowChart, FlowChartExecutor } from 'footprintjs';
 
@@ -168,6 +180,8 @@ interface Frozen {
   snapshot: unknown;
   events: unknown;
   structure: unknown;
+  /** The AgentThinkingUI trace the story fixture carries beside the recording (0.67.0). */
+  trace?: unknown;
 }
 
 function write(name: string, recording: Frozen, check: (r: Frozen) => void): void {
@@ -974,5 +988,133 @@ if (wanted('proof-map')) {
       throw new Error('proof-map: a carried value was flagged unsupported');
     }
     if (state?.ontology?.hash !== map.hash) throw new Error('proof-map: the state carries no ontology key, or another map');
+  });
+}
+
+// ── 17: the story's marks (0.67.0, agentfootprint 9.111.0) ─────────────
+// The proof-map run again, with an `agentThinkingTrace()` recorder WATCHING
+// and no ontology. The recorder builds the AgentThinkingUI trace as the run
+// traverses; since 9.111.0 its ask and return beats carry the `toolCallId`,
+// which is the ONLY join `storyMarks` makes. The trace rides the file as a
+// fourth key, `trace`, beside `{ snapshot, events, structure }`. c1 declares
+// a proposition and a prediction (exploratory), and stands as `noise` from
+// c2's declaration; c2 is direct with `expect: 'high'` and stands as `fact`
+// + `sought` from the answer; c3 declares a basis and is never named. The
+// answer quotes `fc1/7` (carried only by c1 → a contingent row on the
+// answer) and `fc9/9` (carried by nothing → `unsupportedValues`).
+if (wanted('story-marks')) {
+  const RESULTS: Record<string, string> = {
+    p1: 'fc1/7 state=down sw-01',
+    p2: 'fc2/9 zone=Z_ESX07 sw-02',
+    p3: 'fc3/3 state=up sw-03',
+  };
+  const probe = (name: string) =>
+    defineTool({
+      name,
+      description: `the ${name} tool`,
+      inputSchema: { type: 'object', properties: { q: { type: 'string' } } },
+      execute: (args: Record<string, unknown>) => RESULTS[String(args.q)] ?? `nothing for ${String(args.q)}`,
+    });
+  const PROPOSITION = 'the port fc1/7 is down because the optic on the far side was pulled during the window';
+  const PREDICTS = 'state=down on fc1/7';
+  const att = agentThinkingTrace({ agent: 'probe', model: 'mock', asker: 'oncall' });
+  const agent = Agent.create({
+    provider: scripted([
+      call('c1', 'port_state', { q: 'p1', _findings: { basis: 'exploratory', proposition: PROPOSITION, predicts: PREDICTS } }),
+      call('c2', 'zone_lookup', {
+        q: 'p2',
+        _findings: { basis: 'direct', expect: 'high', previous: [{ toolCallId: 'c1', standing: 'noise' }] },
+      }),
+      call('c3', 'port_state', { q: 'p3', _findings: { basis: 'exploratory' } }),
+      answer(
+        JSON.stringify({
+          text: 'fc1/7 is down; fc2/9 is in Z_ESX07; fc9/9 was not checked',
+          _findings: {
+            previous: [
+              {
+                toolCallId: 'c2',
+                standing: 'fact',
+                sought: true,
+                assertions: [{ subject: { kind: 'port', id: 'fc2/9' }, predicate: 'zone', value: 'Z_ESX07' }],
+              },
+            ],
+          },
+        }),
+      ),
+    ]),
+    model: 'mock',
+    maxIterations: 8,
+  })
+    .system('bot')
+    .tools([probe('port_state'), probe('zone_lookup')])
+    .findings()
+    .namesAndNumbersFromEvidence({ posture: 'assist' })
+    .outputSchema({ parse: (value: unknown) => value } as never, { retries: 0 })
+    .watch(att)
+    .build();
+  const rec = recordRun(agent);
+  await agent.run({ message: 'which port is down?' });
+  const trace = att.getTrace({ task: 'which port is down?' });
+  const frozen: Frozen = { ...(rec.toRecording() as Frozen), trace };
+  rec.stop();
+  write('story-marks', frozen, (r) => {
+    if (epochsOf(r) !== 4) throw new Error(`story-marks: expected 4 epochs, got ${epochsOf(r)}`);
+    interface Row {
+      kind: string;
+      toolCallId?: string;
+      standing?: string;
+      basis?: string;
+      expect?: string;
+      proposition?: string;
+      predicts?: string;
+      sought?: boolean;
+      declaredOn?: unknown;
+      value?: string;
+      carriers?: { toolCallId: string; standing: string }[];
+    }
+    interface State {
+      findingsLedger?: Row[];
+      toolResults?: { toolCallId: string }[];
+      unsupportedValues?: { values: { value: string }[]; posture: string };
+    }
+    const state = (r.snapshot as { sharedState?: State }).sharedState;
+    const ledger = state?.findingsLedger;
+    if (!Array.isArray(ledger)) throw new Error('story-marks: the state carries no findingsLedger key');
+    const basis = new Map<string, Row>();
+    const standing = new Map<string, Row>();
+    for (const row of ledger) {
+      if (row.toolCallId === undefined) continue;
+      if (row.kind === 'basis') basis.set(row.toolCallId, row);
+      if (row.kind === 'standing') standing.set(row.toolCallId, row);
+    }
+    const b1 = basis.get('c1');
+    if (b1?.basis !== 'exploratory' || b1.proposition !== PROPOSITION || b1.predicts !== PREDICTS || b1.expect !== undefined) {
+      throw new Error(`story-marks: c1's basis row must be exploratory with the proposition and predicts, got ${JSON.stringify(b1)}`);
+    }
+    const b2 = basis.get('c2');
+    if (b2?.basis !== 'direct' || b2.expect !== 'high') throw new Error(`story-marks: c2's basis row must be direct, expect high, got ${JSON.stringify(b2)}`);
+    if (basis.get('c3')?.basis !== 'exploratory') throw new Error('story-marks: c3 must carry a basis row');
+    if (standing.get('c1')?.standing !== 'noise') throw new Error('story-marks: c1 must stand as noise');
+    if (JSON.stringify(standing.get('c1')?.declaredOn) !== JSON.stringify({ toolCallId: 'c2' })) throw new Error('story-marks: c1 must be declared on c2');
+    const s2 = standing.get('c2');
+    if (s2?.standing !== 'fact' || s2.declaredOn !== 'answer' || s2.sought !== true) throw new Error('story-marks: c2 must stand as fact, sought, declared on the answer');
+    if (standing.has('c3')) throw new Error('story-marks: c3 must be undeclared (no standing row)');
+    const contingent = ledger.filter((row) => row.kind === 'contingent');
+    const shape = contingent.map((row) => `${JSON.stringify(row.declaredOn)}:${row.value}:${(row.carriers ?? []).map((c) => `${c.toolCallId}/${c.standing}`).join(',')}`);
+    if (shape.join(' ') !== '"answer":fc1/7:c1/noise') throw new Error(`story-marks: unexpected contingent rows ${JSON.stringify(shape)}`);
+    const unsupported = state?.unsupportedValues;
+    if (unsupported?.posture !== 'assist' || !unsupported.values.some((v) => v.value === 'fc9/9')) {
+      throw new Error(`story-marks: expected fc9/9 unsupported under assist, got ${JSON.stringify(unsupported)}`);
+    }
+    // The story: prompt, then ask/return per call, then the answer — every
+    // ask and return beat stamped with its call's id (9.111.0).
+    const steps = (r.trace as { steps: { kind: string; toolCallId?: string }[] }).steps;
+    const kinds = steps.map((s) => s.kind).join(' ');
+    if (kinds !== 'prompt ask return ask return ask return answer') throw new Error(`story-marks: unexpected beats ${kinds}`);
+    const ids = steps.filter((s) => s.kind === 'ask' || s.kind === 'return').map((s) => s.toolCallId);
+    if (ids.join(' ') !== 'c1 c1 c2 c2 c3 c3') throw new Error(`story-marks: every ask/return beat must carry its toolCallId, got ${JSON.stringify(ids)}`);
+    if (steps.some((s) => (s.kind === 'prompt' || s.kind === 'answer') && s.toolCallId !== undefined)) {
+      throw new Error('story-marks: a prompt or answer beat must carry no toolCallId');
+    }
   });
 }

@@ -94,6 +94,12 @@ import { LABELS as COVERAGE_LABELS } from "../../src/react/components/CoverageBa
 // `contingent`, `undeclared`, `judged`); every other string it prints is a
 // value off the record (an id, a tool name, a standing word, a value, a key).
 import { LABELS as PROOF_MAP_LABELS } from "../../src/react/components/ProofMap.js";
+// 0.67.0: the story's marks — a pure fold (no React) that emits the chips
+// a host hands the AgentThinkingUI player. Its labels name chips
+// (`hypothesis`, `expect`, `undeclared`, `stood on`); every other string it
+// emits is a value off the record (a basis word, a standing word, the
+// model's proposition and `predicts` verbatim, a count).
+import { LABELS as STORY_MARK_LABELS } from "../../src/react/components/storyMarks.js";
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
@@ -110,6 +116,7 @@ const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
   ONTOLOGY_LABELS,
   COVERAGE_LABELS,
   PROOF_MAP_LABELS,
+  STORY_MARK_LABELS,
 ];
 const LABEL_ENTRIES: readonly (readonly [string, string])[] =
   LABEL_SETS.flatMap((set) => Object.entries(set));
@@ -136,6 +143,9 @@ const FILES: string[] = [
   ...sources("react/components", (f) =>
     /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand|ReasoningLens|OntologyView|CoverageBand|ProofMap).*\.tsx$/.test(f),
   ),
+  // 0.67.0: the story-marks fold — a `.ts` beside the `.tsx` views, under
+  // the same rule: it emits chip labels the player prints.
+  ...sources("react/components", (f) => /^storyMarks\.ts$/.test(f)),
   ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
 
@@ -235,6 +245,10 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // and keys off the record — and the walk is what keeps a sentence of the
     // lens's own ("the answer rests on…") from standing beside them.
     expect(walked).toContain("ProofMap.tsx");
+    // 0.67.0: the story-marks fold emits the chips the player prints — the
+    // model's own words and the record's words — and the walk is what keeps
+    // a sentence of the lens's own off the story.
+    expect(walked).toContain("storyMarks.ts");
   });
 
   it("every LABEL is a label: short, and no claim verb (one mandated note excepted)", () => {

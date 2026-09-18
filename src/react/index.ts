@@ -260,6 +260,27 @@ export {
   type CarrierShape as ProofCarrierShape,
 } from "./components/ProofMap.js";
 
+// storyMarks (0.67.0) — the story's beats joined to the ledger at ONE stop,
+// as the chips a host hands the AgentThinkingUI player's `marks` prop
+// (agentfootprint 9.111.0 stamps `toolCallId` on the story's ask and return
+// beats). A pure fold, no React: per beat the basis chips before a call, the
+// CURRENT standing after it (`undeclared` when no row names the result), the
+// answer's counts once the record names the answer; nothing on a beat without
+// a `toolCallId`, nothing at all on an unarmed record. `STORY_MARK_LABELS` is
+// every string it owns — names, never a sentence.
+export {
+  storyMarks,
+  LABELS as STORY_MARK_LABELS,
+  CLIP as STORY_MARK_CLIP,
+  type StoryMark,
+  type StoryMarks,
+  type StoryTone,
+  type StoryRecord,
+  type StoryTraceShape,
+  type StoryBeatShape,
+  type StoryKeyShape,
+} from "./components/storyMarks.js";
+
 // <ServedTab> — at every LLM call, exactly what the model was served, provable
 // from the log (agentfootprint 9.88.0's `servedAt` / `receiptAt`). The engineer
 // view mounts it as the right rail's second tab; exported for consumer-built

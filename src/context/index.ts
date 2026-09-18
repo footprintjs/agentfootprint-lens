@@ -113,6 +113,23 @@ export {
   type ContingentShape as ProofContingentShape,
   type CarrierShape as ProofCarrierShape,
 } from '../react/components/ProofMap.js';
+// 0.67.0: the story's marks — the story's beats (the AgentThinkingUI
+// player's trace, agentfootprint 9.111.0's `toolCallId` on ask and return)
+// joined to the ledger at ONE stop, as the chips a host hands the player's
+// `marks` prop. A pure fold; the player stays generic. An addition to the
+// door, never a move; also on the root barrel.
+export {
+  storyMarks,
+  LABELS as STORY_MARK_LABELS,
+  CLIP as STORY_MARK_CLIP,
+  type StoryMark,
+  type StoryMarks,
+  type StoryTone,
+  type StoryRecord,
+  type StoryTraceShape,
+  type StoryBeatShape,
+  type StoryKeyShape,
+} from '../react/components/storyMarks.js';
 export {
   contextAt,
   type ContextAt,
