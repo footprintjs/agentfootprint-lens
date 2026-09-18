@@ -598,29 +598,39 @@ export function ProofMap(props: ProofMapProps): React.ReactElement | null {
   // brings the host's mover — and only while the address stands on this axis.
   const mover = props.cursor === undefined && shared !== undefined && cursor.total > 0 && cursor.at.step >= 0;
 
-  // Omit, never deny: no ledger at the stop, nothing drawn.
-  if (fold === undefined || layout === undefined) return null;
+  // Omit, never deny: no ledger at the stop, nothing drawn — but the
+  // TRANSPORT stays whenever this view holds the shared address (0.66.1). A
+  // person who stepped back to a stop before the first row must be able to
+  // step forward again from here; a view that took the mover with it left
+  // them standing in an empty pane with no way out (the first host's report).
+  const drawn = fold !== undefined && layout !== undefined;
+  if (!drawn && !mover) return null;
   return (
     <div
       style={panel}
       data-testid="proof-map"
-      data-answer={String(fold.answer !== undefined)}
-      data-calls={fold.calls.length}
-      data-contingent={fold.contingent.length}
+      data-drawn={String(drawn)}
+      {...(drawn && {
+        'data-answer': String(fold.answer !== undefined),
+        'data-calls': fold.calls.length,
+        'data-contingent': fold.contingent.length,
+      })}
       data-step={cursor.at.step}
       data-commit={cursor.at.commitIdx}
     >
       <div style={header}>
         <span style={title}>{LABELS.view}</span>
-        <span style={dim} data-testid="proof-counts">
-          {fold.calls.length} {LABELS.calls} · {fold.tools.length} {LABELS.tools}
-          {fold.sources !== undefined && (
-            <>
-              {' · '}
-              {fold.sources.length} {LABELS.sources}
-            </>
-          )}
-        </span>
+        {drawn && (
+          <span style={dim} data-testid="proof-counts">
+            {fold.calls.length} {LABELS.calls} · {fold.tools.length} {LABELS.tools}
+            {fold.sources !== undefined && (
+              <>
+                {' · '}
+                {fold.sources.length} {LABELS.sources}
+              </>
+            )}
+          </span>
+        )}
       </div>
       {mover && (
         <div data-testid="proof-transport">
@@ -633,10 +643,12 @@ export function ProofMap(props: ProofMapProps): React.ReactElement | null {
           />
         </div>
       )}
-      <div style={body}>
-        <Chart fold={fold} layout={layout} />
-        <List fold={fold} />
-      </div>
+      {drawn && (
+        <div style={body}>
+          <Chart fold={fold} layout={layout} />
+          <List fold={fold} />
+        </div>
+      )}
     </div>
   );
 }

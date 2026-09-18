@@ -349,6 +349,23 @@ describe('<ProofMap> carries the transport when it holds the shared address', ()
     expect(screen.getByTestId('proof-map').getAttribute('data-answer')).toBe('true');
   });
 
+  it('stepped back before the first basis row, the root keeps its transport and draws nothing else (0.66.1) — a person can step forward again', () => {
+    const fixture = load('proof-map');
+    render(<Alone fixture={fixture} />);
+    const lastStep = fixture.positions.length - 1;
+    for (let s = lastStep; s > 0; s--) fireEvent.click(screen.getByLabelText('Previous step'));
+    const root = screen.getByTestId('proof-map');
+    expect(root.getAttribute('data-step')).toBe('0');
+    expect(root.getAttribute('data-drawn')).toBe('false');
+    expect(root.hasAttribute('data-calls')).toBe(false);
+    expect(screen.queryByTestId('proof-node')).toBeNull();
+    expect(screen.queryByTestId('proof-counts')).toBeNull();
+    expect(screen.getByTestId('proof-transport')).toBeInTheDocument();
+    for (let s = 0; s < lastStep; s++) fireEvent.click(screen.getByLabelText('Next step'));
+    expect(screen.getByTestId('proof-map').getAttribute('data-drawn')).toBe('true');
+    expect(screen.getByTestId('proof-map').getAttribute('data-answer')).toBe('true');
+  });
+
   function Host({ fixture }: { readonly fixture: Fixture }) {
     const shared = useSharedCursor(fixture.recorder);
     return (

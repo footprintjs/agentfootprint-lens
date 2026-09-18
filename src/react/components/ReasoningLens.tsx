@@ -636,19 +636,23 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
   // It belongs here when the cursor is the shared address — a per-axis
   // `cursor` from a slot brings the host's mover — and only while the address
   // stands on this axis (a transport lit at stop 0 would claim a position).
-  // A run with neither a ledger nor a declaration at the stop draws nothing,
-  // transport included.
+  // A run with neither a ledger nor a declaration at the stop draws nothing —
+  // but the transport stays whenever this lens holds the shared address
+  // (0.66.1): a person who stepped back to a stop before the first row must
+  // be able to step forward from here.
   const mover = props.cursor === undefined && shared !== undefined && cursor.total > 0 && cursor.at.step >= 0;
 
   // Omit, never deny: neither a ledger nor a declaration at the stop, nothing
   // drawn. Declarations alone draw the Coverage band alone — no cards, no
   // count, no toggle (0.65.0).
-  if (exchange === undefined && declared === undefined) return null;
+  const drawn = exchange !== undefined || declared !== undefined;
+  if (!drawn && !mover) return null;
   const fold = exchange?.reasoning;
   return (
     <div
       style={panel}
       data-testid="reasoning-lens"
+      data-drawn={String(drawn)}
       data-step={cursor.at.step}
       data-commit={cursor.at.commitIdx}
       {...(fold !== undefined ? { 'data-calls': fold.cards.length } : {})}

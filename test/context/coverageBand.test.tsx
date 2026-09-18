@@ -122,6 +122,17 @@ const sectionOf = (scope: HTMLElement, section: CoverageSection): HTMLElement | 
 
 const calls = (): HTMLElement[] => screen.getAllByTestId('coverage-call');
 
+
+/** 0.66.1: with the shared address held, a stop with nothing to draw keeps the ROOT and the transport — `data-drawn="false"`, no cards, no beats, no band. */
+function expectUndrawn(): void {
+  const root = screen.getByTestId('reasoning-lens');
+  expect(root.getAttribute('data-drawn')).toBe('false');
+  expect(screen.queryByTestId('reasoning-card')).toBeNull();
+  expect(screen.queryByTestId('reasoning-beat')).toBeNull();
+  expect(screen.queryByTestId('coverage-band')).toBeNull();
+  expect(screen.queryAllByLabelText('Previous step').length).toBeGreaterThanOrEqual(1);
+}
+
 describe('<CoverageBand> at the end of the run whose tools declared their coverage', () => {
   const fixture = load('coverage');
   const last = fixture.positions.length - 1;
@@ -430,7 +441,7 @@ describe('<ReasoningLens> mounts the band', () => {
     return <ReasoningLens runner={fixture.runner} recorder={fixture.recorder} shared={shared} />;
   }
 
-  it('a run with declarations and no ledger renders the band alone — root and transport, no cards, no count, no toggle', () => {
+  it('a run with declarations and no ledger renders the band alone — root and transport, no cards, no count, no toggle; before the first declaration the shared root keeps only its transport', () => {
     const fixture = load('coverage');
     const [first] = stopsOf(fixture, 'tool-call');
     const firstStep = stepOf(fixture, first!);
@@ -452,14 +463,14 @@ describe('<ReasoningLens> mounts the band', () => {
     expect(screen.getByTestId('reasoning-lens').getAttribute('data-step')).toBe(String(firstStep));
     expect(screen.getByTestId('coverage-band').getAttribute('data-declarations')).toBe('1');
     fireEvent.click(screen.getByLabelText('Previous step'));
-    expect(screen.queryByTestId('reasoning-lens')).toBeNull();
+    expectUndrawn();
     expect(screen.queryByTestId('coverage-band')).toBeNull();
   });
 
-  it('a run with neither a ledger nor a declaration still draws nothing at any stop', () => {
+  it('a run with neither a ledger nor a declaration draws nothing — the shared root keeps only its transport; a per-axis cursor draws no root', () => {
     const fixture = load('flat-dynamic-tools');
     render(<Alone fixture={fixture} />);
-    expect(screen.queryByTestId('reasoning-lens')).toBeNull();
+    expectUndrawn();
     cleanup();
     for (let step = 0; step < fixture.positions.length; step++) {
       render(<ReasoningLens runner={fixture.runner} cursor={lensCursorFrom(fixture.positions, step, () => undefined)} />);
@@ -506,7 +517,7 @@ describe('<ReasoningLens> mounts the band', () => {
     expect(screen.getAllByTestId('reasoning-card')).toHaveLength(4);
     expect(screen.getByTestId('coverage-band').getAttribute('data-declarations')).toBe('1');
     fireEvent.click(screen.getByLabelText('Previous step'));
-    expect(screen.queryByTestId('reasoning-lens')).toBeNull();
+    expectUndrawn();
   });
 
   it('the untampered armed run has no band: a ledger alone draws the cards alone', () => {

@@ -350,6 +350,23 @@ describe('<OntologyView> carries the transport when it holds the shared address'
     expect(screen.getByTestId('ontology-view').getAttribute('data-step')).toBe(String(lastStep));
   });
 
+  it('with the key gone from the record, the shared root keeps only its transport (0.66.1) — nothing else drawn, and the person can still step', () => {
+    const fixture = loadTampered('ontology', (recording) => {
+      const seeds = recording.snapshot.commitLog.filter((b: FixtureBundle) => b.overwrite !== undefined && 'ontology' in b.overwrite);
+      delete seeds[0]!.overwrite!.ontology;
+    });
+    render(<Alone fixture={fixture} />);
+    const root = screen.getByTestId('ontology-view');
+    expect(root.getAttribute('data-drawn')).toBe('false');
+    expect(root.hasAttribute('data-hash')).toBe(false);
+    expect(screen.queryByTestId('ontology-chart')).toBeNull();
+    expect(screen.queryByTestId('ontology-list')).toBeNull();
+    expect(screen.getByTestId('ontology-transport')).toBeInTheDocument();
+    const step = Number(root.getAttribute('data-step'));
+    fireEvent.click(screen.getByLabelText('Previous step'));
+    expect(screen.getByTestId('ontology-view').getAttribute('data-step')).toBe(String(step - 1));
+  });
+
   function Host({ fixture }: { readonly fixture: Fixture }) {
     const shared = useSharedCursor(fixture.recorder);
     return (

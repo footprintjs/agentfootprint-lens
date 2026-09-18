@@ -413,19 +413,21 @@ export function OntologyView(props: OntologyViewProps): React.ReactElement | nul
   // and only while the address stands on this axis.
   const mover = props.cursor === undefined && shared !== undefined && cursor.total > 0 && cursor.at.step >= 0;
 
-  // Omit, never deny: no map at the stop, nothing drawn.
-  if (fold === undefined || layout === undefined) return null;
+  // Omit, never deny: no map at the stop, nothing drawn — but the transport
+  // stays whenever this view holds the shared address (0.66.1), so a person
+  // standing at a stop before the seed can step forward from here.
+  const drawn = fold !== undefined && layout !== undefined;
+  if (!drawn && !mover) return null;
   return (
     <div
       style={panel}
       data-testid="ontology-view"
-      data-id={fold.id}
-      data-version={fold.version}
-      data-hash={fold.hash}
+      data-drawn={String(drawn)}
+      {...(drawn && { 'data-id': fold.id, 'data-version': fold.version, 'data-hash': fold.hash })}
       data-step={cursor.at.step}
       data-commit={cursor.at.commitIdx}
     >
-      <Header fold={fold} />
+      {drawn && <Header fold={fold} />}
       {mover && (
         <div data-testid="ontology-transport">
           <TimeTravel
@@ -437,10 +439,12 @@ export function OntologyView(props: OntologyViewProps): React.ReactElement | nul
           />
         </div>
       )}
-      <div style={body}>
-        <Chart fold={fold} layout={layout} />
-        <List fold={fold} />
-      </div>
+      {drawn && (
+        <div style={body}>
+          <Chart fold={fold} layout={layout} />
+          <List fold={fold} />
+        </div>
+      )}
     </div>
   );
 }

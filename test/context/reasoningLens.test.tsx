@@ -51,6 +51,17 @@ const cardOf = (id: string): HTMLElement => {
   return card;
 };
 
+
+/** 0.66.1: with the shared address held, a stop with nothing to draw keeps the ROOT and the transport — `data-drawn="false"`, no cards, no beats, no band. */
+function expectUndrawn(): void {
+  const root = screen.getByTestId('reasoning-lens');
+  expect(root.getAttribute('data-drawn')).toBe('false');
+  expect(screen.queryByTestId('reasoning-card')).toBeNull();
+  expect(screen.queryByTestId('reasoning-beat')).toBeNull();
+  expect(screen.queryByTestId('coverage-band')).toBeNull();
+  expect(screen.queryAllByLabelText('Previous step').length).toBeGreaterThanOrEqual(1);
+}
+
 describe('<ReasoningLens> at the end of the armed run', () => {
   const fixture = load('findings-ledger');
   const last = fixture.positions.length - 1;
@@ -293,7 +304,7 @@ describe('<ReasoningLens> moves with the ONE cursor', () => {
     );
   }
 
-  it('walking the Context view’s transport back removes the cards of the calls after the cursor, then the lens itself', () => {
+  it('walking the Context view’s transport back removes the cards of the calls after the cursor, then the cards — the shared root keeps its transport', () => {
     const fixture = load('findings-ledger');
     const [first, second] = stopsOf(fixture, 'tool-call');
     const firstStep = stepOf(fixture, first!);
@@ -320,7 +331,7 @@ describe('<ReasoningLens> moves with the ONE cursor', () => {
     expect(cards().map((c) => c.getAttribute('data-tool-call-id'))).toEqual(['c1', 'c2', 'c3', 'c4']);
     for (const card of cards()) expect(card.getAttribute('data-standing')).toBe(LABELS.undeclared);
     back(1);
-    expect(screen.queryByTestId('reasoning-lens')).toBeNull();
+    expectUndrawn();
     expect(screen.getByTestId('context-view').getAttribute('data-step')).toBe(String(firstStep - 1));
   });
 });
@@ -622,7 +633,7 @@ describe('<ReasoningLens view="exchange"> moves with the ONE cursor', () => {
     );
   }
 
-  it('walking back removes the served and answer beats, then the second batch’s beats, then the lens', () => {
+  it('walking back removes the served and answer beats, then the second batch’s beats, then the beats — the shared root keeps its transport', () => {
     const fixture = load('findings-ledger');
     const [first, second] = stopsOf(fixture, 'tool-call');
     const firstStep = stepOf(fixture, first!);
@@ -646,7 +657,7 @@ describe('<ReasoningLens view="exchange"> moves with the ONE cursor', () => {
       expect(within(b).getByTestId('reasoning-standing').textContent).toBe(LABELS.undeclared);
     }
     back(1);
-    expect(screen.queryByTestId('reasoning-lens')).toBeNull();
+    expectUndrawn();
   });
 });
 

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.66.1] - 2026-09-18
+
+### Fixed — the transport stays at a stop with nothing to draw
+
+- `<ReasoningLens>`, `<OntologyView>` and `<ProofMap>` returned nothing at a stop where their key
+  was absent — a stop before the first ledger row, before the seed, or before the first basis row —
+  and took the shared transport with them, so a person who stepped back to such a stop stood in an
+  empty pane with no way to step forward from inside the tab (the first host's report). Now, while
+  a view holds the shared address, its root and transport stay at every stop and the root says
+  `data-drawn="false"`; the chart, list, cards, beats and band are still omitted, never replaced by
+  a sentence. A per-axis `cursor` and the no-cursor form still draw no root, as before. Pinned on
+  all three views.
+
 ## [0.66.0] - 2026-09-18
 
 ### Added — the Proof map: what the answer rests on, as one graph from the record
