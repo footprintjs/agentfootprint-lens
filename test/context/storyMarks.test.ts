@@ -345,3 +345,11 @@ describe('storyMarks on the story-marks fixture (agentfootprint 9.111.0, generat
     }
   });
 });
+
+describe('storyMarks — no record at all', () => {
+  it('undefined or null record: every beat undefined, never a throw (a host whose artifact carries no runner)', () => {
+    const trace = { steps: [{ kind: 'prompt' }, { kind: 'ask', toolCallId: 'c1' }, { kind: 'return', toolCallId: 'c1' }, { kind: 'answer' }] };
+    expect([...storyMarks(trace, undefined)]).toEqual([undefined, undefined, undefined, undefined]);
+    expect([...storyMarks(trace, null)]).toEqual([undefined, undefined, undefined, undefined]);
+  });
+});

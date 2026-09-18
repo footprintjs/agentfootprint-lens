@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.67.1] - 2026-09-18
+
+### Fixed
+
+- `storyMarks(trace, record)` takes a missing record (`undefined`/`null`) as
+  "nothing to read": every beat `undefined`, never a throw. A host whose
+  artifact carries no runner mounted the Story player and crashed the tab on
+  the first fold; the fold now draws nothing there, as the omit-never-deny
+  law says.
+
 ## [0.67.0] - 2026-09-18
 
 ### Added — the story's marks: the beats joined to the ledger, as chips a host hands the player

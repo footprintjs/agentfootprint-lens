@@ -122,7 +122,10 @@ interface RecordKeys {
 }
 
 /** The two keys, from either record shape; the ledger is `[]` when the key is absent or not an array. */
-function keysOf(record: StoryRecord): RecordKeys {
+function keysOf(record: StoryRecord | undefined | null): RecordKeys {
+  // No record at all (a host whose artifact carries no runner, an older
+  // recording): nothing to read, nothing drawn — never a throw in the host.
+  if (!isRecord(record) && !Array.isArray(record)) return { rows: [], unsupportedValues: undefined };
   if (Array.isArray(record)) {
     let ledger: unknown;
     let unsupported: unknown;
@@ -229,7 +232,7 @@ function answerMarks(proof: ProofFold): readonly StoryMark[] | undefined {
  * names the answer; every other beat, every beat without a `toolCallId`, and
  * every beat of a record with no ledger row gets `undefined`. Pure.
  */
-export function storyMarks(trace: StoryTraceShape, record: StoryRecord): StoryMarks {
+export function storyMarks(trace: StoryTraceShape, record: StoryRecord | undefined | null): StoryMarks {
   const keys = keysOf(record);
   const steps = trace.steps;
   if (keys.rows.length === 0) return Object.freeze(steps.map((): undefined => undefined));
