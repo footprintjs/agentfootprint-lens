@@ -89,6 +89,11 @@ import { LABELS as ONTOLOGY_LABELS } from "../../src/react/components/OntologyVi
 // every other string it prints is the tool author's own (a `what`, a `why`,
 // a `lookedFor`) or the record's word for `kind`.
 import { LABELS as COVERAGE_LABELS } from "../../src/react/components/CoverageBand.js";
+// 0.66.0: the Proof map — what the answer rests on, as one graph off the
+// record. Its labels name columns, edges, chips and fields (`stands on`,
+// `contingent`, `undeclared`, `judged`); every other string it prints is a
+// value off the record (an id, a tool name, a standing word, a value, a key).
+import { LABELS as PROOF_MAP_LABELS } from "../../src/react/components/ProofMap.js";
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
@@ -104,6 +109,7 @@ const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
   REASONING_LABELS,
   ONTOLOGY_LABELS,
   COVERAGE_LABELS,
+  PROOF_MAP_LABELS,
 ];
 const LABEL_ENTRIES: readonly (readonly [string, string])[] =
   LABEL_SETS.flatMap((set) => Object.entries(set));
@@ -128,7 +134,7 @@ const FILES: string[] = [
   // 0.53.0: the Context view — the join over the three records, and its screen.
   ...sources("core/context", (f) => f.endsWith(".ts")),
   ...sources("react/components", (f) =>
-    /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand|ReasoningLens|OntologyView|CoverageBand).*\.tsx$/.test(f),
+    /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand|ReasoningLens|OntologyView|CoverageBand|ProofMap).*\.tsx$/.test(f),
   ),
   ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
@@ -225,6 +231,10 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // `what`, a `why`, a `lookedFor` — and the walk is what keeps a sentence
     // of the lens's own from standing beside them.
     expect(walked).toContain("CoverageBand.tsx");
+    // 0.66.0: the Proof map prints ids, tool names, standing words, values
+    // and keys off the record — and the walk is what keeps a sentence of the
+    // lens's own ("the answer rests on…") from standing beside them.
+    expect(walked).toContain("ProofMap.tsx");
   });
 
   it("every LABEL is a label: short, and no claim verb (one mandated note excepted)", () => {

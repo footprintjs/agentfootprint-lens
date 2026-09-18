@@ -602,3 +602,123 @@ owns — exported with the component from the root barrel and the `/context`
 door; `<CoverageRows rows>` (the band over rows already in hand) and
 `sameItem` are exported from the component file for a view that folded the
 stop once. Pinned by `test/context/coverageBand.test.tsx`.
+
+## 0.66.0 — the Proof map, what the answer rests on as one graph
+
+**Why.** A proof a person can trust needs a dependency diagram — the
+hand-drawn one Dan Abramov made for his Conway proof, so a reader could see
+what rests on what before trusting a result. Our record already holds every
+one of those edges: the standings the model declared on its answer
+(`findingsLedger`, `declaredOn: 'answer'`), the result each call produced and
+the tool each call ran (`history` / the basis rows), the source the declared
+map says a tool reads (`ontology.spec.nodes[*].sources[].via`), the values the
+model USED that came only from results it had itself called `open`, `noise`
+or `ruled-out` (agentfootprint 9.110.0's `contingent` row — *no towers on
+unverified lemmas* — filed only under BOTH `.findings()` and
+`.namesAndNumbersFromEvidence()`), and the values no result carried at all
+(`unsupportedValues`). Nobody drew them in one place. `<ProofMap>`
+(`src/react/components/ProofMap.tsx`) does: a small SVG chart (no library)
+with the ANSWER in the first column, the CALLS next (tool name and short id,
+the declared standing as a chip colour — `fact` success, `noise` warning,
+`ruled-out` error, `open` muted — the judge's standing as a second dimmer
+chip when a `judgment` row exists, the assertions count; an undeclared call
+is dashed under the word `undeclared`, never `open`), the TOOLS next (one per
+distinct name), and the SOURCES last, from the declared map's own `via` join
+when a map was declared. Edges: `stands on` from the answer to every result
+declared on it, labelled with the standing word; `calls` call → tool; `reads`
+tool → source; and two overlays in their own strokes — `contingent`, dashed
+in the warning colour, from the user of the value (the answer, or the call
+whose arguments carried it) to each carrier, labelled `contingent · <the
+carrier's standing>` with the value whole in the `<title>`; `conflict`, in
+the error colour, between the witnesses of one key, the key in the
+`<title>`. The answer node carries the count of unsupported values as a chip
+and the values in its `<title>`. Beside the chart, the SAME data as a list —
+the answer (what it stands on, the unsupported values), the calls (tool,
+basis, standing, assertions, judged, conflict), the contingent rows verbatim
+(declared on · value · carriers with standings), the conflicts, the tools,
+the sources with the tools that read them — for a screen reader, and for a
+test.
+
+Layout is a function of the fold alone: calls in ledger order (the basis
+rows' own order, then any result the ledger never named), tools and sources
+sorted by id, a straight line per `stands on` / `calls` / `reads` edge and
+one lane per overlay edge in row order, in the gutter left of the calls
+column — no force layout, no measurement, no randomness, no clock. A run's
+map draws identically on every render. The map moves with the ONE cursor:
+before the answer's standing lands, the answer column is absent and the map
+is the calls' map; before the first basis row — or on an unarmed run — the
+view renders nothing at all.
+
+```tsx
+import { ProofMap } from 'agentfootprint-lens/context';
+
+const shared = useSharedCursor(recorder);
+<ProofMap runner={recording} recorder={recorder} shared={shared} />   // one cursor with the other views
+<ProofMap runner={recording} />                                        // the run's end, stateless
+```
+
+At the end of the `proof-map` fixture (both doors armed; c1 declared `noise`
+on c2's `_findings.previous`, c2 declared `fact` on the JSON answer, c3 never
+named; the answer quotes `fc1/7`, carried only by c1, and `fc9/9`, carried by
+nothing):
+
+```
+Proof map · 3 calls · 2 tools · 2 sources
+
+  answer ─ stands on: fact ──▶ zone_lookup c2 [fact · 1 assertions] ──▶ zone_lookup ──▶ zoneset
+    │                          port_state  c1 [noise]                ──▶ port_state  ──▶ fcns
+    └╌ contingent · noise ╌╌▶  port_state  c3 [undeclared, dashed]  ──▶ port_state
+  [1 unsupported]  (title: fc9/9)
+
+answer
+  stands on c2 [fact]
+  [unsupported] fc9/9
+calls
+  port_state c1 · basis exploratory · [noise]
+  zone_lookup c2 · basis direct · [fact] · 1 assertions
+  port_state c3 · basis exploratory · [undeclared]
+contingent · 1
+  declared on answer · value fc1/7 · carriers c1 [noise]
+tools · 2        port_state · zone_lookup
+sources · 2      fcns  the live fcns database ← port_state
+                 zoneset  the active zoneset ← zone_lookup
+```
+
+The laws it keeps: **omit, never deny** (no `findingsLedger` at the stop
+and nothing is drawn — the Findings band's and Reasoning lens's law; no
+answer column before a standing, a contingent row or an unsupported value
+names the answer; no sources column without a declared map; a node prints
+no field the record does not carry), **never infer** (every edge is a row:
+a `stands on` edge is a standing row `declaredOn: 'answer'`, a `contingent`
+edge a contingent row's carrier, a `conflict` edge a conflict row's witness
+pair, a `reads` edge a `via` name in the declared map; a standing that
+names a result no basis row and no result on the record holds gets no node
+invented for it; the judge's standing is never merged with the model's),
+**no sentence of its own** (every printed string is a value off the record
+— an id, a tool name, a standing word, a value, a key, a source's meaning —
+or a `LABELS` entry; the own-claims walker `test/served/no-own-claims.test.ts`
+covers the file), **the same bytes twice**, **one cursor**, and **a shape the
+view does not own** (`foldFindings` for standings and conflicts, and the
+view's own `contingentOf` / `judgmentOf` / `unsupportedOf` /
+`ontologyRecordOf`; a row that does not fit is passed over). Test ids:
+`proof-map` (`data-answer` = true | false, `data-calls`, `data-contingent`,
+`data-step`, `data-commit`), `proof-counts`, `proof-column` (`data-kind`),
+`proof-node` (`data-kind` = answer | call | tool | source, `data-id`,
+`data-standing` on a call — the word, or `undeclared`), `proof-edge`
+(`data-kind` = stands-on | calls | reads | contingent | conflict,
+`data-from`, `data-to` as `<kind>:<id>`), `proof-unsupported-chip`,
+`proof-judged-chip`; in the list `proof-answer` (`data-stands-on`,
+`data-unsupported`), `proof-stands-on`, `proof-unsupported` (`data-value`),
+`proof-call` (`data-id`, `data-tool`, `data-basis`, `data-standing`,
+`data-judged`), `proof-judged`, `proof-contingent` (`data-declared-on`,
+`data-value`; `proof-carrier`), `proof-conflict` (`data-key`;
+`proof-witness`), `proof-tool`, `proof-source` (`data-tools`);
+`proof-transport` when the view holds the shared address. `foldProofMap(input)`
+is the pure fold (`{ answer?, calls, tools, sources?, contingent, findings }`),
+`layoutProofMap(fold)` the pure layout (`{ width, height, nodes, edges,
+columns }`), `PROOF_MAP_LABELS` every string it owns, `PROOF_MAP_GEOMETRY`
+the constants — exported with the component from the root barrel and the
+`/context` door. Nothing new is mounted inside `<ReasoningLens>` or
+`<ContextView>`: a host lays the map beside them on the shared cursor.
+Pinned by `test/context/proofMap.test.tsx` on the `proof-map` fixture
+(generated alone on agentfootprint 9.110.0).

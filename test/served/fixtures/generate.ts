@@ -86,8 +86,19 @@
  *                             `.limitsTravelWithTheAnswer()` on, so the
  *                             record's `finalContent` carries the library's
  *                             own composed block.
+ *   proof-map.json            an agent with BOTH doors armed (`.findings()` +
+ *                             `.namesAndNumbersFromEvidence({ posture:
+ *                             'assist' })`, agentfootprint 9.110.0) and a
+ *                             small `.ontology(...)` whose `via` names the
+ *                             agent's two tools. Three calls: c1 declared
+ *                             `noise` on c2's `_findings.previous`, c2
+ *                             declared `fact` on the JSON answer, c3 never
+ *                             named; the answer quotes a value ONLY c1
+ *                             carried (→ one `contingent` row on the answer)
+ *                             and a value nothing carried (→
+ *                             `unsupportedValues`, posture assist).
  *
- * Run:  npx tsx test/served/fixtures/generate.ts             all fifteen
+ * Run:  npx tsx test/served/fixtures/generate.ts             all sixteen
  *       npx tsx test/served/fixtures/generate.ts <name>…     only those; the
  *       other files are not touched (every run mints a fresh runId, so a
  *       regenerated fixture never has the bytes it had).
@@ -841,5 +852,127 @@ if (wanted('coverage')) {
     if (typeof answered !== 'string' || !answered.includes(COVERAGE_BLOCK_HEADING)) {
       throw new Error('coverage: the turn_end event carries no coverage block on finalContent');
     }
+  });
+}
+
+// ── 15: the proof map — the answer, the standings, the calls, the tools, the sources, in one record ──
+// An agent with BOTH doors armed (agentfootprint 9.110.0): `.findings()` keeps
+// the ledger and `.namesAndNumbersFromEvidence({ posture: 'assist' })` walks
+// the evidence corpus, and only under both does the library file a
+// `contingent` row — a value the model USED that came only from results it
+// had itself set aside. A small `.ontology(...)` names the agent's two tools
+// in its `via`, so the record joins tool → source. Three calls in three
+// iterations: c1 (`port_state`) is declared `noise` on c2's
+// `_findings.previous`; c2 (`zone_lookup`) is declared `fact` on the JSON
+// answer (the peel needs `.outputSchema()`); c3 (`port_state`) is named by
+// nothing — UNDECLARED. The answer quotes `fc1/7`, carried ONLY by c1 (one
+// contingent row, `declaredOn: 'answer'`, carrier c1 `noise`), `fc2/9` and
+// its zone, carried by the fact c2 (stands), and `fc9/9`, carried by nothing
+// (`unsupportedValues`, posture assist — the answer goes out unchanged). The
+// checks below read the record only.
+if (wanted('proof-map')) {
+  const RESULTS: Record<string, string> = {
+    p1: 'fc1/7 state=down sw-01',
+    p2: 'fc2/9 zone=Z_ESX07 sw-02',
+    p3: 'fc3/3 state=up sw-03',
+  };
+  const probe = (name: string) =>
+    defineTool({
+      name,
+      description: `the ${name} tool`,
+      inputSchema: { type: 'object', properties: { q: { type: 'string' } } },
+      execute: (args: Record<string, unknown>) => RESULTS[String(args.q)] ?? `nothing for ${String(args.q)}`,
+    });
+  const map = defineOntology({
+    id: 'fabric',
+    version: '1',
+    sources: {
+      fcns: { meaning: 'the live fcns database' },
+      zoneset: { meaning: 'the active zoneset' },
+    },
+    nodes: {
+      port: { meaning: 'a physical switch port', sources: [{ source: 'fcns', via: ['port_state'] }] },
+      zone: { meaning: 'a zone in the active zoneset', sources: [{ source: 'zoneset', via: ['zone_lookup'] }] },
+    },
+  });
+  const agent = Agent.create({
+    provider: scripted([
+      call('c1', 'port_state', { q: 'p1', _findings: { basis: 'exploratory' } }),
+      call('c2', 'zone_lookup', {
+        q: 'p2',
+        _findings: { basis: 'direct', previous: [{ toolCallId: 'c1', standing: 'noise' }] },
+      }),
+      call('c3', 'port_state', { q: 'p3', _findings: { basis: 'exploratory' } }),
+      answer(
+        JSON.stringify({
+          text: 'fc1/7 is down; fc2/9 is in Z_ESX07; fc9/9 was not checked',
+          _findings: {
+            previous: [
+              {
+                toolCallId: 'c2',
+                standing: 'fact',
+                sought: true,
+                assertions: [{ subject: { kind: 'port', id: 'fc2/9' }, predicate: 'zone', value: 'Z_ESX07' }],
+              },
+            ],
+          },
+        }),
+      ),
+    ]),
+    model: 'mock',
+    maxIterations: 8,
+  })
+    .system('bot')
+    .tools([probe('port_state'), probe('zone_lookup')])
+    .findings()
+    .namesAndNumbersFromEvidence({ posture: 'assist' })
+    .ontology(map)
+    .outputSchema({ parse: (value: unknown) => value } as never, { retries: 0 })
+    .build();
+  const rec = recordRun(agent);
+  await agent.run({ message: 'which port is down?' });
+  const frozen = rec.toRecording() as Frozen;
+  rec.stop();
+  write('proof-map', frozen, (r) => {
+    if (epochsOf(r) !== 4) throw new Error(`proof-map: expected 4 epochs, got ${epochsOf(r)}`);
+    interface Row {
+      kind: string;
+      toolCallId?: string;
+      standing?: string;
+      declaredOn?: unknown;
+      value?: string;
+      carriers?: { toolCallId: string; standing: string }[];
+    }
+    interface State {
+      findingsLedger?: Row[];
+      toolResults?: { toolCallId: string }[];
+      unsupportedValues?: { values: { value: string }[]; posture: string };
+      ontology?: { id: string; hash: string };
+    }
+    const state = (r.snapshot as { sharedState?: State }).sharedState;
+    const ledger = state?.findingsLedger;
+    if (!Array.isArray(ledger)) throw new Error('proof-map: the state carries no findingsLedger key');
+    const standing = new Map<string, Row>();
+    for (const row of ledger) if (row.kind === 'standing' && row.toolCallId !== undefined) standing.set(row.toolCallId, row);
+    if (standing.get('c1')?.standing !== 'noise') throw new Error('proof-map: c1 must stand as noise');
+    if (JSON.stringify(standing.get('c1')?.declaredOn) !== JSON.stringify({ toolCallId: 'c2' })) {
+      throw new Error('proof-map: c1 must be declared on c2');
+    }
+    if (standing.get('c2')?.standing !== 'fact' || standing.get('c2')?.declaredOn !== 'answer') {
+      throw new Error('proof-map: c2 must stand as fact, declared on the answer');
+    }
+    if (standing.has('c3')) throw new Error('proof-map: c3 must be undeclared (no standing row)');
+    const contingent = ledger.filter((row) => row.kind === 'contingent');
+    const shape = contingent.map((row) => `${JSON.stringify(row.declaredOn)}:${row.value}:${(row.carriers ?? []).map((c) => `${c.toolCallId}/${c.standing}`).join(',')}`);
+    if (shape.join(' ') !== '"answer":fc1/7:c1/noise') throw new Error(`proof-map: unexpected contingent rows ${JSON.stringify(shape)}`);
+    if (!(state?.toolResults ?? []).some((t) => t.toolCallId === 'c3')) throw new Error('proof-map: the undeclared result c3 is not in toolResults');
+    const unsupported = state?.unsupportedValues;
+    if (unsupported?.posture !== 'assist' || !unsupported.values.some((v) => v.value === 'fc9/9')) {
+      throw new Error(`proof-map: expected fc9/9 unsupported under assist, got ${JSON.stringify(unsupported)}`);
+    }
+    if (unsupported.values.some((v) => v.value === 'fc1/7' || v.value === 'fc2/9')) {
+      throw new Error('proof-map: a carried value was flagged unsupported');
+    }
+    if (state?.ontology?.hash !== map.hash) throw new Error('proof-map: the state carries no ontology key, or another map');
   });
 }

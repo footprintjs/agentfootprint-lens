@@ -89,6 +89,30 @@ export {
   type CoverageItemShape,
   type DeclaredCoverageShape,
 } from '../react/components/CoverageBand.js';
+// 0.66.0: the Proof map — what the answer rests on, as one graph drawn from
+// the record (agentfootprint 9.110.0: the ledger with its `contingent` rows,
+// `unsupportedValues`, the declared map's `via` join). An addition to the
+// door, never a move; also on the root barrel.
+export {
+  ProofMap,
+  LABELS as PROOF_MAP_LABELS,
+  foldProofMap,
+  layoutProofMap,
+  GEOMETRY as PROOF_MAP_GEOMETRY,
+  type ProofMapProps,
+  type ProofMapInput,
+  type ProofFold,
+  type ProofLayout,
+  type ProofCall,
+  type ProofAnswer,
+  type ProofSource,
+  type ProofNodeKind,
+  type ProofEdgeKind,
+  type PlacedNode as ProofPlacedNode,
+  type PlacedEdge as ProofPlacedEdge,
+  type ContingentShape as ProofContingentShape,
+  type CarrierShape as ProofCarrierShape,
+} from '../react/components/ProofMap.js';
 export {
   contextAt,
   type ContextAt,

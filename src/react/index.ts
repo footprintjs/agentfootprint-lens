@@ -232,6 +232,34 @@ export {
   type DeclaredCoverageShape,
 } from "./components/CoverageBand.js";
 
+// <ProofMap> (0.66.0) — what the answer rests on, as ONE graph drawn from
+// the record at the cursor (agentfootprint 9.110.0): the answer, the calls
+// with their declared standings (undeclared dashed), the tools, the sources
+// the declared map joins them to; `stands on`, `calls` and `reads` edges,
+// and the `contingent` (a value used from a set-aside result) and `conflict`
+// overlays. Takes the ONE cursor (`cursor` or `shared`) and holds none of its
+// own. `PROOF_MAP_LABELS` is every string it owns — names, never a sentence.
+export {
+  ProofMap,
+  LABELS as PROOF_MAP_LABELS,
+  foldProofMap,
+  layoutProofMap,
+  GEOMETRY as PROOF_MAP_GEOMETRY,
+  type ProofMapProps,
+  type ProofMapInput,
+  type ProofFold,
+  type ProofLayout,
+  type ProofCall,
+  type ProofAnswer,
+  type ProofSource,
+  type ProofNodeKind,
+  type ProofEdgeKind,
+  type PlacedNode as ProofPlacedNode,
+  type PlacedEdge as ProofPlacedEdge,
+  type ContingentShape as ProofContingentShape,
+  type CarrierShape as ProofCarrierShape,
+} from "./components/ProofMap.js";
+
 // <ServedTab> — at every LLM call, exactly what the model was served, provable
 // from the log (agentfootprint 9.88.0's `servedAt` / `receiptAt`). The engineer
 // view mounts it as the right rail's second tab; exported for consumer-built

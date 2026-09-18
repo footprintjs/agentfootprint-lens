@@ -5,6 +5,62 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.66.0] - 2026-09-18
+
+### Added — the Proof map: what the answer rests on, as one graph from the record
+
+- `<ProofMap runner recorder? shared? cursor? events?>` (root barrel and the
+  `/context` door) draws, at the cursor's stop, what the answer stands on as
+  ONE graph off the record — the dependency diagram a person wants to see
+  before trusting a result. Four columns, left to right: the **answer**; the
+  **calls** (tool name and short id, the whole id on hover; the declared
+  standing as a chip colour — `fact` success, `noise` warning, `ruled-out`
+  error, `open` muted — the judge's standing as a second, dimmer chip when a
+  `judgment` row exists, the assertions count; an undeclared call is DASHED
+  under the word `undeclared`, never `open`); the **tools** (one per distinct
+  name); the **sources**, from the declared map's own `via` join
+  (`ontology.spec.nodes[*].sources[].via` naming a tool of the run), absent
+  when no map was declared. Edges are rows: `stands on` answer → every result
+  whose standing was declared on the answer (labelled with the standing
+  word), `calls` call → tool, `reads` tool → source; and two overlays in their
+  own strokes — `contingent` (agentfootprint 9.110.0's row: a value the model
+  USED that came only from results it had itself set aside; dashed, the
+  warning colour, from the user of the value — the answer, or the call whose
+  arguments carried it — to each carrier, labelled `contingent · <the
+  carrier's standing>`, the value whole in the `<title>`) and `conflict` (the
+  error colour, between the witnesses of one key, the key in the `<title>`).
+  The answer node carries the count of `unsupportedValues` as a chip and the
+  values in its `<title>`. Beside the chart, the same data as a list — the
+  answer (what it stands on, the unsupported values), the calls (tool, basis,
+  standing, assertions, judged, conflict), the contingent rows verbatim, the
+  conflicts, the tools, the sources with the tools that read them — for a
+  screen reader and for a test. Layout is a pure function of the fold
+  (`layoutProofMap`): calls in ledger order, tools and sources sorted, one
+  lane per overlay edge — the same bytes on every render. Omit, never deny:
+  no `findingsLedger` at the stop and nothing is drawn (an unarmed run, or a
+  stop before the first basis row); before the answer's standing lands the
+  answer column is absent and the map is the calls' map. Takes the ONE cursor
+  (`cursor` or `shared`) and holds none of its own; mounts the transport when
+  it holds the shared address. Nothing new is mounted inside `<ReasoningLens>`
+  or `<ContextView>`. `foldProofMap`, `layoutProofMap`, `PROOF_MAP_LABELS`,
+  `PROOF_MAP_GEOMETRY` and the shapes are exported beside the component;
+  `test/served/no-own-claims.test.ts` walks the file. See
+  `src/core/context/README.md · 0.66.0`.
+- Fixture `test/served/fixtures/proof-map.json` — generated ALONE on
+  agentfootprint 9.110.0 (the fifteen others `cmp`-equal after): an agent with
+  BOTH doors armed (`.findings()` + `.namesAndNumbersFromEvidence({ posture:
+  'assist' })`) and a small `.ontology(...)` whose `via` names its two tools;
+  c1 declared `noise` on c2's `_findings.previous`, c2 declared `fact` on the
+  JSON answer, c3 never named; the answer quotes a value only c1 carried (one
+  `contingent` row on the answer, carrier c1 `noise`) and a value nothing
+  carried (`unsupportedValues`, posture assist). Pinned by
+  `test/context/proofMap.test.tsx`.
+
+### Changed
+
+- devDependency `agentfootprint` 9.109.1 → 9.110.0 (the `contingent` row).
+  The peer range is unchanged.
+
 ## [0.65.0] - 2026-09-18
 
 ### Added — the Coverage band: what the tools declared they checked, did not check, and cannot cover
