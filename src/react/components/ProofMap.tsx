@@ -620,17 +620,18 @@ export function ProofMap(props: ProofMapProps): React.ReactElement | null {
     >
       <div style={header}>
         <span style={title}>{LABELS.view}</span>
-        {drawn && (
-          <span style={dim} data-testid="proof-counts">
-            {fold.calls.length} {LABELS.calls} · {fold.tools.length} {LABELS.tools}
-            {fold.sources !== undefined && (
-              <>
-                {' · '}
-                {fold.sources.length} {LABELS.sources}
-              </>
-            )}
-          </span>
-        )}
+        {/* The counts are DATA at every stop: at a stop before the first row
+            they read 0 · 0, which is what the record holds there — the sign
+            that an empty pane is the record's, not a failure (0.66.2). */}
+        <span style={dim} data-testid="proof-counts">
+          {drawn ? fold.calls.length : 0} {LABELS.calls} · {drawn ? fold.tools.length : 0} {LABELS.tools}
+          {drawn && fold.sources !== undefined && (
+            <>
+              {' · '}
+              {fold.sources.length} {LABELS.sources}
+            </>
+          )}
+        </span>
       </div>
       {mover && (
         <div data-testid="proof-transport">

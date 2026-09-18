@@ -359,7 +359,8 @@ describe('<ProofMap> carries the transport when it holds the shared address', ()
     expect(root.getAttribute('data-drawn')).toBe('false');
     expect(root.hasAttribute('data-calls')).toBe(false);
     expect(screen.queryByTestId('proof-node')).toBeNull();
-    expect(screen.queryByTestId('proof-counts')).toBeNull();
+    // The counts are data at every stop: 0 · 0 before the first row (0.66.2).
+    expect(screen.getByTestId('proof-counts').textContent).toBe(`0 ${LABELS.calls} · 0 ${LABELS.tools}`);
     expect(screen.getByTestId('proof-transport')).toBeInTheDocument();
     for (let s = 0; s < lastStep; s++) fireEvent.click(screen.getByLabelText('Next step'));
     expect(screen.getByTestId('proof-map').getAttribute('data-drawn')).toBe('true');

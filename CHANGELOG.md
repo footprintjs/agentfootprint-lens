@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.66.2] - 2026-09-18
+
+### Changed — the counts are data at every stop
+
+- `<ProofMap>` and `<ReasoningLens>` print their counts at a stop with nothing to draw — `0 calls ·
+  0 tools`, `0 calls` — so an empty pane at a stop before the first row reads as what the record
+  holds there, not as a failure. The record's own stops before the first tool call (the seed, the
+  route) are the run's, shared by every view through the one cursor; a view cannot drop them.
+
 ## [0.66.1] - 2026-09-18
 
 ### Fixed — the transport stays at a stop with nothing to draw

@@ -453,8 +453,8 @@ describe('<ReasoningLens> mounts the band', () => {
     expect(screen.getByTestId('reasoning-transport')).toBeInTheDocument();
     expect(screen.queryByTestId('reasoning-cards')).toBeNull();
     expect(screen.queryByTestId('reasoning-view-toggle')).toBeNull();
-    // The header carries the lens's name and nothing else — no `N calls` count for a run with no ledger.
-    expect(root.firstElementChild!.textContent).toBe(REASONING_LABELS.lens);
+    // The header carries the lens's name and the count as DATA — `0 calls` for a run with no ledger (0.66.2).
+    expect(root.firstElementChild!.textContent).toBe(`${REASONING_LABELS.lens}0 ${REASONING_LABELS.calls}`);
     const band = within(screen.getByTestId('reasoning-coverage')).getByTestId('coverage-band');
     expect(band.getAttribute('data-declarations')).toBe('2');
     expect(band.getAttribute('data-step')).toBe(String(lastStep));

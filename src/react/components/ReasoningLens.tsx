@@ -660,11 +660,10 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
     >
       <div style={header}>
         <span style={title}>{LABELS.lens}</span>
-        {fold !== undefined && (
-          <span style={dim}>
-            {fold.cards.length} {LABELS.calls}
-          </span>
-        )}
+        {/* The count is DATA at every stop — 0 before the first row (0.66.2). */}
+        <span style={dim}>
+          {fold !== undefined ? fold.cards.length : 0} {LABELS.calls}
+        </span>
         {fold !== undefined && <ViewToggle view={view} onView={setView} />}
       </div>
       {mover && (
