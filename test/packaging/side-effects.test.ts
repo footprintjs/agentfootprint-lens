@@ -285,7 +285,9 @@ describe.skipIf(!built)('sideEffects: false is true of the built package', () =>
     // which several are this package's own chunks.
     const lens = await syncModulesOf('Lens');
     expect(lens.length).toBeGreaterThan(100);
-    expect(only(lens, 'agentfootprint-lens/dist/').length).toBeGreaterThanOrEqual(3);
+    // This package's own chunks, by the built dist's absolute path — not by the
+    // checkout's folder name (a worktree is not called `agentfootprint-lens`).
+    expect(only(lens, `${dist}/`).length).toBeGreaterThanOrEqual(3);
     for (const name of ['Lens', 'SkillGraphFlow']) {
       const modules = name === 'Lens' ? lens : await syncModulesOf(name);
       for (const family of ['lib/bug-report/', 'lib/trace-toolpack/', 'lib/context-bisect/']) {

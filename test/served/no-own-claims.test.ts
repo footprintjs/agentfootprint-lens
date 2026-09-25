@@ -100,6 +100,14 @@ import { LABELS as PROOF_MAP_LABELS } from "../../src/react/components/ProofMap.
 // emits is a value off the record (a basis word, a standing word, the
 // model's proposition and `predicts` verbatim, a count).
 import { LABELS as STORY_MARK_LABELS } from "../../src/react/components/storyMarks.js";
+// 0.68.0: the In plain words pane and its print report — agentfootprint's
+// answer ACCOUNT drawn for a reader who is not an engineer. Every sentence
+// they print is the library's (a row heading, a line, a chip, the one-liner,
+// `Sentence.text` / `Chip.text` at run time); their labels name the pane's
+// parts, buttons and the fields of "show me" (`show me`, `voucher`, `not
+// shown here`, `tone: warning`). The print's CSS and frame skeleton live in
+// `answerReportFrame.ts`, which prints no words and is not walked.
+import { LABELS as PLAIN_WORDS_LABELS } from "../../src/react/components/plainWordsLayout.js";
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
@@ -117,6 +125,7 @@ const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
   COVERAGE_LABELS,
   PROOF_MAP_LABELS,
   STORY_MARK_LABELS,
+  PLAIN_WORDS_LABELS,
 ];
 const LABEL_ENTRIES: readonly (readonly [string, string])[] =
   LABEL_SETS.flatMap((set) => Object.entries(set));
@@ -146,6 +155,8 @@ const FILES: string[] = [
   // 0.67.0: the story-marks fold — a `.ts` beside the `.tsx` views, under
   // the same rule: it emits chip labels the player prints.
   ...sources("react/components", (f) => /^storyMarks\.ts$/.test(f)),
+  // 0.68.0: the In plain words pane, its layout half and its print report.
+  ...sources("react/components", (f) => /^(PlainWords\.tsx|plainWordsLayout\.ts|AnswerReportPrint\.tsx)$/.test(f)),
   ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
 ];
 
@@ -162,6 +173,10 @@ const MANDATED_NOTES = new Set<string>([LABELS.betweenCalls]);
 
 const CLAIM_VERB =
   /\b(is|are|was|were|means|never|always|has|have|will|must|cannot|does|did|matches|match|agree|agrees|saw|received|reached|went|exactly|complete)\b/i;
+
+/** A class list: every word a `lens-` class name (0.68.0 — the pane styles
+ *  itself through the shipped sheet). Printed to no one. */
+const CLASS_LIST = /^lens-[\w-]+( lens-[\w-]+)+$/;
 
 /** A CSS value: every word a length, a number, or a border style. Style
  *  literals are printed to no one. */
@@ -249,6 +264,12 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // model's own words and the record's words — and the walk is what keeps
     // a sentence of the lens's own off the story.
     expect(walked).toContain("storyMarks.ts");
+    // 0.68.0: the In plain words pane prints the library's account — every
+    // sentence, chip and heading is the library's — and the walk is what
+    // keeps a sentence of the lens's own from standing beside them.
+    expect(walked).toContain("PlainWords.tsx");
+    expect(walked).toContain("plainWordsLayout.ts");
+    expect(walked).toContain("AnswerReportPrint.tsx");
   });
 
   it("every LABEL is a label: short, and no claim verb (one mandated note excepted)", () => {
@@ -271,6 +292,7 @@ describe("the Served tab writes no claim sentences of its own", () => {
         // carries no claim — unless the single word is itself a claim verb.
         if (wordCount(lit.text) < 2 && !CLAIM_VERB.test(lit.text)) continue;
         if (CSS_VALUE.test(lit.text)) continue;
+        if (CLASS_LIST.test(lit.text)) continue;
         offenders.push(lit);
       }
     }

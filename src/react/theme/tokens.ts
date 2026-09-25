@@ -57,6 +57,16 @@ export const RAW_DEFAULTS = {
   // I'm standing in" without moving every other accent in the Lens.
   groupAccent: '#6366f1',
 
+  // The four TONES of the In plain words pane (0.68.0) — the one-liner's
+  // border and word, and the chips' ink. Their own tokens (not success /
+  // warning / error): a tone is drawn as TEXT on the pane's surface, so each
+  // must hold ≥ 4.5:1 against it in both modes (pinned in themeTokens.test.ts),
+  // which the state accents are not asked to.
+  toneOk: '#4ade80',
+  toneWarn: '#fbbf24',
+  toneBad: '#f87171',
+  toneUnknown: '#94a3b8',
+
   // Edge kinds (control-flow graph)
   edgeUser: '#0284c7',
   edgeTool: '#059669',
@@ -122,6 +132,13 @@ export const T = {
   // so the middle tier is free for `theme.mode` to stamp a light variant into
   // without ever outranking a consumer's `--lens-group-accent`.
   groupAccent: v('group-accent', RAW_DEFAULTS.groupAccent),
+
+  // Tones (see RAW_DEFAULTS.toneOk). eui ships no `--fp-tone-*`, so the middle
+  // tier is free for `theme.mode` to stamp the light variants into.
+  toneOk: v('tone-ok', RAW_DEFAULTS.toneOk),
+  toneWarn: v('tone-warn', RAW_DEFAULTS.toneWarn),
+  toneBad: v('tone-bad', RAW_DEFAULTS.toneBad),
+  toneUnknown: v('tone-unknown', RAW_DEFAULTS.toneUnknown),
 
   // Edge kinds — lens-only NAMES, but the same three-tier chain as the rest.
   // eui ships no `--fp-edge-*`, so the middle tier is free for `theme.mode` to
@@ -202,6 +219,10 @@ export const MODE_PALETTES: Record<'dark' | 'light', Readonly<Record<string, str
     '--fp-src-tool': RAW_DEFAULTS.srcTool,
     '--fp-src-default': RAW_DEFAULTS.srcDefault,
     '--fp-group-accent': RAW_DEFAULTS.groupAccent,
+    '--fp-tone-ok': RAW_DEFAULTS.toneOk,
+    '--fp-tone-warn': RAW_DEFAULTS.toneWarn,
+    '--fp-tone-bad': RAW_DEFAULTS.toneBad,
+    '--fp-tone-unknown': RAW_DEFAULTS.toneUnknown,
   },
   light: {
     // The card surface Lens's own panels sit on. eui's presets stop at
@@ -222,5 +243,11 @@ export const MODE_PALETTES: Record<'dark' | 'light', Readonly<Record<string, str
     // A touch deeper on a white ground: the group's wash is a low-percentage
     // mix of this, and the dark-tuned indigo washes out to nothing on paper.
     '--fp-group-accent': '#4f46e5',
+    // The tones, darkened until each holds ≥ 4.5:1 as text on the light
+    // surface (`--fp-bg-elevated` above, and white).
+    '--fp-tone-ok': '#15803d',
+    '--fp-tone-warn': '#b45309',
+    '--fp-tone-bad': '#b91c1c',
+    '--fp-tone-unknown': '#475569',
   },
 };

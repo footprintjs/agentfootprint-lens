@@ -145,6 +145,56 @@ describe('lens theme tokens — the mode palettes are complete and real', () => 
   });
 });
 
+/** WCAG 2 relative luminance of `#rrggbb`. */
+function luminance(hex: string): number {
+  const [r, g, b] = [1, 3, 5].map((i) => {
+    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r! + 0.7152 * g! + 0.0722 * b!;
+}
+/** WCAG 2 contrast ratio between two `#rrggbb` colours. */
+function contrast(a: string, b: string): number {
+  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  return (hi! + 0.05) / (lo! + 0.05);
+}
+
+describe('lens theme tokens — the In plain words tones (0.68.0)', () => {
+  const TONES = ['--fp-tone-ok', '--fp-tone-warn', '--fp-tone-bad', '--fp-tone-unknown'] as const;
+
+  it('both palettes carry all four tones, and `T` reads each', () => {
+    for (const mode of ['dark', 'light'] as const) {
+      for (const name of TONES) expect(MODE_PALETTES[mode][name], `${mode} ${name}`).toMatch(/^#[0-9a-f]{6}$/);
+    }
+    expect(T.toneOk).toContain('--fp-tone-ok');
+    expect(T.toneUnknown).toContain('--fp-tone-unknown');
+  });
+
+  it('every tone is ink the reader can read: ≥ 4.5:1 on its mode’s surfaces', () => {
+    // A tone is drawn as TEXT (the one-liner's word, a chip) on the pane's
+    // surface — the elevated card and the page ground of the same mode.
+    const surfaces: Record<'dark' | 'light', readonly string[]> = {
+      dark: [RAW_DEFAULTS.bgElevated, RAW_DEFAULTS.bgPrimary],
+      light: [MODE_PALETTES.light['--fp-bg-elevated']!, '#ffffff'],
+    };
+    for (const mode of ['dark', 'light'] as const) {
+      for (const name of TONES) {
+        for (const surface of surfaces[mode]) {
+          const ratio = contrast(MODE_PALETTES[mode][name]!, surface);
+          expect(ratio, `${mode} ${name} on ${surface}: ${ratio.toFixed(2)}`).toBeGreaterThanOrEqual(4.5);
+        }
+      }
+    }
+  });
+
+  it('dark keeps the tone defaults exactly', () => {
+    expect(MODE_PALETTES.dark['--fp-tone-ok']).toBe(RAW_DEFAULTS.toneOk);
+    expect(MODE_PALETTES.dark['--fp-tone-warn']).toBe(RAW_DEFAULTS.toneWarn);
+    expect(MODE_PALETTES.dark['--fp-tone-bad']).toBe(RAW_DEFAULTS.toneBad);
+    expect(MODE_PALETTES.dark['--fp-tone-unknown']).toBe(RAW_DEFAULTS.toneUnknown);
+  });
+});
+
 describe('lens theme tokens — the agent swatch palette', () => {
   it('gives every index a colour, wrapping past the eighth agent', () => {
     // FAILS ON THE OLD BEHAVIOUR: the strip read `var(--lens-agent-color-N)`

@@ -5,6 +5,84 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — planned as 0.68.0 (waits on the agentfootprint release that ships the answer account)
+
+### Added — In plain words: one answer, explained from its record
+
+- `<PlainWords account shown? onOpenInLens? showQuestionAndAnswer? onSaveAsPdf?
+  templateIdsToggle? theme? labelledBy? focusOnMount?>` (root barrel;
+  `src/react/components/PlainWords.tsx`) draws agentfootprint's answer
+  ACCOUNT — `accountForAnswer`, computed on the server by the
+  `answer-account` hosting op — for a reader who is not an engineer: the
+  question and the answer, **In one line** (its tone as a border AND a word),
+  then the seven rows (You asked · It understood · It checked · It did not
+  check · It found · How sure · Anything wrong) with each line's chips, a
+  **said by** chip on every recorded line, items as bullets, "…and n more",
+  and **show me** per line. Props only: it fetches nothing, receives no
+  recording, and computes nothing about the run.
+- Every sentence is the library's (`Sentence.text`, `Chip.text`); the pane's
+  own strings are `PLAIN_WORDS_LABELS` — names, never claims; the own-claims
+  walker covers `PlainWords.tsx`, `plainWordsLayout.ts` and
+  `AnswerReportPrint.tsx` (a literal made only of `lens-` class names is now
+  recognised as a class list, printed to no one).
+- No HTML from data: a sentence renders from its typed `parts` as text nodes —
+  `code` → `<code>`, `quote` → `<q>`, a declared `label` → `<strong>` with its
+  own voucher in a `title`. Pinned with a `<script>`, an `<img onerror>` and a
+  `<b>` planted in a line, a chip, the question, the answer and a shown leaf.
+- **Show me** lists, per pointer, where the line lives (event type ·
+  `runtimeStageId` · path; a state key; a history entry; an app declaration),
+  the op's leaf for it by the library's key (`answerAccountPointerKey`) — a
+  value, a derived `{ rows, at }` count, or why it is withheld (`not shown
+  here`, `too large to show here`, `not found in the record`, `another run’s
+  event`) — plus the template `id@version` and the voucher, always. Without
+  `shown` the pointers are listed as text. "Open in the Flow Lens" appears only
+  with `onOpenInLens`. The softened hint (design R2-S5): a line into a call
+  whose emptiness was read from the model's view says `the model’s view, minus
+  report-only fields` when only `short`/`kind` differ, else `the model’s view;
+  the tool’s answer differs`.
+- The **said by** chip: the library puts one `said-by` chip per source on the
+  ROW (the sources of its recorded lines, first-seen order); the pane pairs
+  each to its lines by that rule and draws it on the line — on an item only
+  where its line does not already name the same voucher. A row that does not
+  pair keeps every chip on the row (omit, never guess).
+- **Save as PDF**: `printAnswerAccount(account, { recordedAt?, printedAt? })`
+  prints a one-page report from a hidden same-origin `<iframe>`
+  (`aria-hidden`, removed on `afterprint`; one at a time) whose document is
+  titled **Answer report**: the question; a meta line — run id, recorded and
+  printed times as ISO-8601 UTC, model, template set; the answer as plain text
+  (folded at 1,200 characters); In one line with its tone word; the rows as a
+  table (`<th scope="row">`) with "said by …" and the template `id@version`
+  under each line (lists folded at six items). No "show me" is ever printed
+  and no request is made. `<AnswerReportPrint>` is the report as a component;
+  `PRINT_ITEMS_FOLD` / `PRINT_ANSWER_FOLD` name the folds.
+- Accessibility: a region named "In plain words", or `role="tabpanel"`
+  labelled by the host's tab (`labelledBy`); `h2` "In one line", an `h3` per
+  row (each row a section named by it); lines and items as nested lists; every
+  "show me" a `<button aria-expanded aria-controls>`; `focusOnMount` moves
+  focus to the pane's heading; the rows stack when the PANE is 520px or
+  narrower (a container query — it lives in a drawer).
+- Four tone tokens, `--fp-tone-ok|warn|bad|unknown` (`T.toneOk` …), in BOTH
+  mode palettes; each holds ≥ 4.5:1 as text on its mode's surfaces (pinned).
+  Standalone, `theme={{ mode }}` stamps the palette on the pane.
+
+### Changed
+
+- `<Lens view="analyst">` takes `account` (+ `accountShown`): with an account
+  the view leads with `<PlainWords>` (Save as PDF wired, the recorded time read
+  off the lens's own log by the account's `turn_start` pointer) and folds the
+  summary card, the transport and the commentary under a native **More
+  detail** `<details>`. Without `account` the analyst view renders exactly
+  0.67.1's bytes (snapshot written against the unmodified 0.67.1 view); under
+  `theme` the root's style gains only the four tone tokens. `engineer` and
+  `user` never read the prop.
+- **Peer floor raised: `agentfootprint` `^7.0.0 || ^8.0.0 || ^9.0.0` →
+  `^9.116.0`** — the pane imports the `AnswerAccount` / `AnswerAccountShownLeaf`
+  types and `answerAccountPointerKey` from `agentfootprint/observe`, which that
+  release ships. A 0.x minor may narrow a peer; an app on an older
+  agentfootprint stays on 0.67.x. The CI peer matrix installs agentfootprint
+  9.116.0 to match. The devDependency moves to the same release when it is on
+  npm (this branch was built and tested against a dev build of it).
+
 ## [0.67.1] - 2026-09-18
 
 ### Fixed

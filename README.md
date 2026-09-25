@@ -981,6 +981,108 @@ not answer, since it takes an exact stop.
 
 ---
 
+## Explain this answer — In plain words
+
+**One answer, explained for a reader who is not an engineer: seven rows, every
+line from the run's record, with who says so.** `<PlainWords>` draws
+agentfootprint's **answer account** — `accountForAnswer`, a pure Fold over one
+answer's recording, computed on the SERVER by the `answer-account` hosting op —
+as **In one line** plus seven rows: *You asked · It understood · It checked ·
+It did not check · It found · How sure · Anything wrong*.
+
+### Why
+
+Every sentence in the pane is filled from the record by one of the library's
+fixed, versioned templates — no model writes it, and the lens writes none of
+its own. Each line carries a **said by** chip (you · the library's record · a
+tool · the model · the app), a fact the record does not hold says **not
+recorded** instead of a guess, and **show me** opens the leaf of the record the
+line came from. The component is props only: it fetches nothing and receives no
+recording — the op returns `{ account, shown }`, where `shown` holds only the
+leaf values the server's allow-list lets out.
+
+### Mount it
+
+```tsx
+import { PlainWords, printAnswerAccount } from 'agentfootprint-lens';
+
+// One request per Explain — the op answers from the recording on the server.
+const res = await fetch('/invoke', {
+  method: 'POST',
+  headers: { 'content-type': 'application/json', 'x-session-id': sessionId },
+  body: JSON.stringify({ op: 'answer-account', ref: reply.reasoning.ref }),
+});
+const { account, shown } = await res.json();
+
+<PlainWords
+  account={account}
+  shown={shown}
+  labelledBy="tab-plain"            // your drawer's tab → role="tabpanel"
+  focusOnMount                      // opened from "Explain this answer"
+  onSaveAsPdf={() => printAnswerAccount(account)}
+  onOpenInLens={debug ? openFlowLensAt : undefined} // only when the engineer lenses exist
+/>
+```
+
+| Prop | Type | Description |
+|---|---|---|
+| `account` | `AnswerAccount` | **Required.** The op's `account` (type from `agentfootprint/observe`). |
+| `shown` | `Record<string, AnswerAccountShownLeaf>?` | The op's `shown`. Looked up by `answerAccountPointerKey`. Omit → "show me" lists the pointers as text. |
+| `onOpenInLens` | `(pointer) => void?` | Draws "Open in the Flow Lens" beside each record pointer in "show me". Pass it only where those lenses exist. |
+| `showQuestionAndAnswer` | `boolean?` | The question and the answer above the one-liner. Default `true`. |
+| `onSaveAsPdf` | `() => void?` | Draws **Save as PDF**; pass `() => printAnswerAccount(account)`. |
+| `templateIdsToggle` | `boolean?` | The "template ids" toggle (each line's `id@version`). Default `true`. |
+| `theme` | `{ mode: 'light' \| 'dark' }?` | Standalone: stamps the lens palette. Inside `<Lens theme>` leave it out. |
+| `labelledBy` | `string?` | Your tab's id: the pane becomes `role="tabpanel"` labelled by it. Otherwise a region named "In plain words". |
+| `focusOnMount` | `boolean?` | Focus the pane's "In one line" heading on mount. |
+
+### What it keeps
+
+- **No sentence of its own.** Headings, lines, chips and the one-liner are the
+  library's `text`; the pane's own strings are `PLAIN_WORDS_LABELS` — names,
+  never claims (walked by `test/served/no-own-claims.test.ts`).
+- **No HTML from data.** A sentence renders from its typed `parts` as text:
+  `code` → `<code>`, `quote` → `<q>`, a declared `label` → `<strong>` with its
+  own voucher. A `<script>` in a question is shown as the characters `<script>`.
+- **Show me = leaves.** A withheld leaf says why (`not shown here`, `too large
+  to show here`, …); a line into a call the model read without the tool's
+  report-only fields says so softly.
+- **Said by, on the line.** The library puts one `said-by` chip per source on
+  the row; the pane pairs each to its recorded lines by the library's own rule,
+  and leaves them on the row if a row ever does not pair.
+- **Accessible.** `h2` "In one line", an `h3` per row, lists for lines and
+  items, every "show me" a `<button aria-expanded aria-controls>`; the tone is
+  a border AND a word; four tone tokens (`--fp-tone-ok|warn|bad|unknown`) in
+  both palettes, each ≥ 4.5:1 on its surfaces.
+
+### Save as PDF
+
+`printAnswerAccount(account, { recordedAt? })` prints a one-page report from a
+hidden, `aria-hidden` frame whose document is titled **Answer report** (so the
+browser's print header says that): the question, a meta line — run id, the
+recorded and printed times as ISO-8601 UTC, model, template set — the answer as
+plain text (folded at 1,200 characters), In one line, and the rows as a table
+with "said by …" and the template id under each line (lists fold at six items).
+It never prints "show me", makes no request, and removes the frame on
+`afterprint`. `<AnswerReportPrint account />` is the same report as a component.
+The account does not carry the recorded time; pass the answer's `turn_start`
+`meta.wallClockMs` as `recordedAt` when you hold it (`<Lens>` reads it off its
+recording), else the line says `not recorded`.
+
+### In the Lens: the analyst view
+
+```tsx
+<Lens recorder={recorder} view="analyst" account={account} accountShown={shown} />
+```
+
+With `account`, the analyst view leads with `<PlainWords>` and folds the
+summary card, the transport and the commentary under a native **More detail**
+`<details>`. Without it, the analyst view is byte-for-byte what it was. The
+`engineer` and `user` views never read the prop.
+
+Needs agentfootprint ≥ 9.116.0 (the release that ships `AnswerAccount` and the
+op) — the lens's peer floor since 0.68.0.
+
 ## The Served tab
 
 **At every LLM call, exactly what the model was served — provable from the log.**
@@ -1499,7 +1601,7 @@ your `--lens-*` still wins.
 Every token has a built-in value, so nothing is ever unpainted. See
 `src/react/theme/tokens.ts` for the full list (surfaces / text / border /
 accent / 4 edge kinds / 7 injection-source chips / 8 agent swatches /
-typography), all of it exported as `T`, `RAW_DEFAULTS`, `AGENT_COLORS` and
+4 In plain words tones / typography), all of it exported as `T`, `RAW_DEFAULTS`, `AGENT_COLORS` and
 `MODE_PALETTES`.
 
 ### Server rendering
@@ -1564,6 +1666,8 @@ graph in one call. Returns an unsubscribe. Call it once per run.
 | `onStepChange` | `(step, at) => void?` | Fires on every cursor move — required for movement in controlled mode, an observation hook otherwise. `at` carries `runtimeStageId`, `commitIdx`, `label`, `kind` and `clamped`. |
 | `navigatorRef` | `Ref<LensNavigator>?` | Move the cursor to a stage **by its `runtimeStageId`**. `ref.current.navigateTo(id)` returns `{ ok: true, step, match, label }` or `{ ok: false, reason, message, nearest? }` — a miss never moves. See [Pointing at a step](#pointing-at-a-step-navigatorref). |
 | `slots` | `LensSlots?` | Slot overrides. `slots.detail` renders your content as the right rail's FIRST TAB (`slots.detailLabel` names it; `slots.detailOnly` takes the whole rail instead). The strip stays the library's. Omit for the built-in timeline. See [Rendering your own detail pane](#rendering-your-own-detail-pane). |
+| `account` | `AnswerAccount?` | With `view="analyst"`: lead with the In plain words pane and fold the rest under "More detail". See [Explain this answer](#explain-this-answer--in-plain-words). |
+| `accountShown` | `Record<string, AnswerAccountShownLeaf>?` | The op's `shown` leaves, for "show me". |
 
 ### `<LensFlow>` — the chart canvas on its own
 

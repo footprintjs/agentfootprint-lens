@@ -5,7 +5,9 @@
  * Renders the same data through the appropriate audience lens:
  *
  *   • `engineer` — RunTree + EventStream + Summary. Everything.
- *   • `analyst`  — Summary + humanized commentary panel.
+ *   • `analyst`  — Summary + humanized commentary panel. With an `account`
+ *                  (0.68.0), the In plain words pane first and those under
+ *                  "More detail".
  *   • `user`     — bare status line + final answer.
  *
  * Consumers who want composition slots use the individual view
@@ -19,6 +21,7 @@ import {
   renderCommentary,
   type CommentaryTemplates,
 } from "agentfootprint";
+import type { AnswerAccount, AnswerAccountShownLeaf } from "agentfootprint/observe";
 import type { LensRecorder } from "../core/LensRecorder.js";
 import type { EventLogEntry, RunTreeNode } from "../core/types.js";
 import type { Humanizer } from "../core/humanizer.js";
@@ -32,6 +35,9 @@ import {
 } from "../core/selectors/index.js";
 import { LensFlow, type LensFlowProps } from "./LensFlow.js";
 import { SummaryCard } from "./SummaryCard.js";
+import { PlainWords } from "./components/PlainWords.js";
+import { printAnswerAccount } from "./components/AnswerReportPrint.js";
+import { LABELS as PLAIN_WORDS_LABELS, recordedAtOf } from "./components/plainWordsLayout.js";
 import { TimeTravel } from "./TimeTravel.js";
 import { NodeDetailPanel } from "./NodeDetailPanel.js";
 import { WhatHappenedTimeline } from "./WhatHappenedTimeline.js";
@@ -399,6 +405,18 @@ export interface LensProps {
    * scope or `useMemo`). Omit and the shipped panes render unchanged.
    */
   readonly slots?: LensSlots;
+
+  /**
+   * The answer's ACCOUNT (0.68.0) — `account` of the `answer-account` hosting
+   * op's reply (agentfootprint `accountForAnswer`, computed on the server).
+   * With `view="analyst"` the view then leads with `<PlainWords>` — the In
+   * plain words pane — and folds the summary card, the transport and the
+   * commentary under a native "More detail" `<details>`. Without it the
+   * analyst view is exactly 0.67.1's. `engineer` and `user` never read it.
+   */
+  readonly account?: AnswerAccount;
+  /** `shown` of the same reply — the leaves "show me" draws. */
+  readonly accountShown?: Readonly<Record<string, AnswerAccountShownLeaf>>;
 }
 
 /**
@@ -546,6 +564,8 @@ export const Lens: React.FC<LensProps> = ({
   navigatorRef,
   slots,
   bookmarkStore,
+  account,
+  accountShown,
 }) => {
   ensureLensStyles();
   // Subscribe to the recorder so React re-renders on EVERY event
@@ -904,6 +924,7 @@ export const Lens: React.FC<LensProps> = ({
         isLive={isLive}
         stepper={stepper}
         liveStreamLine={liveStreamLine}
+        {...(account !== undefined ? { account, accountShown } : {})}
       />,
     );
   return inTheme(
@@ -3009,6 +3030,9 @@ const AnalystView: React.FC<{
   /** Where ◀ ▶ / ← → / Home / End land — the same port the engineer view uses. */
   stepper: CursorStepper;
   liveStreamLine: string | null;
+  /** The answer's account (0.68.0): leads with `<PlainWords>`, the rest folds under "More detail". */
+  account?: AnswerAccount;
+  accountShown?: Readonly<Record<string, AnswerAccountShownLeaf>> | undefined;
 }> = ({
   summary,
   log,
@@ -3019,8 +3043,16 @@ const AnalystView: React.FC<{
   isLive,
   stepper,
   liveStreamLine,
+  account,
+  accountShown,
 }) => {
-  return (
+  // The recorded time for the print, joined off this lens's own log by the
+  // account's `turn_start` pointer — once per log tick, not per render.
+  const recordedAt = useMemo(
+    () => (account !== undefined ? recordedAtOf(account, log) : undefined),
+    [account, log],
+  );
+  const detail = (
     <div style={{ display: "grid", gap: 16 }}>
       <SummaryCard summary={summary} />
       <TimeTravel
@@ -3075,6 +3107,27 @@ const AnalystView: React.FC<{
           {liveStreamLine !== null && <LiveStreamLine line={liveStreamLine} />}
         </div>
       </Card>
+    </div>
+  );
+  if (account === undefined) return detail;
+  // THE ANALYST UPGRADE (0.68.0): the account in plain words first; the
+  // summary, transport and commentary stay one native click away. The open
+  // bit of `<details>` is the browser's — no state, no second cursor.
+  return (
+    <div style={{ display: "grid", gap: 16 }}>
+      <PlainWords
+        account={account}
+        {...(accountShown !== undefined ? { shown: accountShown } : {})}
+        onSaveAsPdf={() => {
+          void printAnswerAccount(account, recordedAt !== undefined ? { recordedAt } : {});
+        }}
+      />
+      <details data-testid="analyst-more-detail">
+        <summary style={{ cursor: "pointer", fontFamily: T.fontSans, color: T.textSecondary }}>
+          {PLAIN_WORDS_LABELS.moreDetail}
+        </summary>
+        <div style={{ marginTop: 12 }}>{detail}</div>
+      </details>
     </div>
   );
 };

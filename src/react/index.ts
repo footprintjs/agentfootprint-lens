@@ -232,6 +232,29 @@ export {
   type DeclaredCoverageShape,
 } from "./components/CoverageBand.js";
 
+// <PlainWords> (0.68.0) — the In plain words pane: one answer's ACCOUNT
+// (agentfootprint `accountForAnswer`, served by the `answer-account` hosting
+// op) drawn for a reader who is not an engineer — In one line, the seven rows,
+// who says so on every line, and "show me" over the op's allow-listed leaves.
+// Props only: it fetches nothing and computes nothing about the run. Every
+// sentence is the library's; `PLAIN_WORDS_LABELS` is every string it owns.
+// `printAnswerAccount(account)` is Save as PDF — a one-page report printed
+// from a hidden frame titled "Answer report"; `<AnswerReportPrint>` is that
+// report as a component.
+export {
+  PlainWords,
+  LABELS as PLAIN_WORDS_LABELS,
+  type PlainWordsProps,
+} from "./components/PlainWords.js";
+export {
+  AnswerReportPrint,
+  printAnswerAccount,
+  PRINT_ITEMS_FOLD,
+  PRINT_ANSWER_FOLD,
+  type AnswerReportPrintProps,
+  type PrintAnswerAccountOptions,
+} from "./components/AnswerReportPrint.js";
+
 // <ProofMap> (0.66.0) — what the answer rests on, as ONE graph drawn from
 // the record at the cursor (agentfootprint 9.110.0): the answer, the calls
 // with their declared standings (undeclared dashed), the tools, the sources

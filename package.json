@@ -119,7 +119,7 @@
   },
   "peerDependencies": {
     "@xyflow/react": "^12.0.0",
-    "agentfootprint": "^7.0.0 || ^8.0.0 || ^9.0.0",
+    "agentfootprint": "^9.116.0",
     "footprint-explainable-ui": ">=0.28.0 <1.0.0",
     "footprintjs": "^9.17.0",
     "react": "^18.0.0 || ^19.0.0",

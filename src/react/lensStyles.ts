@@ -28,7 +28,7 @@ import { T } from './theme/index.js';
 
 /** Marker attribute on the injected `<style>` — bump when the sheet changes. */
 const STYLE_MARKER = 'data-lens-styles';
-const STYLE_VERSION = 'v7';
+const STYLE_VERSION = 'v8';
 
 /**
  * The whole Lens stylesheet, as text. Exported so a server renderer can inline
@@ -625,6 +625,149 @@ export const LENS_STYLESHEET = `
   outline: 2px solid ${T.primary};
   outline-offset: -2px;
 }
+
+/* ── In plain words (0.68.0) ──────────────────────────────────────────────
+   The answer's account, drawn. Rows are a two-column grid that stacks when
+   the PANE (not the viewport — it lives in a drawer) is 520px or narrower.
+   Every tone is ink on the pane's own surface, never a fill, so the word and
+   the border carry it in both modes. */
+.lens-plain {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  color: ${T.textPrimary};
+  font-family: ${T.fontSans};
+  font-size: 13px;
+  line-height: 1.55;
+}
+.lens-plain-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.lens-plain-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: ${T.textSecondary};
+  font-size: 12px;
+}
+.lens-plain-button {
+  background: ${T.bgElevated};
+  border: 1px solid ${T.border};
+  border-radius: 6px;
+  color: ${T.textPrimary};
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 10px;
+}
+.lens-plain-qa { margin: 0; border: 1px solid ${T.border}; border-radius: 8px; padding: 8px 12px; }
+.lens-plain-qa dt {
+  color: ${T.textSecondary};
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lens-plain-qa dd { margin: 0 0 6px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.lens-plain-one {
+  background: ${T.bgElevated};
+  border: 1px solid ${T.toneUnknown};
+  border-left-width: 4px;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+.lens-plain-one--ok { border-color: ${T.toneOk}; }
+.lens-plain-one--warn { border-color: ${T.toneWarn}; }
+.lens-plain-one--bad { border-color: ${T.toneBad}; }
+.lens-plain-one-heading {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0 0 2px;
+  color: ${T.textSecondary};
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.lens-plain-one-heading:focus { outline: none; }
+.lens-plain-one-heading:focus-visible { outline: 2px solid ${T.primary}; outline-offset: 2px; }
+.lens-plain-tone { color: ${T.toneUnknown}; }
+.lens-plain-tone--ok { color: ${T.toneOk}; }
+.lens-plain-tone--warn { color: ${T.toneWarn}; }
+.lens-plain-tone--bad { color: ${T.toneBad}; }
+.lens-plain-one-text { margin: 0; font-weight: 500; }
+.lens-plain-rows { display: flex; flex-direction: column; }
+.lens-plain-row {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 2px 14px;
+  padding: 11px 0;
+  border-top: 1px solid ${T.border};
+}
+.lens-plain-row:first-child { border-top: 0; }
+@container (max-width: 520px) {
+  .lens-plain-row { grid-template-columns: minmax(0, 1fr); }
+}
+.lens-plain-heading {
+  margin: 0;
+  padding-top: 2px;
+  color: ${T.textSecondary};
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.lens-plain-lines { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.lens-plain-items { display: flex; flex-direction: column; gap: 2px; margin: 4px 0 0; padding-left: 18px; list-style: disc; }
+.lens-plain-line, .lens-plain-text { overflow-wrap: anywhere; }
+.lens-plain-line code { font-family: ${T.fontMono}; font-size: 0.92em; }
+.lens-plain-label { font-weight: 600; }
+.lens-plain-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 6px; vertical-align: middle; }
+.lens-plain-chips--row { display: flex; margin: 6px 0 0; }
+.lens-plain-chip {
+  border: 1px solid ${T.border};
+  border-radius: 999px;
+  color: ${T.textSecondary};
+  font-size: 11.5px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.lens-plain-chip--ok { border-color: ${T.toneOk}; color: ${T.toneOk}; }
+.lens-plain-chip--warn { border-color: ${T.toneWarn}; color: ${T.toneWarn}; }
+.lens-plain-chip--bad { border-color: ${T.toneBad}; color: ${T.toneBad}; }
+.lens-plain-show {
+  background: none;
+  border: 0;
+  color: ${T.primary};
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  padding: 2px 4px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.lens-plain-show:focus-visible,
+.lens-plain-button:focus-visible,
+.lens-plain-toggle input:focus-visible { outline: 2px solid ${T.primary}; outline-offset: 2px; }
+.lens-plain-evidence {
+  display: grid;
+  gap: 2px 10px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  margin: 6px 0 2px;
+  padding: 8px 10px;
+  background: ${T.bgPrimary};
+  border: 1px solid ${T.border};
+  border-radius: 6px;
+  font-family: ${T.fontMono};
+  font-size: 12px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.lens-plain-evidence[hidden] { display: none; }
+.lens-plain-evidence dt { color: ${T.textSecondary}; }
+.lens-plain-evidence dd { margin: 0; white-space: pre-wrap; }
+.lens-plain-withheld { color: ${T.textSecondary}; font-style: italic; }
+.lens-plain-tid { display: block; color: ${T.textSecondary}; font-family: ${T.fontMono}; font-size: 11px; }
 
 @media (prefers-reduced-motion: reduce) {
   .lens-group-boundary,
