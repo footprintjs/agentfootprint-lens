@@ -951,7 +951,8 @@ if (recording.snapshot) {
 }
 ```
 
-(Under footprintjs 9.17 — still the peer floor — the same call needs
+(Under footprintjs 9.17 — the floor when this narrowing landed, now below
+the peer floor of `^9.26.0` — the same call needs
 `recording.snapshot as unknown as TimeTravelSource`, and a bad row throws
 inside the fold; a types-only difference the lens's `foldFactsAt` reports as
 `foldError`.) **Movement never needs a snapshot at all**: `openLensCursor`

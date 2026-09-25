@@ -9,7 +9,6 @@
     "run": {
       "value": {
         "runId": "run-1790361930311-2",
-        "sessionId": "a4fb6d65-130d-4d9c-bede-09a110f04434",
         "turnNumber": 2,
         "model": "claude-haiku-4-5-20251001",
         "resumedLeg": false
@@ -424,14 +423,14 @@
                 "kind": "event",
                 "index": 6,
                 "type": "agentfootprint.skill.turn_routed",
-                "path": "/by",
+                "path": "/to",
                 "runtimeStageId": "pick-entry#1"
               },
               {
                 "kind": "event",
                 "index": 6,
                 "type": "agentfootprint.skill.turn_routed",
-                "path": "/to",
+                "path": "/by",
                 "runtimeStageId": "pick-entry#1"
               }
             ]
@@ -634,15 +633,15 @@
             "pointers": [
               {
                 "kind": "event",
-                "index": 51,
-                "type": "agentfootprint.tools.absent",
+                "index": 46,
+                "type": "agentfootprint.stream.tool_start",
                 "path": "/toolName",
                 "runtimeStageId": "tool-calls#23"
               },
               {
                 "kind": "event",
-                "index": 46,
-                "type": "agentfootprint.stream.tool_start",
+                "index": 51,
+                "type": "agentfootprint.tools.absent",
                 "path": "/toolName",
                 "runtimeStageId": "tool-calls#23"
               }
@@ -834,15 +833,15 @@
             "pointers": [
               {
                 "kind": "event",
-                "index": 51,
-                "type": "agentfootprint.tools.absent",
+                "index": 46,
+                "type": "agentfootprint.stream.tool_start",
                 "path": "/toolName",
                 "runtimeStageId": "tool-calls#23"
               },
               {
                 "kind": "event",
-                "index": 46,
-                "type": "agentfootprint.stream.tool_start",
+                "index": 51,
+                "type": "agentfootprint.tools.absent",
                 "path": "/toolName",
                 "runtimeStageId": "tool-calls#23"
               }
@@ -1155,13 +1154,6 @@
             "pointers": [
               {
                 "kind": "event",
-                "index": 59,
-                "type": "agentfootprint.stream.tool_end",
-                "path": "/status",
-                "runtimeStageId": "tool-calls#23"
-              },
-              {
-                "kind": "event",
                 "index": 46,
                 "type": "agentfootprint.stream.tool_start",
                 "path": "/toolName",
@@ -1172,6 +1164,13 @@
                 "index": 51,
                 "type": "agentfootprint.tools.absent",
                 "path": "/lookedFor",
+                "runtimeStageId": "tool-calls#23"
+              },
+              {
+                "kind": "event",
+                "index": 59,
+                "type": "agentfootprint.stream.tool_end",
+                "path": "/status",
                 "runtimeStageId": "tool-calls#23"
               }
             ]
@@ -1217,17 +1216,17 @@
             "status": "recorded",
             "pointers": [
               {
+                "kind": "history",
+                "index": 2,
+                "path": "/toolName",
+                "toolCallId": "toolu_01YQPyS4gmUrsi8mv52oj1DE"
+              },
+              {
                 "kind": "event",
                 "index": 64,
                 "type": "agentfootprint.context.injected",
                 "path": "/sourceId",
                 "runtimeStageId": "sf-messages/compose#34"
-              },
-              {
-                "kind": "history",
-                "index": 2,
-                "path": "/toolName",
-                "toolCallId": "toolu_01YQPyS4gmUrsi8mv52oj1DE"
               }
             ]
           }
@@ -1347,13 +1346,6 @@
             "pointers": [
               {
                 "kind": "event",
-                "index": 45,
-                "type": "agentfootprint.findings.declared",
-                "path": "/basis",
-                "runtimeStageId": "tool-calls#23"
-              },
-              {
-                "kind": "event",
                 "index": 46,
                 "type": "agentfootprint.stream.tool_start",
                 "path": "/toolName",
@@ -1364,6 +1356,13 @@
                 "index": 45,
                 "type": "agentfootprint.findings.declared",
                 "path": "/expect",
+                "runtimeStageId": "tool-calls#23"
+              },
+              {
+                "kind": "event",
+                "index": 45,
+                "type": "agentfootprint.findings.declared",
+                "path": "/basis",
                 "runtimeStageId": "tool-calls#23"
               }
             ]
@@ -1397,16 +1396,16 @@
             "pointers": [
               {
                 "kind": "event",
-                "index": 59,
-                "type": "agentfootprint.stream.tool_end",
-                "path": "/status",
+                "index": 46,
+                "type": "agentfootprint.stream.tool_start",
+                "path": "/toolName",
                 "runtimeStageId": "tool-calls#23"
               },
               {
                 "kind": "event",
-                "index": 46,
-                "type": "agentfootprint.stream.tool_start",
-                "path": "/toolName",
+                "index": 59,
+                "type": "agentfootprint.stream.tool_end",
+                "path": "/status",
                 "runtimeStageId": "tool-calls#23"
               }
             ]
@@ -1643,16 +1642,16 @@
             "pointers": [
               {
                 "kind": "event",
-                "index": 51,
-                "type": "agentfootprint.tools.absent",
-                "path": "/notChecked/0/what",
+                "index": 46,
+                "type": "agentfootprint.stream.tool_start",
+                "path": "/toolName",
                 "runtimeStageId": "tool-calls#23"
               },
               {
                 "kind": "event",
-                "index": 46,
-                "type": "agentfootprint.stream.tool_start",
-                "path": "/toolName",
+                "index": 51,
+                "type": "agentfootprint.tools.absent",
+                "path": "/notChecked/0/what",
                 "runtimeStageId": "tool-calls#23"
               }
             ],
@@ -1692,17 +1691,17 @@
             "status": "not-recorded",
             "pointers": [
               {
+                "kind": "history",
+                "index": 2,
+                "path": "/toolName",
+                "toolCallId": "toolu_01YQPyS4gmUrsi8mv52oj1DE"
+              },
+              {
                 "kind": "event",
                 "index": 64,
                 "type": "agentfootprint.context.injected",
                 "path": "/sourceId",
                 "runtimeStageId": "sf-messages/compose#34"
-              },
-              {
-                "kind": "history",
-                "index": 2,
-                "path": "/toolName",
-                "toolCallId": "toolu_01YQPyS4gmUrsi8mv52oj1DE"
               }
             ],
             "missing": "not-declared",
@@ -1763,16 +1762,16 @@
           "pointers": [
             {
               "kind": "event",
-              "index": 51,
-              "type": "agentfootprint.tools.absent",
-              "path": "/notChecked/0/what",
+              "index": 46,
+              "type": "agentfootprint.stream.tool_start",
+              "path": "/toolName",
               "runtimeStageId": "tool-calls#23"
             },
             {
               "kind": "event",
-              "index": 46,
-              "type": "agentfootprint.stream.tool_start",
-              "path": "/toolName",
+              "index": 51,
+              "type": "agentfootprint.tools.absent",
+              "path": "/notChecked/0/what",
               "runtimeStageId": "tool-calls#23"
             }
           ],
@@ -1815,17 +1814,17 @@
           "status": "not-recorded",
           "pointers": [
             {
+              "kind": "history",
+              "index": 2,
+              "path": "/toolName",
+              "toolCallId": "toolu_01YQPyS4gmUrsi8mv52oj1DE"
+            },
+            {
               "kind": "event",
               "index": 64,
               "type": "agentfootprint.context.injected",
               "path": "/sourceId",
               "runtimeStageId": "sf-messages/compose#34"
-            },
-            {
-              "kind": "history",
-              "index": 2,
-              "path": "/toolName",
-              "toolCallId": "toolu_01YQPyS4gmUrsi8mv52oj1DE"
             }
           ],
           "missing": "not-declared"
@@ -1881,11 +1880,11 @@
     "event:192:/finalContent": {
       "value": "**No applications found** on SHPSTRPLPCL003.\n\nThe array inventory tool could not match SHPSTRPLPCL003 to any VM disks in the RVTools export. This means either:\n- The array name is not recognized in the PowerStore volume mapping.\n- No VMs are currently backed by volumes on this array (as reported by the most recent RVTools export from 2026-09-19).\n\n**To verify the array exists and see its volumes directly**, use `powerstore_get_volumes(array_id: \"SHPSTRPLPCL003\")` — which I ran earlier and found zero volumes on record.\n\n**Source disclosure:** This answer uses LOCAL SEED data (synthetic test data, not production measurements)."
     },
-    "event:6:/by": {
-      "value": "intent"
-    },
     "event:6:/to": {
       "value": "array-inventory"
+    },
+    "event:6:/by": {
+      "value": "intent"
     },
     "event:6:/scores/0/score": {
       "value": 1
@@ -1896,10 +1895,10 @@
     "event:16:/sourceId": {
       "value": "array-inventory"
     },
-    "event:51:/toolName": {
+    "event:46:/toolName": {
       "value": "get_array_inventory"
     },
-    "event:46:/toolName": {
+    "event:51:/toolName": {
       "value": "get_array_inventory"
     },
     "event:51:/checked/0/what": {
@@ -1920,23 +1919,23 @@
     "event:51:/notChecked/3/what": {
       "value": "VM disks this tool attributes to no array: 4 in this export"
     },
-    "event:59:/status": {
-      "value": "absent"
-    },
     "event:51:/lookedFor": {
       "value": "a VM disk in the RVTools export attributed to the array asked"
     },
-    "event:64:/sourceId": {
-      "value": "toolu_01YQPyS4gmUrsi8mv52oj1DE"
+    "event:59:/status": {
+      "value": "absent"
     },
     "history:2:/toolName": {
       "value": "powerstore_get_volumes"
     },
-    "event:45:/basis": {
-      "value": "direct"
+    "event:64:/sourceId": {
+      "value": "toolu_01YQPyS4gmUrsi8mv52oj1DE"
     },
     "event:45:/expect": {
       "value": "high"
+    },
+    "event:45:/basis": {
+      "value": "direct"
     },
     "event:189:/candidates": {
       "value": 2

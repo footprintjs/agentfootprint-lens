@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.68.1] - 2026-09-25
+
+### Fixed
+
+- The `footprintjs` peer floor is raised to `^9.26.0` to match what
+  agentfootprint 9.116.0 itself peer-requires — installing the lens at the
+  old `^9.17.0` floor failed with ERESOLVE.
+- Test fixtures (`test/plain-words/fixtures/*`) regenerated against the
+  released library.
+
 ## [0.68.0] - 2026-09-25
 
 ### Added — In plain words: one answer, explained from its record

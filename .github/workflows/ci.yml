@@ -52,15 +52,17 @@ jobs:
         #   - footprint-explainable-ui >=0.28.0 <1.0.0  → min + latest published
         #   - react ^18.0.0 || ^19.0.0                  → both majors
         # agentfootprint and footprintjs are held fixed at the latest published version
-        # satisfying lens's `^9.116.0` / `^9.17.0` peer ranges below — they don't vary
+        # satisfying lens's `^9.116.0` / `^9.26.0` peer ranges below — they don't vary
         # across reachable installs, so they're not separate matrix dimensions.
         # agentfootprint moved to 9.116.0 with 0.68.0 (the In plain words pane reads
         # the `AnswerAccount` type and `answerAccountPointerKey` from
         # `agentfootprint/observe`, which that release ships).
-        # footprintjs moved to 9.17.0 with the 0.46.0 cursor port (`timeTravel` and
-        # the `TimeTravelStrategy` seam arrive there). The pin below and the peer
-        # range in package.json must move together: a pin BELOW the range is exactly
-        # the ERESOLVE this job exists to catch, so it would fail here as designed.
+        # footprintjs moved to 9.26.0 with 0.68.1, to match what agentfootprint
+        # 9.116.0 itself peer-requires (installing lens at the old 9.17.0 floor
+        # ERESOLVEd against agentfootprint's own footprintjs range). The pin below
+        # and the peer range in package.json must move together: a pin BELOW the
+        # range is exactly the ERESOLVE this job exists to catch, so it would fail
+        # here as designed.
         eui: ["0.28.0", "0.30.0"]
         react: ["18.3.1", "19.0.0"]
     steps:
@@ -86,7 +88,7 @@ jobs:
           mkdir -p /tmp/scratch && cd /tmp/scratch && npm init -y >/dev/null
           npm install \
             "react@${{ matrix.react }}" "react-dom@${{ matrix.react }}" "@xyflow/react@^12.0.0" \
-            "agentfootprint@9.116.0" "footprintjs@9.17.0" \
+            "agentfootprint@9.116.0" "footprintjs@9.26.0" \
             "footprint-explainable-ui@${{ matrix.eui }}"
           # ERESOLVE on the next line = a peer range that excludes a real version = the guard.
           npm install "$GITHUB_WORKSPACE"/agentfootprint-lens-*.tgz
