@@ -232,6 +232,20 @@ export {
   type DeclaredCoverageShape,
 } from "./components/CoverageBand.js";
 
+// The time views (0.69.0) — the time layer's rows (agentfootprint 9.129.0,
+// time design § 10.6). <TimeBand> draws the ledger's time rows per turn: the
+// run clock and its sources, clock-on-resume, each reading of the person's
+// words, and per call its window (asked · sent · how · wider than asked ·
+// refused), its dispatch moment and drift, and its period verdict beside the
+// period the result declared; `<ContextView>` mounts it under the Findings
+// band. <TimeAskRows> draws a paused ask's time fields and a refused answer
+// with the library's reason (`<AwaitingPane>` mounts it). <TimeAxisLine>
+// draws a dataset's declared time axis as the library judges it (the
+// artifact renderers mount it). `TIME_LABELS` is every string they own.
+export { TimeBand, type TimeBandProps } from "./components/TimeBand.js";
+export { TimeAskRows, type TimeAskRowsProps } from "./components/TimeAsk.js";
+export { TimeAxisLine, type TimeAxisLineProps } from "./components/TimeAxisLine.js";
+
 // <PlainWords> (0.68.0) — the In plain words pane: one answer's ACCOUNT
 // (agentfootprint `accountForAnswer`, served by the `answer-account` hosting
 // op) drawn for a reader who is not an engineer — In one line, the seven rows,

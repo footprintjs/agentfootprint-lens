@@ -89,6 +89,12 @@ export {
   type CoverageItemShape,
   type DeclaredCoverageShape,
 } from '../react/components/CoverageBand.js';
+// 0.69.0: the Time band — the time layer's rows on the same ledger
+// (agentfootprint 9.129.0): clock, readings, each call's window, dispatch and
+// period. `<ContextView>` mounts it under the Findings band. An addition to
+// the door, never a move; also on the root barrel.
+export { TimeBand, type TimeBandProps } from '../react/components/TimeBand.js';
+export { foldTimeRows, type TimeFold } from '../core/time/timeRows.js';
 // 0.66.0: the Proof map — what the answer rests on, as one graph drawn from
 // the record (agentfootprint 9.110.0: the ledger with its `contingent` rows,
 // `unsupportedValues`, the declared map's `via` join). An addition to the

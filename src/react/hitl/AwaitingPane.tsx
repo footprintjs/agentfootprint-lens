@@ -58,6 +58,7 @@ import {
 } from '../../core/hitl/decision.js';
 import type { AskComponentView, PendingAskView } from '../../core/hitl/types.js';
 import { LensChartBoundary } from '../LensChartBoundary.js';
+import { TimeAskRows } from '../components/TimeAsk.js';
 import { ensureLensStyles } from '../lensStyles.js';
 import { ConsentAnswerBox, PlainAnswerBox } from './AnswerBox.js';
 import { decisionComponentFor } from './registry.js';
@@ -187,12 +188,20 @@ export const AwaitingPane: React.FC<AwaitingPaneProps> = ({
     );
   }
 
-  const header =
-    question !== undefined ? (
-      <p className="lens-hitl__question" data-testid="hitl-question">
-        {question}
-      </p>
-    ) : undefined;
+  // The question, then — when the ask carries a time field (agentfootprint
+  // 9.129.0 `format`) — its time half: the choices with their labels, and a
+  // refused answer with the library's reason and the repeat count. Renders
+  // nothing for an ask without a time field.
+  const header = (
+    <>
+      {question !== undefined && (
+        <p className="lens-hitl__question" data-testid="hitl-question">
+          {question}
+        </p>
+      )}
+      <TimeAskRows ask={awaiting} />
+    </>
+  );
 
   // ── No typed half: the prose question + answer box, as every era had. ──
   if (component === undefined) {

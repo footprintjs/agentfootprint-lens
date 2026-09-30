@@ -42,6 +42,9 @@ export interface ArtifactMetaView {
   readonly parentRefs?: readonly string[];
   /** Unix ms when the artifact was stored. */
   readonly createdAt?: number;
+  /** The dataset's declared time axis (agentfootprint ≥ 9.128.0 `ArtifactMeta.timeAxis`) —
+   *  judged by the library at render (`<TimeAxisLine>`), so held here unjudged. */
+  readonly timeAxis?: unknown;
 }
 
 /** The description snapshot a `present` tool result carries at speak time —

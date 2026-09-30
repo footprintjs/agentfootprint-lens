@@ -370,3 +370,40 @@ export {
   type TagLegendEntry,
 } from "./tags/index.js";
 export { snapshotOfRunner, snapshotLogKey } from "./utils/snapshotOfRunner.js";
+
+// The time layer's rows, headless (0.69.0; agentfootprint 9.129.0, time design
+// § 10.6): `foldTimeRows` groups the ledger's time and period rows by turn and
+// call; `timeAskOf` reads a paused ask's time fields and refusal;
+// `datasetTimeAxisOf` asks the library to judge a ticket's time axis (read at
+// call time — an older peer still links). Pure; no React. `TIME_LABELS` is
+// every string the time views print of their own.
+export { LABELS as TIME_LABELS } from './time/labels.js';
+export {
+  foldTimeRows,
+  spellMs,
+  type TimeFold,
+  type TimeTurn,
+  type TimeCall,
+  type PeriodRowShape,
+  type DeclaredPeriodShape,
+} from './time/timeRows.js';
+export { timeAskOf, type TimeAsk, type TimeAskField } from './time/timeAsk.js';
+export {
+  datasetTimeAxisOf,
+  type DatasetTimeAxisView,
+  type DatasetTimeAxisShape,
+  type AxisValues,
+  type AxisCountsShape,
+} from './time/timeAxis.js';
+export type {
+  TimeRangeShape,
+  ClockRowShape,
+  ClockOnResumeRowShape,
+  CallRowShape,
+  CallDriftShape,
+  CallWindowRowShape,
+  PersonWindowShape,
+  TimeReadingRowShape,
+  TimeCandidateShape,
+  ReadingChoiceShape,
+} from './time/shapes.js';

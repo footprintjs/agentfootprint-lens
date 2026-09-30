@@ -108,6 +108,14 @@ import { LABELS as STORY_MARK_LABELS } from "../../src/react/components/storyMar
 // shown here`, `tone: warning`). The print's CSS and frame skeleton live in
 // `answerReportFrame.ts`, which prints no words and is not walked.
 import { LABELS as PLAIN_WORDS_LABELS } from "../../src/react/components/plainWordsLayout.js";
+// 0.69.0: the time views — the Time band, the time ask and the dataset's time
+// axis (agentfootprint 9.129.0). Their labels name rows and fields (`clock`,
+// `dispatched at`, `wider than asked`, `clock unknown`); every other string
+// they print is a value off the record (an instant, a zone, the record's own
+// word for `how` / `outcome` / `verdict`, a refusal code) or a library
+// sentence handed through as data (an ask's `refused.reason`, an axis issue,
+// `describeTimeAxis`' summary).
+import { LABELS as TIME_LABELS } from "../../src/core/time/labels.js";
 
 // Kept as a LIST of sets, not a spread: `tab` and `commit` are keys in more
 // than one set, and a spread would silently drop the values behind them.
@@ -126,6 +134,7 @@ const LABEL_SETS: readonly Readonly<Record<string, string>>[] = [
   PROOF_MAP_LABELS,
   STORY_MARK_LABELS,
   PLAIN_WORDS_LABELS,
+  TIME_LABELS,
 ];
 const LABEL_ENTRIES: readonly (readonly [string, string])[] =
   LABEL_SETS.flatMap((set) => Object.entries(set));
@@ -158,6 +167,9 @@ const FILES: string[] = [
   // 0.68.0: the In plain words pane, its layout half and its print report.
   ...sources("react/components", (f) => /^(PlainWords\.tsx|plainWordsLayout\.ts|AnswerReportPrint\.tsx)$/.test(f)),
   ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
+  // 0.69.0: the time views and their cores.
+  ...sources("core/time", (f) => f.endsWith(".ts")),
+  ...sources("react/components", (f) => /^Time(Band|Ask|AxisLine)\.tsx$/.test(f)),
 ];
 
 const LIBRARY_SENTENCES = new Set<string>([
