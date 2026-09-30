@@ -1084,6 +1084,58 @@ summary card, the transport and the commentary under a native **More detail**
 Needs agentfootprint ≥ 9.116.0 (the release that ships `AnswerAccount` and the
 op) — the lens's peer floor since 0.68.0.
 
+## Time — what the run took "now" to be, and which window each call read
+
+**Every time decision an armed agent makes, as the record holds it.** With
+agentfootprint's time layer armed (`.time()`, 9.129.0), the run files rows on
+its honesty ledger: the clock it froze for the turn, what it read from the
+person's words, which window each call carries and how, whether a call reads
+MORE than was asked, and how far the wall clock had moved by the time the
+tool ran. `<TimeBand>` draws them; `<ContextView>` mounts it under the
+Findings band, so it moves with the one cursor.
+
+### Why
+
+A time bug is quiet. "Yesterday" sent to a tool that only takes a look-back
+reads from yesterday's midnight to NOW — a day and a half, not a day — and
+the answer looks fine. After a 30-minute pause, a "last hour" look-back reads
+a different hour than the person asked about. The library records each of
+these; this band is where a person sees them: a widened fill says **wider
+than asked** with the extra ranges, a drift says `redrawn` or `shifted` and by
+how much, a result whose held range is unknown says **clock unknown**.
+
+### Mount it
+
+```tsx
+import { ContextView, TimeBand } from 'agentfootprint-lens/context';
+
+<ContextView runner={recording} />            // the band appears once the ledger holds a time row
+
+// or on its own, over rows you already hold:
+<TimeBand rows={state.findingsLedger} coverage={state.coverageDeclared} />
+```
+
+A paused ask with a time field (`requestInput` with `format`) shows its time
+half inside `<AwaitingPane>` — the choices with the library's labels and, on
+a re-ask, the refused value with the library's reason. A `dataset/rows`
+artifact that declares a time axis shows it above the table
+(`<TimeAxisLine meta rows>`), judged by the library: column, unit, zone,
+grain, and how many values have no known clock.
+
+### The laws it keeps
+
+- **Omit, never deny.** No time row at the stop, no band — an unarmed run has
+  no band, never an empty one. A row prints no field it does not carry.
+- **Never infer.** Nothing here compares two instants. `wider than asked`
+  renders only on a row that carries `differs`; a drift only on a call row
+  that carries `drift`; `clock unknown` only where the record says `unknown`.
+- **No sentence of its own.** Every printed string is a value off the record
+  or a `TIME_LABELS` entry; the one sentence it shows — an ask's refusal
+  reason — is the library's, printed as data.
+
+Headless: `foldTimeRows(ledger, coverage?)`, `timeAskOf(pause)`,
+`datasetTimeAxisOf(meta, rows?)`.
+
 ## The Served tab
 
 **At every LLM call, exactly what the model was served — provable from the log.**

@@ -15,6 +15,7 @@
 import React from 'react';
 import { ensureLensStyles } from '../lensStyles.js';
 import { ArtifactMetaCard } from './ArtifactMetaCard.js';
+import { TimeAxisLine } from '../components/TimeAxisLine.js';
 import type { ArtifactComponentProps } from './registry.js';
 
 /** How many rows render. The remainder is stated; download lives on the card. */
@@ -68,6 +69,7 @@ export const ArtifactRowsTable: React.FC<ArtifactComponentProps> = (props) => {
 
   return (
     <div className="lens-artifact__table-wrap" data-testid="artifact-rows-table">
+      <TimeAxisLine meta={meta} rows={data} />
       {data.length === 0 ? (
         <p className="lens-artifact__note" data-testid="artifact-rows-empty">
           The dataset is empty — zero rows, and honestly so.

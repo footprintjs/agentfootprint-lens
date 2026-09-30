@@ -17,6 +17,7 @@ import React from 'react';
 import { formatBytes } from '../../core/bugReport/selection.js';
 import { ensureLensStyles } from '../lensStyles.js';
 import type { ArtifactComponentProps } from './registry.js';
+import { TimeAxisLine } from '../components/TimeAxisLine.js';
 
 /** Preview at most this many characters of the payload's JSON. The full
  *  payload stays reachable via download/copy — the cap is stated, never silent. */
@@ -114,6 +115,7 @@ export const ArtifactMetaCard: React.FC<ArtifactComponentProps> = ({ meta, data,
   return (
     <div className="lens-artifact__card" data-testid="artifact-meta-card">
       <div className="lens-artifact__card-title">{title}</div>
+      <TimeAxisLine meta={meta} />
       <dl className="lens-artifact__meta">
         <dt>ref</dt>
         <dd className="lens-artifact__mono">{meta.ref}</dd>

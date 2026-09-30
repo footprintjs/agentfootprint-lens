@@ -42,6 +42,7 @@ import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRun
 import { TimeTravel } from '../TimeTravel.js';
 import type { SharedCursor } from '../useSharedCursor.js';
 import { FindingsBand } from './FindingsBand.js';
+import { TimeBand } from './TimeBand.js';
 import { ServedTab } from './ServedTab.js';
 
 export const LABELS = Object.freeze({
@@ -236,6 +237,7 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
       </div>
       {mode === 'json' ? <JsonPane context={context} /> : <KeyTable context={context} />}
       <FindingsLayer context={context} />
+      <TimeLayer context={context} />
       <WhyBand context={context} />
     </div>
   );
@@ -256,6 +258,17 @@ function FindingsLayer({ context }: { readonly context: ContextAt }): React.Reac
       {...(ledger.since !== undefined ? { since: ledger.since } : {})}
     />
   );
+}
+
+/** The Time band, under the Findings band: the time layer's rows on the same
+ *  ledger (agentfootprint 9.129.0) and each call's declared period off
+ *  `coverageDeclared` — both keys the table above lists, read off the one
+ *  `contextAt`. The band renders nothing when the ledger holds no time row. */
+function TimeLayer({ context }: { readonly context: ContextAt }): React.ReactElement | null {
+  const ledger = context.keys.find((k) => k.path === 'findingsLedger');
+  if (ledger === undefined || !Array.isArray(ledger.value)) return null;
+  const coverage = context.keys.find((k) => k.path === 'coverageDeclared')?.value;
+  return <TimeBand rows={ledger.value} {...(Array.isArray(coverage) ? { coverage } : {})} />;
 }
 
 function Facts({ context }: { readonly context: ContextAt }): React.ReactElement | null {

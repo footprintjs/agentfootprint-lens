@@ -5,6 +5,59 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] — planned as 0.69.0
+
+### Added — the time layer's rows (agentfootprint 9.129.0, time design § 10.6)
+
+- `<TimeBand rows coverage?>` (root barrel and `agentfootprint-lens/context`;
+  `src/react/components/TimeBand.tsx`) draws the rows an armed agent
+  (`.time()`) files on the honesty ledger, per turn: the **run clock** —
+  `now` and `zone` each with its source (`app`/`default`, `run`/`builder`)
+  and a `control` window when the run passed one; **clock on resume** — what
+  a resume passed and the clock that was kept; each **reading** of the
+  person's words — the quote, the reader `id@version`, kind and locale, the
+  tz database, every candidate (range, zone, grain, said / implied parts,
+  notes) and how it settled (`only`, `policy`, `open` with the candidates
+  left and the questions, `none` with why); and per **call** — its window
+  (`how`, form, asked, the person's window and its source, `by`, `rounded`,
+  `why`, `sent`), **wider than asked** with the extra ranges on a widened
+  fill, `trimmed by tool`, `partly beyond retention`, a refusal code, its
+  `dispatchedAt`, the **drift at dispatch** (`redrawn` into form n, or
+  `shifted`, spelled exactly from `byMs`), and its **period** verdict beside
+  the period its result declared (`coverageDeclared` · `period`) — a held
+  `unknown` reads **clock unknown**. `<ContextView>` mounts it under the
+  Findings band, off the fold at the cursor.
+- `<TimeAskRows ask>` draws a paused `requestInput` ask's time fields
+  (`format`, choices with their library labels, `strict`, still missing)
+  and, on a re-ask, the refused value, the library's reason verbatim and the
+  repeat count. `<AwaitingPane>` mounts it under the question.
+- `<TimeAxisLine meta rows?>` draws a dataset's declared time axis as the
+  library judges it (`readTimeAxis`, `describeTimeAxis`, `normaliseInstants`,
+  read at call time so an older peer still links): column, unit, zone,
+  interval, aggregate, the library's summary, and with the rows the values
+  placed and those whose clock is unknown; a malformed declaration prints the
+  library's issues; under a peer too old to judge it, the declaration is
+  labelled `not checked`. The `dataset/rows` renderer and the metadata card
+  mount it; `ArtifactMetaView` gains `timeAxis?`.
+- Headless: `foldTimeRows`, `timeAskOf`, `datasetTimeAxisOf`, `spellMs`,
+  `TIME_LABELS`, and the row shapes (`ClockRowShape`, `CallWindowRowShape`,
+  …) — mirrors of the library's types, because the peer floor stays
+  `^9.116.0`; `test/time/shapes.types.test.ts` assigns every library type to
+  its mirror, so `npm run typecheck` fails on drift.
+- The laws: omit, never deny (no time row → no band); never infer (a flag
+  renders only where the row carries its field — nothing compares instants);
+  no sentence of its own (`TIME_LABELS`; the own-claims walker now covers
+  `src/core/time/` and the three components).
+- Fixtures generated from real agentfootprint 9.129.0 runs (scripted
+  provider, fixture reader, pinned clock): `npm run fixtures:time` →
+  `test/time/fixtures/time-rows.json` (every row kind, the ask and its
+  re-ask, a minted dataset ticket) and `time-recording.json` (the
+  ContextView test's recording).
+
+### Changed
+
+- devDependency agentfootprint 9.116.0 → 9.129.0. Peer floors unchanged.
+
 ## [0.68.1] - 2026-09-25
 
 ### Fixed

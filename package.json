@@ -89,6 +89,7 @@
     "demo:build": "vite build",
     "demo:record": "npx --yes tsx demo/generate-skill-run.ts",
     "fixtures:tool-progress": "npx --yes tsx scripts/generate-tool-progress-turn.ts",
+    "fixtures:time": "npx --yes tsx test/time/fixtures/generate.ts",
     "clean": "rm -rf dist",
     "test:coverage": "vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text-summary --coverage.reportsDirectory=coverage",
     "coverage:badge": "npm run test:coverage; node scripts/coverage-badge.mjs"
@@ -137,7 +138,7 @@
     "@types/react-dom": "^18.3.7",
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
-    "agentfootprint": "9.116.0",
+    "agentfootprint": "9.129.0",
     "footprint-explainable-ui": ">=0.32.0 <1.0.0",
     "footprintjs": "^9.27.0",
     "jsdom": "^29.0.2",
