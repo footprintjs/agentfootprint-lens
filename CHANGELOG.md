@@ -5,7 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.71.0] - 2026-10-01
+
+### Host change — fold at a stop through `foldCursorOf`
+
+- A host that folds the record itself — to hand `<TimeView>` its rows, or
+  any other view a context — folds
+  `contextAt(snapshot, foldCursorOf(cursor.at))`, not
+  `contextAt(snapshot, { commitIdx: cursor.at.commitIdx })`. The old call
+  reads "Run · start" one commit late (see Fixed, below). `foldCursorOf`
+  and `foldCommitIdxOf` are on `agentfootprint-lens/core`.
 
 ### Fixed — the Time view at a stop, and each call's window asked → sent → read
 
@@ -39,6 +48,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Nothing is compared. New labels `sentAsAsked`, `sentRounded`; `data-testid`
   `time-sent` / `time-read` with `data-as`. Pinned by
   `test/time/timeCallPath.test.tsx`.
+
+### Changed
+
+- devDependency agentfootprint 9.134.0 → 9.134.2 (the release is built and
+  tested against 9.134.2). Peer floors unchanged.
 
 ## [0.70.0] - 2026-10-01
 
