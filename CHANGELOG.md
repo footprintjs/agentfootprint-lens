@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.72.1] - 2026-10-01
 
 ### Fixed — "You asked" shows one pair of quotation marks
 
@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   a `<span class="lens-plain-quote">`; the report's title question, which has
   no marks of its own, stays a `<q>`. Tests: test/plain-words/PlainWords.test.tsx
   and print.test.tsx (fail on 0.72.0).
+
+### Changed
+
+- devDependency agentfootprint 9.134.4 → 9.134.5 (the release is built and
+  tested against 9.134.5). Peer floors unchanged.
 
 ## [0.72.0] - 2026-10-01
 
