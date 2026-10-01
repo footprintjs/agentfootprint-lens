@@ -23,9 +23,19 @@
  *      period argument was filled from an assumed default) — the data
  *      projection (`reasons` as bare names) carries no witness, so there it
  *      is passed over: the lens cannot tell which argument it names.
- *   3. OMIT, NEVER DENY. `undefined` when no time reason holds, or the value
- *      is not an assessment the lens can narrow — the section is omitted,
- *      never drawn empty.
+ *   3. SAY THE STANDING, NEVER DENY. `undefined` only when the value is not
+ *      an assessment the lens can narrow. An assessment with no time reason
+ *      is NOT silence: the answer still has a standing, and the Time view
+ *      says the time half of it — no time-related reason, the standing as
+ *      filed, and whether OTHER reasons were filed (`otherReasons`, a count
+ *      off the assessment; the reasons themselves are In plain words' to
+ *      show). Silence there read as "nothing to see" beside an answer the
+ *      person was told is not sure (take-2 video, lens 0.71.0).
+ *   4. A REASON THE LENS CANNOT PLACE IS NOT DENIED. `argument-assumed`
+ *      whose witnesses resolve to no ledger row (the data projection's bare
+ *      name, or a ledger not handed in) may or may not name the period
+ *      argument: it is listed as `undetermined`, and "no time-related
+ *      reason" is never said beside it.
  *
  * Pure: no React, no clock, no I/O.
  */
@@ -59,7 +69,19 @@ export interface TimeReasonItem {
 export interface TimeStanding {
   /** The library's word for the whole answer (`not-sure`, `ask`, …), as filed. */
   readonly standing?: string;
+  /** The time reasons the assessment names — empty when it names none. */
   readonly reasons: readonly TimeReasonItem[];
+  /**
+   * How many reasons the assessment filed that are NOT about time — counted,
+   * never listed (In plain words shows them). With `reasons` empty and
+   * nothing `undetermined`, the answer's standing is set by these alone.
+   */
+  readonly otherReasons: number;
+  /**
+   * Reasons that may be about time but cannot be placed from what was handed
+   * in (`argument-assumed` with no witness row to read). Absent when none.
+   */
+  readonly undetermined?: readonly TimeReason[];
 }
 
 type Rec = Readonly<Record<string, unknown>>;
@@ -108,7 +130,9 @@ const isPeriodArgument = (row: Rec): boolean => row.kind === 'argument' && row.p
 
 /**
  * The time reasons `assessment` names, each with the calls its witnesses
- * resolve to on `ledger` — or `undefined` when none holds (law 3).
+ * resolve to on `ledger`, beside the standing as filed and the count of the
+ * reasons that are not about time — `undefined` only when `assessment` is not
+ * an assessment (law 3).
  * `assessment` is `AnswerAssessment` (`agent.assessment()`,
  * `assessAnswer(recording)`), its data projection
  * (`turn_end.answerAssessment`), or the `turn_end` payload itself.
@@ -120,10 +144,14 @@ export function timeStandingOf(
   const a = assessmentOf(assessment);
   if (a === undefined) return undefined;
   const reasons: TimeReasonItem[] = [];
+  const undetermined: TimeReason[] = [];
+  let otherReasons = 0;
   for (const entry of a.reasons as readonly unknown[]) {
     // The data projection: a bare reason name, no witness.
     if (typeof entry === 'string') {
       if (isTimeReason(entry)) reasons.push({ reason: entry, calls: [] });
+      else if (entry === 'argument-assumed') undetermined.push('argument-assumed');
+      else otherReasons += 1;
       continue;
     }
     if (!isRec(entry) || typeof entry.reason !== 'string') continue;
@@ -136,11 +164,18 @@ export function timeStandingOf(
     } else if (entry.reason === 'argument-assumed') {
       const periodRows = rows.filter(isPeriodArgument);
       if (periodRows.length > 0) reasons.push({ reason: 'argument-assumed', calls: callsOf(periodRows) });
+      // Witness rows read, none a period argument: an assumed value of another argument.
+      else if (rows.length > 0) otherReasons += 1;
+      // No witness row to read: it may name the period argument — never denied (law 4).
+      else undetermined.push('argument-assumed');
+    } else {
+      otherReasons += 1;
     }
   }
-  if (reasons.length === 0) return undefined;
   return {
     ...(typeof a.standing === 'string' ? { standing: a.standing } : {}),
     reasons,
+    otherReasons,
+    ...(undetermined.length > 0 ? { undetermined } : {}),
   };
 }
