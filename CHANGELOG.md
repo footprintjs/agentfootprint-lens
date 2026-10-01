@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.70.0] - 2026-10-01
 
 ### Added — the Time band at agentfootprint 9.132.0
 
@@ -58,7 +58,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- devDependency agentfootprint 9.129.0 → 9.132.0. Peer floors unchanged.
+- devDependency agentfootprint 9.129.0 → 9.134.0 (the release is built and
+  tested against 9.134.0; the rows it reads shipped in 9.132.0), devDependency
+  footprintjs ^9.27.0 → ^9.28.0 (what agentfootprint 9.134.0 peer-requires).
+  Peer floors unchanged.
 
 ## [0.69.0] - 2026-09-30
 
