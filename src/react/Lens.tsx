@@ -49,6 +49,7 @@ import {
 } from "./useLensCursor.js";
 import { openLensCursor, type LensCursorPort } from "../core/timeTravel/lensCursorPort.js";
 import type { LensCursor } from "../core/cursor/lensCursor.js";
+import { foldCommitIdxOf } from "../core/cursor/foldAt.js";
 import type { CursorStepper } from "./TimeTravel.js";
 import type { SharedCursor } from './useSharedCursor.js';
 import { useLensNavigator, type LensNavigator } from "./useLensNavigator.js";
@@ -2811,9 +2812,7 @@ const AgentListRow: React.FC<{
 const ROOT_BOOKEND_ADDRESSES: readonly string[] = ["__root__#0"];
 
 function servedCommitIdxOf(position: CursorPosition | undefined): number {
-  if (position === undefined) return -1;
-  if (position.kind === "group-start" && position.depth === 0) return -1;
-  return position.commitIdx;
+  return position === undefined ? -1 : foldCommitIdxOf(position);
 }
 
 /**

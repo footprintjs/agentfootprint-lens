@@ -54,6 +54,7 @@ import {
   type SincePrevious,
 } from '../../core/served/index.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
+import { foldCursorOf } from '../../core/cursor/foldAt.js';
 import type { DiffSegment } from '../../core/utils/diffPrompts.js';
 // The badge is ONE owner across the tab's two views (list and graph) — see
 // `ServedBadge.tsx`. Re-exported below so its import path is unchanged.
@@ -209,7 +210,10 @@ export interface ServedTabProps {
 function cursorAnchor(props: ServedTabProps): { runtimeStageId: string; commitIdx: number } {
   return {
     runtimeStageId: props.cursorRuntimeStageId ?? props.cursor?.at.runtimeStageId ?? '',
-    commitIdx: props.commitIdx ?? props.cursor?.at.commitIdx ?? -1,
+    // A cursor's reading folds through the last commit its stop HELD (`foldAt.ts`): `-1` at
+    // Run · start, the same anchor `<Lens>` hands this tab as `commitIdx`.
+    commitIdx:
+      props.commitIdx ?? (props.cursor !== undefined ? foldCursorOf(props.cursor.at).commitIdx : -1),
   };
 }
 

@@ -83,3 +83,19 @@ reads for its axis; its `moveTo` hands the landed position's address to
 
 The law: a tab derives a step; only a mover changes the address; a visit to a
 coarser axis and back lands on the same commit (`test/cursor/`).
+
+## The commit a stop folds through (0.71.0)
+
+`foldAt.ts` is the ONE owner of "what the record held at this stop". A
+position's `commitIdx` is where it ANCHORS (the address, `jumpTo`,
+`stepForCommitIdx`); a fold at the stop runs through `foldCommitIdxOf(p)`:
+`-1` (the base — on a resumed leg, the state at the pause) at "Run · start",
+which shares the first stage's commit index but stands before it, and the
+stop's own `commitIdx` everywhere else — footprintjs's own axis spells the
+same thing (`splitAxis` · `axis.start.commitIdx === -1`). The reading carries
+it (`LensCursorReading.foldCommitIdx`), and `foldCursorOf(at)` is the cursor
+every fold takes — `contextAt` in `<ContextView>`, `<ProofMap>`,
+`<ReasoningLens>`, `<OntologyView>`, `<CoverageBand>`, the Served tab, and a
+host's own Time view. Before it, each fold site read `at.commitIdx`, so
+"Run · start" of a resumed leg showed the paused call already dispatched
+(the 2026-10-01 demo video; pinned by `test/time/timeAtStop.test.tsx`).

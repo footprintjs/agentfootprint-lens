@@ -27,7 +27,13 @@
  *      only where the `period` row carries it; `settled by the person` only
  *      where a `time-answer` row of the same turn names the reading's
  *      mention — the reading's own `open` choice is still printed as the
- *      record holds it. Nothing here compares two instants.
+ *      record holds it. Nothing here compares two instants. Each call reads
+ *      asked → sent → read (0.71.0): `sent` is the row's own `sent` on a
+ *      widened fill and, on every other dispatched call, the row's `asked` —
+ *      which the library's row DEFINES as the sent range (`sentOf`, never a
+ *      comparison); `read` is the result's declared period, or the period
+ *      row's `undeclared` (`readOf`); the difference is the period row's own
+ *      `differs`.
  *   3. NO SENTENCE OF ITS OWN. Every printed string is a value off the record
  *      (an instant, a zone, a tool name, the record's word for `how`, `by`,
  *      `outcome`, `verdict`, a refusal code) or a `LABELS` entry;
@@ -51,7 +57,11 @@ import type {
 import {
   answerOfReading,
   foldTimeRows,
+  readOf,
+  sentOf,
   spellMs,
+  type CallRead,
+  type CallSent,
   type PeriodRowShape,
   type TimeCall,
   type TimeTurn,
@@ -301,8 +311,15 @@ function Reading({
   );
 }
 
+/**
+ * One call's time story, in the order it happened: how its window was decided
+ * and what it asked → what it SENT (`sentOf`) → when it was dispatched → what
+ * it READ (`readOf`) → the period verdict and the difference the library
+ * filed (`period.differs`) → the source's clock.
+ */
 function Call({ call }: { readonly call: TimeCall }): React.ReactElement {
   const w = call.window;
+  const read = readOf(call);
   return (
     <li
       style={mono}
@@ -313,7 +330,7 @@ function Call({ call }: { readonly call: TimeCall }): React.ReactElement {
       <div>
         <code>{call.toolName}</code> · <code>{call.toolCallId}</code>
       </div>
-      {w !== undefined && <WindowLines w={w} />}
+      {w !== undefined && <WindowLines w={w} sent={sentOf(w)} />}
       {call.dispatch !== undefined && (
         <Field label={LABELS.dispatchedAt}>
           <code data-testid="time-dispatched-at">{call.dispatch.dispatchedAt}</code>
@@ -336,11 +353,7 @@ function Call({ call }: { readonly call: TimeCall }): React.ReactElement {
           </span>
         </Field>
       )}
-      {call.sourceClocks?.map((sc, i) => (
-        <Field key={`sc${i}`} label={LABELS.sourceClock}>
-          <code data-testid="time-source-clock">{sc.zone}</code>
-        </Field>
-      ))}
+      {read !== undefined && <ReadLine read={read} />}
       {call.period !== undefined && (
         <Field label={LABELS.period}>
           <span data-testid="time-period" data-verdict={call.period.verdict}>
@@ -355,27 +368,48 @@ function Call({ call }: { readonly call: TimeCall }): React.ReactElement {
         </Field>
       )}
       {call.period !== undefined && <PeriodChecks period={call.period} />}
-      {call.declared !== undefined && (
-        <Field label={LABELS.queried}>
-          <Range range={call.declared.queried} />
-          {' · '}
-          {LABELS.held}{' '}
-          {call.declared.held === 'unknown' ? (
-            <>
-              <Word>unknown</Word> <Flag testId="time-held-unknown">{LABELS.clockUnknown}</Flag>
-            </>
-          ) : (
-            <Range range={call.declared.held} />
-          )}
-          {call.declared.readAt !== undefined && (
-            <>
-              {' · '}
-              {LABELS.readAt} <code>{call.declared.readAt}</code>
-            </>
-          )}
+      {call.sourceClocks?.map((sc, i) => (
+        <Field key={`sc${i}`} label={LABELS.sourceClock}>
+          <code data-testid="time-source-clock">{sc.zone}</code>
         </Field>
-      )}
+      ))}
     </li>
+  );
+}
+
+/** What the call read: the period its result declared, or the period row's word that it declared none. */
+function ReadLine({ read }: { readonly read: CallRead }): React.ReactElement {
+  if (read.as === 'undeclared') {
+    return (
+      <Field label={LABELS.read}>
+        <span data-testid="time-read" data-as={read.as}>
+          <Word>{read.as}</Word>
+        </span>
+      </Field>
+    );
+  }
+  const d = read.declared;
+  return (
+    <Field label={LABELS.read}>
+      <span data-testid="time-read" data-as={read.as}>
+        <Range range={d.queried} />
+        {' · '}
+        {LABELS.held}{' '}
+        {d.held === 'unknown' ? (
+          <>
+            <Word>unknown</Word> <Flag testId="time-held-unknown">{LABELS.clockUnknown}</Flag>
+          </>
+        ) : (
+          <Range range={d.held} />
+        )}
+        {d.readAt !== undefined && (
+          <>
+            {' · '}
+            {LABELS.readAt} <code>{d.readAt}</code>
+          </>
+        )}
+      </span>
+    </Field>
   );
 }
 
@@ -436,8 +470,15 @@ function PeriodChecks({ period }: { readonly period: PeriodRowShape }): React.Re
   );
 }
 
-/** The `call-window` row: how the call's window was decided, and each field it carries. */
-function WindowLines({ w }: { readonly w: CallWindowRow }): React.ReactElement {
+/** The `call-window` row: how the call's window was decided, each field it carries, and what it sent. */
+function WindowLines({
+  w,
+  sent,
+}: {
+  readonly w: CallWindowRow;
+  /** `sentOf(w)` — the sent range in the record's own words. */
+  readonly sent: CallSent | undefined;
+}): React.ReactElement {
   return (
     <>
       <Field label={LABELS.how}>
@@ -483,9 +524,24 @@ function WindowLines({ w }: { readonly w: CallWindowRow }): React.ReactElement {
           )}
         </Field>
       )}
+      {sent !== undefined && sent.as !== 'sent' && (
+        <Field label={LABELS.sent}>
+          <span data-testid="time-sent" data-as={sent.as}>
+            {sent.as === 'asked' ? (
+              <>
+                <Range range={sent.range} /> <Word>{LABELS.sentAsAsked}</Word>
+              </>
+            ) : (
+              <Word>{LABELS.sentRounded}</Word>
+            )}
+          </span>
+        </Field>
+      )}
       {w.sent !== undefined && (
         <Field label={LABELS.sent}>
-          <Range range={w.sent} />
+          <span data-testid="time-sent" data-as="sent">
+            <Range range={w.sent} />
+          </span>
           {w.differs !== undefined && (
             <>
               {' '}

@@ -32,6 +32,7 @@ import React, { useMemo, useState } from 'react';
 import { contextAt, type ContextAt, type ContextKey } from '../../core/context/contextAt.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import { lensCursorFrom } from '../../core/cursor/lensCursor.js';
+import { foldCommitIdxOf, foldCursorOf } from '../../core/cursor/foldAt.js';
 import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
 import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
@@ -121,11 +122,9 @@ function positionsOf(snapshot: unknown): readonly CursorPosition[] {
   return tagAxisPositions(snapshot, MILESTONE_AXIS, []) ?? [];
 }
 
+/** The fold's cursor: the stop's address, folded through the last commit it held (`foldAt.ts`). */
 function servedCursorOf(cursor: LensCursor): ServedCursor {
-  return {
-    runtimeStageId: cursor.at.runtimeStageId,
-    commitIdx: cursor.at.commitIdx,
-  };
+  return foldCursorOf(cursor.at);
 }
 
 function previousOf(
@@ -134,7 +133,7 @@ function previousOf(
 ): ServedCursor | undefined {
   if (cursor.at.step <= 0) return undefined;
   const p = positions?.[cursor.at.step - 1];
-  return p !== undefined ? { runtimeStageId: p.runtimeStageId, commitIdx: p.commitIdx } : undefined;
+  return p !== undefined ? { runtimeStageId: p.runtimeStageId, commitIdx: foldCommitIdxOf(p) } : undefined;
 }
 
 export function ContextView(props: ContextViewProps): React.ReactElement {
@@ -181,7 +180,7 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
         previous: props.previous ?? previousOf(cursor, ownPositions),
         events,
       }),
-    [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, cursor.at.step, ownPositions, events],
+    [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, cursor.at.foldCommitIdx, cursor.at.step, ownPositions, events],
   );
 
   return (

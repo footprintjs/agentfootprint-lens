@@ -369,6 +369,55 @@ export function answerOfReading(
   return undefined;
 }
 
+// ─── Asked → sent → read ──────────────────────────────────────────────────
+
+/**
+ * What one call SENT, in the record's own words (agentfootprint
+ * `core/time/rows.ts` · `CallWindowRow`):
+ *
+ * | `as` | When | Range |
+ * |------|------|-------|
+ * | `sent` | a widened fill — the row carries its own `sent` | the row's `sent` |
+ * | `asked` | `filled` exactly, `bound`, `model-chosen`, `model` — the row's `asked` IS the sent range ("the person's on a fill, the sent value read back otherwise"; a fill went "into form `form` exactly") | the row's `asked` |
+ * | `rounded` | a fill whose bounds moved outward (`rounded`) — the sent range is not on the record | none |
+ *
+ * `undefined` when the call sent no window: refused, not filled, unread, or no
+ * row. Read off the row's `how` and the fields it carries; nothing compared.
+ */
+export type CallSent =
+  | { readonly as: 'sent' | 'asked'; readonly range: TimeRange }
+  | { readonly as: 'rounded' };
+
+/** The `how`s whose `asked` IS the range the call sent (rows.ts · `CallWindowRow`). */
+const SENT_AS_ASKED = new Set(['filled', 'bound', 'model-chosen', 'model']);
+
+export function sentOf(w: CallWindowRow | undefined): CallSent | undefined {
+  if (w === undefined) return undefined;
+  if (w.sent !== undefined) return { as: 'sent', range: w.sent };
+  if (!SENT_AS_ASKED.has(w.how) || w.asked === undefined) return undefined;
+  return w.rounded === true ? { as: 'rounded' } : { as: 'asked', range: w.asked };
+}
+
+/**
+ * What one call READ, in the record's own words: the period its result
+ * DECLARED (`coverageDeclared` · `period`, joined by `toolCallId` — what the
+ * source queried and holds), or the `period` row's own verdict that the result
+ * declared none (`undeclared`). `undefined` when the call did not run
+ * (`refused` — its `period` row still files `undeclared`), when the result
+ * has no `period` row yet, or when the host passed no `coverage` for a result
+ * that did declare. The difference between asked and read is the `period`
+ * row's own `differs` — never computed here.
+ */
+export type CallRead =
+  | { readonly as: 'declared'; readonly declared: DeclaredPeriodShape }
+  | { readonly as: 'undeclared' };
+
+export function readOf(call: Pick<TimeCall, 'window' | 'period' | 'declared'>): CallRead | undefined {
+  if (call.window?.how === 'refused') return undefined;
+  if (call.declared !== undefined) return { as: 'declared', declared: call.declared };
+  return call.period?.verdict === 'undeclared' ? { as: 'undeclared' } : undefined;
+}
+
 // ─── Spelling ─────────────────────────────────────────────────────────────
 
 /**
