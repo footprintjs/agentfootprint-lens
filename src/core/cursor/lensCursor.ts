@@ -76,6 +76,7 @@
 
 import type { CursorPosition } from '../group/cursorPositionsAtDrill.js';
 import { resolveNavigation, type NavigationResult } from '../group/resolveNavigation.js';
+import { foldCommitIdxOf } from './foldAt.js';
 
 /**
  * Where the ONE cursor stands, in every unit the lens knows.
@@ -95,6 +96,15 @@ export interface LensCursorReading {
   readonly runtimeStageId: string;
   /** The commit-log index this position anchors to. `-1` when unknown. */
   readonly commitIdx: number;
+  /**
+   * The last commit the record HELD at this stop — what a fold at the stop
+   * runs through (`foldAt.ts` · `foldCommitIdxOf`): `-1` at "Run · start",
+   * which shares its anchor with the first stage's commit but stands before
+   * it; `commitIdx` everywhere else. Hand it to a fold with `foldCursorOf(at)`.
+   * Optional only so a reading a host built itself still type-checks; every
+   * reading the lens builds carries it.
+   */
+  readonly foldCommitIdx?: number;
   /** The position's human label, as the step strip and the timeline spell it
    *  ("Iteration 2", "Context 3", "Run · start"). */
   readonly label: string;
@@ -139,6 +149,7 @@ const EMPTY_READING: LensCursorReading = Object.freeze({
   totalSteps: 0,
   runtimeStageId: '',
   commitIdx: -1,
+  foldCommitIdx: -1,
   label: '',
 });
 
@@ -176,6 +187,7 @@ export function lensCursorFrom(
           totalSteps: positions.length,
           runtimeStageId: here.runtimeStageId,
           commitIdx: here.commitIdx,
+          foldCommitIdx: foldCommitIdxOf(here),
           label: here.label,
           ...(here.kind !== undefined ? { kind: here.kind } : {}),
         });

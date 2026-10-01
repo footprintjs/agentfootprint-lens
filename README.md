@@ -1159,7 +1159,35 @@ they settled — the reading's own `open` choice is still printed as filed),
 the values the library **derived from a reading**, each call's **source
 clock** zone, and the `period` row's result checks — **differs from asked**
 (against, the range compared, what was read, `missing`, `extra`), `shifted`
-by how much, and beyond retention.
+by how much, and beyond retention. Each call reads in the order it happened
+(0.71.0): **asked** → **sent** (the row's own `sent` on a widened fill; on
+every other dispatched call the row's `asked`, which the library's row
+defines as the sent range — `as asked`; a fill rounded outward says so and
+names no range the record did not keep) → **read** (the period the result
+declared, or `undeclared`) → the **difference** the `period` row filed.
+`sentOf(window)` and `readOf(call)` (`agentfootprint-lens/core`) are the same
+reading for a host's own view.
+
+**At a stop, hand it the record AT that stop.** A host that moves a cursor
+folds the record through the stop's `foldCommitIdx`, not its `commitIdx`
+(0.71.0): "Run · start" shares its commit index with the first stage but
+stands BEFORE it — on a resumed leg, before the paused call's stand-in bound
+the answer and dispatched — so it folds the base (`-1`):
+
+```ts
+import { contextAt, foldCursorOf } from 'agentfootprint-lens/core';
+
+const at = shared.forAxis('group').at;               // any LensCursor reading
+const ctx = contextAt(snapshot, foldCursorOf(at));   // NOT { commitIdx: at.commitIdx }
+const rows = ctx.keys.find((k) => k.path === 'findingsLedger')?.value;
+const coverage = ctx.keys.find((k) => k.path === 'coverageDeclared')?.value;
+<TimeView rows={rows} coverage={coverage} />
+```
+
+On a resumed leg the rows filed before the pause (the clock, the reading, the
+call's window waiting on the ask) are part of the leg's base — the state at
+the pause — and are in the record at every stop of it, "Run · start"
+included; what the leg itself files appears at the stop that filed it.
 
 **The law: never compute a reason.** The standing section lists a reason
 only when the assessment you pass names it; the ledger is read only to

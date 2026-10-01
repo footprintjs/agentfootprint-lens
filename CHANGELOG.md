@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed — the Time view at a stop, and each call's window asked → sent → read
+
+- **A stop folds the record it HELD** (`foldCommitIdxOf`, `foldCursorOf`,
+  `src/core/cursor/foldAt.ts`, on `agentfootprint-lens/core`;
+  `LensCursorReading.foldCommitIdx`). "Run · start" shares its commit index
+  with the first stage's stop — the root group opens at that commit — but
+  stands before it, so its fold is the base (`-1`), as footprintjs's own
+  `'start'` stop is. Every fold site of the lens read the position's
+  `commitIdx` inclusively, so on a RESUMED leg "Run · start" already showed
+  the paused call's stand-in at work — the person's answer bound, the call
+  filled and dispatched (found in a demo video: the cursor seemed not to
+  move the Time view). `<ContextView>`, `<ProofMap>`, `<ReasoningLens>`,
+  `<OntologyView>`, `<CoverageBand>` and the Served tab now fold through
+  `foldCursorOf(cursor.at)`; `<Lens>`'s Served anchor asks the same owner.
+  **A host folding the record itself passes `foldCursorOf(at)` to
+  `contextAt`, not `{ commitIdx: at.commitIdx }`** (README, "At a stop, hand
+  it the record AT that stop"). Pinned over a real paused-and-resumed run by
+  `test/time/timeAtStop.test.tsx`.
+- **Each call reads asked → sent → read, then the difference**
+  (`<TimeBand>`; `sentOf(window)`, `readOf(call)` in
+  `src/core/time/timeRows.ts`). The band printed a call's `asked` and
+  `person` windows and its `sent` only on a widened fill, and the declared
+  read last, under `queried`. Now: **sent** is the row's own `sent` on a
+  widened fill and, on every other dispatched call (`filled` exactly,
+  `bound`, `model-chosen`, `model`), the row's `asked` — which the library's
+  `CallWindowRow` defines as the sent range — marked `as asked`; a fill
+  `rounded` outward says so and names no range the record did not keep;
+  **read** is the result's declared period (queried, held, read at) or the
+  `period` row's `undeclared`; the `period` verdict and its `differs` follow.
+  Nothing is compared. New labels `sentAsAsked`, `sentRounded`; `data-testid`
+  `time-sent` / `time-read` with `data-as`. Pinned by
+  `test/time/timeCallPath.test.tsx`.
+
 ## [0.70.0] - 2026-10-01
 
 ### Added — the Time band at agentfootprint 9.132.0

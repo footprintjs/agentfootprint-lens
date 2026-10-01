@@ -114,4 +114,9 @@ export const LABELS = Object.freeze({
   'period-undeclared': 'result declared no period',
   'derived-from-reading': "time value spelled from the person's words",
   'argument-assumed': 'period filled from an assumed default',
+  // 0.71.0 — each call's window asked → sent → read: the sent range when the
+  // row's `asked` IS it (an exact fill, a bound or model window), and a fill
+  // whose bounds moved outward, whose sent range the record does not keep.
+  sentAsAsked: 'as asked',
+  sentRounded: 'asked, rounded outward',
 });

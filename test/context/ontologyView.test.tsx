@@ -19,6 +19,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
+import { foldCommitIdxOf } from '../../src/core/cursor/foldAt.js';
 import { contextAt } from '../../src/core/context/contextAt.js';
 import { lensCursorFrom } from '../../src/core/cursor/lensCursor.js';
 import { ContextView } from '../../src/react/components/ContextView.js';
@@ -278,7 +279,8 @@ describe('<OntologyView> laws', () => {
     let absent = 0;
     for (let step = 0; step < fixture.positions.length; step++) {
       const stop = fixture.positions[step]!;
-      const held = contextAt(fixture.snapshot, { runtimeStageId: stop.runtimeStageId, commitIdx: stop.commitIdx }, {}).keys.some(
+      // The record HELD at the stop — folded through `foldCommitIdxOf` (Run · start folds the base).
+      const held = contextAt(fixture.snapshot, { runtimeStageId: stop.runtimeStageId, commitIdx: foldCommitIdxOf(stop) }, {}).keys.some(
         (k) => k.path === 'ontology',
       );
       renderAt(fixture, step);

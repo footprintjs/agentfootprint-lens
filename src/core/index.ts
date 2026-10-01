@@ -147,6 +147,13 @@ export {
   type LensCursor,
   type LensCursorReading,
 } from "./cursor/lensCursor.js";
+// THE COMMIT A STOP FOLDS THROUGH (0.71.0) — one owner. A stop's `commitIdx`
+// is where it anchors; the record it HELD is folded through `foldCommitIdx`:
+// `-1` at "Run · start" (it shares the first stage's commit but stands before
+// it — on a resumed leg, before the paused call's stand-in ran), the stop's
+// own commit everywhere else. Every fold at a stop — `contextAt`, the Served
+// tab, a host's Time view — passes `foldCursorOf(cursor.at)`.
+export { foldCommitIdxOf, foldCursorOf } from "./cursor/foldAt.js";
 // ONE ADDRESS, EVERY AXIS (0.55.0) — a host that mounts several lenses holds
 // a `CursorAddress` on the record, and each lens derives its own step from it
 // (`stepForAddress`: the exact stage, else the stop that contains the commit,
@@ -378,10 +385,17 @@ export { snapshotOfRunner, snapshotLogKey } from "./utils/snapshotOfRunner.js";
 // call time — an older peer still links). Pure; no React. `TIME_LABELS` is
 // every string the time views print of their own.
 export { LABELS as TIME_LABELS } from './time/labels.js';
+// 0.71.0: `sentOf` / `readOf` — each call's window asked → sent → read in the
+// record's own words (the row's `asked` IS the sent range on every dispatched
+// call but a widened fill; the read is the declared period or `undeclared`).
 export {
   foldTimeRows,
   answerOfReading,
   spellMs,
+  sentOf,
+  readOf,
+  type CallSent,
+  type CallRead,
   type TimeFold,
   type TimeTurn,
   type TimeCall,

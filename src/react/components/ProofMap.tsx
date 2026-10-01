@@ -64,6 +64,7 @@ import React, { useMemo } from 'react';
 import { contextAt, type ContextAt } from '../../core/context/contextAt.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import { lensCursorFrom } from '../../core/cursor/lensCursor.js';
+import { foldCursorOf } from '../../core/cursor/foldAt.js';
 import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
 import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
@@ -575,8 +576,8 @@ export function ProofMap(props: ProofMapProps): React.ReactElement | null {
     (shared !== undefined ? shared.over(positions) : lensCursorFrom(positions, Math.max(0, positions.length - 1), noMove));
 
   const context = useMemo(
-    () => contextAt(snapshot, { runtimeStageId: cursor.at.runtimeStageId, commitIdx: cursor.at.commitIdx }, { events }),
-    [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, events],
+    () => contextAt(snapshot, foldCursorOf(cursor.at), { events }),
+    [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, cursor.at.foldCommitIdx, events],
   );
   const rows = arrayValue(context, 'findingsLedger');
   const fold = useMemo(() => {
