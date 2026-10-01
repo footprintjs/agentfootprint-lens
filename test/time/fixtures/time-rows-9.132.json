@@ -1,0 +1,1702 @@
+{
+  "generatedWith": "agentfootprint@9.132.0",
+  "controlWindow": {
+    "ledger": [
+      {
+        "kind": "clock",
+        "turn": 1,
+        "iteration": 1,
+        "now": "2026-10-09T15:40:00Z",
+        "nowSource": "app",
+        "zone": "America/Los_Angeles",
+        "zoneSource": "builder",
+        "window": {
+          "from": "2026-10-09T15:00:00Z",
+          "to": "2026-10-09T15:41:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "start_time",
+        "rule": "ask",
+        "period": true,
+        "source": "app",
+        "value": "1791558000000",
+        "appSource": "time.window"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "end_time",
+        "rule": "ask",
+        "period": true,
+        "source": "app",
+        "value": "1791560460000",
+        "appSource": "time.window"
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "how": "filled",
+        "form": 0,
+        "asked": {
+          "from": "2026-10-09T15:00:00Z",
+          "to": "2026-10-09T15:41:00Z"
+        },
+        "person": {
+          "from": "2026-10-09T15:00:00Z",
+          "to": "2026-10-09T15:41:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "dispatchedAt": "2026-10-09T15:40:05.000Z"
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "verdict": "covered",
+        "argument": "start_time"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c2",
+        "toolName": "client_activity",
+        "iteration": 2,
+        "argument": "start_time",
+        "rule": "ask",
+        "period": true,
+        "source": "app",
+        "value": "1791558000000",
+        "appSource": "time.window"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c2",
+        "toolName": "client_activity",
+        "iteration": 2,
+        "argument": "end_time",
+        "rule": "ask",
+        "period": true,
+        "source": "app",
+        "value": "1791560460000",
+        "appSource": "time.window"
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 2,
+        "toolCallId": "c2",
+        "toolName": "client_activity",
+        "how": "filled",
+        "form": 0,
+        "asked": {
+          "from": "2026-10-09T15:00:00Z",
+          "to": "2026-10-09T15:41:00Z"
+        },
+        "person": {
+          "from": "2026-10-09T15:00:00Z",
+          "to": "2026-10-09T15:41:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 2,
+        "toolCallId": "c2",
+        "toolName": "client_activity",
+        "dispatchedAt": "2026-10-09T15:40:05.000Z"
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c2",
+        "toolName": "client_activity",
+        "iteration": 2,
+        "verdict": "unknown",
+        "argument": "start_time"
+      }
+    ],
+    "coverage": [
+      {
+        "kind": "ledger",
+        "toolName": "client_activity",
+        "toolCallId": "c1",
+        "iteration": 1,
+        "checked": [],
+        "notChecked": [],
+        "cannotCover": [],
+        "period": {
+          "queried": {
+            "from": "2026-10-09T15:00:00Z",
+            "to": "2026-10-09T15:41:00Z"
+          },
+          "held": {
+            "from": "2026-10-09T15:00:00Z",
+            "to": "2026-10-09T15:41:00Z"
+          }
+        }
+      },
+      {
+        "kind": "ledger",
+        "toolName": "client_activity",
+        "toolCallId": "c2",
+        "iteration": 2,
+        "checked": [],
+        "notChecked": [],
+        "cannotCover": [],
+        "period": {
+          "queried": {
+            "from": "2026-10-09T15:00:00Z",
+            "to": "2026-10-09T15:41:00Z"
+          },
+          "held": "unknown"
+        }
+      }
+    ]
+  },
+  "widened": {
+    "ledger": [
+      {
+        "kind": "clock",
+        "turn": 1,
+        "iteration": 1,
+        "now": "2026-10-09T15:40:00Z",
+        "nowSource": "app",
+        "zone": "America/Los_Angeles",
+        "zoneSource": "builder"
+      },
+      {
+        "kind": "time-reading",
+        "turn": 1,
+        "iteration": 1,
+        "reader": {
+          "id": "fixture/rule",
+          "version": "1.0.0",
+          "kind": "rule",
+          "locale": "en-US"
+        },
+        "tzdata": "2025b",
+        "mentions": 1,
+        "mention": 0,
+        "quote": "yesterday",
+        "parses": [
+          {
+            "relative": {
+              "unit": "day",
+              "offset": -1
+            }
+          }
+        ],
+        "candidates": [
+          {
+            "window": {
+              "kind": "range",
+              "range": {
+                "from": "2026-10-08T00:00:00-07:00",
+                "to": "2026-10-09T00:00:00-07:00"
+              }
+            },
+            "range": {
+              "from": "2026-10-08T00:00:00-07:00",
+              "to": "2026-10-09T00:00:00-07:00"
+            },
+            "zone": "America/Los_Angeles",
+            "grain": "day",
+            "implied": [
+              "year",
+              "month",
+              "zone"
+            ],
+            "anchor": "message",
+            "notes": [
+              {
+                "kind": "end-of-grain"
+              }
+            ],
+            "reading": {},
+            "said": [],
+            "reader": {
+              "id": "fixture/rule",
+              "kind": "rule"
+            },
+            "parse": 0
+          }
+        ],
+        "choice": {
+          "by": "open",
+          "remaining": [
+            0
+          ],
+          "open": [
+            "confirm"
+          ]
+        }
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "search_logs",
+        "iteration": 1,
+        "argument": "window",
+        "rule": "assume",
+        "period": true,
+        "asked": "missing"
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "search_logs",
+        "how": "not-filled",
+        "why": "open-reading"
+      }
+    ],
+    "coverage": []
+  },
+  "drift": {
+    "ledger": [
+      {
+        "kind": "clock",
+        "turn": 1,
+        "iteration": 1,
+        "now": "2026-10-09T15:40:00Z",
+        "nowSource": "app",
+        "zone": "America/Los_Angeles",
+        "zoneSource": "builder",
+        "window": {
+          "from": "2026-10-09T14:40:00Z",
+          "to": "2026-10-09T15:40:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "window",
+        "rule": "assume",
+        "period": true,
+        "source": "app",
+        "value": "1h",
+        "appSource": "time.window"
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "how": "filled",
+        "form": 0,
+        "asked": {
+          "from": "2026-10-09T14:40:00Z",
+          "to": "2026-10-09T15:40:00Z"
+        },
+        "person": {
+          "from": "2026-10-09T14:40:00Z",
+          "to": "2026-10-09T15:40:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "dispatchedAt": "2026-10-09T16:10:00.000Z",
+        "drift": {
+          "byMs": 1800000,
+          "outcome": "redrawn",
+          "form": 1
+        }
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "verdict": "undeclared",
+        "argument": "window"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c2",
+        "toolName": "client_activity",
+        "iteration": 2,
+        "argument": "window",
+        "rule": "assume",
+        "period": true,
+        "source": "default",
+        "value": "1h",
+        "proposed": "1h"
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 2,
+        "toolCallId": "c2",
+        "toolName": "client_activity",
+        "how": "model-chosen",
+        "form": 0,
+        "asked": {
+          "from": "2026-10-09T14:40:00Z",
+          "to": "2026-10-09T15:40:00.001Z"
+        },
+        "person": {
+          "from": "2026-10-09T14:40:00Z",
+          "to": "2026-10-09T15:40:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 2,
+        "toolCallId": "c2",
+        "toolName": "client_activity",
+        "dispatchedAt": "2026-10-09T16:10:00.000Z",
+        "drift": {
+          "byMs": 1800000,
+          "outcome": "shifted"
+        }
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c2",
+        "toolName": "client_activity",
+        "iteration": 2,
+        "verdict": "undeclared",
+        "argument": "window",
+        "differs": {
+          "against": "person",
+          "asked": {
+            "from": "2026-10-09T14:40:00Z",
+            "to": "2026-10-09T15:40:00Z"
+          },
+          "read": [
+            {
+              "from": "2026-10-09T15:10:00Z",
+              "to": "2026-10-09T16:10:00.001Z"
+            }
+          ],
+          "source": "shifted",
+          "missing": [
+            {
+              "from": "2026-10-09T14:40:00Z",
+              "to": "2026-10-09T15:10:00Z"
+            }
+          ],
+          "extra": [
+            {
+              "from": "2026-10-09T15:40:00Z",
+              "to": "2026-10-09T16:10:00.001Z"
+            }
+          ]
+        },
+        "shifted": {
+          "byMs": 1800000
+        }
+      }
+    ],
+    "coverage": []
+  },
+  "refused": {
+    "ledger": [
+      {
+        "kind": "clock",
+        "turn": 1,
+        "iteration": 1,
+        "now": "2026-10-09T15:40:00Z",
+        "nowSource": "app",
+        "zone": "America/Los_Angeles",
+        "zoneSource": "builder",
+        "window": {
+          "from": "2026-10-10T15:00:00Z",
+          "to": "2026-10-10T15:41:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "how": "refused",
+        "refused": "time-future",
+        "asked": {
+          "from": "2026-10-10T15:00:00Z",
+          "to": "2026-10-10T15:41:00Z"
+        },
+        "person": {
+          "from": "2026-10-10T15:00:00Z",
+          "to": "2026-10-10T15:41:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "verdict": "undeclared",
+        "argument": "start_time"
+      }
+    ],
+    "coverage": []
+  },
+  "clockOnResume": {
+    "ledger": [
+      {
+        "kind": "clock",
+        "turn": 1,
+        "iteration": 1,
+        "now": "2026-10-09T15:40:00Z",
+        "nowSource": "app",
+        "zone": "America/Los_Angeles",
+        "zoneSource": "builder",
+        "window": {
+          "from": "2026-10-09T14:40:00Z",
+          "to": "2026-10-09T15:40:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "start_time",
+        "rule": "ask",
+        "period": true,
+        "source": "app",
+        "value": "1791556800000",
+        "appSource": "time.window"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "end_time",
+        "rule": "ask",
+        "period": true,
+        "source": "app",
+        "value": "1791560400000",
+        "appSource": "time.window"
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "how": "filled",
+        "form": 0,
+        "asked": {
+          "from": "2026-10-09T14:40:00Z",
+          "to": "2026-10-09T15:40:00Z"
+        },
+        "person": {
+          "from": "2026-10-09T14:40:00Z",
+          "to": "2026-10-09T15:40:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "clock-on-resume",
+        "turn": 1,
+        "iteration": 1,
+        "passed": {
+          "now": "2026-10-09T16:10:00Z",
+          "zone": "Europe/Paris"
+        },
+        "kept": {
+          "now": "2026-10-09T15:40:00Z",
+          "zone": "America/Los_Angeles",
+          "window": {
+            "from": "2026-10-09T14:40:00Z",
+            "to": "2026-10-09T15:40:00Z"
+          }
+        }
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "dispatchedAt": "2026-10-09T16:10:00.000Z"
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "verdict": "undeclared",
+        "argument": "start_time"
+      }
+    ],
+    "coverage": []
+  },
+  "openReading": {
+    "ledger": [
+      {
+        "kind": "clock",
+        "turn": 1,
+        "iteration": 1,
+        "now": "2026-10-09T15:40:00Z",
+        "nowSource": "app",
+        "zone": "America/Los_Angeles",
+        "zoneSource": "builder"
+      },
+      {
+        "kind": "time-reading",
+        "turn": 1,
+        "iteration": 1,
+        "reader": {
+          "id": "fixture/rule",
+          "version": "1.0.0",
+          "kind": "rule",
+          "locale": "en-US"
+        },
+        "tzdata": "2025b",
+        "mentions": 1,
+        "mention": 0,
+        "quote": "10/09/26 8 AM to 8:40 AM",
+        "parses": [
+          {
+            "date": {
+              "kind": "numeric",
+              "fields": [
+                10,
+                9,
+                26
+              ]
+            },
+            "rangeOf": [
+              {
+                "wall": {
+                  "h": 8,
+                  "meridiem": "am"
+                }
+              },
+              {
+                "wall": {
+                  "h": 8,
+                  "m": 40,
+                  "meridiem": "am"
+                }
+              }
+            ]
+          }
+        ],
+        "candidates": [
+          {
+            "window": {
+              "kind": "range",
+              "range": {
+                "from": "2026-10-09T08:00:00-07:00",
+                "to": "2026-10-09T08:41:00-07:00"
+              }
+            },
+            "range": {
+              "from": "2026-10-09T08:00:00-07:00",
+              "to": "2026-10-09T08:41:00-07:00"
+            },
+            "zone": "America/Los_Angeles",
+            "grain": "minute",
+            "implied": [
+              "zone"
+            ],
+            "anchor": "none",
+            "notes": [
+              {
+                "kind": "century-implied",
+                "century": 2000
+              },
+              {
+                "kind": "end-of-grain"
+              }
+            ],
+            "reading": {
+              "dateOrder": "MDY",
+              "year": "said"
+            },
+            "said": [],
+            "reader": {
+              "id": "fixture/rule",
+              "kind": "rule"
+            },
+            "parse": 0
+          },
+          {
+            "window": {
+              "kind": "range",
+              "range": {
+                "from": "2026-09-10T08:00:00-07:00",
+                "to": "2026-09-10T08:41:00-07:00"
+              }
+            },
+            "range": {
+              "from": "2026-09-10T08:00:00-07:00",
+              "to": "2026-09-10T08:41:00-07:00"
+            },
+            "zone": "America/Los_Angeles",
+            "grain": "minute",
+            "implied": [
+              "zone"
+            ],
+            "anchor": "none",
+            "notes": [
+              {
+                "kind": "century-implied",
+                "century": 2000
+              },
+              {
+                "kind": "end-of-grain"
+              }
+            ],
+            "reading": {
+              "dateOrder": "DMY",
+              "year": "said"
+            },
+            "said": [],
+            "reader": {
+              "id": "fixture/rule",
+              "kind": "rule"
+            },
+            "parse": 0
+          },
+          {
+            "window": {
+              "kind": "range",
+              "range": {
+                "from": "2010-09-26T08:00:00-07:00",
+                "to": "2010-09-26T08:41:00-07:00"
+              }
+            },
+            "range": {
+              "from": "2010-09-26T08:00:00-07:00",
+              "to": "2010-09-26T08:41:00-07:00"
+            },
+            "zone": "America/Los_Angeles",
+            "grain": "minute",
+            "implied": [
+              "zone"
+            ],
+            "anchor": "none",
+            "notes": [
+              {
+                "kind": "century-implied",
+                "century": 2000
+              },
+              {
+                "kind": "end-of-grain"
+              }
+            ],
+            "reading": {
+              "dateOrder": "YMD",
+              "year": "said"
+            },
+            "said": [],
+            "reader": {
+              "id": "fixture/rule",
+              "kind": "rule"
+            },
+            "parse": 0
+          }
+        ],
+        "choice": {
+          "by": "open",
+          "remaining": [
+            0,
+            1,
+            2
+          ],
+          "open": [
+            "date-order",
+            "confirm"
+          ]
+        }
+      }
+    ],
+    "coverage": []
+  },
+  "ask": {
+    "first": {
+      "id": "query-window",
+      "question": "Which window should the search cover?",
+      "fields": [
+        {
+          "id": "window",
+          "type": "string",
+          "description": "The window to search, from/to.",
+          "format": "time-range"
+        }
+      ],
+      "status": "awaiting_input",
+      "requestId": "run-1791560405000-8:c1",
+      "supplied": {},
+      "origins": {},
+      "missing": [
+        "window"
+      ],
+      "origin": {
+        "originalRequest": "errors this morning?",
+        "toolCallId": "c1"
+      }
+    },
+    "reasked": {
+      "id": "query-window",
+      "question": "Which window should the search cover?",
+      "fields": [
+        {
+          "id": "window",
+          "type": "string",
+          "description": "The window to search, from/to.",
+          "format": "time-range"
+        }
+      ],
+      "status": "awaiting_input",
+      "requestId": "run-1791560405000-8:c1",
+      "supplied": {},
+      "origins": {},
+      "missing": [
+        "window"
+      ],
+      "origin": {
+        "originalRequest": "errors this morning?",
+        "toolCallId": "c1"
+      },
+      "refused": {
+        "answer": {
+          "window": "2026-10-09T08:41-07:00/2026-10-09T08:00-07:00"
+        },
+        "reason": "The start 2026-10-09T08:41-07:00 is not before the end 2026-10-09T08:00-07:00."
+      },
+      "repeat": {
+        "count": 1
+      }
+    }
+  },
+  "axis": {
+    "meta": {
+      "ref": "art_NGR40ygfi6EcDmxwu1FI2K",
+      "kind": "dataset/rows",
+      "mediaType": "application/json",
+      "bytes": 165,
+      "createdAt": 1791560405000,
+      "label": "IOPS by hour",
+      "timeAxis": {
+        "column": "hour",
+        "unit": "iso",
+        "interval": "1h",
+        "aggregate": {
+          "read_iops": "avg"
+        }
+      }
+    },
+    "rows": [
+      {
+        "hour": "2026-10-09T14:00:00Z",
+        "read_iops": 120
+      },
+      {
+        "hour": "2026-10-09T15:00:00-07:00",
+        "read_iops": 180
+      },
+      {
+        "hour": "2026-10-09T16:00:00",
+        "read_iops": 90
+      },
+      {
+        "read_iops": 70
+      }
+    ]
+  },
+  "confirmed": {
+    "ledger": [
+      {
+        "kind": "clock",
+        "turn": 1,
+        "iteration": 1,
+        "now": "2026-10-09T15:40:00Z",
+        "nowSource": "app",
+        "zone": "America/Los_Angeles",
+        "zoneSource": "builder"
+      },
+      {
+        "kind": "time-reading",
+        "turn": 1,
+        "iteration": 1,
+        "reader": {
+          "id": "agentfootprint/english",
+          "version": "1.1.0",
+          "kind": "rule",
+          "locale": "en-US"
+        },
+        "tzdata": "2025b",
+        "mentions": 1,
+        "mention": 0,
+        "quote": "10/09/26 8 AM to 8:40 AM PST",
+        "parses": [
+          {
+            "date": {
+              "kind": "numeric",
+              "fields": [
+                10,
+                9,
+                26
+              ],
+              "yearDigits": 2
+            },
+            "zoneToken": "PST",
+            "rangeOf": [
+              {
+                "wall": {
+                  "h": 8,
+                  "meridiem": "am"
+                }
+              },
+              {
+                "wall": {
+                  "h": 8,
+                  "m": 40,
+                  "meridiem": "am"
+                }
+              }
+            ]
+          }
+        ],
+        "candidates": [],
+        "choice": {
+          "by": "open",
+          "remaining": [],
+          "open": [
+            "zone"
+          ]
+        }
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "start_time",
+        "rule": "ask",
+        "period": true,
+        "asked": "missing"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "end_time",
+        "rule": "ask",
+        "period": true,
+        "asked": "missing"
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "how": "not-filled",
+        "why": "open-reading"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "start_time",
+        "rule": "ask",
+        "period": true,
+        "source": "answered",
+        "value": "1791558000000"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "end_time",
+        "rule": "ask",
+        "period": true,
+        "source": "answered",
+        "value": "1791560460000"
+      },
+      {
+        "kind": "time-answer",
+        "turn": 1,
+        "iteration": 1,
+        "mention": 0,
+        "from": "2026-10-09T08:00:00-07:00",
+        "to": "2026-10-09T08:41:00-07:00",
+        "zone": "America/Los_Angeles",
+        "how": "confirmed"
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "how": "filled",
+        "form": 0,
+        "asked": {
+          "from": "2026-10-09T08:00:00-07:00",
+          "to": "2026-10-09T08:41:00-07:00"
+        },
+        "person": {
+          "from": "2026-10-09T08:00:00-07:00",
+          "to": "2026-10-09T08:41:00-07:00",
+          "source": "answered",
+          "mention": 0
+        }
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "dispatchedAt": "2026-10-09T15:40:05.000Z"
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "verdict": "undeclared",
+        "argument": "start_time"
+      },
+      {
+        "kind": "time-derived",
+        "turn": 1,
+        "iteration": 2,
+        "values": [
+          "15:00z",
+          "-07:00",
+          "08:41",
+          "1791558000000"
+        ]
+      }
+    ],
+    "coverage": [],
+    "assessment": {
+      "assessment": "unknown",
+      "standing": "not-sure",
+      "reasons": [
+        {
+          "reason": "period-undeclared",
+          "layer": 3,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/10/verdict"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/5/argument"
+            }
+          ]
+        },
+        {
+          "reason": "derived-from-reading",
+          "layer": 4,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/11/values"
+            }
+          ]
+        }
+      ],
+      "checked": [
+        {
+          "layer": 2,
+          "check": "argument-rules",
+          "ran": 2,
+          "of": 2,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/5/argument"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/6/argument"
+            }
+          ]
+        },
+        {
+          "layer": 3,
+          "check": "tool-coverage",
+          "ran": 0,
+          "of": 1,
+          "witness": []
+        },
+        {
+          "layer": 3,
+          "check": "result-shape",
+          "ran": 0,
+          "of": 1,
+          "witness": []
+        },
+        {
+          "layer": 3,
+          "check": "result-period",
+          "ran": 1,
+          "of": 1,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/10/verdict"
+            }
+          ]
+        }
+      ],
+      "turnFrom": "person"
+    }
+  },
+  "checks": {
+    "ledger": [
+      {
+        "kind": "clock",
+        "turn": 1,
+        "iteration": 1,
+        "now": "2026-10-09T15:40:00Z",
+        "nowSource": "app",
+        "zone": "America/Los_Angeles",
+        "zoneSource": "builder",
+        "window": {
+          "from": "2026-09-09T15:40:00.000Z",
+          "to": "2026-10-09T15:40:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "start_time",
+        "rule": "ask",
+        "period": true,
+        "source": "app",
+        "value": "1788968400000",
+        "appSource": "time.window"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "end_time",
+        "rule": "ask",
+        "period": true,
+        "source": "app",
+        "value": "1791560400000",
+        "appSource": "time.window"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c3",
+        "toolName": "recent_activity",
+        "iteration": 1,
+        "argument": "start_time",
+        "rule": "ask",
+        "period": true,
+        "source": "model",
+        "value": "1788882000000"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c3",
+        "toolName": "recent_activity",
+        "iteration": 1,
+        "argument": "end_time",
+        "rule": "ask",
+        "period": true,
+        "source": "model",
+        "value": "1789054800000"
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "how": "filled",
+        "form": 0,
+        "asked": {
+          "from": "2026-09-09T15:40:00.000Z",
+          "to": "2026-10-09T15:40:00Z"
+        },
+        "person": {
+          "from": "2026-09-09T15:40:00.000Z",
+          "to": "2026-10-09T15:40:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c2",
+        "toolName": "archive_activity",
+        "how": "refused",
+        "refused": "beyond-retention",
+        "form": 0,
+        "asked": {
+          "from": "2026-08-30T15:40:00Z",
+          "to": "2026-09-04T15:40:00Z"
+        },
+        "person": {
+          "from": "2026-09-09T15:40:00.000Z",
+          "to": "2026-10-09T15:40:00Z",
+          "source": "control"
+        }
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c3",
+        "toolName": "recent_activity",
+        "how": "model-chosen",
+        "form": 0,
+        "asked": {
+          "from": "2026-09-08T15:40:00Z",
+          "to": "2026-09-10T15:40:00Z"
+        },
+        "person": {
+          "from": "2026-09-09T15:40:00.000Z",
+          "to": "2026-10-09T15:40:00Z",
+          "source": "control"
+        },
+        "partlyBeyondRetention": true
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "dispatchedAt": "2026-10-09T15:40:05.000Z"
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c3",
+        "toolName": "recent_activity",
+        "dispatchedAt": "2026-10-09T15:40:05.000Z"
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c4",
+        "toolName": "packet_records",
+        "dispatchedAt": "2026-10-09T15:40:05.000Z"
+      },
+      {
+        "kind": "source-clock",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c4",
+        "toolName": "packet_records",
+        "zone": "America/Los_Angeles"
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "verdict": "covered",
+        "argument": "start_time",
+        "differs": {
+          "against": "asked",
+          "asked": {
+            "from": "2026-09-09T15:40:00.000Z",
+            "to": "2026-10-09T15:40:00Z"
+          },
+          "read": [
+            {
+              "from": "2026-10-02T15:40:00.000Z",
+              "to": "2026-10-09T15:40:00Z"
+            }
+          ],
+          "source": "declared",
+          "stepMs": 1,
+          "missing": [
+            {
+              "from": "2026-09-09T15:40:00Z",
+              "to": "2026-10-02T15:40:00Z"
+            }
+          ],
+          "extra": []
+        }
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c2",
+        "toolName": "archive_activity",
+        "iteration": 1,
+        "verdict": "undeclared",
+        "argument": "start_time",
+        "beyondRetention": true
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c3",
+        "toolName": "recent_activity",
+        "iteration": 1,
+        "verdict": "undeclared",
+        "argument": "start_time",
+        "differs": {
+          "against": "person",
+          "asked": {
+            "from": "2026-09-09T15:40:00.000Z",
+            "to": "2026-10-09T15:40:00Z"
+          },
+          "read": [
+            {
+              "from": "2026-09-08T15:40:00Z",
+              "to": "2026-09-10T15:40:00Z"
+            }
+          ],
+          "source": "asked",
+          "missing": [
+            {
+              "from": "2026-09-10T15:40:00Z",
+              "to": "2026-10-09T15:40:00Z"
+            }
+          ],
+          "extra": [
+            {
+              "from": "2026-09-08T15:40:00Z",
+              "to": "2026-09-09T15:40:00Z"
+            }
+          ]
+        },
+        "partlyBeyondRetention": true
+      }
+    ],
+    "coverage": [
+      {
+        "kind": "ledger",
+        "toolName": "client_activity",
+        "toolCallId": "c1",
+        "iteration": 1,
+        "checked": [],
+        "notChecked": [],
+        "cannotCover": [],
+        "period": {
+          "queried": {
+            "from": "2026-10-02T15:40:00.000Z",
+            "to": "2026-10-09T15:39:59.999Z"
+          },
+          "held": {
+            "from": "2026-07-11T15:40:00.000Z",
+            "to": "2026-10-09T15:40:00Z"
+          }
+        }
+      }
+    ],
+    "assessment": {
+      "assessment": "unknown",
+      "standing": "not-sure",
+      "reasons": [
+        {
+          "reason": "argument-unverified",
+          "layer": 2,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/3/argument"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/4/argument"
+            }
+          ]
+        },
+        {
+          "reason": "period-undeclared",
+          "layer": 3,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/13/verdict"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/14/verdict"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/3/argument"
+            }
+          ]
+        },
+        {
+          "reason": "period-differs-from-asked",
+          "layer": 3,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/12/differs"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/1/argument"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/14/differs"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/3/argument"
+            }
+          ]
+        },
+        {
+          "reason": "period-beyond-retention",
+          "layer": 3,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/13/beyondRetention"
+            }
+          ]
+        }
+      ],
+      "checked": [
+        {
+          "layer": 2,
+          "check": "argument-rules",
+          "ran": 4,
+          "of": 4,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/1/argument"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/2/argument"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/3/argument"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/4/argument"
+            }
+          ]
+        },
+        {
+          "layer": 3,
+          "check": "tool-coverage",
+          "ran": 1,
+          "of": 4,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "coverageDeclared",
+              "path": "/0/kind"
+            }
+          ]
+        },
+        {
+          "layer": 3,
+          "check": "result-shape",
+          "ran": 0,
+          "of": 4,
+          "witness": []
+        },
+        {
+          "layer": 3,
+          "check": "result-period",
+          "ran": 3,
+          "of": 3,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/12/verdict"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/13/verdict"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/14/verdict"
+            }
+          ]
+        }
+      ],
+      "turnFrom": "person"
+    }
+  },
+  "shifted": {
+    "ledger": [
+      {
+        "kind": "clock",
+        "turn": 1,
+        "iteration": 1,
+        "now": "2026-10-09T15:40:00Z",
+        "nowSource": "app",
+        "zone": "America/Los_Angeles",
+        "zoneSource": "builder"
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "argument": "window",
+        "rule": "assume",
+        "period": true,
+        "source": "default",
+        "value": "1h",
+        "proposed": "1h"
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "how": "model",
+        "form": 0,
+        "asked": {
+          "from": "2026-10-09T14:40:00Z",
+          "to": "2026-10-09T15:40:00.001Z"
+        }
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "dispatchedAt": "2026-10-09T16:10:00.000Z",
+        "drift": {
+          "byMs": 1800000,
+          "outcome": "shifted"
+        }
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "client_activity",
+        "iteration": 1,
+        "verdict": "undeclared",
+        "argument": "window",
+        "differs": {
+          "against": "asked",
+          "asked": {
+            "from": "2026-10-09T14:40:00Z",
+            "to": "2026-10-09T15:40:00.001Z"
+          },
+          "read": [
+            {
+              "from": "2026-10-09T15:10:00Z",
+              "to": "2026-10-09T16:10:00.001Z"
+            }
+          ],
+          "source": "shifted",
+          "missing": [
+            {
+              "from": "2026-10-09T14:40:00Z",
+              "to": "2026-10-09T15:10:00Z"
+            }
+          ],
+          "extra": [
+            {
+              "from": "2026-10-09T15:40:00.001Z",
+              "to": "2026-10-09T16:10:00.001Z"
+            }
+          ]
+        },
+        "shifted": {
+          "byMs": 1800000
+        }
+      }
+    ],
+    "coverage": [],
+    "assessment": {
+      "assessment": "unknown",
+      "standing": "not-sure",
+      "reasons": [
+        {
+          "reason": "argument-assumed",
+          "layer": 2,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/1/argument"
+            }
+          ]
+        },
+        {
+          "reason": "period-undeclared",
+          "layer": 3,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/4/verdict"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/1/argument"
+            }
+          ]
+        },
+        {
+          "reason": "period-differs-from-asked",
+          "layer": 3,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/4/differs"
+            },
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/1/argument"
+            }
+          ]
+        }
+      ],
+      "checked": [
+        {
+          "layer": 2,
+          "check": "argument-rules",
+          "ran": 1,
+          "of": 1,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/1/argument"
+            }
+          ]
+        },
+        {
+          "layer": 3,
+          "check": "tool-coverage",
+          "ran": 0,
+          "of": 1,
+          "witness": []
+        },
+        {
+          "layer": 3,
+          "check": "result-shape",
+          "ran": 0,
+          "of": 1,
+          "witness": []
+        },
+        {
+          "layer": 3,
+          "check": "result-period",
+          "ran": 1,
+          "of": 1,
+          "witness": [
+            {
+              "kind": "state",
+              "key": "findingsLedger",
+              "path": "/4/verdict"
+            }
+          ]
+        }
+      ],
+      "turnFrom": "person"
+    }
+  }
+}

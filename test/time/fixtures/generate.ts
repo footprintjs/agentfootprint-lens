@@ -30,6 +30,32 @@
  *   axis             a dataset minted with a declared time axis, one value
  *                    with no offset (the library counts it: clock unknown)
  *
+ * Added for agentfootprint 9.132.0 (each also freezes `agent.assessment()`,
+ * the answer's standing the library folded):
+ *
+ *   confirmed        the careful English reader reads "10/09/26 8 AM to 8:40
+ *                    AM PST"; the person answers the zone, then CONFIRMS the
+ *                    first reading in the time ask (a `time-answer` row
+ *                    beside the still-`open` `time-reading` row); the answer
+ *                    spells values the library derived from the reading (a
+ *                    `time-derived` row, `derived-from-reading`)
+ *   checks           the result checks: a tool clamping 30 days to 7
+ *                    (`differs` with `missing`), a window wholly older than
+ *                    the source keeps (`beyondRetention`), one half inside
+ *                    it (`partlyBeyondRetention`), and a dataset whose axis
+ *                    declares a zone (a `source-clock` row)
+ *   shifted          the model's own look-back (the tool's assumed default)
+ *                    after a 30-minute check-in pause: `shifted` and
+ *                    `differs` with both `missing` and `extra`
+ *
+ * WHERE IT WRITES. Since agentfootprint 9.132.0 the generator writes
+ * `time-rows-9.132.json` (every scenario above, under the installed library).
+ * `time-rows.json` and `time-recording.json` are the agentfootprint 9.129.0
+ * record, kept as they were filed: the lens must still read what an older
+ * peer filed — a reading settled `only` by the reader, which 9.132.0 never
+ * files (every reading is now a proposal, `open` until the person answers).
+ * `--recording` rewrites `time-recording.json` from the control-window run.
+ *
  *   npm run fixtures:time
  */
 import { writeFileSync } from 'node:fs';
@@ -41,7 +67,9 @@ import {
   checkInApproved,
   defineTool,
   describedResult,
+  englishTimeReader,
   inMemoryArtifacts,
+  isInputPause,
   isPaused,
   requestInput,
   type TimeReader,
@@ -63,6 +91,8 @@ const LA = 'America/Los_Angeles';
 const LAST_HOUR = { from: '2026-10-09T14:40:00Z', to: NOW };
 const MORNING = { from: '2026-10-09T15:00:00Z', to: '2026-10-09T15:41:00Z' };
 const TOMORROW = { from: '2026-10-10T15:00:00Z', to: '2026-10-10T15:41:00Z' };
+const DAY = 86_400_000;
+const iso = (ms: number) => new Date(ms).toISOString();
 
 // ─── The harness ─────────────────────────────────────────────────────────
 
@@ -90,9 +120,15 @@ function build(
   script: readonly Reply[],
   tools: readonly Tool[],
   arm: (b: ReturnType<typeof Agent.create>) => ReturnType<typeof Agent.create>,
+  withStore = false,
 ) {
   return arm(
-    Agent.create({ provider: scripted(script) as never, model: 'mock', maxIterations: 6 }).tools(tools),
+    Agent.create({
+      provider: scripted(script) as never,
+      model: 'mock',
+      maxIterations: 6,
+      ...(withStore && { artifacts: { store: inMemoryArtifacts() } }),
+    }).tools(tools),
   ).build();
 }
 
@@ -109,11 +145,18 @@ function frozen(agent: { findings(): unknown; getSnapshot(): unknown }) {
 
 /** Two epoch-ms bounds (an absolute form), optionally a look-back first; declares what it read. */
 function epochTool(
-  opts: { facts?: Record<string, unknown>; withLookback?: boolean; checkIn?: boolean; held?: 'asked' | 'unknown' } = {},
+  opts: {
+    facts?: Record<string, unknown>;
+    withLookback?: boolean;
+    checkIn?: boolean;
+    held?: 'asked' | 'unknown';
+    name?: string;
+    declare?: () => unknown;
+  } = {},
 ) {
-  const { facts = {}, withLookback = false, checkIn = false, held } = opts;
+  const { facts = {}, withLookback = false, checkIn = false, held, name = 'client_activity', declare } = opts;
   return defineTool({
-    name: 'client_activity',
+    name,
     ...(checkIn && { checkIn: 'always' as const }),
     description: 'Client operations over a window.',
     inputSchema: {
@@ -142,6 +185,13 @@ function epochTool(
       ...facts,
     } as never,
     execute: (args, ctx: ToolExecutionContext) => {
+      if (declare !== undefined) {
+        return describedResult({
+          facts: [{ entity: 'client', ops: 42 }],
+          provenance: { measuredAt: NOW, source: 'activity export' },
+          period: declare() as never,
+        });
+      }
       const asked = ctx.time?.asked;
       if (held === undefined || asked === undefined) return '{"ops":42}';
       const queried = { from: asked.from, to: asked.to };
@@ -201,6 +251,34 @@ const rangeReader = fixtureReader((text) =>
     : { mentions: [] },
 );
 
+/** A tool that mints one dataset whose time axis declares `zone` — a wall-clock source. */
+function datasetTool(name: string, zone: string) {
+  return defineTool({
+    name,
+    description: 'Rows over a window.',
+    inputSchema: { type: 'object', properties: {} },
+    execute: async (_args, ctx: ToolExecutionContext) => {
+      await ctx.artifacts.put({
+        kind: 'dataset/rows',
+        mediaType: 'application/json',
+        data: [{ at: '2026-10-09T08:00:00', n: 1 }],
+        timeAxis: { column: 'at', unit: 'iso', zone },
+      });
+      return 'rows';
+    },
+  });
+}
+
+/** What the lens reads, plus the answer's standing the library folded (`agent.assessment()`). */
+async function frozenWithStanding(agent: {
+  findings(): unknown;
+  getSnapshot(): unknown;
+  assessment(): Promise<unknown>;
+}) {
+  const assessment = JSON.parse(JSON.stringify((await agent.assessment()) ?? null)) as unknown;
+  return { ...frozen(agent), assessment };
+}
+
 // ─── The scenarios ───────────────────────────────────────────────────────
 
 async function controlWindow() {
@@ -214,7 +292,9 @@ async function controlWindow() {
   await agent.run({ message: 'activity this morning', time: { now: NOW, window: MORNING } });
   // The same run as a recording, for the ContextView test: the band mounted
   // by the view off the fold at the cursor, not handed the rows.
-  writeFileSync(join(here, 'time-recording.json'), JSON.stringify(rec.toRecording()));
+  if (process.argv.includes('--recording')) {
+    writeFileSync(join(here, 'time-recording.json'), JSON.stringify(rec.toRecording()));
+  }
   rec.stop();
   return frozen(agent);
 }
@@ -333,8 +413,101 @@ async function axis() {
   return JSON.parse(JSON.stringify({ meta, rows })) as Record<string, unknown>;
 }
 
+async function confirmed() {
+  wall = NOW_MS + 5_000;
+  const agent = build(
+    [
+      call('c1', 'client_activity', {}),
+      answer('From 15:00Z (-07:00) to 08:41, start_time 1791558000000: 42 operations.'),
+    ],
+    [epochTool()],
+    (b) => b.namesAndNumbersFromEvidence({ posture: 'assist' }).time({ zone: LA, reader: englishTimeReader() }),
+  );
+  const warn = console.warn;
+  console.warn = () => undefined;
+  try {
+    const first = await agent.run({
+      message: 'Show client activity 10/09/26 8 AM to 8:40 AM PST',
+      time: { now: NOW },
+    });
+    if (!isInputPause(first)) throw new Error('confirmed: expected the zone ask');
+    const zoneAsked = first as unknown as { checkpoint: never; awaitingInput: { requestId: string } };
+    const second = await agent.resume(zoneAsked.checkpoint, {
+      requestId: zoneAsked.awaitingInput.requestId,
+      values: { f1: LA },
+    });
+    if (!isInputPause(second)) throw new Error('confirmed: expected the reading ask');
+    const readingAsked = second as unknown as {
+      checkpoint: never;
+      awaitingInput: { requestId: string; fields: { enum?: string[] }[] };
+    };
+    const done = await agent.resume(readingAsked.checkpoint, {
+      requestId: readingAsked.awaitingInput.requestId,
+      values: { f1: readingAsked.awaitingInput.fields[0]!.enum![0]! },
+    });
+    if (isInputPause(done)) throw new Error('confirmed: expected the answer');
+  } finally {
+    console.warn = warn;
+  }
+  return frozenWithStanding(agent);
+}
+
+async function checks() {
+  wall = NOW_MS + 5_000;
+  const clamp = () => ({
+    queried: { from: iso(NOW_MS - 7 * DAY), to: iso(NOW_MS - 1) },
+    held: { from: iso(NOW_MS - 90 * DAY), to: NOW },
+  });
+  const agent = build(
+    [
+      {
+        content: '',
+        toolCalls: [
+          { id: 'c1', name: 'client_activity', args: {} },
+          {
+            id: 'c2',
+            name: 'archive_activity',
+            args: { start_time: NOW_MS - 40 * DAY, end_time: NOW_MS - 35 * DAY },
+          },
+          {
+            id: 'c3',
+            name: 'recent_activity',
+            args: { start_time: NOW_MS - 31 * DAY, end_time: NOW_MS - 29 * DAY },
+          },
+          { id: 'c4', name: 'packet_records', args: {} },
+        ],
+      },
+      answer('42 operations.'),
+    ],
+    [
+      epochTool({ declare: clamp }),
+      epochTool({ name: 'archive_activity', facts: { retention: '30d' } }),
+      epochTool({ name: 'recent_activity', facts: { retention: '30d' } }),
+      datasetTool('packet_records', LA),
+    ],
+    (b) => b.time({ zone: LA }),
+    true,
+  );
+  await agent.run({ message: 'activity', time: { now: NOW, window: { from: iso(NOW_MS - 30 * DAY), to: NOW } } });
+  return frozenWithStanding(agent);
+}
+
+async function shifted() {
+  wall = NOW_MS + 5_000;
+  const agent = build(
+    [call('c1', 'client_activity', { window: '1h' }), answer('No activity in the last hour.')],
+    [epochTool({ withLookback: true, checkIn: true })],
+    (b) => b.time({ zone: LA }),
+  );
+  const paused = await agent.run({ message: 'activity in the last hour', time: { now: NOW } });
+  if (!isPaused(paused)) throw new Error('shifted: expected a check-in pause');
+  wall = NOW_MS + 30 * 60_000;
+  await agent.resume(JSON.parse(JSON.stringify(paused.checkpoint)), checkInApproved({ by: 'ops' }));
+  return frozenWithStanding(agent);
+}
+
 const out = {
-  generatedWith: 'agentfootprint@9.129.0',
+  generatedWith: 'agentfootprint@9.132.0',
   controlWindow: await controlWindow(),
   widened: await widened(),
   drift: await drift(),
@@ -343,6 +516,9 @@ const out = {
   openReading: await openReading(),
   ask: await ask(),
   axis: await axis(),
+  confirmed: await confirmed(),
+  checks: await checks(),
+  shifted: await shifted(),
 };
-writeFileSync(join(here, 'time-rows.json'), `${JSON.stringify(out, null, 2)}\n`);
-console.log('wrote time-rows.json');
+writeFileSync(join(here, 'time-rows-9.132.json'), `${JSON.stringify(out, null, 2)}\n`);
+console.log('wrote time-rows-9.132.json');

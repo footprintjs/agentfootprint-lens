@@ -12,6 +12,11 @@
  * `widened` ("wider than asked") on a fill that reads more than was asked,
  * and `clockUnknown` ("clock unknown") on a value, a tz database or a held
  * range whose clock the record does not know.
+ *
+ * The time-reason lines (keyed by the reason's own name, e.g.
+ * `period-differs-from-asked`) are LABELS for a reason the library filed —
+ * the view prints one only beside the library's reason, never in its place
+ * and never for a reason the library did not file.
  */
 export const LABELS = Object.freeze({
   band: 'time',
@@ -86,4 +91,27 @@ export const LABELS = Object.freeze({
   placed: 'placed',
   dstGap: 'dst gap',
   unreadable: 'unreadable',
+  // 0.70.0 — agentfootprint 9.132.0's rows and the period row's result checks.
+  answered: 'settled by the person',
+  derived: 'derived from reading',
+  sourceClock: 'source clock',
+  differs: 'differs from asked',
+  against: 'against',
+  read: 'read',
+  step: 'step',
+  shifted: 'shifted',
+  beyondRetention: 'beyond retention',
+  // 0.70.0 — the answer's time standing (`<TimeView>`): the record's own
+  // standing word beside these, and one plain line per time reason the
+  // library filed, keyed by the reason's own name.
+  standing: 'answer standing',
+  timeReasons: 'time reasons',
+  'period-differs-from-asked': 'read differs from the window asked',
+  'period-beyond-retention': 'window older than the source keeps',
+  'period-not-held': 'source holds none of the period',
+  'period-partly-held': 'source holds part of the period',
+  'period-unknown': 'held period unknown to the source',
+  'period-undeclared': 'result declared no period',
+  'derived-from-reading': "time value spelled from the person's words",
+  'argument-assumed': 'period filled from an assumed default',
 });

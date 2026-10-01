@@ -380,6 +380,7 @@ export { snapshotOfRunner, snapshotLogKey } from "./utils/snapshotOfRunner.js";
 export { LABELS as TIME_LABELS } from './time/labels.js';
 export {
   foldTimeRows,
+  answerOfReading,
   spellMs,
   type TimeFold,
   type TimeTurn,
@@ -387,6 +388,17 @@ export {
   type PeriodRowShape,
   type DeclaredPeriodShape,
 } from './time/timeRows.js';
+// 0.70.0 (agentfootprint 9.132.0): the answer's time standing — only the
+// time reasons the library's assessment names, each with the calls its
+// witnesses resolve to on the ledger. Never a reason of the lens's own.
+export {
+  timeStandingOf,
+  TIME_REASONS,
+  type TimeStanding,
+  type TimeReason,
+  type TimeReasonItem,
+  type TimeReasonCall,
+} from './time/timeStanding.js';
 export { timeAskOf, type TimeAsk, type TimeAskField } from './time/timeAsk.js';
 export {
   datasetTimeAxisOf,
@@ -406,4 +418,8 @@ export type {
   TimeReadingRowShape,
   TimeCandidateShape,
   ReadingChoiceShape,
+  TimeAnswerRowShape,
+  TimeDerivedRowShape,
+  SourceClockRowShape,
+  PeriodDiffersShape,
 } from './time/shapes.js';

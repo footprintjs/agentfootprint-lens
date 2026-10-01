@@ -1128,12 +1128,54 @@ grain, and how many values have no known clock.
   no band, never an empty one. A row prints no field it does not carry.
 - **Never infer.** Nothing here compares two instants. `wider than asked`
   renders only on a row that carries `differs`; a drift only on a call row
-  that carries `drift`; `clock unknown` only where the record says `unknown`.
+  that carries `drift`; `clock unknown` only where the record says `unknown`;
+  a result check only where the `period` row carries it; `settled by the
+  person` only where a `time-answer` row of the turn names the mention.
 - **No sentence of its own.** Every printed string is a value off the record
   or a `TIME_LABELS` entry; the one sentence it shows — an ask's refusal
   reason — is the library's, printed as data.
 
-Headless: `foldTimeRows(ledger, coverage?)`, `timeAskOf(pause)`,
+### One tab: `<TimeView>` (agentfootprint 9.132.0)
+
+```tsx
+import { TimeView } from 'agentfootprint-lens';   // also on 'agentfootprint-lens/context'
+
+<TimeView
+  rows={agent.findings()}                  // the ledger: time rows + period rows
+  coverage={state.coverageDeclared}        // optional — each call's declared period
+  ask={pause}                              // optional — a paused ask with a time field
+  assessment={await agent.assessment()}    // optional — the library's standing
+/>
+```
+
+It draws, in one view: the **time reasons** the library filed on the answer
+(`period-differs-from-asked`, `period-beyond-retention`, `period-not-held`,
+`period-partly-held`, `period-unknown`, `period-undeclared`,
+`derived-from-reading`, and `argument-assumed` when its witness is a period
+argument), each with a plain line and the calls it names; the **time ask**;
+and the **band**. Since 9.132.0 the band also shows the person's **answer**
+to a reading (`settled by the person` · `confirmed` / `edited` · the window
+they settled — the reading's own `open` choice is still printed as filed),
+the values the library **derived from a reading**, each call's **source
+clock** zone, and the `period` row's result checks — **differs from asked**
+(against, the range compared, what was read, `missing`, `extra`), `shifted`
+by how much, and beyond retention.
+
+**The law: never compute a reason.** The standing section lists a reason
+only when the assessment you pass names it; the ledger is read only to
+resolve the library's own witness pointers to the calls they name. A period
+row that carries `differs` with no assessment passed shows the check in the
+band and no reason above it:
+
+```ts
+timeStandingOf(undefined, ledger);                    // undefined — nothing filed, nothing listed
+timeStandingOf(await agent.assessment(), ledger);
+// { standing: 'not-sure', reasons: [{ reason: 'period-differs-from-asked',
+//   calls: [{ toolCallId: 'c1', toolName: 'client_activity' }] }, …] }
+```
+
+Headless: `foldTimeRows(ledger, coverage?)`, `answerOfReading(turn, reading)`,
+`timeStandingOf(assessment, ledger?)`, `timeAskOf(pause)`,
 `datasetTimeAxisOf(meta, rows?)`.
 
 ## The Served tab

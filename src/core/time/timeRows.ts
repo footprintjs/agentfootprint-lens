@@ -1,18 +1,26 @@
 /**
  * foldTimeRows — the time layer's rows on the honesty ledger, grouped for
- * reading (agentfootprint 9.129.0, time design § 10.6; the row shapes are
- * `core/time/rows.ts` · `TimeRow` and `coverage/period.ts` · `PeriodRow`).
+ * reading (agentfootprint 9.129.0 and 9.132.0, time design § 10.6; the row
+ * shapes are `core/time/rows.ts` · `TimeRow` and `coverage/period.ts` ·
+ * `PeriodRow`).
  *
- * WHY. An armed agent (`.time()`) files five row kinds on
+ * WHY. An armed agent (`.time()`) files eight row kinds on
  * `AgentState.findingsLedger` beside the findings rows: one `clock` per turn,
  * a `clock-on-resume` when a resume passed a different `time`, a
- * `time-reading` per mention the reader found, a `call-window` per call to a
- * tool that declares period forms, and a `call` per dispatched call. The
- * results layer files a `period` verdict per call whose tool declares a
- * period. Read raw, one call's story is spread over three rows; this fold
- * joins them by `toolCallId` under their turn, and joins the call's own
- * declared period (`coverageDeclared` · `period`) beside the verdict, so the
- * reader sees asked → sent → covered in one place.
+ * `time-reading` per mention the reader found, a `time-answer` per mention
+ * the person settled in the time ask, a `call-window` per call to a tool that
+ * declares period forms, a `call` per dispatched call, a `source-clock` per
+ * call and zone whose dataset declares a wall-clock zone, and a
+ * `time-derived` per judged answer that states values the library spelled
+ * from a reading. The results layer files a `period` verdict per call whose
+ * tool declares a period — under `.time()` with its result checks
+ * (`differs`, `shifted`, `beyondRetention`, `partlyBeyondRetention`). Read
+ * raw, one call's story is spread over four rows; this fold joins them by
+ * `toolCallId` under their turn, and joins the call's own declared period
+ * (`coverageDeclared` · `period`) beside the verdict, so the reader sees
+ * asked → sent → covered in one place. A `time-answer` is joined to its
+ * reading by `mention` within the turn (`answerOfReading` — the LATEST answer
+ * for the mention, the one the library binds).
  *
  * THE LAWS THIS FILE KEEPS:
  *
@@ -35,11 +43,21 @@ import type {
   CallWindowRowShape as CallWindowRow,
   ClockOnResumeRowShape as ClockOnResumeRow,
   ClockRowShape as ClockRow,
+  PeriodDiffersShape,
+  SourceClockRowShape as SourceClockRow,
+  TimeAnswerRowShape as TimeAnswerRow,
+  TimeDerivedRowShape as TimeDerivedRow,
   TimeReadingRowShape as TimeReadingRow,
   TimeRangeShape as TimeRange,
 } from './shapes.js';
 
-/** A period verdict row, as read (the library does not export the type from its root). */
+/**
+ * A period verdict row, as read — a mirror of the library's `PeriodRow`
+ * (`test/time/shapes.types.test.ts` pins it). The four check fields are the
+ * time layer's result checks (agentfootprint 9.132.0), filed only under
+ * `.time()` and only when they hold; each is printed only where the row
+ * carries it.
+ */
 export interface PeriodRowShape {
   readonly kind: 'period';
   readonly turn: number;
@@ -48,6 +66,14 @@ export interface PeriodRowShape {
   readonly iteration: number;
   readonly verdict: string;
   readonly argument?: string;
+  /** `period-differs-from-asked` — what the call read is not the range compared against. */
+  readonly differs?: PeriodDiffersShape;
+  /** `period-shifted` — the look-back ran as sent, `byMs` after the turn's `now`. */
+  readonly shifted?: { readonly byMs: number };
+  /** `period-beyond-retention` — wholly older than the tool declares its source keeps. */
+  readonly beyondRetention?: true;
+  /** The read crosses the edge of what the source keeps; the verdict decides. */
+  readonly partlyBeyondRetention?: true;
 }
 
 /** What a result declared its read covered (`DeclaredPeriod`), as read. */
@@ -67,6 +93,8 @@ export interface TimeCall {
   readonly period?: PeriodRowShape;
   /** The period the call's result declared (`coverageDeclared` · `period`), joined by `toolCallId`. */
   readonly declared?: DeclaredPeriodShape;
+  /** The wall-clock zones the call's datasets declare (`source-clock`, one per zone) — 9.132.0. */
+  readonly sourceClocks?: readonly SourceClockRow[];
 }
 
 /** One turn's time rows, in the order the ledger holds them. */
@@ -76,6 +104,10 @@ export interface TimeTurn {
   readonly resumes: readonly ClockOnResumeRow[];
   readonly readings: readonly TimeReadingRow[];
   readonly calls: readonly TimeCall[];
+  /** The windows the person settled in the time ask, in ledger order (9.132.0). */
+  readonly answers: readonly TimeAnswerRow[];
+  /** The answer values the library spelled from a reading of this turn (9.132.0). */
+  readonly derived: readonly TimeDerivedRow[];
 }
 
 export interface TimeFold {
@@ -128,8 +160,58 @@ function dispatchOf(r: Rec): CallRow | undefined {
   return callIdentity(r) && isStr(r.dispatchedAt) ? (r as unknown as CallRow) : undefined;
 }
 
+const isRanges = (v: unknown): v is readonly TimeRange[] => Array.isArray(v) && v.every(isRangeShape);
+
+/** A period row's `differs`, when every field fits; otherwise the field is passed over. */
+function differsOf(v: unknown): PeriodDiffersShape | undefined {
+  if (!isRec(v) || !isStr(v.against) || !isStr(v.source) || !isRangeShape(v.asked)) return undefined;
+  if (!isRanges(v.read) || !isRanges(v.missing) || !isRanges(v.extra)) return undefined;
+  if (v.stepMs !== undefined && typeof v.stepMs !== 'number') return undefined;
+  return v as unknown as PeriodDiffersShape;
+}
+
+/**
+ * A period row, field by field: the identity and verdict, then each result
+ * check only when it fits its shape — a malformed check is passed over, never
+ * printed half, and the verdict still reads.
+ */
 function periodOf(r: Rec): PeriodRowShape | undefined {
-  return callIdentity(r) && isStr(r.verdict) ? (r as unknown as PeriodRowShape) : undefined;
+  if (!callIdentity(r) || !isStr(r.verdict)) return undefined;
+  const differs = differsOf(r.differs);
+  const shifted = isRec(r.shifted) && typeof r.shifted.byMs === 'number' ? { byMs: r.shifted.byMs } : undefined;
+  return {
+    kind: 'period',
+    turn: r.turn as number,
+    toolCallId: r.toolCallId as string,
+    toolName: r.toolName as string,
+    iteration: r.iteration as number,
+    verdict: r.verdict,
+    ...(isStr(r.argument) ? { argument: r.argument } : {}),
+    ...(differs !== undefined ? { differs } : {}),
+    ...(shifted !== undefined ? { shifted } : {}),
+    ...(r.beyondRetention === true ? { beyondRetention: true as const } : {}),
+    ...(r.partlyBeyondRetention === true ? { partlyBeyondRetention: true as const } : {}),
+  };
+}
+
+function answerOf(r: Rec): TimeAnswerRow | undefined {
+  return isCount(r.mention) &&
+    isStr(r.zone) &&
+    (r.how === 'confirmed' || r.how === 'edited') &&
+    isStr(r.from) &&
+    isStr(r.to)
+    ? (r as unknown as TimeAnswerRow)
+    : undefined;
+}
+
+function derivedOf(r: Rec): TimeDerivedRow | undefined {
+  return Array.isArray(r.values) && r.values.length > 0 && r.values.every(isStr)
+    ? (r as unknown as TimeDerivedRow)
+    : undefined;
+}
+
+function sourceClockOf(r: Rec): SourceClockRow | undefined {
+  return callIdentity(r) && isStr(r.zone) ? (r as unknown as SourceClockRow) : undefined;
 }
 
 /** The `period` a `coverageDeclared` row carries, by its `toolCallId`. */
@@ -151,6 +233,8 @@ interface TurnDraft {
   clock?: ClockRow;
   resumes: ClockOnResumeRow[];
   readings: TimeReadingRow[];
+  answers: TimeAnswerRow[];
+  derived: TimeDerivedRow[];
   calls: Map<string, { -readonly [K in keyof TimeCall]: TimeCall[K] }>;
 }
 
@@ -171,7 +255,7 @@ export function foldTimeRows(
   const turnOf = (n: number): TurnDraft => {
     let t = turns.get(n);
     if (t === undefined) {
-      t = { turn: n, resumes: [], readings: [], calls: new Map() };
+      t = { turn: n, resumes: [], readings: [], answers: [], derived: [], calls: new Map() };
       turns.set(n, t);
     }
     return t;
@@ -228,6 +312,25 @@ export function foldTimeRows(
         callOf(t(), row).period = p;
         break;
       }
+      case 'time-answer': {
+        const a = answerOf(row);
+        if (a === undefined) continue;
+        t().answers.push(a);
+        break;
+      }
+      case 'time-derived': {
+        const d = derivedOf(row);
+        if (d === undefined) continue;
+        t().derived.push(d);
+        break;
+      }
+      case 'source-clock': {
+        const sc = sourceClockOf(row);
+        if (sc === undefined) continue;
+        const c = callOf(t(), row);
+        c.sourceClocks = [...(c.sourceClocks ?? []), sc];
+        break;
+      }
       default:
         continue;
     }
@@ -242,8 +345,28 @@ export function foldTimeRows(
       resumes: t.resumes,
       readings: t.readings,
       calls: [...t.calls.values()],
+      answers: t.answers,
+      derived: t.derived,
     })),
   };
+}
+
+/**
+ * The window the person settled for `reading`'s mention in this turn — the
+ * LATEST `time-answer` row for that mention (the one the library binds,
+ * `windows.ts` · `turnWindowsOf`) — or `undefined` when the person has not
+ * answered it. Read only off the answer row; nothing is compared.
+ */
+export function answerOfReading(
+  turn: Pick<TimeTurn, 'answers'>,
+  reading: Pick<TimeReadingRow, 'mention'>,
+): TimeAnswerRow | undefined {
+  if (reading.mention === undefined) return undefined;
+  for (let i = turn.answers.length - 1; i >= 0; i--) {
+    const a = turn.answers[i]!;
+    if (a.mention === reading.mention) return a;
+  }
+  return undefined;
 }
 
 // ─── Spelling ─────────────────────────────────────────────────────────────
