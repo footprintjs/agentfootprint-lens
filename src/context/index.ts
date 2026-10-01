@@ -95,6 +95,10 @@ export {
 // the door, never a move; also on the root barrel.
 export { TimeBand, type TimeBandProps } from '../react/components/TimeBand.js';
 export { foldTimeRows, type TimeFold } from '../core/time/timeRows.js';
+// 0.70.0: the tab-ready Time view (agentfootprint 9.132.0) — the answer's
+// time standing, the time ask and the band in one mount. Also on the root
+// barrel.
+export { TimeView, type TimeViewProps } from '../react/components/TimeView.js';
 // 0.66.0: the Proof map — what the answer rests on, as one graph drawn from
 // the record (agentfootprint 9.110.0: the ledger with its `contingent` rows,
 // `unsupportedValues`, the declared map's `via` join). An addition to the

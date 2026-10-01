@@ -169,7 +169,7 @@ const FILES: string[] = [
   ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
   // 0.69.0: the time views and their cores.
   ...sources("core/time", (f) => f.endsWith(".ts")),
-  ...sources("react/components", (f) => /^Time(Band|Ask|AxisLine)\.tsx$/.test(f)),
+  ...sources("react/components", (f) => /^Time(Band|Ask|AxisLine|View)\.tsx$/.test(f)),
 ];
 
 const LIBRARY_SENTENCES = new Set<string>([

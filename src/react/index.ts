@@ -245,6 +245,15 @@ export {
 export { TimeBand, type TimeBandProps } from "./components/TimeBand.js";
 export { TimeAskRows, type TimeAskRowsProps } from "./components/TimeAsk.js";
 export { TimeAxisLine, type TimeAxisLineProps } from "./components/TimeAxisLine.js";
+// 0.70.0 (agentfootprint 9.132.0): <TimeView> — the tab-ready Time view over
+// what an app holds (the ledger, `coverageDeclared`, a pause, the library's
+// assessment): the answer's time standing (only the reasons the library
+// filed, `<TimeStandingRows>`), the time ask, and the Time band.
+export {
+  TimeView,
+  TimeStandingRows,
+  type TimeViewProps,
+} from "./components/TimeView.js";
 
 // <PlainWords> (0.68.0) — the In plain words pane: one answer's ACCOUNT
 // (agentfootprint `accountForAnswer`, served by the `answer-account` hosting

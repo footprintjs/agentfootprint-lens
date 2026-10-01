@@ -5,6 +5,61 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added — the Time band at agentfootprint 9.132.0
+
+- **The three new row kinds are folded** (`foldTimeRows`,
+  `src/core/time/timeRows.ts`): `time-answer` (per turn, joined to its
+  reading by `mention` — `answerOfReading(turn, reading)` returns the LATEST
+  answer for the mention, the one the library binds), `time-derived` (per
+  turn) and `source-clock` (per call, by `toolCallId`, with its zone).
+  `TimeTurn` gains `answers` and `derived`; `TimeCall` gains `sourceClocks?`.
+- **The `period` row's result checks are carried and drawn**:
+  `PeriodRowShape` gains `differs { against, asked, read, source, stepMs?,
+  missing, extra }`, `shifted { byMs }`, `beyondRetention` and
+  `partlyBeyondRetention`, each narrowed field by field (a malformed check
+  is passed over; the verdict still reads). `<TimeBand>` prints each only
+  where the row carries it: **differs from asked** with the range compared,
+  what was read and the two lists; `shifted` spelled exactly from `byMs`;
+  **beyond retention**; partly beyond retention.
+- **A reading the person answered reads as settled** (`<TimeBand>`): a
+  `time-reading` row whose choice is `open` shows **settled by the person**
+  — `confirmed` or `edited`, with the window and zone they settled — when a
+  `time-answer` row of the same turn names its mention (read only off that
+  row; the reading's own `open` choice is still printed as filed;
+  `data-settled` on the row). An answer whose mention no reading carries is
+  drawn on its own line.
+- **`<TimeView rows coverage? ask? assessment?>`** (root barrel and
+  `agentfootprint-lens/context`; `src/react/components/TimeView.tsx`): one
+  tab-ready view — the answer's time standing, the time ask and the band.
+  Renders nothing when none of the three holds.
+- **The answer's time standing** (`timeStandingOf(assessment, ledger?)`,
+  `src/core/time/timeStanding.ts`; drawn by `<TimeStandingRows>`): the time
+  reasons the library's assessment names (`agent.assessment()`,
+  `assessAnswer(recording)`, or `turn_end.answerAssessment`) —
+  `period-differs-from-asked`, `period-beyond-retention`, `period-not-held`,
+  `period-partly-held`, `period-unknown`, `period-undeclared`,
+  `derived-from-reading`, and `argument-assumed` only when one of its
+  witnesses is a period argument — each with a plain line in `TIME_LABELS`
+  and the calls its witness pointers resolve to. Never a reason of the
+  lens's own: no assessment, no section.
+- Headless: `answerOfReading`, `timeStandingOf`, `TIME_REASONS`, and the
+  mirrors `TimeAnswerRowShape`, `TimeDerivedRowShape`, `SourceClockRowShape`,
+  `PeriodDiffersShape` — pinned by `test/time/shapes.types.test.ts`
+  (`PeriodRow` by its root name; the three rows through the exported
+  `FindingsRow` union by `kind`, since 9.132.0 does not export them by
+  name — the pin moves to the root name once the library exports it).
+- Fixtures: `npm run fixtures:time` now writes
+  `test/time/fixtures/time-rows-9.132.json` (every scenario, plus
+  `confirmed`, `checks` and `shifted`, each with the library's assessment).
+  `time-rows.json` and `time-recording.json` stay as the 9.129.0 record —
+  the lens must still read what an older peer filed.
+
+### Changed
+
+- devDependency agentfootprint 9.129.0 → 9.132.0. Peer floors unchanged.
+
 ## [0.69.0] - 2026-09-30
 
 ### Added — the time layer's rows (agentfootprint 9.129.0, time design § 10.6)

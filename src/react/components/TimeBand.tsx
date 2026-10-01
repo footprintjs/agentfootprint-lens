@@ -1,8 +1,11 @@
 /**
- * <TimeBand> — the time layer's rows at the cursor (agentfootprint 9.129.0,
- * time design § 10.6): per turn, the run clock and any clock-on-resume, each
- * reading of the person's words, and per call its window, its dispatch
- * moment and its period verdict.
+ * <TimeBand> — the time layer's rows at the cursor (agentfootprint 9.129.0
+ * and 9.132.0, time design § 10.6): per turn, the run clock and any
+ * clock-on-resume, each reading of the person's words — settled by the
+ * person when a `time-answer` row answers its mention — the values the
+ * library derived from a reading, and per call its window, its dispatch
+ * moment, its wall-clock source zone and its period verdict with the result
+ * checks the period row carries.
  *
  * WHY. An armed agent (`.time()`) records every time decision it makes — the
  * clock it froze, what it read from the person's words, which window each
@@ -20,7 +23,11 @@
  *   2. NEVER INFER. `wider than asked` renders only on a row carrying
  *      `sent` + `differs`; a drift only on a `call` row carrying `drift`;
  *      `clock unknown` only where the record says `unknown` (a tz database,
- *      a held range). Nothing here compares two instants.
+ *      a held range); a result check (`differs`, `shifted`, beyond retention)
+ *      only where the `period` row carries it; `settled by the person` only
+ *      where a `time-answer` row of the same turn names the reading's
+ *      mention — the reading's own `open` choice is still printed as the
+ *      record holds it. Nothing here compares two instants.
  *   3. NO SENTENCE OF ITS OWN. Every printed string is a value off the record
  *      (an instant, a zone, a tool name, the record's word for `how`, `by`,
  *      `outcome`, `verdict`, a refusal code) or a `LABELS` entry;
@@ -37,12 +44,15 @@ import React, { useMemo } from 'react';
 import { LABELS } from '../../core/time/labels.js';
 import type {
   CallWindowRowShape as CallWindowRow,
+  TimeAnswerRowShape as TimeAnswerRow,
   TimeRangeShape as TimeRange,
   TimeReadingRowShape as TimeReadingRow,
 } from '../../core/time/shapes.js';
 import {
+  answerOfReading,
   foldTimeRows,
   spellMs,
+  type PeriodRowShape,
   type TimeCall,
   type TimeTurn,
 } from '../../core/time/timeRows.js';
@@ -73,6 +83,10 @@ export function TimeBand(props: TimeBandProps): React.ReactElement | null {
 }
 
 function Turn({ turn }: { readonly turn: TimeTurn }): React.ReactElement {
+  // An answer whose mention no reading row of the turn carries is still the
+  // record's — printed on its own line, never dropped.
+  const mentions = new Set(turn.readings.map((r) => r.mention));
+  const loose = turn.answers.filter((a) => !mentions.has(a.mention));
   return (
     <div data-testid="time-turn" data-turn={turn.turn}>
       <span style={dim}>
@@ -107,7 +121,19 @@ function Turn({ turn }: { readonly turn: TimeTurn }): React.ReactElement {
           </li>
         ))}
         {turn.readings.map((r, i) => (
-          <Reading key={`m${i}`} reading={r} />
+          <Reading key={`m${i}`} reading={r} answer={answerOfReading(turn, r)} />
+        ))}
+        {loose.map((a, i) => (
+          <li key={`a${i}`} style={mono} data-testid="time-answer" data-how={a.how}>
+            <Answered answer={a} />
+          </li>
+        ))}
+        {turn.derived.map((d, i) => (
+          <li key={`d${i}`} style={mono} data-testid="time-derived">
+            <Field label={LABELS.derived}>
+              <Words words={d.values} />
+            </Field>
+          </li>
         ))}
         {turn.calls.map((c) => (
           <Call key={c.toolCallId} call={c} />
@@ -145,7 +171,27 @@ function ClockValues({
   );
 }
 
-function Reading({ reading }: { readonly reading: TimeReadingRow }): React.ReactElement {
+/** The window the person settled in the time ask — read only off the `time-answer` row. */
+function Answered({ answer }: { readonly answer: TimeAnswerRow }): React.ReactElement {
+  return (
+    <Field label={LABELS.answered}>
+      <span data-testid="time-reading-answer" data-how={answer.how} data-mention={answer.mention}>
+        <Word>{answer.how}</Word>
+        {' · '}
+        {LABELS.window} <Range range={answer} /> <code>{answer.zone}</code>
+      </span>
+    </Field>
+  );
+}
+
+function Reading({
+  reading,
+  answer,
+}: {
+  readonly reading: TimeReadingRow;
+  /** This mention's `time-answer` row in the same turn — the person settled it. */
+  readonly answer?: TimeAnswerRow;
+}): React.ReactElement {
   const { reader } = reading;
   const choice = reading.choice;
   return (
@@ -154,6 +200,7 @@ function Reading({ reading }: { readonly reading: TimeReadingRow }): React.React
       data-testid="time-reading"
       data-mention={reading.mention ?? ''}
       data-choice={choice?.by ?? ''}
+      data-settled={answer?.how ?? ''}
     >
       <Field label={LABELS.readings}>
         {reading.mentions === 0 ? (
@@ -249,6 +296,7 @@ function Reading({ reading }: { readonly reading: TimeReadingRow }): React.React
           )}
         </Field>
       )}
+      {answer !== undefined && <Answered answer={answer} />}
     </li>
   );
 }
@@ -288,6 +336,11 @@ function Call({ call }: { readonly call: TimeCall }): React.ReactElement {
           </span>
         </Field>
       )}
+      {call.sourceClocks?.map((sc, i) => (
+        <Field key={`sc${i}`} label={LABELS.sourceClock}>
+          <code data-testid="time-source-clock">{sc.zone}</code>
+        </Field>
+      ))}
       {call.period !== undefined && (
         <Field label={LABELS.period}>
           <span data-testid="time-period" data-verdict={call.period.verdict}>
@@ -301,6 +354,7 @@ function Call({ call }: { readonly call: TimeCall }): React.ReactElement {
           </span>
         </Field>
       )}
+      {call.period !== undefined && <PeriodChecks period={call.period} />}
       {call.declared !== undefined && (
         <Field label={LABELS.queried}>
           <Range range={call.declared.queried} />
@@ -322,6 +376,63 @@ function Call({ call }: { readonly call: TimeCall }): React.ReactElement {
         </Field>
       )}
     </li>
+  );
+}
+
+/** The period row's result checks — each only where the row carries it (never inferred). */
+function PeriodChecks({ period }: { readonly period: PeriodRowShape }): React.ReactElement {
+  const d = period.differs;
+  return (
+    <>
+      {d !== undefined && (
+        <Field label={LABELS.differs}>
+          <span data-testid="time-differs" data-against={d.against} data-source={d.source}>
+            <Flag testId="time-differs-flag">{LABELS.differs}</Flag>
+            {' · '}
+            {LABELS.against} <Word>{d.against}</Word> <Range range={d.asked} />
+            {' · '}
+            {LABELS.read} <Ranges ranges={d.read} />
+            {' · '}
+            {LABELS.source} <Word>{d.source}</Word>
+            {d.stepMs !== undefined && (
+              <>
+                {' · '}
+                {LABELS.step} <code>{d.stepMs}</code>
+              </>
+            )}
+            {d.missing.length > 0 && (
+              <span data-testid="time-differs-missing">
+                {' · '}
+                {LABELS.missing} <Ranges ranges={d.missing} />
+              </span>
+            )}
+            {d.extra.length > 0 && (
+              <span data-testid="time-differs-extra">
+                {' · '}
+                {LABELS.extra} <Ranges ranges={d.extra} />
+              </span>
+            )}
+          </span>
+        </Field>
+      )}
+      {period.shifted !== undefined && (
+        <Field label={LABELS.shifted}>
+          <code data-testid="time-shifted" data-by-ms={period.shifted.byMs}>
+            {spellMs(period.shifted.byMs)}
+          </code>
+        </Field>
+      )}
+      {period.beyondRetention === true && (
+        <Field label={LABELS.period}>
+          <Flag testId="time-beyond-retention">{LABELS.beyondRetention}</Flag>
+        </Field>
+      )}
+      {period.partlyBeyondRetention === true && (
+        <Field label={LABELS.period}>
+          <span data-testid="time-period-partly-beyond-retention">{LABELS.partlyBeyondRetention}</span>
+        </Field>
+      )}
+    </>
   );
 }
 
@@ -425,6 +536,20 @@ export function Range({ range }: { readonly range: TimeRange }): React.ReactElem
     <code data-testid="time-range">
       [{range.from}, {range.to})
     </code>
+  );
+}
+
+/** Several ranges, in the record's order. */
+function Ranges({ ranges }: { readonly ranges: readonly TimeRange[] }): React.ReactElement {
+  return (
+    <>
+      {ranges.map((r, i) => (
+        <React.Fragment key={i}>
+          {i > 0 && ' '}
+          <Range range={r} />
+        </React.Fragment>
+      ))}
+    </>
   );
 }
 
