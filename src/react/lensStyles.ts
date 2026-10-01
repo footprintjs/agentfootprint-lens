@@ -722,6 +722,9 @@ export const LENS_STYLESHEET = `
 .lens-plain-line, .lens-plain-text { overflow-wrap: anywhere; }
 .lens-plain-line code { font-family: ${T.fontMono}; font-size: 0.92em; }
 .lens-plain-label { font-weight: 600; }
+/* The person's words, quoted — the account's text carries the marks, so this is a span, never a
+   <q> (which the browser draws with a second pair). A long unbroken token in them still wraps. */
+.lens-plain-quote { overflow-wrap: anywhere; }
 .lens-plain-chips { display: inline-flex; flex-wrap: wrap; gap: 6px; margin-left: 6px; vertical-align: middle; }
 .lens-plain-chips--row { display: flex; margin: 6px 0 0; }
 .lens-plain-chip {

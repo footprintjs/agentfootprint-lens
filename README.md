@@ -1043,8 +1043,12 @@ const { account, shown } = await res.json();
   library's `text`; the pane's own strings are `PLAIN_WORDS_LABELS` — names,
   never claims (walked by `test/served/no-own-claims.test.ts`).
 - **No HTML from data.** A sentence renders from its typed `parts` as text:
-  `code` → `<code>`, `quote` → `<q>`, a declared `label` → `<strong>` with its
-  own voucher. A `<script>` in a question is shown as the characters `<script>`.
+  `code` → `<code>`, `quote` → a span, a declared `label` → `<strong>` with
+  its own voucher. A `<script>` in a question is shown as the characters
+  `<script>`.
+- **No punctuation of its own.** The account's text carries its quotation
+  marks (`“{{question:quote}}”`), so a quote is never a `<q>` — the browser
+  would draw a second pair around it.
 - **Show me = leaves.** A withheld leaf says why (`not shown here`, `too large
   to show here`, …); a line into a call the model read without the tool's
   report-only fields says so softly.

@@ -54,6 +54,17 @@ describe('<AnswerReportPrint> — the one-page report', () => {
     expect(by[3]).toBe(`not recorded · template ${account.rows[1]!.lines[3]!.template.id}@1`);
   });
 
+  // Take 3: the account's text carries the quotation marks, so the report adds none (no `<q>`,
+  // whose marks the browser draws on top of the template's own).
+  it('a quoted part adds no quotation marks of its own', () => {
+    render(<AnswerReportPrint account={account} />);
+    // (The report's title question has no marks of its own, so it alone is a `<q>`.)
+    const asked = screen.getAllByTestId('print-row')[0]!;
+    expect(asked.querySelector('q')).toBeNull();
+    expect(asked.querySelector('.lens-plain-quote')).toHaveTextContent(account.question.value!);
+    expect(asked.textContent).toContain(`“${account.question.value!}”`);
+  });
+
   it('the one-liner, with its tone word, and the answer as plain text', () => {
     render(<AnswerReportPrint account={account} />);
     const one = screen.getByTestId('print-one-liner');
