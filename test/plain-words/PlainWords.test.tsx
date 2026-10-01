@@ -111,7 +111,21 @@ describe('<PlainWords> — the real account (fixture A)', () => {
     expect(label).toHaveAttribute('title', `${LABELS.voucher}: app`);
     expect(understood.querySelector('code')).toHaveTextContent('array-inventory');
     const asked = screen.getAllByTestId('plain-row')[0]!;
-    expect(asked.querySelector('q')).toHaveTextContent(account.question.value!);
+    expect(asked.querySelector('.lens-plain-quote')).toHaveTextContent(account.question.value!);
+  });
+
+  // Take 3 of the demo video: "You asked" showed “"what clients …"” — two pairs of marks. The
+  // account's template owns the punctuation (`asked@1` is `“{{question:quote}}”`), so the pane
+  // must add none: a `<q>` element gets its own marks from the browser (`q::before { content:
+  // open-quote }`), and HTML says quotation marks must not appear around a `q` element at all.
+  it('a quoted part adds no quotation marks of its own — the account’s text carries the one pair', () => {
+    const { container } = render(<PlainWords account={account} shown={shown} />);
+    expect(container.querySelector('q')).toBeNull();
+    const asked = screen.getAllByTestId('plain-row')[0]!;
+    const line = within(asked).getAllByTestId('plain-line')[0]!;
+    // The line's own text is the account's sentence: one pair of marks, around the person's words.
+    expect(line.textContent).toContain(`“${account.question.value!}”`);
+    expect(account.rows[0]!.lines[0]!.text).toBe(`“${account.question.value!}”`);
   });
 
   it('draws the question and the answer by default, and not when asked not to', () => {

@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed — "You asked" shows one pair of quotation marks
+
+- **A quoted part of an answer account draws no quotation marks of its own.**
+  The account's text carries them (`asked@1` is `“{{question:quote}}”`), and
+  `<PlainWords>` / `<AnswerReportPrint>` rendered the `quote` part as a `<q>`
+  element, which the browser draws with a second pair — "You asked" read
+  `“"what clients …"”` (found in a demo video on lens 0.72.0). A quote is now
+  a `<span class="lens-plain-quote">`; the report's title question, which has
+  no marks of its own, stays a `<q>`. Tests: test/plain-words/PlainWords.test.tsx
+  and print.test.tsx (fail on 0.72.0).
+
 ## [0.72.0] - 2026-10-01
 
 ### Fixed — the Time view says the answer's standing when no time reason holds

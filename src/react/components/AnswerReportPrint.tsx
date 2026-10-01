@@ -50,7 +50,13 @@ const Text: React.FC<{ sentence: AccountSentence }> = ({ sentence }) => (
   <>
     {sentence.parts.map((part, i) => {
       if ('code' in part) return <code key={i}>{part.code}</code>;
-      if ('quote' in part) return <q key={i}>{part.quote}</q>;
+      // The account's text carries the quotation marks; a `<q>` would add a second pair.
+      if ('quote' in part)
+        return (
+          <span key={i} className="lens-plain-quote">
+            {part.quote}
+          </span>
+        );
       if ('label' in part) return <strong key={i}>{part.label}</strong>;
       return <React.Fragment key={i}>{part.text}</React.Fragment>;
     })}

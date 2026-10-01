@@ -19,8 +19,11 @@
  *      `Chip.text`). The pane's own strings are `LABELS`: names, never a claim.
  *      `test/served/no-own-claims.test.ts` walks this file.
  *   3. NO HTML FROM DATA. A sentence renders from its typed `parts` as text
- *      nodes: `code` → `<code>`, `quote` → `<q>`, `label` → `<strong>` with its
- *      own voucher in a `title` and in "show me". No raw-HTML prop anywhere.
+ *      nodes: `code` → `<code>`, `quote` → `<span class="lens-plain-quote">`,
+ *      `label` → `<strong>` with its own voucher in a `title` and in "show me".
+ *      No raw-HTML prop anywhere. NO PUNCTUATION OF ITS OWN either: the
+ *      account's text carries its quotation marks, so a quote is never a
+ *      `<q>` (the browser draws a second pair around one).
  *   4. SHOW ME = LEAVES ONLY. Each pointer resolves through `shown` (by the
  *      library's key, `answerAccountPointerKey`) to a value, a derived row
  *      count, or why it is withheld ("not shown here"). Without `shown` the
@@ -93,7 +96,14 @@ const Parts: React.FC<{ parts: readonly AccountSentencePart[] }> = ({ parts }) =
   <>
     {parts.map((part, i) => {
       if ('code' in part) return <code key={i}>{part.code}</code>;
-      if ('quote' in part) return <q key={i}>{part.quote}</q>;
+      // The account's text carries the quotation marks (`asked@1` is `“{{question:quote}}”`), so
+      // a quote is a span: a `<q>` would add the browser's own pair on top (take 3: “"…"”).
+      if ('quote' in part)
+        return (
+          <span key={i} className="lens-plain-quote">
+            {part.quote}
+          </span>
+        );
       if ('label' in part)
         return (
           <strong key={i} className="lens-plain-label" title={`${LABELS.voucher}: ${part.source}`}>
