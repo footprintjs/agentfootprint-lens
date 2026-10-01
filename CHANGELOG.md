@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed — the Time view says the answer's standing when no time reason holds
+
+- **`timeStandingOf` no longer drops the standing it was handed.** It returned
+  `undefined` whenever the assessment named no time reason, and `<TimeView>`
+  then drew no standing section — so an answer In plain words called "Not
+  sure" (a value that survived the evidence check, not a time reason) showed
+  a Time tab with no word about its standing (found in a demo video on lens
+  0.71.0). It now returns `{ standing, reasons: [], otherReasons }` for any
+  assessment, `undefined` only when there is none; `<TimeView>` draws
+  `no time-related reason` beside the standing as filed and
+  `other reasons — see In plain words` (or `no reason filed`). An
+  `argument-assumed` the lens cannot place (the data projection's bare name)
+  is listed `undetermined` — never denied. New: `TimeStanding.otherReasons`,
+  `TimeStanding.undetermined`, four `TIME_LABELS` entries. Test:
+  test/time/timeStandingOther.test.tsx over a real `.time()` run (fails on
+  0.71.0).
+
 ## [0.71.0] - 2026-10-01
 
 ### Host change — fold at a stop through `foldCursorOf`

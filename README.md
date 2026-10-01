@@ -1199,7 +1199,22 @@ band and no reason above it:
 timeStandingOf(undefined, ledger);                    // undefined — nothing filed, nothing listed
 timeStandingOf(await agent.assessment(), ledger);
 // { standing: 'not-sure', reasons: [{ reason: 'period-differs-from-asked',
-//   calls: [{ toolCallId: 'c1', toolName: 'client_activity' }] }, …] }
+//   calls: [{ toolCallId: 'c1', toolName: 'client_activity' }] }, …], otherReasons: 0 }
+```
+
+**The standing is said, never silence.** An answer can be not sure for
+reasons that are not about time — a value no tool returned, an unverified
+argument. With an assessment that names no time reason, the view still draws
+the standing: `no time-related reason`, the standing as filed, and
+`other reasons — see In plain words` (counted in `otherReasons`, listed by
+In plain words) or `no reason filed`. An `argument-assumed` the lens cannot
+place — the data projection's bare name, or a ledger not handed in — is
+listed as `undetermined`, and "no time-related reason" is never said beside
+it:
+
+```ts
+timeStandingOf({ standing: 'not-sure', reasons: [{ reason: 'value-survived-revision', witness: [] }] });
+// { standing: 'not-sure', reasons: [], otherReasons: 1 }
 ```
 
 Headless: `foldTimeRows(ledger, coverage?)`, `answerOfReading(turn, reading)`,

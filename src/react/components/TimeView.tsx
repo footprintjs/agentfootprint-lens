@@ -17,11 +17,15 @@
  *      (`coverageDeclared`), `ask` (the pause value) and `assessment` (the
  *      library's `AnswerAssessment` or its data projection) — handed in,
  *      never fetched, never re-folded into a verdict.
- *   2. OMIT, NEVER DENY. Each section renders only when the record holds it;
- *      with no time row, no time ask and no time reason the view renders
- *      nothing.
+ *   2. OMIT WHAT IS NOT HELD, NEVER DENY. The band and the ask render only
+ *      when the record holds them. The standing renders whenever an
+ *      assessment is handed in: its time reasons when it names some, else
+ *      "no time-related reason" beside the standing as filed and whether
+ *      other reasons set it — an answer that is not sure for other reasons
+ *      is never drawn as silence (`timeStandingOf` law 3). With no time row,
+ *      no time ask and no assessment the view renders nothing.
  *   3. NEVER COMPUTE A REASON. The standing section lists only reasons the
- *      assessment names (`timeStandingOf` law 1).
+ *      assessment names (`timeStandingOf` law 1), and counts the others.
  *   4. NO SENTENCE OF ITS OWN. Every string is a value off the record or a
  *      `LABELS` entry; `test/served/no-own-claims.test.ts` walks this file.
  */
@@ -64,8 +68,14 @@ export function TimeView(props: TimeViewProps): React.ReactElement | null {
   );
 }
 
-/** The time reasons the library filed on the answer, each with its plain line and the calls it names. */
+/**
+ * The answer's time standing: the time reasons the library filed, each with
+ * its plain line and the calls it names — or, when it filed none, that no
+ * time-related reason holds and what the standing rests on instead.
+ */
 export function TimeStandingRows({ standing }: { readonly standing: TimeStandingValue }): React.ReactElement {
+  const undetermined = standing.undetermined ?? [];
+  const noTimeReason = standing.reasons.length === 0 && undetermined.length === 0;
   return (
     <div style={band} data-testid="time-standing" data-standing={standing.standing ?? ''}>
       <span style={dim}>{LABELS.timeReasons}</span>
@@ -74,19 +84,31 @@ export function TimeStandingRows({ standing }: { readonly standing: TimeStanding
           <Word>{standing.standing}</Word>
         </Field>
       )}
-      <ul style={list}>
-        {standing.reasons.map((r, i) => (
-          <li key={i} style={mono} data-testid="time-reason" data-reason={r.reason}>
-            {LABELS[r.reason]} · <code>{r.reason}</code>
-            {r.calls.map((c) => (
-              <React.Fragment key={c.toolCallId}>
-                {' · '}
-                <code>{c.toolName}</code> <code>{c.toolCallId}</code>
-              </React.Fragment>
-            ))}
-          </li>
-        ))}
-      </ul>
+      {noTimeReason && (
+        <div style={mono} data-testid="time-no-reason" data-other-reasons={standing.otherReasons}>
+          {LABELS.noTimeReason} · {standing.otherReasons > 0 ? LABELS.otherReasons : LABELS.noReasonFiled}
+        </div>
+      )}
+      {(standing.reasons.length > 0 || undetermined.length > 0) && (
+        <ul style={list}>
+          {standing.reasons.map((r, i) => (
+            <li key={i} style={mono} data-testid="time-reason" data-reason={r.reason}>
+              {LABELS[r.reason]} · <code>{r.reason}</code>
+              {r.calls.map((c) => (
+                <React.Fragment key={c.toolCallId}>
+                  {' · '}
+                  <code>{c.toolName}</code> <code>{c.toolCallId}</code>
+                </React.Fragment>
+              ))}
+            </li>
+          ))}
+          {undetermined.map((r, i) => (
+            <li key={`u${i}`} style={mono} data-testid="time-reason-undetermined" data-reason={r}>
+              <code>{r}</code> · {LABELS.undetermined}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }

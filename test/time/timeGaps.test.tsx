@@ -15,7 +15,8 @@
  *   L3  `<TimeView>` mounts the standing, the time ask and the band in one
  *       tab-ready view, from both barrels;
  *   L4  the answer's time standing lists ONLY the time reasons the library's
- *       assessment names — never one computed from the rows.
+ *       assessment names — never one computed from the rows — and, when it
+ *       names none, says so beside the standing (test/time/timeStandingOther).
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
@@ -291,8 +292,16 @@ describe('L4 — the time reasons the library filed, and only those', () => {
   it('never computes a reason: rows that carry a check, with no assessment, list nothing', () => {
     const s = S.checks!;
     expect(timeStandingOf(undefined, s.ledger)).toBeUndefined();
-    expect(timeStandingOf({ standing: 'consistent', reasons: [] }, s.ledger)).toBeUndefined();
-    expect(timeStandingOf({ standing: 'not-sure', reasons: [{ reason: 'value-unsupported', witness: [] }] }, s.ledger)).toBeUndefined();
+    // With an assessment that names no time reason, the standing is SAID (never silence) —
+    // and the rows' checks still make no reason of their own.
+    expect(timeStandingOf({ standing: 'consistent', reasons: [] }, s.ledger)).toEqual({
+      standing: 'consistent',
+      reasons: [],
+      otherReasons: 0,
+    });
+    expect(
+      timeStandingOf({ standing: 'not-sure', reasons: [{ reason: 'value-unsupported', witness: [] }] }, s.ledger),
+    ).toEqual({ standing: 'not-sure', reasons: [], otherReasons: 1 });
   });
 
   it('a witness pointer that names no row (another key, a bad path, an index past the end) names no call', () => {
@@ -354,10 +363,13 @@ describe('L3 — <TimeView>: standing, ask and band in one tab-ready view', () =
     expect(within(view).getByTestId('time-band')).toBeInTheDocument();
   });
 
-  it('omits the standing section when no time reason holds', () => {
+  it('says "no time-related reason" beside the standing when no time reason holds — never silence', () => {
     const s = S.checks!;
     render(<TimeView rows={s.ledger} assessment={{ standing: 'consistent', reasons: [] }} />);
-    expect(screen.queryByTestId('time-standing')).toBeNull();
+    const standing = screen.getByTestId('time-standing');
+    expect(standing).toHaveAttribute('data-standing', 'consistent');
+    expect(within(standing).getByTestId('time-no-reason')).toHaveTextContent(LABELS.noTimeReason);
+    expect(within(standing).queryAllByTestId('time-reason')).toEqual([]);
     expect(screen.getByTestId('time-band')).toBeInTheDocument();
   });
 
