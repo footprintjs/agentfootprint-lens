@@ -77,6 +77,7 @@
 import type { CursorPosition } from '../group/cursorPositionsAtDrill.js';
 import { resolveNavigation, type NavigationResult } from '../group/resolveNavigation.js';
 import { foldCommitIdxOf } from './foldAt.js';
+import type { SourcePosition } from './sourcePrefix.js';
 
 /**
  * Where the ONE cursor stands, in every unit the lens knows.
@@ -86,6 +87,8 @@ import { foldCommitIdxOf } from './foldAt.js';
  * reading is a fact about now, not a report about a move.
  */
 export interface LensCursorReading {
+  /** Present only while the owner holds an exact source-prefix target; never a stage address. */
+  readonly sourcePosition?: SourcePosition;
   /** The cursor, on the lens's step axis. */
   readonly step: number;
   /** How many positions the axis has right now. Valid steps are
