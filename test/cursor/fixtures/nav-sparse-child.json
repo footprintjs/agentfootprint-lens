@@ -1,0 +1,2652 @@
+{
+  "structure": {
+    "id": "seed",
+    "name": "Initialize",
+    "type": "stage",
+    "next": {
+      "id": "sf-injection-engine",
+      "subflowId": "sf-injection-engine",
+      "name": "Injection Engine",
+      "subflowName": "Injection Engine",
+      "type": "stage",
+      "isSubflowRoot": true,
+      "tags": [
+        "milestone:iteration",
+        "milestone-label:Iteration"
+      ],
+      "next": {
+        "id": "context",
+        "name": "Context",
+        "type": "selector",
+        "hasSelector": true,
+        "branchIds": [
+          "sf-system-prompt",
+          "sf-messages",
+          "sf-tools"
+        ],
+        "next": {
+          "id": "sf-cache",
+          "subflowId": "sf-cache",
+          "name": "Cache",
+          "subflowName": "Cache",
+          "type": "stage",
+          "isSubflowRoot": true,
+          "next": {
+            "id": "call-llm",
+            "name": "CallLLM",
+            "type": "stage",
+            "tags": [
+              "milestone:llm-turn",
+              "milestone-label:LLM turn"
+            ],
+            "next": {
+              "id": "sf-thinking",
+              "subflowId": "sf-thinking",
+              "name": "NormalizeThinking",
+              "subflowName": "NormalizeThinking",
+              "type": "stage",
+              "isSubflowRoot": true,
+              "next": {
+                "id": "sf-route",
+                "name": "Route",
+                "type": "decider",
+                "hasDecider": true,
+                "branchIds": [
+                  "tool-calls",
+                  "final"
+                ],
+                "tags": [
+                  "milestone:decision",
+                  "milestone-label:Route"
+                ],
+                "children": [
+                  {
+                    "id": "tool-calls",
+                    "loopTarget": "sf-injection-engine",
+                    "name": "ToolCalls",
+                    "type": "stage",
+                    "isPausable": true,
+                    "tags": [
+                      "milestone:tool-call",
+                      "milestone-label:Tool call"
+                    ],
+                    "next": {
+                      "id": "sf-injection-engine",
+                      "name": "sf-injection-engine",
+                      "type": "loop",
+                      "isLoopReference": true
+                    }
+                  },
+                  {
+                    "id": "final",
+                    "subflowId": "final",
+                    "name": "Final",
+                    "subflowName": "Final",
+                    "type": "stage",
+                    "isSubflowRoot": true,
+                    "tags": [
+                      "milestone:decision",
+                      "milestone-label:Answer"
+                    ],
+                    "subflowStructure": {
+                      "id": "prepare-final",
+                      "name": "PrepareFinal",
+                      "type": "stage",
+                      "tags": [
+                        "milestone:decision",
+                        "milestone-label:Answer"
+                      ],
+                      "next": {
+                        "id": "break-final",
+                        "name": "BreakFinal",
+                        "type": "stage"
+                      }
+                    }
+                  }
+                ]
+              },
+              "subflowStructure": {
+                "id": "thinking-mock",
+                "name": "Normalize",
+                "type": "stage"
+              }
+            }
+          },
+          "subflowStructure": {
+            "id": "decide-cache-markers",
+            "name": "CacheDecision",
+            "type": "stage",
+            "next": {
+              "id": "cache-gate",
+              "name": "CacheGate",
+              "type": "decider",
+              "hasDecider": true,
+              "branchIds": [
+                "apply-markers",
+                "no-markers"
+              ],
+              "children": [
+                {
+                  "id": "apply-markers",
+                  "name": "ApplyMarkers",
+                  "type": "stage"
+                },
+                {
+                  "id": "no-markers",
+                  "name": "SkipCaching",
+                  "type": "stage"
+                }
+              ]
+            }
+          }
+        },
+        "children": [
+          {
+            "id": "sf-system-prompt",
+            "subflowId": "sf-system-prompt",
+            "name": "System Prompt",
+            "subflowName": "System Prompt",
+            "type": "stage",
+            "isSubflowRoot": true,
+            "tags": [
+              "milestone:slot",
+              "milestone-label:System prompt"
+            ],
+            "subflowStructure": {
+              "id": "compose",
+              "name": "Compose",
+              "type": "stage"
+            }
+          },
+          {
+            "id": "sf-messages",
+            "subflowId": "sf-messages",
+            "name": "Messages",
+            "subflowName": "Messages",
+            "type": "stage",
+            "isSubflowRoot": true,
+            "tags": [
+              "milestone:slot",
+              "milestone-label:Messages"
+            ],
+            "subflowStructure": {
+              "id": "compose",
+              "name": "Compose",
+              "type": "stage"
+            }
+          },
+          {
+            "id": "sf-tools",
+            "subflowId": "sf-tools",
+            "name": "Tools",
+            "subflowName": "Tools",
+            "type": "stage",
+            "isSubflowRoot": true,
+            "tags": [
+              "milestone:slot",
+              "milestone-label:Tools"
+            ],
+            "subflowStructure": {
+              "id": "discover",
+              "name": "Discover",
+              "type": "stage",
+              "next": {
+                "id": "compose",
+                "name": "Compose",
+                "type": "stage"
+              }
+            }
+          }
+        ]
+      },
+      "subflowStructure": {
+        "id": "gather",
+        "name": "Gather",
+        "type": "stage",
+        "next": {
+          "id": "evaluate",
+          "name": "Evaluate",
+          "type": "stage",
+          "next": {
+            "id": "route",
+            "name": "Route",
+            "type": "stage",
+            "next": {
+              "id": "delta",
+              "name": "Delta",
+              "type": "stage"
+            }
+          }
+        }
+      }
+    }
+  },
+  "events": [
+    {
+      "type": "agentfootprint.agent.turn_start",
+      "meta": {
+        "wallClockMs": 1791199308164,
+        "runOffsetMs": 5,
+        "runtimeStageId": "seed#0",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": -1
+        }
+      },
+      "payload": {
+        "turnIndex": 0,
+        "userPrompt": "[content withheld by NAV metadata-only recording]"
+      }
+    },
+    {
+      "type": "agentfootprint.agent.iteration_start",
+      "meta": {
+        "wallClockMs": 1791199308176,
+        "runOffsetMs": 17,
+        "runtimeStageId": "call-llm#18",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 14
+        }
+      },
+      "payload": {
+        "turnIndex": 0,
+        "iterIndex": 1
+      }
+    },
+    {
+      "type": "agentfootprint.stream.llm_start",
+      "meta": {
+        "wallClockMs": 1791199308176,
+        "runOffsetMs": 17,
+        "runtimeStageId": "call-llm#18",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 14
+        }
+      },
+      "payload": {
+        "iteration": 1,
+        "systemPromptChars": 7991,
+        "messagesCount": 1,
+        "toolsCount": 1,
+        "tools": [
+          {
+            "name": "present"
+          }
+        ],
+        "model": "[content withheld by NAV metadata-only recording]",
+        "provider": "[content withheld by NAV metadata-only recording]"
+      }
+    },
+    {
+      "type": "agentfootprint.stream.llm_end",
+      "meta": {
+        "wallClockMs": 1791199308183,
+        "runOffsetMs": 24,
+        "runtimeStageId": "call-llm#18",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 14
+        }
+      },
+      "payload": {
+        "iteration": 1,
+        "toolCallCount": 1,
+        "durationMs": 7,
+        "usage": {
+          "input": 2034,
+          "output": 0
+        },
+        "stopReason": "tool_use",
+        "content": "[content withheld by NAV metadata-only recording]"
+      }
+    },
+    {
+      "type": "agentfootprint.agent.route_decided",
+      "meta": {
+        "wallClockMs": 1791199308185,
+        "runOffsetMs": 26,
+        "runtimeStageId": "sf-route#21",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 17
+        }
+      },
+      "payload": {
+        "turnIndex": 0,
+        "iterIndex": 1,
+        "chosen": "tool-calls"
+      }
+    },
+    {
+      "type": "agentfootprint.stream.tool_start",
+      "meta": {
+        "wallClockMs": 1791199308186,
+        "runOffsetMs": 27,
+        "runtimeStageId": "tool-calls#22",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 18
+        }
+      },
+      "payload": {
+        "toolCallId": "rehearsal-unverified-display",
+        "toolName": "present"
+      }
+    },
+    {
+      "type": "agentfootprint.stream.tool_end",
+      "meta": {
+        "wallClockMs": 1791199308187,
+        "runOffsetMs": 28,
+        "runtimeStageId": "tool-calls#22",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 18
+        }
+      },
+      "payload": {
+        "durationMs": 0,
+        "toolCallId": "rehearsal-unverified-display",
+        "result": "[content withheld by NAV metadata-only recording]"
+      }
+    },
+    {
+      "type": "agentfootprint.agent.iteration_end",
+      "meta": {
+        "wallClockMs": 1791199308188,
+        "runOffsetMs": 29,
+        "runtimeStageId": "tool-calls#22",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 18
+        }
+      },
+      "payload": {
+        "turnIndex": 0,
+        "iterIndex": 1,
+        "toolCallCount": 1
+      }
+    },
+    {
+      "type": "agentfootprint.agent.iteration_start",
+      "meta": {
+        "wallClockMs": 1791199308191,
+        "runOffsetMs": 32,
+        "runtimeStageId": "call-llm#40",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 33
+        }
+      },
+      "payload": {
+        "turnIndex": 0,
+        "iterIndex": 2
+      }
+    },
+    {
+      "type": "agentfootprint.stream.llm_start",
+      "meta": {
+        "wallClockMs": 1791199308191,
+        "runOffsetMs": 32,
+        "runtimeStageId": "call-llm#40",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 33
+        }
+      },
+      "payload": {
+        "iteration": 2,
+        "systemPromptChars": 7991,
+        "messagesCount": 3,
+        "toolsCount": 1,
+        "tools": [
+          {
+            "name": "present"
+          }
+        ],
+        "model": "[content withheld by NAV metadata-only recording]",
+        "provider": "[content withheld by NAV metadata-only recording]"
+      }
+    },
+    {
+      "type": "agentfootprint.stream.llm_end",
+      "meta": {
+        "wallClockMs": 1791199308472,
+        "runOffsetMs": 313,
+        "runtimeStageId": "call-llm#40",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 33
+        }
+      },
+      "payload": {
+        "iteration": 2,
+        "toolCallCount": 0,
+        "durationMs": 281,
+        "usage": {
+          "input": 2058,
+          "output": 16
+        },
+        "stopReason": "stop",
+        "content": "[content withheld by NAV metadata-only recording]"
+      }
+    },
+    {
+      "type": "agentfootprint.agent.route_decided",
+      "meta": {
+        "wallClockMs": 1791199308474,
+        "runOffsetMs": 315,
+        "runtimeStageId": "sf-route#43",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [],
+          "committedThroughIdx": 36
+        }
+      },
+      "payload": {
+        "turnIndex": 0,
+        "iterIndex": 2,
+        "chosen": "final"
+      }
+    },
+    {
+      "type": "agentfootprint.agent.iteration_end",
+      "meta": {
+        "wallClockMs": 1791199308476,
+        "runOffsetMs": 317,
+        "runtimeStageId": "final/prepare-final#45",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [
+          "final"
+        ],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [
+            "final#44"
+          ],
+          "committedThroughIdx": 0
+        }
+      },
+      "payload": {
+        "turnIndex": 0,
+        "iterIndex": 2,
+        "toolCallCount": 0
+      }
+    },
+    {
+      "type": "agentfootprint.agent.turn_end",
+      "meta": {
+        "wallClockMs": 1791199308476,
+        "runOffsetMs": 317,
+        "runtimeStageId": "final/prepare-final#45",
+        "runId": "run-1791199308159-1",
+        "subflowPath": [
+          "final"
+        ],
+        "compositionPath": [
+          "Agent:nav-agent"
+        ],
+        "sourcePosition": {
+          "engineRunId": "1791199308161-0000000001",
+          "logRunId": "1791199308161-0000000001",
+          "drillPath": [
+            "final#44"
+          ],
+          "committedThroughIdx": 0
+        }
+      },
+      "payload": {
+        "turnIndex": 0,
+        "iterationCount": 2,
+        "durationMs": 312,
+        "totalInputTokens": 4092,
+        "totalOutputTokens": 16,
+        "finalContent": "[content withheld by NAV metadata-only recording]"
+      }
+    }
+  ],
+  "snapshot": {
+    "runId": "1791199308161-0000000001",
+    "commitLog": [
+      {
+        "stageId": "seed",
+        "runtimeStageId": "seed#0",
+        "stage": "Initialize",
+        "idx": 0,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-injection-engine",
+        "runtimeStageId": "sf-injection-engine#1",
+        "stage": "Injection Engine",
+        "idx": 1,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-injection-engine",
+        "runtimeStageId": "sf-injection-engine#1",
+        "stage": "Injection Engine",
+        "idx": 2,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "context",
+        "runtimeStageId": "context#6",
+        "stage": "Context",
+        "idx": 3,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-system-prompt",
+        "runtimeStageId": "sf-system-prompt#7",
+        "stage": "System Prompt",
+        "idx": 4,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-system-prompt",
+        "runtimeStageId": "sf-system-prompt#7",
+        "stage": "System Prompt",
+        "idx": 5,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-messages",
+        "runtimeStageId": "sf-messages#9",
+        "stage": "Messages",
+        "idx": 6,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-messages",
+        "runtimeStageId": "sf-messages#9",
+        "stage": "Messages",
+        "idx": 7,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-system-prompt",
+        "runtimeStageId": "sf-system-prompt#7",
+        "stage": "System Prompt",
+        "idx": 8,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-messages",
+        "runtimeStageId": "sf-messages#9",
+        "stage": "Messages",
+        "idx": 9,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-tools",
+        "runtimeStageId": "sf-tools#11",
+        "stage": "Tools",
+        "idx": 10,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-tools",
+        "runtimeStageId": "sf-tools#11",
+        "stage": "Tools",
+        "idx": 11,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-tools",
+        "runtimeStageId": "sf-tools#11",
+        "stage": "Tools",
+        "idx": 12,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-cache",
+        "runtimeStageId": "sf-cache#14",
+        "stage": "Cache",
+        "idx": 13,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-cache",
+        "runtimeStageId": "sf-cache#14",
+        "stage": "Cache",
+        "idx": 14,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "call-llm",
+        "runtimeStageId": "call-llm#18",
+        "stage": "CallLLM",
+        "idx": 15,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-thinking",
+        "runtimeStageId": "sf-thinking#19",
+        "stage": "NormalizeThinking",
+        "idx": 16,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-thinking",
+        "runtimeStageId": "sf-thinking#19",
+        "stage": "NormalizeThinking",
+        "idx": 17,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-route",
+        "runtimeStageId": "sf-route#21",
+        "stage": "Route",
+        "idx": 18,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "tool-calls",
+        "runtimeStageId": "tool-calls#22",
+        "stage": "ToolCalls",
+        "idx": 19,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-injection-engine",
+        "runtimeStageId": "sf-injection-engine#23",
+        "stage": "Injection Engine",
+        "idx": 20,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-injection-engine",
+        "runtimeStageId": "sf-injection-engine#23",
+        "stage": "Injection Engine",
+        "idx": 21,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "context",
+        "runtimeStageId": "context#28",
+        "stage": "Context",
+        "idx": 22,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-system-prompt",
+        "runtimeStageId": "sf-system-prompt#29",
+        "stage": "System Prompt",
+        "idx": 23,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-system-prompt",
+        "runtimeStageId": "sf-system-prompt#29",
+        "stage": "System Prompt",
+        "idx": 24,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-messages",
+        "runtimeStageId": "sf-messages#31",
+        "stage": "Messages",
+        "idx": 25,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-messages",
+        "runtimeStageId": "sf-messages#31",
+        "stage": "Messages",
+        "idx": 26,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-system-prompt",
+        "runtimeStageId": "sf-system-prompt#29",
+        "stage": "System Prompt",
+        "idx": 27,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-messages",
+        "runtimeStageId": "sf-messages#31",
+        "stage": "Messages",
+        "idx": 28,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-tools",
+        "runtimeStageId": "sf-tools#33",
+        "stage": "Tools",
+        "idx": 29,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-tools",
+        "runtimeStageId": "sf-tools#33",
+        "stage": "Tools",
+        "idx": 30,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-tools",
+        "runtimeStageId": "sf-tools#33",
+        "stage": "Tools",
+        "idx": 31,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-cache",
+        "runtimeStageId": "sf-cache#36",
+        "stage": "Cache",
+        "idx": 32,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-cache",
+        "runtimeStageId": "sf-cache#36",
+        "stage": "Cache",
+        "idx": 33,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "call-llm",
+        "runtimeStageId": "call-llm#40",
+        "stage": "CallLLM",
+        "idx": 34,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-thinking",
+        "runtimeStageId": "sf-thinking#41",
+        "stage": "NormalizeThinking",
+        "idx": 35,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-thinking",
+        "runtimeStageId": "sf-thinking#41",
+        "stage": "NormalizeThinking",
+        "idx": 36,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "sf-route",
+        "runtimeStageId": "sf-route#43",
+        "stage": "Route",
+        "idx": 37,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "final",
+        "runtimeStageId": "final#44",
+        "stage": "Final",
+        "idx": 38,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      },
+      {
+        "stageId": "final",
+        "runtimeStageId": "final#44",
+        "stage": "Final",
+        "idx": 39,
+        "overwrite": {},
+        "updates": {},
+        "trace": [],
+        "redactedPaths": [
+          "*"
+        ]
+      }
+    ],
+    "stateValuesWithheld": true,
+    "logAddress": {
+      "logRunId": "1791199308161-0000000001",
+      "drillPath": []
+    },
+    "subflowResults": {
+      "sf-injection-engine#1": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-injection-engine#1"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-injection-engine",
+              "runtimeStageId": "sf-injection-engine#1",
+              "stage": "Injection Engine",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-injection-engine/gather",
+              "runtimeStageId": "sf-injection-engine/gather#2",
+              "stage": "sf-injection-engine/Gather",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-injection-engine/evaluate",
+              "runtimeStageId": "sf-injection-engine/evaluate#3",
+              "stage": "sf-injection-engine/Evaluate",
+              "idx": 2,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-injection-engine/route",
+              "runtimeStageId": "sf-injection-engine/route#4",
+              "stage": "sf-injection-engine/Route",
+              "idx": 3,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-injection-engine/delta",
+              "runtimeStageId": "sf-injection-engine/delta#5",
+              "stage": "sf-injection-engine/Delta",
+              "idx": 4,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-injection-engine"
+      },
+      "sf-system-prompt#7": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-system-prompt#7"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-system-prompt",
+              "runtimeStageId": "sf-system-prompt#7",
+              "stage": "System Prompt",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-system-prompt/compose",
+              "runtimeStageId": "sf-system-prompt/compose#8",
+              "stage": "sf-system-prompt/Compose",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-system-prompt"
+      },
+      "sf-messages#9": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-messages#9"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-messages",
+              "runtimeStageId": "sf-messages#9",
+              "stage": "Messages",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-messages/compose",
+              "runtimeStageId": "sf-messages/compose#10",
+              "stage": "sf-messages/Compose",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-messages",
+        "parentStageId": "sf-messages.Messages"
+      },
+      "sf-tools#11": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-tools#11"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-tools",
+              "runtimeStageId": "sf-tools#11",
+              "stage": "Tools",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-tools/discover",
+              "runtimeStageId": "sf-tools/discover#12",
+              "stage": "sf-tools/Discover",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-tools/compose",
+              "runtimeStageId": "sf-tools/compose#13",
+              "stage": "sf-tools/Compose",
+              "idx": 2,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-tools",
+        "parentStageId": "sf-tools.Tools"
+      },
+      "sf-cache#14": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-cache#14"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-cache",
+              "runtimeStageId": "sf-cache#14",
+              "stage": "Cache",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-cache/decide-cache-markers",
+              "runtimeStageId": "sf-cache/decide-cache-markers#15",
+              "stage": "sf-cache/CacheDecision",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-cache/cache-gate",
+              "runtimeStageId": "sf-cache/cache-gate#16",
+              "stage": "sf-cache/CacheGate",
+              "idx": 2,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-cache/apply-markers",
+              "runtimeStageId": "sf-cache/apply-markers#17",
+              "stage": "sf-cache/ApplyMarkers",
+              "idx": 3,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-cache",
+        "parentStageId": "Cache"
+      },
+      "sf-thinking#19": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-thinking#19"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-thinking",
+              "runtimeStageId": "sf-thinking#19",
+              "stage": "NormalizeThinking",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-thinking/thinking-mock",
+              "runtimeStageId": "sf-thinking/thinking-mock#20",
+              "stage": "sf-thinking/Normalize",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-thinking",
+        "parentStageId": "NormalizeThinking"
+      },
+      "sf-injection-engine#23": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-injection-engine#23"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-injection-engine",
+              "runtimeStageId": "sf-injection-engine#23",
+              "stage": "Injection Engine",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-injection-engine/gather",
+              "runtimeStageId": "sf-injection-engine/gather#24",
+              "stage": "sf-injection-engine/Gather",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-injection-engine/evaluate",
+              "runtimeStageId": "sf-injection-engine/evaluate#25",
+              "stage": "sf-injection-engine/Evaluate",
+              "idx": 2,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-injection-engine/route",
+              "runtimeStageId": "sf-injection-engine/route#26",
+              "stage": "sf-injection-engine/Route",
+              "idx": 3,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-injection-engine/delta",
+              "runtimeStageId": "sf-injection-engine/delta#27",
+              "stage": "sf-injection-engine/Delta",
+              "idx": 4,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-injection-engine"
+      },
+      "sf-system-prompt#29": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-system-prompt#29"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-system-prompt",
+              "runtimeStageId": "sf-system-prompt#29",
+              "stage": "System Prompt",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-system-prompt/compose",
+              "runtimeStageId": "sf-system-prompt/compose#30",
+              "stage": "sf-system-prompt/Compose",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-system-prompt"
+      },
+      "sf-messages#31": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-messages#31"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-messages",
+              "runtimeStageId": "sf-messages#31",
+              "stage": "Messages",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-messages/compose",
+              "runtimeStageId": "sf-messages/compose#32",
+              "stage": "sf-messages/Compose",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-messages",
+        "parentStageId": "sf-messages.Messages"
+      },
+      "sf-tools#33": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-tools#33"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-tools",
+              "runtimeStageId": "sf-tools#33",
+              "stage": "Tools",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-tools/discover",
+              "runtimeStageId": "sf-tools/discover#34",
+              "stage": "sf-tools/Discover",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-tools/compose",
+              "runtimeStageId": "sf-tools/compose#35",
+              "stage": "sf-tools/Compose",
+              "idx": 2,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-tools",
+        "parentStageId": "sf-tools.Tools"
+      },
+      "sf-cache#36": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-cache#36"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-cache",
+              "runtimeStageId": "sf-cache#36",
+              "stage": "Cache",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-cache/decide-cache-markers",
+              "runtimeStageId": "sf-cache/decide-cache-markers#37",
+              "stage": "sf-cache/CacheDecision",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-cache/cache-gate",
+              "runtimeStageId": "sf-cache/cache-gate#38",
+              "stage": "sf-cache/CacheGate",
+              "idx": 2,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-cache/apply-markers",
+              "runtimeStageId": "sf-cache/apply-markers#39",
+              "stage": "sf-cache/ApplyMarkers",
+              "idx": 3,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-cache",
+        "parentStageId": "Cache"
+      },
+      "sf-thinking#41": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "sf-thinking#41"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "sf-thinking",
+              "runtimeStageId": "sf-thinking#41",
+              "stage": "NormalizeThinking",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "sf-thinking/thinking-mock",
+              "runtimeStageId": "sf-thinking/thinking-mock#42",
+              "stage": "sf-thinking/Normalize",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "sf-thinking",
+        "parentStageId": "NormalizeThinking"
+      },
+      "final#44": {
+        "treeContext": {
+          "logAddress": {
+            "logRunId": "1791199308161-0000000001",
+            "drillPath": [
+              "final#44"
+            ]
+          },
+          "history": [
+            {
+              "stageId": "final",
+              "runtimeStageId": "final#44",
+              "stage": "Final",
+              "idx": 0,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "final/prepare-final",
+              "runtimeStageId": "final/prepare-final#45",
+              "stage": "final/PrepareFinal",
+              "idx": 1,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            },
+            {
+              "stageId": "final/break-final",
+              "runtimeStageId": "final/break-final#46",
+              "stage": "final/BreakFinal",
+              "idx": 2,
+              "overwrite": {},
+              "updates": {},
+              "trace": [],
+              "redactedPaths": [
+                "*"
+              ]
+            }
+          ],
+          "stateValuesWithheld": true
+        },
+        "subflowId": "final",
+        "parentStageId": "Final"
+      }
+    },
+    "recorders": [
+      {
+        "name": "BoundaryEvents",
+        "data": [
+          {
+            "type": "run.entry",
+            "depth": 0,
+            "ts": 1791199308161,
+            "commitIdxBefore": 0,
+            "commitIdxAfter": 0,
+            "runtimeStageId": "__root__#0",
+            "subflowPath": [
+              "__root__"
+            ],
+            "isRoot": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308167,
+            "commitIdxBefore": 1,
+            "commitIdxAfter": 1,
+            "runtimeStageId": "sf-injection-engine#1",
+            "subflowId": "sf-injection-engine",
+            "localSubflowId": "sf-injection-engine",
+            "subflowName": "Injection Engine",
+            "subflowPath": [
+              "__root__",
+              "sf-injection-engine"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308169,
+            "commitIdxBefore": 2,
+            "commitIdxAfter": 2,
+            "runtimeStageId": "sf-injection-engine#1",
+            "subflowId": "sf-injection-engine",
+            "localSubflowId": "sf-injection-engine",
+            "subflowName": "Injection Engine",
+            "subflowPath": [
+              "__root__",
+              "sf-injection-engine"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "fork.branch",
+            "depth": 0,
+            "ts": 1791199308170,
+            "commitIdxBefore": 4,
+            "commitIdxAfter": 4,
+            "runtimeStageId": "context#6",
+            "parentSubflowId": "selector-temp",
+            "childName": "System Prompt",
+            "subflowPath": [
+              "__root__"
+            ]
+          },
+          {
+            "type": "fork.branch",
+            "depth": 0,
+            "ts": 1791199308170,
+            "commitIdxBefore": 4,
+            "commitIdxAfter": 4,
+            "runtimeStageId": "context#6",
+            "parentSubflowId": "selector-temp",
+            "childName": "Messages",
+            "subflowPath": [
+              "__root__"
+            ]
+          },
+          {
+            "type": "fork.branch",
+            "depth": 0,
+            "ts": 1791199308170,
+            "commitIdxBefore": 4,
+            "commitIdxAfter": 4,
+            "runtimeStageId": "context#6",
+            "parentSubflowId": "selector-temp",
+            "childName": "Tools",
+            "subflowPath": [
+              "__root__"
+            ]
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308170,
+            "commitIdxBefore": 4,
+            "commitIdxAfter": 4,
+            "runtimeStageId": "sf-system-prompt#7",
+            "subflowId": "sf-system-prompt",
+            "localSubflowId": "sf-system-prompt",
+            "subflowName": "System Prompt",
+            "subflowPath": [
+              "__root__",
+              "sf-system-prompt"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "system-prompt",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "context.injected",
+            "depth": 1,
+            "ts": 1791199308171,
+            "commitIdxBefore": 4,
+            "commitIdxAfter": 4,
+            "runtimeStageId": "sf-system-prompt/compose#8",
+            "subflowPath": [
+              "__root__",
+              "sf-system-prompt"
+            ],
+            "slot": "system-prompt",
+            "source": "base",
+            "contentSummary": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308172,
+            "commitIdxBefore": 4,
+            "commitIdxAfter": 4,
+            "runtimeStageId": "sf-messages#9",
+            "subflowId": "sf-messages",
+            "localSubflowId": "sf-messages",
+            "subflowName": "Messages",
+            "subflowPath": [
+              "__root__",
+              "sf-messages"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "messages",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "context.injected",
+            "depth": 1,
+            "ts": 1791199308173,
+            "commitIdxBefore": 4,
+            "commitIdxAfter": 4,
+            "runtimeStageId": "sf-messages/compose#10",
+            "subflowPath": [
+              "__root__",
+              "sf-messages"
+            ],
+            "slot": "messages",
+            "asRole": "user",
+            "source": "user",
+            "contentSummary": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308173,
+            "commitIdxBefore": 4,
+            "commitIdxAfter": 4,
+            "runtimeStageId": "sf-tools#11",
+            "subflowId": "sf-tools",
+            "localSubflowId": "sf-tools",
+            "subflowName": "Tools",
+            "subflowPath": [
+              "__root__",
+              "sf-tools"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "tools",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "context.injected",
+            "depth": 1,
+            "ts": 1791199308174,
+            "commitIdxBefore": 4,
+            "commitIdxAfter": 4,
+            "runtimeStageId": "sf-tools/compose#13",
+            "subflowPath": [
+              "__root__",
+              "sf-tools"
+            ],
+            "slot": "tools",
+            "contentSummary": "[content withheld by NAV metadata-only recording]",
+            "source": "withheld"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308174,
+            "commitIdxBefore": 5,
+            "commitIdxAfter": 5,
+            "runtimeStageId": "sf-system-prompt#7",
+            "subflowId": "sf-system-prompt",
+            "localSubflowId": "sf-system-prompt",
+            "subflowName": "System Prompt",
+            "subflowPath": [
+              "__root__",
+              "sf-system-prompt"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "system-prompt",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308174,
+            "commitIdxBefore": 7,
+            "commitIdxAfter": 7,
+            "runtimeStageId": "sf-messages#9",
+            "subflowId": "sf-messages",
+            "localSubflowId": "sf-messages",
+            "subflowName": "Messages",
+            "subflowPath": [
+              "__root__",
+              "sf-messages"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "messages",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308175,
+            "commitIdxBefore": 11,
+            "commitIdxAfter": 11,
+            "runtimeStageId": "sf-tools#11",
+            "subflowId": "sf-tools",
+            "localSubflowId": "sf-tools",
+            "subflowName": "Tools",
+            "subflowPath": [
+              "__root__",
+              "sf-tools"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "tools",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308175,
+            "commitIdxBefore": 13,
+            "commitIdxAfter": 13,
+            "runtimeStageId": "sf-cache#14",
+            "subflowId": "sf-cache",
+            "localSubflowId": "sf-cache",
+            "subflowName": "Cache",
+            "subflowPath": [
+              "__root__",
+              "sf-cache"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "decision.branch",
+            "depth": 0,
+            "ts": 1791199308176,
+            "commitIdxBefore": 13,
+            "commitIdxAfter": 13,
+            "runtimeStageId": "sf-cache/cache-gate#16",
+            "decider": "sf-cache/CacheGate",
+            "subflowPath": [
+              "__root__"
+            ],
+            "isAgentInternal": true
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308176,
+            "commitIdxBefore": 14,
+            "commitIdxAfter": 14,
+            "runtimeStageId": "sf-cache#14",
+            "subflowId": "sf-cache",
+            "localSubflowId": "sf-cache",
+            "subflowName": "Cache",
+            "subflowPath": [
+              "__root__",
+              "sf-cache"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "llm.start",
+            "depth": 0,
+            "ts": 1791199308176,
+            "commitIdxBefore": 15,
+            "commitIdxAfter": 15,
+            "systemPromptChars": 7991,
+            "messagesCount": 1,
+            "toolsCount": 1,
+            "runtimeStageId": "call-llm#18",
+            "subflowPath": [
+              "__root__"
+            ],
+            "actorArrow": "user→llm",
+            "tools": [
+              {
+                "name": "present"
+              }
+            ],
+            "model": "[content withheld by NAV metadata-only recording]",
+            "provider": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "llm.end",
+            "depth": 0,
+            "ts": 1791199308183,
+            "commitIdxBefore": 15,
+            "commitIdxAfter": 15,
+            "toolCallCount": 1,
+            "runtimeStageId": "call-llm#18",
+            "subflowPath": [
+              "__root__"
+            ],
+            "actorArrow": "llm→tool",
+            "stopReason": "tool_use",
+            "usage": {
+              "input": 2034,
+              "output": 0
+            },
+            "content": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308184,
+            "commitIdxBefore": 16,
+            "commitIdxAfter": 16,
+            "runtimeStageId": "sf-thinking#19",
+            "subflowId": "sf-thinking",
+            "localSubflowId": "sf-thinking",
+            "subflowName": "NormalizeThinking",
+            "subflowPath": [
+              "__root__",
+              "sf-thinking"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308184,
+            "commitIdxBefore": 17,
+            "commitIdxAfter": 17,
+            "runtimeStageId": "sf-thinking#19",
+            "subflowId": "sf-thinking",
+            "localSubflowId": "sf-thinking",
+            "subflowName": "NormalizeThinking",
+            "subflowPath": [
+              "__root__",
+              "sf-thinking"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "decision.branch",
+            "depth": 0,
+            "ts": 1791199308185,
+            "commitIdxBefore": 19,
+            "commitIdxAfter": 19,
+            "runtimeStageId": "sf-route#21",
+            "decider": "Route",
+            "subflowPath": [
+              "__root__"
+            ],
+            "isAgentInternal": true
+          },
+          {
+            "type": "tool.start",
+            "depth": 0,
+            "ts": 1791199308186,
+            "commitIdxBefore": 19,
+            "commitIdxAfter": 19,
+            "runtimeStageId": "tool-calls#22",
+            "toolCallId": "rehearsal-unverified-display",
+            "subflowPath": [
+              "__root__"
+            ],
+            "toolName": "present"
+          },
+          {
+            "type": "tool.end",
+            "depth": 0,
+            "ts": 1791199308187,
+            "commitIdxBefore": 19,
+            "commitIdxAfter": 19,
+            "durationMs": 0,
+            "runtimeStageId": "tool-calls#22",
+            "toolCallId": "rehearsal-unverified-display",
+            "subflowPath": [
+              "__root__"
+            ]
+          },
+          {
+            "type": "loop.iteration",
+            "depth": 0,
+            "ts": 1791199308188,
+            "commitIdxBefore": 20,
+            "commitIdxAfter": 20,
+            "iteration": 1,
+            "runtimeStageId": "tool-calls#22",
+            "subflowPath": [
+              "__root__"
+            ]
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308188,
+            "commitIdxBefore": 20,
+            "commitIdxAfter": 20,
+            "runtimeStageId": "sf-injection-engine#23",
+            "subflowId": "sf-injection-engine",
+            "localSubflowId": "sf-injection-engine",
+            "subflowName": "Injection Engine",
+            "subflowPath": [
+              "__root__",
+              "sf-injection-engine"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308189,
+            "commitIdxBefore": 21,
+            "commitIdxAfter": 21,
+            "runtimeStageId": "sf-injection-engine#23",
+            "subflowId": "sf-injection-engine",
+            "localSubflowId": "sf-injection-engine",
+            "subflowName": "Injection Engine",
+            "subflowPath": [
+              "__root__",
+              "sf-injection-engine"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "fork.branch",
+            "depth": 0,
+            "ts": 1791199308190,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "context#28",
+            "parentSubflowId": "selector-temp",
+            "childName": "System Prompt",
+            "subflowPath": [
+              "__root__"
+            ]
+          },
+          {
+            "type": "fork.branch",
+            "depth": 0,
+            "ts": 1791199308190,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "context#28",
+            "parentSubflowId": "selector-temp",
+            "childName": "Messages",
+            "subflowPath": [
+              "__root__"
+            ]
+          },
+          {
+            "type": "fork.branch",
+            "depth": 0,
+            "ts": 1791199308190,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "context#28",
+            "parentSubflowId": "selector-temp",
+            "childName": "Tools",
+            "subflowPath": [
+              "__root__"
+            ]
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308190,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "sf-system-prompt#29",
+            "subflowId": "sf-system-prompt",
+            "localSubflowId": "sf-system-prompt",
+            "subflowName": "System Prompt",
+            "subflowPath": [
+              "__root__",
+              "sf-system-prompt"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "system-prompt",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "context.injected",
+            "depth": 1,
+            "ts": 1791199308190,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "sf-system-prompt/compose#30",
+            "subflowPath": [
+              "__root__",
+              "sf-system-prompt"
+            ],
+            "slot": "system-prompt",
+            "source": "base",
+            "contentSummary": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308190,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "sf-messages#31",
+            "subflowId": "sf-messages",
+            "localSubflowId": "sf-messages",
+            "subflowName": "Messages",
+            "subflowPath": [
+              "__root__",
+              "sf-messages"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "messages",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "context.injected",
+            "depth": 1,
+            "ts": 1791199308190,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "sf-messages/compose#32",
+            "subflowPath": [
+              "__root__",
+              "sf-messages"
+            ],
+            "slot": "messages",
+            "asRole": "user",
+            "source": "user",
+            "contentSummary": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "context.injected",
+            "depth": 1,
+            "ts": 1791199308190,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "sf-messages/compose#32",
+            "subflowPath": [
+              "__root__",
+              "sf-messages"
+            ],
+            "slot": "messages",
+            "asRole": "assistant",
+            "contentSummary": "[content withheld by NAV metadata-only recording]",
+            "source": "withheld"
+          },
+          {
+            "type": "context.injected",
+            "depth": 1,
+            "ts": 1791199308190,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "sf-messages/compose#32",
+            "subflowPath": [
+              "__root__",
+              "sf-messages"
+            ],
+            "slot": "messages",
+            "asRole": "tool",
+            "contentSummary": "[content withheld by NAV metadata-only recording]",
+            "source": "withheld"
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308190,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "sf-tools#33",
+            "subflowId": "sf-tools",
+            "localSubflowId": "sf-tools",
+            "subflowName": "Tools",
+            "subflowPath": [
+              "__root__",
+              "sf-tools"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "tools",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "context.injected",
+            "depth": 1,
+            "ts": 1791199308191,
+            "commitIdxBefore": 23,
+            "commitIdxAfter": 23,
+            "runtimeStageId": "sf-tools/compose#35",
+            "subflowPath": [
+              "__root__",
+              "sf-tools"
+            ],
+            "slot": "tools",
+            "contentSummary": "[content withheld by NAV metadata-only recording]",
+            "source": "withheld"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308191,
+            "commitIdxBefore": 24,
+            "commitIdxAfter": 24,
+            "runtimeStageId": "sf-system-prompt#29",
+            "subflowId": "sf-system-prompt",
+            "localSubflowId": "sf-system-prompt",
+            "subflowName": "System Prompt",
+            "subflowPath": [
+              "__root__",
+              "sf-system-prompt"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "system-prompt",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308191,
+            "commitIdxBefore": 26,
+            "commitIdxAfter": 26,
+            "runtimeStageId": "sf-messages#31",
+            "subflowId": "sf-messages",
+            "localSubflowId": "sf-messages",
+            "subflowName": "Messages",
+            "subflowPath": [
+              "__root__",
+              "sf-messages"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "messages",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308191,
+            "commitIdxBefore": 30,
+            "commitIdxAfter": 30,
+            "runtimeStageId": "sf-tools#33",
+            "subflowId": "sf-tools",
+            "localSubflowId": "sf-tools",
+            "subflowName": "Tools",
+            "subflowPath": [
+              "__root__",
+              "sf-tools"
+            ],
+            "isAgentInternal": false,
+            "slotKind": "tools",
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308191,
+            "commitIdxBefore": 32,
+            "commitIdxAfter": 32,
+            "runtimeStageId": "sf-cache#36",
+            "subflowId": "sf-cache",
+            "localSubflowId": "sf-cache",
+            "subflowName": "Cache",
+            "subflowPath": [
+              "__root__",
+              "sf-cache"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "decision.branch",
+            "depth": 0,
+            "ts": 1791199308191,
+            "commitIdxBefore": 32,
+            "commitIdxAfter": 32,
+            "runtimeStageId": "sf-cache/cache-gate#38",
+            "decider": "sf-cache/CacheGate",
+            "subflowPath": [
+              "__root__"
+            ],
+            "isAgentInternal": true
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308191,
+            "commitIdxBefore": 33,
+            "commitIdxAfter": 33,
+            "runtimeStageId": "sf-cache#36",
+            "subflowId": "sf-cache",
+            "localSubflowId": "sf-cache",
+            "subflowName": "Cache",
+            "subflowPath": [
+              "__root__",
+              "sf-cache"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "llm.start",
+            "depth": 0,
+            "ts": 1791199308191,
+            "commitIdxBefore": 34,
+            "commitIdxAfter": 34,
+            "systemPromptChars": 7991,
+            "messagesCount": 3,
+            "toolsCount": 1,
+            "runtimeStageId": "call-llm#40",
+            "subflowPath": [
+              "__root__"
+            ],
+            "actorArrow": "tool→llm",
+            "tools": [
+              {
+                "name": "present"
+              }
+            ],
+            "model": "[content withheld by NAV metadata-only recording]",
+            "provider": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "llm.end",
+            "depth": 0,
+            "ts": 1791199308472,
+            "commitIdxBefore": 34,
+            "commitIdxAfter": 34,
+            "toolCallCount": 0,
+            "runtimeStageId": "call-llm#40",
+            "subflowPath": [
+              "__root__"
+            ],
+            "actorArrow": "llm→user",
+            "stopReason": "stop",
+            "usage": {
+              "input": 2058,
+              "output": 16
+            },
+            "content": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308473,
+            "commitIdxBefore": 35,
+            "commitIdxAfter": 35,
+            "runtimeStageId": "sf-thinking#41",
+            "subflowId": "sf-thinking",
+            "localSubflowId": "sf-thinking",
+            "subflowName": "NormalizeThinking",
+            "subflowPath": [
+              "__root__",
+              "sf-thinking"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308473,
+            "commitIdxBefore": 36,
+            "commitIdxAfter": 36,
+            "runtimeStageId": "sf-thinking#41",
+            "subflowId": "sf-thinking",
+            "localSubflowId": "sf-thinking",
+            "subflowName": "NormalizeThinking",
+            "subflowPath": [
+              "__root__",
+              "sf-thinking"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "decision.branch",
+            "depth": 0,
+            "ts": 1791199308474,
+            "commitIdxBefore": 38,
+            "commitIdxAfter": 38,
+            "runtimeStageId": "sf-route#43",
+            "decider": "Route",
+            "subflowPath": [
+              "__root__"
+            ],
+            "isAgentInternal": true
+          },
+          {
+            "type": "subflow.entry",
+            "depth": 1,
+            "ts": 1791199308474,
+            "commitIdxBefore": 38,
+            "commitIdxAfter": 38,
+            "runtimeStageId": "final#44",
+            "subflowId": "final",
+            "localSubflowId": "final",
+            "subflowName": "Final",
+            "subflowPath": [
+              "__root__",
+              "final"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "subflow.exit",
+            "depth": 1,
+            "ts": 1791199308477,
+            "commitIdxBefore": 39,
+            "commitIdxAfter": 39,
+            "runtimeStageId": "final#44",
+            "subflowId": "final",
+            "localSubflowId": "final",
+            "subflowName": "Final",
+            "subflowPath": [
+              "__root__",
+              "final"
+            ],
+            "isAgentInternal": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          },
+          {
+            "type": "run.exit",
+            "depth": 0,
+            "ts": 1791199308477,
+            "commitIdxBefore": 40,
+            "commitIdxAfter": 40,
+            "runtimeStageId": "__root__#0",
+            "subflowPath": [
+              "__root__"
+            ],
+            "isRoot": true,
+            "payload": "[content withheld by NAV metadata-only recording]"
+          }
+        ]
+      },
+      {
+        "id": "trust-boundaries-1",
+        "name": "TrustBoundaries",
+        "meta": {
+          "version": 1
+        },
+        "data": {
+          "captureId": "trust-capture-1791199308158-1",
+          "facts": [
+            {
+              "seq": 1,
+              "eventType": "agentfootprint.permission.check",
+              "runId": "run-1791199308159-1",
+              "runtimeStageId": "tool-calls#22",
+              "wallClockMs": 1791199308187,
+              "toolCallId": "rehearsal-unverified-display",
+              "iteration": 1,
+              "sourcePosition": {
+                "engineRunId": "1791199308161-0000000001",
+                "logRunId": "1791199308161-0000000001",
+                "drillPath": [],
+                "committedThroughIdx": 18
+              },
+              "capability": "tool_call",
+              "result": "deny",
+              "target": "present",
+              "policyRuleId": "nav-no-unverified-present"
+            }
+          ],
+          "counters": {
+            "observed": 1,
+            "retained": 1,
+            "evicted": 0,
+            "invalid": 0,
+            "oversized": 0,
+            "pending": 0
+          },
+          "firstObservedSeq": 1,
+          "lastObservedSeq": 1,
+          "firstRetainedSeq": 1,
+          "lastRetainedSeq": 1
+        }
+      }
+    ]
+  }
+}

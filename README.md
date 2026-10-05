@@ -30,6 +30,11 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens
 ```
 
+Lens requires `footprint-explainable-ui >=0.34.0 <1.0.0`. Earlier versions
+lack renderer APIs used by Lens even if an older peer range accepted them.
+The minimum and current tested renderer versions are checked with packed
+installs on both React 18 and React 19; an import failure fails the check.
+
 ```tsx
 import { useMemo } from 'react';
 import { Agent } from 'agentfootprint';
@@ -871,6 +876,15 @@ With no move yet the address is the run's end, from which each axis derives
 its own last stop; a new recorder drops the held address. Headless pieces on
 `/core`: `stepForAddress`, `cursorForAddress`, `addressOf`. Design and the
 facts the fixtures taught: docs/design/2026-09-shared-cursor.md.
+
+If the held address has no position on a child or filtered axis, Lens says so
+instead of displaying that axis's first stage. It does not fold stage state or
+render a final answer for that missing position. Return to the parent view to
+recover the same address, or explicitly choose a recorded stop to move it.
+With a shared cursor, **Latest** is a jump to the current last stop, not a
+subscription to future stops. Before any explicit selection, the shared cursor
+continues to derive the growing end. The older numeric `step` contract keeps
+its existing clamp and live-follow behavior.
 
 ## Time travel through one port
 

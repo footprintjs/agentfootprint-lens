@@ -93,5 +93,11 @@ remap the host wrote itself. The adapter belongs in the library.
 
 ## Review notes kept (5a)
 
-- `useLensCursor`'s out-of-range warning names `<Lens step>` even when the step came from `shared` — harmless, wording only; fold into 5c.
+- The original review called `useLensCursor`'s shared out-of-range warning
+  "harmless, wording only". The NAV sparse-child replay disproved that:
+  the hook clamped the derived -1 to local step 0, so the address guard
+  prevented a callback mutation but still let panels read a false stop.
+  Lens now passes the derived cursor through a separate hook input, renders
+  no-position before execution panels, and changes only visual scope on a
+  shared drill. Numeric controlled/uncontrolled corrections remain numeric.
 - No test yet mounts two sibling `<Lens shared>` together; the derivation both would use is pinned headlessly and through the host spans. Add with 5b when the Skill Graph joins.

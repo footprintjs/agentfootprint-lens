@@ -83,6 +83,7 @@ import { T, MODE_PALETTES } from "./theme/index.js";
 import { ensureLensStyles } from "./lensStyles.js";
 import { WhereFrom } from "./WhereFrom.js";
 import { ServedTab } from "./components/ServedTab.js";
+import { UnplacedCursor } from './components/UnplacedCursor.js';
 // BOOKMARKS + DECLARED TAGS (0.48.0): the reader's marks in a sidecar beside
 // the recording, and the tag legend/picker that rebuilds the scrub axis
 // through footprintjs 9.21's `tagStops` — both riding the ONE cursor.
@@ -363,9 +364,10 @@ export interface LensProps {
    * axis, a tag-filtered one, a drilled one) from the shared ADDRESS, and
    * every mover here — the strip, ◀ ▶, a chart click, `navigatorRef` — moves
    * that address. `step` is ignored while `shared` is given; `onStepChange`
-   * still fires as an observation hook. A correction the lens makes on its
-   * own (`at.clamped`, an address this axis cannot hold) never rewrites the
-   * address: a tab derives a step, only a mover changes the address.
+   * still fires for explicit moves. An address this axis cannot hold shows
+   * no position; it is never corrected to a neighbouring stop. Axis changes
+   * and drills preserve the address. The transport's Latest button jumps to
+   * the current end; that held address stays fixed if the recording grows.
    *
    * ```tsx
    * const shared = useSharedCursor(recorder);
@@ -733,7 +735,7 @@ const StageLens: React.FC<LensProps> = ({
   // Lives at the Lens level so the slider total — which depends on
   // drillPath via hop count — can be computed in this scope. EngineerView
   // receives drillPath + setters as props.
-  const { drillPath, drillInto, drillTo } = useDrillPath();
+  const { drillPath, drillTo } = useDrillPath();
 
   // ─── ONE-CURSOR architecture (Lens v0.1, compound time axis) ──────
   // Cursor type = runtimeStageId (same address space as Trace + commitLog).
@@ -856,16 +858,6 @@ const StageLens: React.FC<LensProps> = ({
   // — a pick, a Clear or a drill changes the list and the derivation follows,
   // with nothing carried across by hand — and every move reports into it.
   const sharedOver = shared !== undefined ? shared.over(cursorPositions, drillPath) : undefined;
-  const controlledStep = sharedOver !== undefined ? sharedOver.at.step : controlledStepProp;
-  const onStepChange = useCallback(
-    (n: number, at: LensCursorAt): void => {
-      // A correction is not a move: an address this axis cannot hold is shown
-      // at the nearest stop (`clamped`) and the address stays where it is.
-      if (sharedOver !== undefined && !at.clamped) sharedOver.moveTo(n);
-      onStepChangeProp?.(n, at);
-    },
-    [sharedOver, onStepChangeProp],
-  );
   const {
     step: focusStep,
     isLive,
@@ -877,13 +869,21 @@ const StageLens: React.FC<LensProps> = ({
     // `resolve` can honestly answer at the same moment it changes the ruler.
     cursor,
   } = useLensCursor({
-    controlledStep,
-    onStepChange,
+    axisCursor: sharedOver,
+    controlledStep: controlledStepProp,
+    onStepChange: onStepChangeProp,
     maxStep,
     describe: describeStep,
     port: cursorPort,
     positions: cursorPositions,
   });
+  // Drilling changes the view's axis. A shared address belongs to the host,
+  // so only an explicit stop selection may move it. Numeric cursors retain
+  // their existing reset when the local scope changes.
+  const changeDrill = useCallback((path: readonly string[]) => {
+    drillTo(path);
+    if (shared === undefined) handleFocusChange(0);
+  }, [drillTo, shared, handleFocusChange]);
   // AXIS SWAP KEEPS THE COMMIT, NOT THE STEP NUMBER. A pick (or a Clear) is a
   // different LIST for the same one cursor; step 8 of one list is nowhere near
   // step 8 of the other, and carrying the number across would move the reader
@@ -953,6 +953,18 @@ const StageLens: React.FC<LensProps> = ({
     </div>
   );
 
+  // No position is not the base (-1 commit) or a first/final stage. Keep
+  // stage folds, final-answer panes and consumer detail slots out of this
+  // branch; its only exit that moves the owner is an explicit stop choice.
+  if (sharedOver !== undefined && cursor.at.step < 0) return inTheme(
+    <UnplacedCursor cursor={cursor} positions={cursorPositions}>
+      {drillPath.length > 0 && <Breadcrumb path={drillPath}
+        labels={drillPathLabels(buildGroups(recorder.boundary.boundaryIndex), drillPath)}
+        onJumpTo={(i) => changeDrill(drillPath.slice(0, i))} />}
+      {drillPath.length === 0 && granularity === 'group' && <TagPicker
+        legend={legend} picked={pickedTags} onPick={setPickedTags} available={tagAxisAvailable} />}
+    </UnplacedCursor>,
+  );
   if (view === "user") return inTheme(<UserView tree={tree} summary={summary} />);
   if (view === "analyst")
     return inTheme(
@@ -964,6 +976,7 @@ const StageLens: React.FC<LensProps> = ({
         focusSeq={focusStep}
         onFocusChange={handleFocusChange}
         isLive={isLive}
+        liveMode={shared === undefined ? 'follow' : 'jump'}
         stepper={stepper}
         liveStreamLine={liveStreamLine}
         {...(account !== undefined ? { account, accountShown } : {})}
@@ -984,6 +997,7 @@ const StageLens: React.FC<LensProps> = ({
       focusStep={focusStep}
       onFocusChange={handleFocusChange}
       isLive={isLive}
+      liveMode={shared === undefined ? 'follow' : 'jump'}
       stepper={stepper}
       cursorPort={cursorPort}
       cursor={cursor}
@@ -991,8 +1005,8 @@ const StageLens: React.FC<LensProps> = ({
       showSummary={showSummary}
       liveStreamLine={liveStreamLine}
       drillPath={drillPath}
-      onDrillInto={drillInto}
-      onDrillTo={drillTo}
+      onDrillInto={changeDrill}
+      onDrillTo={changeDrill}
       syncMap={syncMap}
       cursorPositions={cursorPositions}
       cursorRuntimeStageId={cursorRuntimeStageId}
@@ -1205,6 +1219,7 @@ const EngineerView: React.FC<{
   /** Where ◀ ▶ / ← → / Home / End land — footprintjs's reader cursor over
    *  these same stops. See `<TimeTravel stepper>`. */
   stepper: CursorStepper;
+  liveMode: 'follow' | 'jump';
   /** The same port, for the ADDRESS jump (a chart click, a provenance frame).
    *  Resolution stays the Lens's; the move is the library's. */
   cursorPort: LensCursorPort;
@@ -1250,6 +1265,7 @@ const EngineerView: React.FC<{
   toolChoice,
   granularity,
   stepper,
+  liveMode,
   cursorPort,
   cursor,
   tagPicker,
@@ -1877,6 +1893,7 @@ const EngineerView: React.FC<{
         focusSeq={focusStep}
         onFocusChange={onFocusChange}
         isLive={isLive}
+        liveMode={liveMode}
         stepper={stepper}
       />
       {/* DECLARED TAGS (0.48.0): the legend, and the picker that rebuilds the
@@ -2021,10 +2038,7 @@ const EngineerView: React.FC<{
               path={drillPath}
               labels={drillPathLabels(groups, drillPath)}
               onJumpTo={(i) => {
-                // Drill back/across changes the position SET too — reset
-                // the cursor so a stale focusStep can't fall out of range.
                 drillTo(drillPath.slice(0, i));
-                onFocusChange(0);
               }}
             />
           )}
@@ -2065,11 +2079,6 @@ const EngineerView: React.FC<{
                   const chain = resolveDrillChain(groups, nodeId);
                   if (chain) {
                     drillInto(chain);
-                    // Reset the cursor to the drilled scope's start —
-                    // the new position SET differs, so a stale focusStep
-                    // could land out of range (empty highlight). 0 = the
-                    // drilled group's `group-start`.
-                    onFocusChange(0);
                   }
                 }}
                 traceRuntimeOverlay={traceOverlay}
@@ -3069,6 +3078,7 @@ const AnalystView: React.FC<{
   isLive: boolean;
   /** Where ◀ ▶ / ← → / Home / End land — the same port the engineer view uses. */
   stepper: CursorStepper;
+  liveMode: 'follow' | 'jump';
   liveStreamLine: string | null;
   /** The answer's account (0.68.0): leads with `<PlainWords>`, the rest folds under "More detail". */
   account?: AnswerAccount;
@@ -3081,6 +3091,7 @@ const AnalystView: React.FC<{
   focusSeq,
   onFocusChange,
   isLive,
+  liveMode,
   stepper,
   liveStreamLine,
   account,
@@ -3100,6 +3111,7 @@ const AnalystView: React.FC<{
         focusSeq={focusSeq}
         onFocusChange={onFocusChange}
         isLive={isLive}
+        liveMode={liveMode}
         stepper={stepper}
       />
       <Card title="Commentary">

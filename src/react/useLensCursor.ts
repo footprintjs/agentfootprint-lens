@@ -14,8 +14,10 @@
  * sets position without notifying would be a second cursor wearing the first
  * one's clothes.
  *
- * Omit `controlledStep` and nothing changes: the hook keeps today's internal
- * state and today's auto-advance, byte for byte.
+ * A shared address supplies `axisCursor`: its reading is already derived,
+ * including -1 for no position. Only explicit moves reach that owner's funnel.
+ * Without it, controlled and uncontrolled numeric steps keep their existing
+ * correction and auto-advance contract.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -60,6 +62,13 @@ export interface LensCursorPlace {
 }
 
 export interface UseLensCursorArgs {
+  /**
+   * An address owner's reading of this axis. Takes precedence over numeric
+   * step ownership, including its honest -1 (no position). Axis visits never
+   * clamp, report a correction or follow live; only explicit moves call its
+   * funnel. Rebuilt by the owner when the address or axis changes.
+   */
+  readonly axisCursor?: LensCursor | undefined;
   /** The host's value. `undefined` → uncontrolled (Lens owns the cursor). */
   readonly controlledStep: number | undefined;
   /** Fires on every cursor move, controlled or not. */
@@ -97,7 +106,7 @@ export interface UseLensCursorArgs {
 export interface UseLensCursorResult {
   /** The cursor to render. */
   readonly step: number;
-  /** Pinned to the live edge (drives the ⟳Live affordance). */
+  /** Numeric ownership: following live. Derived ownership: at the current end (Latest). */
   readonly isLive: boolean;
   /** The ONE way anything inside the lens moves the cursor. */
   readonly moveTo: (n: number) => void;
@@ -125,6 +134,7 @@ export function clampStep(n: number, maxStep: number): number {
 }
 
 export function useLensCursor({
+  axisCursor,
   controlledStep,
   onStepChange,
   maxStep,
@@ -145,7 +155,7 @@ export function useLensCursor({
     () => controlledStep === undefined || clampStep(controlledStep, maxStep) >= maxStep,
   );
 
-  // THE CURSOR IS ALWAYS A POSITION. A host-supplied value has always been
+  // A NUMERIC CURSOR IS ALWAYS A POSITION. A host-supplied step has always been
   // snapped onto the axis; the INTERNAL one is snapped the same way now,
   // because the axis SHRINKS as well as grows — switch `granularity` from
   // 'step' to 'group' on a long run, or drill into a small group, and a
@@ -154,8 +164,12 @@ export function useLensCursor({
   // the movement port as a step that does not exist. Snapping here is the ONE
   // place that can fix it for every reader at once: `step` is what the whole
   // component tree sees, and `stepRef` is what the funnel hands the port.
-  const step = clampStep(isControlled ? controlledStep : internalStep, maxStep);
-  const isLive = autoAdvance && step >= maxStep;
+  // A derived address reading is not an invalid numeric request. In
+  // particular, -1 says this axis cannot place it; there is nothing to clamp.
+  const step = axisCursor?.at.step ?? clampStep(isControlled ? controlledStep : internalStep, maxStep);
+  const isLive = axisCursor !== undefined
+    ? step >= 0 && step === maxStep
+    : autoAdvance && step >= maxStep;
 
   // Refs so `notify` / `moveTo` stay identity-stable: an unstable notifier in a
   // dependency array re-runs the auto-advance effect and double-fires.
@@ -169,6 +183,8 @@ export function useLensCursor({
   stepRef.current = step;
   const portRef = useRef(port);
   portRef.current = port;
+  const axisCursorRef = useRef(axisCursor);
+  axisCursorRef.current = axisCursor;
 
   const notify = useCallback((n: number, clamped: boolean): void => {
     const cb = onChangeRef.current;
@@ -194,6 +210,16 @@ export function useLensCursor({
     const to = portRef.current !== undefined
       ? portRef.current.toStep(from, n)
       : { step: n, moved: n !== from, clamped: false };
+    const derived = axisCursorRef.current;
+    if (derived !== undefined) {
+      // The host owns the address; this hook owns neither its reading nor a
+      // follow mode. A real stop selection is the only way to change it.
+      if (derived.total === 0 || !Number.isFinite(n)) return;
+      if (to.step === from && !to.clamped) return;
+      derived.moveTo(to.step);
+      notify(to.step, to.clamped);
+      return;
+    }
     // Uncontrolled: today's law, unchanged — the position moves here.
     if (controlledStep === undefined) setInternalStep(to.step);
     // Auto-advance re-engages when the move lands on the live edge, and
@@ -214,14 +240,16 @@ export function useLensCursor({
   // NOT keyed on `maxStep` — a host sitting on the live edge must keep
   // following as the axis grows under it.
   useEffect(() => {
+    if (axisCursor !== undefined) return;
     if (controlledStep === undefined) return;
     setAutoAdvance(clampStep(controlledStep, maxRef.current) >= maxRef.current);
-  }, [controlledStep]);
+  }, [axisCursor, controlledStep]);
 
   // Follow the live edge. The shipped lens did this with a bare
   // `setFocusStep(maxStep)` — a mover that told nobody. It goes through the
   // same funnel now, so a host that follows the cursor sees the run advance.
   useEffect(() => {
+    if (axisCursor !== undefined) return;
     if (!autoAdvance) return;
     if (step === maxStep) return;
     if (controlledStep === undefined) setInternalStep(maxStep);
@@ -229,7 +257,7 @@ export function useLensCursor({
     // `step` is deliberately absent: this effect reacts to the axis growing,
     // and reads the current step through the guard above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [maxStep, autoAdvance, controlledStep, notify]);
+  }, [axisCursor, maxStep, autoAdvance, controlledStep, notify]);
 
   // Out-of-range correction — clamp AND say so, never a silent clamp, and in
   // BOTH modes. The value being corrected is whoever owns the cursor's: the
@@ -252,6 +280,7 @@ export function useLensCursor({
   // untouched. This effect reports the correction; it does not change it.
   const warnedRef = useRef<string | undefined>(undefined);
   useEffect(() => {
+    if (axisCursor !== undefined) return;
     const owned = controlledStep !== undefined ? controlledStep : internalStep;
     const snapped = clampStep(owned, maxStep);
     if (snapped === owned) return;
@@ -270,15 +299,16 @@ export function useLensCursor({
       }
     }
     notify(snapped, true);
-  }, [controlledStep, internalStep, maxStep, notify]);
+  }, [axisCursor, controlledStep, internalStep, maxStep, notify]);
 
   // The ONE cursor in the ONE vocabulary (0.51.0). Derived, never owned — it
-  // is `step` (already snapped onto the axis above) plus the axis plus THIS
-  // funnel, rebuilt whenever any of the three changes. No new state, no second
-  // owner, and nothing above it reads it back.
+  // reads an address owner's cursor verbatim, or builds the numeric reading
+  // from the corrected step. Both expose this same explicit-move funnel.
   const cursor = useMemo(
-    () => lensCursorFrom(positions ?? [], step, moveTo),
-    [positions, step, moveTo],
+    () => axisCursor !== undefined
+      ? Object.freeze({ ...axisCursor, moveTo })
+      : lensCursorFrom(positions ?? [], step, moveTo),
+    [axisCursor, positions, step, moveTo],
   );
 
   return { step, isLive, moveTo, cursor };

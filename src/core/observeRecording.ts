@@ -642,9 +642,8 @@ export function observeRecording(
   // log holds the same order the channel would have fired — one bundle per
   // executed stage, `runtimeStageId` spelled exactly as the cursor spells it —
   // so eui's own post-hoc twin (`overlayFromSnapshot`) rebuilds the overlay
-  // and the handle adopts it. `seed` is guarded call-time (house TRUE-ESM
-  // pattern): an older explainable-ui inside the declared peer range simply
-  // keeps today's unlit chart instead of crashing the replay.
+  // and the handle adopts it. Supported explainable-ui peers provide `seed`;
+  // the call-time guard remains defensive against an unexpected runtime handle.
   if (snapshot !== undefined && typeof recorder.runtime.seed === 'function') {
     const rebuiltOverlay = overlayFromSnapshot(snapshot);
     if (rebuiltOverlay.executionOrder.length > 0) recorder.runtime.seed(rebuiltOverlay);
