@@ -31,6 +31,8 @@ export interface TimeTravelProps {
   readonly onFocusChange: (seq: number) => void;
   /** True when `focusSeq === total - 1`. Drives ⟳Live button visual. */
   readonly isLive: boolean;
+  /** A shared address can jump to the current end without promising to follow future stops. */
+  readonly liveMode?: 'follow' | 'jump';
   /**
    * Compact mode — render ONLY the ◀ ▶ ⟳Live controls + position count, NOT the
    * drag track. Used in the monitor where the "WHAT HAPPENED" timeline IS the
@@ -144,6 +146,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
   focusSeq,
   onFocusChange,
   isLive,
+  liveMode = 'follow',
   compact,
   stepStrip = true,
   bands,
@@ -287,7 +290,7 @@ export const TimeTravel: React.FC<TimeTravelProps> = ({
         title="Jump to latest event (End)"
         aria-label="Jump to latest"
       >
-        {isLive ? '● Live' : '⟳ Live'}
+        {liveMode === 'jump' ? (isLive ? '● Latest' : '↦ Latest') : (isLive ? '● Live' : '⟳ Live')}
       </button>
       {/* Compact mode: a clickable STEP STRIP (every step visible, click to jump
           — including BACKWARD to any earlier step), or just a spacer if disabled.

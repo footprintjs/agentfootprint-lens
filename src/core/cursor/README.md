@@ -84,6 +84,30 @@ reads for its axis; its `moveTo` hands the landed position's address to
 The law: a tab derives a step; only a mover changes the address; a visit to a
 coarser axis and back lands on the same commit (`test/cursor/`).
 
+`<Lens shared>` passes this derived reading to `useLensCursor` as an
+`axisCursor`. It is distinct from controlled numeric `step` ownership: a
+derived `step: -1` is a valid refusal to place the address, never an invalid
+number to clamp. Axis visits, drills, growth and granularity changes do not
+report corrections or move the address. The shared default, before any move,
+still reads the growing run's end. An explicit **Latest** jump holds the end's
+address as it exists now and keeps it if more commits arrive. Numeric Lens
+cursors retain their existing **Live** following and clamping behavior.
+
+Lens handles no position before mounting execution panels or consumer detail
+slots. It displays an unplaced reading, a path back to the parent scope, and
+an explicit recorded-stop picker; choosing a stop moves under that axis's
+drill path. Its `commitIdx: -1` is absence, not authorization to fold the
+recorded base. The source-prefix shell remains a separate target branch.
+
+The NAV replay regression is frozen in
+`test/cursor/fixtures/nav-sparse-child.json`: root stop 19 (`sf-thinking#41`,
+commit 35), then drill into `final#44` (commit 38). Before this correction,
+the drill reset the shared address to the old axis's `seed#0`, and the numeric
+hook clamped the child projection from -1 to 0. The 0.56.0 adapter guarded
+clamped callbacks but still rebuilt a false local reading. The integration
+test pins the held address, no false panels, no warning/callback, and the
+return to root stop 19; hook tests pin empty axes and growth.
+
 ## The commit a stop folds through (0.71.0)
 
 `foldAt.ts` is the ONE owner of "what the record held at this stop". A

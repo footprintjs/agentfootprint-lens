@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Shared replay addresses survive drilling and axis changes. An address absent
+  from an axis is shown as unplaced, never silently clamped to its first stage.
+  Explicit shared selections are no longer overwritten by local live-follow.
+  Numeric controlled and uncontrolled cursor behavior is unchanged.
+- Renderer compatibility now requires `footprint-explainable-ui >=0.34.0 <1.0.0`,
+  the first version with every renderer API Lens uses. Packed ESM/CJS imports,
+  replay restoration and React rendering are checked against the minimum and
+  current tested renderer on React 18 and 19; failures are no longer warnings.
+
+### Changed
+
+- Shared replay's end control is labeled **Latest**: it selects the current last
+  stop and holds that address. An unselected shared cursor still follows the
+  growing end; numeric cursors retain their **Live** control.
+
 ## [0.72.1] - 2026-10-01
 
 ### Fixed — "You asked" shows one pair of quotation marks

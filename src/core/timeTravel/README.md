@@ -45,9 +45,12 @@ question "where is the cursor now?", and the relative movers (`prev` / `next`)
 then move from that seat. The shipped arithmetic clamped the RESULT instead
 (`Math.min(max, Math.max(0, from - 1))`), so a `prev` from past the end landed
 ON the end rather than one before it. That is the one place the two readings
-differ, and it is unreachable from `<Lens>`: `useLensCursor` snaps the cursor
-onto the axis before the funnel ever asks (`useLensCursor · step`), so `from` is
-always a position. `portEquivalence.test.ts` pins both halves of that sentence.
+differ. For a numeric Lens cursor, `useLensCursor` snaps the reading onto the
+axis before the funnel asks. A shared address can instead read as no position
+(`step: -1`): Lens displays an unplaced shell, not a relative transport or
+stage fold. Its explicit stop picker uses `toStep`, whose target names a real
+stop; the calculator's seat never becomes a rendered cursor or a host move
+on its own. `portEquivalence.test.ts` pins the numeric movement contract.
 
 **4. A miss never moves, and its `nearest` is an offer.** `toAddress` returns
 `{ ok: false, nearest }` and no step. Rendering the offer is the caller's
