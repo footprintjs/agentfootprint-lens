@@ -174,6 +174,26 @@ One mental model. The runner does the work; Lens watches.
 
 ---
 
+## Trust boundaries and source prefixes
+
+`TrustBoundaryView` reads the optional version-1 `TrustBoundaries` recorder bundle. It shows observed permission, policy, middleware, and credential facts with retained/dropped counts. It does not infer missing decisions from a finished execution tree or certify security or regulatory compliance.
+
+Share the same cursor with execution replay to inspect a fact's actual source location:
+
+```tsx
+const shared = useSharedCursor(recorder, recording.snapshot);
+return <>
+  <TrustBoundaryView snapshot={recording.snapshot} shared={shared} />
+  <Lens recorder={recorder} shared={shared} />
+</>;
+```
+
+Import these components and the hook from `agentfootprint-lens`. A fact's `sourcePosition` identifies its exact log, complete runtime subflow path, and inclusive committed prefix (`-1` means the base before any commit). Source navigation does not substitute an enclosing stage or the final state. Missing positions remain **Unplaced**; absent, incompatible, or damaged logs remain unavailable.
+
+Metadata-only exporters should mark their snapshot or selected child context with `stateValuesWithheld: true`. Lens then distinguishes a known source location from unavailable state values. For full-content snapshots, prefix folding requires the recorded base and intact prefix; a missing base never falls back to `globalContext`. **Show final execution step** explicitly leaves source-prefix mode. Older recorder bundles and manually supplied legacy cursors remain readable without source navigation.
+
+Headless consumers can import `readTrustBoundaries`, `readSourcePosition`, and `resolveSourcePrefix` from `agentfootprint-lens/core`. See [the reader contract](src/core/trustBoundaries/README.md) and [cursor ownership](src/core/cursor/README.md) for limits and failure codes.
+
 ## Watching a run that already finished
 
 A recording is a run you kept. It is exactly THREE things — miss one and one

@@ -68,6 +68,8 @@ import {
   type UseToolChoiceResult,
 } from "./hooks/useToolChoice.js";
 import { ToolChoicePanel } from "./components/ToolChoicePanel.js";
+import { TrustBoundaryView, sourcePrefixMessage, TRUST_BUTTON_STYLE } from './TrustBoundaryView.js';
+import { readTrustBoundaries } from '../core/trustBoundaries/index.js';
 import { buildGroups } from "../core/group/buildGroups.js";
 import {
   resolveDrillChain,
@@ -545,7 +547,55 @@ export interface LensDetailSlotProps {
   readonly cursor?: LensCursor;
 }
 
-export const Lens: React.FC<LensProps> = ({
+/**
+ * Source prefixes are not stage stops. Keep them outside the legacy stage
+ * shell so its clamp, final-answer slots and state folds cannot show a future
+ * state while an exact source prefix (including -1) is held by the host.
+ * Entering this mode resets local visual drill state, not the shared target.
+ */
+export const Lens: React.FC<LensProps> = (props) =>
+  props.shared?.target?.kind === 'source-prefix'
+    ? <SourcePrefixLens {...props} shared={props.shared} />
+    : <StageLens {...props} />;
+
+function lensThemeVars(theme?: LensTheme): React.CSSProperties {
+  if (!theme) return {};
+  const base = theme.mode ? {
+    ...(tokensToCSSVars(theme.mode === 'light' ? coolLight : coolDark) as React.CSSProperties),
+    ...MODE_PALETTES[theme.mode],
+  } : {};
+  return {
+    ...base,
+    ...(theme.visited !== undefined && { ['--fp-node-visited' as string]: theme.visited }),
+    ...(theme.current !== undefined && { ['--fp-node-cursor' as string]: theme.current }),
+  } as React.CSSProperties;
+}
+
+const SourcePrefixLens: React.FC<LensProps & { shared: SharedCursor }> = ({ recorder, runner, shared, theme }) => {
+  useLensRecorder(recorder);
+  const snapshot = snapshotOfRunner(runner ?? recorder.observedRunner());
+  const target = shared.target;
+  const resolution = shared.sourcePrefix;
+  const stages = shared.forAxis('step');
+  if (target?.kind !== 'source-prefix') return <></>;
+  return <section aria-label="Source prefix" style={{ ...lensThemeVars(theme), padding: 16, height: '100%', overflow: 'auto', color: T.textPrimary, background: T.bgElevated, fontSize: 13, lineHeight: 1.55 }}>
+    <div style={{ maxWidth: 920, margin: '0 auto' }}>
+    <h2>Recorded source prefix</h2>
+    <p>Log {target.position.logRunId} · {target.position.drillPath.join(' / ') || 'root'} · committed through {target.position.committedThroughIdx}</p>
+    <p>{target.position.committedThroughIdx === -1 ? 'Before this log’s first commit; the recorded base, not step 0.' : 'The recorded local log prefix at emission, not the emitting stage’s eventual commit.'}</p>
+    <p role="status">{resolution?.status === 'available'
+      ? resolution.state.status === 'available'
+        ? 'The exact source prefix is available. State values are not displayed in this metadata view.'
+        : sourcePrefixMessage(resolution.state)
+      : resolution ? sourcePrefixMessage(resolution) : 'The source prefix is unavailable.'}</p>
+    <p>Execution views are not shown while this source prefix is selected. Switching views does not move the held target. Returning to execution resets the local visual drill.</p>
+    <button style={TRUST_BUTTON_STYLE} type="button" disabled={stages.total === 0} onClick={() => stages.moveTo(stages.total - 1)}>Show final execution step</button>
+    </div>
+    <TrustBoundaryView snapshot={snapshot} shared={shared} />
+  </section>;
+};
+
+const StageLens: React.FC<LensProps> = ({
   recorder,
   theme,
   runner,
@@ -877,20 +927,7 @@ export const Lens: React.FC<LensProps> = ({
   // renders the summary card and the transport too, and used to get none of it.
   // Everything lands in the `--fp-*` tier, so a consumer's `--lens-*` still wins
   // (resolution order is `--lens-X` → `--fp-X` → fallback, unchanged).
-  const themeVars = useMemo<React.CSSProperties>(() => {
-    if (!theme) return {};
-    const base: React.CSSProperties = theme.mode
-      ? ({
-          ...(tokensToCSSVars(theme.mode === "light" ? coolLight : coolDark) as React.CSSProperties),
-          ...MODE_PALETTES[theme.mode],
-        } as React.CSSProperties)
-      : {};
-    return {
-      ...base,
-      ...(theme.visited !== undefined && { ["--fp-node-visited" as string]: theme.visited }),
-      ...(theme.current !== undefined && { ["--fp-node-cursor" as string]: theme.current }),
-    } as React.CSSProperties;
-  }, [theme]);
+  const themeVars = useMemo(() => lensThemeVars(theme), [theme]);
 
   // Anything the view cannot honestly show — "this recording carried no
   // chart", "3 events could not be read". `observeRecording` puts them on the
@@ -908,6 +945,10 @@ export const Lens: React.FC<LensProps> = ({
       }}
     >
       <LensNotes notes={notes} />
+      {readTrustBoundaries(freshSnapshot).status !== 'missing' && <details style={{ maxHeight: '45%', overflow: 'auto' }}>
+        <summary>Trust boundaries</summary>
+        <TrustBoundaryView snapshot={freshSnapshot} shared={shared} />
+      </details>}
       <div style={{ flex: 1, minHeight: 0 }}>{content}</div>
     </div>
   );

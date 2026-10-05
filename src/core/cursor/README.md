@@ -99,3 +99,58 @@ every fold takes — `contextAt` in `<ContextView>`, `<ProofMap>`,
 host's own Time view. Before it, each fold site read `at.commitIdx`, so
 "Run · start" of a resumed leg showed the paused call already dispatched
 (the 2026-10-01 demo video; pinned by `test/time/timeAtStop.test.tsx`).
+
+## An emitting frame's source prefix
+
+`sourcePrefix.ts` reads the optional coordinate on a version-1
+`TrustBoundaries` fact: `engineRunId`, `logRunId`, the complete runtime mount
+`drillPath`, and inclusive local `committedThroughIdx`. `readSourcePosition`
+validates own data properties and returns an owned frozen coordinate, retaining
+only those four fields. IDs are nonempty strings up to 512 code units, paths
+have at most 32 IDs, and the index is a safe integer at least `-1`. The bundle
+reader owns the enclosing version check. The cursor core returns reason codes,
+not explanatory prose; the Trust view owns their display copy.
+
+`resolveSourcePrefix(snapshot, position)` binds the coordinate to the recorded
+`logAddress`, not to a stage's eventual commit. At root it reads `commitLog`;
+inside a mount it selects the exact runtime key in `subflowResults`, verifies
+`treeContext.logAddress` against the entire path and log ID, and reads that
+context's `history`. Every row of the requested prefix must preserve its native
+`idx === array index`. A missing, displaced, or out-of-range prefix is
+unavailable; it is never clamped or repaired from another log. The emitting
+`engineRunId` may differ from the current snapshot run after same-executor
+resume; `logRunId` identifies the log that persists across those legs.
+
+Location and values are separate: outer `status: 'available'` proves the
+coordinate can be placed. Its `state` is either an available `source` plus
+footprintjs's own `stateAt` result (`folded`), or unavailable with a reason:
+`withheld`, `missing-base`, `damaged-values`, or `fold-failed`. Explicit
+`stateValuesWithheld: true` on the root or selected tree context bypasses the
+fold entirely. A metadata skeleton is not an empty state. A missing recorded
+base is not silently replaced with `{}`. `-1` reads the real initial state;
+for a fresh resumed leg that is the recorded resume base. Redacted values keep
+the engine fold's redaction flags and placeholders.
+
+`useSharedCursor(recorder, snapshot?)` holds one `SharedCursorTarget`: either
+`{ kind: 'stage', address }` or `{ kind: 'source-prefix', position }`.
+`selectSourcePrefix` resolves before moving and returns that resolution; a
+refusal never moves the target. `target` is the full held value, `address` is
+only its ordinary-stage projection, and `sourcePrefix` is the current source
+resolution. Views must branch on this target before running legacy stage
+folds; no-position on an axis does not authorize folding its base. The shipped
+Lens shell displays source prefixes separately from its execution views.
+
+Axis visits leave the held target unchanged. `cursorForTarget` can project a
+readable root prefix only to an exact `foldCommitIdxOf` stop; there is no
+emitter-stage or nearest-stop fallback. Nested legacy axes use enclosing or
+overlay indices, not local history indices, so they report no position for a
+source target. An explicit axis move replaces the target with an ordinary
+stage address. The hook invalidates derived axes and source folds on recorder
+version or supplied snapshot changes, including nested-log growth with an
+unchanged root length. A recorder replacement resets the target; a snapshot
+that no longer holds its log leaves the address held but unavailable.
+
+The additive source fields/method are optional on `SharedCursor`, preserving
+hand-built controllers from before this feature. The hook returns the stronger
+`SourceAwareSharedCursor`; a view receiving an arbitrary `SharedCursor` must
+check that `selectSourcePrefix` exists rather than replacing it with a stage jump.

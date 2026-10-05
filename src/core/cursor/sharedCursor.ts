@@ -25,6 +25,8 @@ import type { CursorPosition } from '../group/cursorPositionsAtDrill.js';
 import { stepForCommitIdx } from '../group/stepForCommitIdx.js';
 import { stepForRuntimeStageId } from '../group/stepForRuntimeStageId.js';
 import { lensCursorFrom, type LensCursor } from './lensCursor.js';
+import { foldCommitIdxOf } from './foldAt.js';
+import type { SourcePosition, SourcePrefixResolution } from './sourcePrefix.js';
 
 /** Where THE cursor stands — on the record, not on an axis. */
 export interface CursorAddress {
@@ -37,6 +39,16 @@ export interface CursorAddress {
    */
   readonly drillPath?: readonly string[];
 }
+
+/** A source prefix is not a stage stop. One held target names either, never both. */
+export interface SourcePrefixTarget {
+  readonly kind: 'source-prefix';
+  readonly position: SourcePosition;
+}
+
+export type SharedCursorTarget =
+  | { readonly kind: 'stage'; readonly address: CursorAddress }
+  | SourcePrefixTarget;
 
 /** The address a position stands at, carrying the drill path it was read under. */
 export function addressOf(position: CursorPosition, drillPath?: readonly string[]): CursorAddress {
@@ -104,4 +116,38 @@ export function cursorForAddress(
     const landed = positions[Math.min(Math.max(Math.trunc(n), 0), positions.length - 1)];
     if (landed !== undefined) onMove(addressOf(landed, axisDrillPath));
   });
+}
+
+/**
+ * Read the one target on an axis. Source prefixes can only project to an exact
+ * ROOT fold stop after their log was resolved; no stage/nearest fallback.
+ * Drilled legacy axes use enclosing/overlay indices, not local history indices,
+ * so they cannot claim an exact prefix stop. Visiting them never changes target.
+ */
+export function cursorForTarget(
+  positions: readonly CursorPosition[],
+  target: SharedCursorTarget,
+  onMove: (next: SharedCursorTarget) => void,
+  axisDrillPath: readonly string[] = ROOT,
+  resolved?: SourcePrefixResolution,
+): LensCursor {
+  if (target.kind === 'stage') {
+    return cursorForAddress(positions, target.address, (address) => onMove({ kind: 'stage', address }), axisDrillPath);
+  }
+  const position = target.position;
+  const matches = resolved?.status === 'available'
+    && resolved.state.status === 'available'
+    && resolved.position.engineRunId === position.engineRunId
+    && resolved.position.logRunId === position.logRunId
+    && resolved.position.committedThroughIdx === position.committedThroughIdx
+    && sameDrill(resolved.position.drillPath, position.drillPath);
+  const step = matches && position.drillPath.length === 0 && axisDrillPath.length === 0
+    ? positions.findIndex((stop) => foldCommitIdxOf(stop) === position.committedThroughIdx)
+    : -1;
+  const cursor = lensCursorFrom(positions, step, (n) => {
+    if (positions.length === 0) return;
+    const landed = positions[Math.min(Math.max(Math.trunc(n), 0), positions.length - 1)];
+    if (landed !== undefined) onMove({ kind: 'stage', address: addressOf(landed, axisDrillPath) });
+  });
+  return Object.freeze({ ...cursor, at: Object.freeze({ ...cursor.at, sourcePosition: position }) });
 }

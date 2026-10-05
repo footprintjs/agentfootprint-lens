@@ -47,7 +47,8 @@ export {
 // The HOST's one cursor across every lens it mounts (0.55.0): an address on
 // the record, a `LensCursor` per axis, and a bridge for the older
 // step + report contract so lenses migrate one at a time.
-export { useSharedCursor, type SharedAxis, type SharedCursor } from "./useSharedCursor.js";
+export { useSharedCursor, type SharedAxis, type SharedCursor, type SourceAwareSharedCursor } from "./useSharedCursor.js";
+export { TrustBoundaryView, type TrustBoundaryViewProps } from './TrustBoundaryView.js';
 // Where the engineer view stops being two columns and starts stacking them.
 export {
   LENS_NARROW_BREAKPOINT,
