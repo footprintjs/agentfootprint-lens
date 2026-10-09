@@ -5,7 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.73.0] - 2026-10-09
+
+### Added
+
+- `TrustBoundaryView` reads the optional version-1 `TrustBoundaries` recorder
+  bundle: observed permission, policy, middleware and credential facts, with
+  retained and dropped counts. It never infers a missing decision from the
+  finished tree and certifies nothing; a missing fact is unknown, not safe.
+- Source prefixes: a fact's `sourcePosition` (its log, full runtime subflow
+  path and committed prefix) is a target of the shared cursor, so the Lens
+  shows the exact state at that point, never an enclosing stage or the final
+  state. Missing positions stay **Unplaced**; metadata-only snapshots marked
+  `stateValuesWithheld: true` show the location without the values. Headless
+  readers: `readTrustBoundaries`, `readSourcePosition`, `resolveSourcePrefix`
+  on `agentfootprint-lens/core`. Older bundles and legacy cursors still read.
 
 ### Fixed
 
