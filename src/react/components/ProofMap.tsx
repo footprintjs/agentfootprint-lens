@@ -538,7 +538,7 @@ export interface ProofMapProps {
 }
 
 function positionsOf(snapshot: unknown): readonly CursorPosition[] {
-  return tagAxisPositions(snapshot, MILESTONE_AXIS, []) ?? [];
+  return tagAxisPositions(snapshot, MILESTONE_AXIS, []);
 }
 
 const noMove = (): void => undefined;

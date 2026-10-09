@@ -119,7 +119,7 @@ export interface ContextViewProps {
 }
 
 function positionsOf(snapshot: unknown): readonly CursorPosition[] {
-  return tagAxisPositions(snapshot, MILESTONE_AXIS, []) ?? [];
+  return tagAxisPositions(snapshot, MILESTONE_AXIS, []);
 }
 
 /** The fold's cursor: the stop's address, folded through the last commit it held (`foldAt.ts`). */

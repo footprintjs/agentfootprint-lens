@@ -1546,13 +1546,8 @@ legend.source;                                  // 'structure' | 'log'
 legend.entries.map((e) => [e.label, e.hits]);   // [['Iteration', 2], ['LLM turn', 2], ['audit', 0], …]
 
 const axis = tagAxisPositions(snapshot, ['milestone:llm-turn'], scrubAxisFor(recorder, 'group'));
-axis?.map((p) => p.label);                      // ['Run · start', 'LLM turn 1', 'LLM turn 2', 'Run · end']
+axis.map((p) => p.label);                       // ['Run · start', 'LLM turn 1', 'LLM turn 2', 'Run · end']
 ```
-
-**Older peers.** `tagStops` (footprintjs 9.21) and `milestoneFromTags`
-(agentfootprint 9.90) are read off their module namespaces at call time: on a
-peer without them the legend prints raw names, the strip says *tag axis
-unavailable*, and nothing else changes. The peer ranges are untouched.
 
 ---
 

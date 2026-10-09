@@ -41,12 +41,12 @@ export interface TagPickerProps {
   /** The picked tag names — `tagStops`'s any-of keep rule. Empty = default axis. */
   readonly picked: readonly string[];
   readonly onPick: (next: readonly string[]) => void;
-  /** `false` when the installed footprintjs has no `tagStops` (a 9.17 peer):
-   *  the legend still shows; picking is disabled and labelled. */
-  readonly available: boolean;
+  /** Default `true`. `false` holds the strip read-only: the legend still
+   *  shows; picking is disabled and labelled. */
+  readonly available?: boolean;
 }
 
-export function TagPicker({ legend, picked, onPick, available }: TagPickerProps): React.ReactElement | null {
+export function TagPicker({ legend, picked, onPick, available = true }: TagPickerProps): React.ReactElement | null {
   if (legend.entries.length === 0) return null;
   const toggle = (name: string): void => {
     onPick(picked.includes(name) ? picked.filter((t) => t !== name) : [...picked, name]);

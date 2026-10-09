@@ -91,7 +91,7 @@ import { BookmarksTab } from "./components/BookmarksTab.js";
 import { TagPicker } from "./components/TagPicker.js";
 import { useBookmarkSidecar, type UseBookmarkSidecarResult } from "./hooks/useBookmarkSidecar.js";
 import { bookmarksToMarks, localStorageBookmarkStore, type BookmarkStore } from "../core/bookmarks/index.js";
-import { tagLegend, tagAxisPositions, tagStopsStrategy, type TagLegend } from "../core/tags/index.js";
+import { tagLegend, tagAxisPositions, type TagLegend } from "../core/tags/index.js";
 import { snapshotOfRunner, snapshotLogKey } from "../core/utils/snapshotOfRunner.js";
 // eui's light/dark presets — applied to the chart area from `theme.mode` so the
 // eui-rendered nodes follow dark/light without the consumer hand-setting `--fp-*`.
@@ -774,8 +774,8 @@ const StageLens: React.FC<LensProps> = ({
   // tag axis IS a grouping (untagged stages fold into the tagged stop before
   // them), so the per-step reading — every commit a stop — keeps its ruler
   // byte for byte, and a drilled level keeps its own group's stops; the
-  // picker is omitted in both rather than shown inert. An empty pick, or a
-  // peer without `tagStops`, is the default axis, byte for byte.
+  // picker is omitted in both rather than shown inert. An empty pick is the
+  // default axis, byte for byte.
   const [pickedTags, setPickedTags] = useState<readonly string[]>([]);
   const legend = useMemo<TagLegend>(() => {
     const spec = (lensRunner as { getSpec?: unknown } | null)?.getSpec;
@@ -785,7 +785,6 @@ const StageLens: React.FC<LensProps> = ({
         : undefined;
     return tagLegend(structure, runSnapshot);
   }, [lensRunner, runSnapshot]);
-  const tagAxisAvailable = tagStopsStrategy() !== undefined;
   const tagAxis = useMemo(
     () =>
       pickedTags.length > 0 && drillPath.length === 0 && granularity === 'group'
@@ -962,7 +961,7 @@ const StageLens: React.FC<LensProps> = ({
         labels={drillPathLabels(buildGroups(recorder.boundary.boundaryIndex), drillPath)}
         onJumpTo={(i) => changeDrill(drillPath.slice(0, i))} />}
       {drillPath.length === 0 && granularity === 'group' && <TagPicker
-        legend={legend} picked={pickedTags} onPick={setPickedTags} available={tagAxisAvailable} />}
+        legend={legend} picked={pickedTags} onPick={setPickedTags} />}
     </UnplacedCursor>,
   );
   if (view === "user") return inTheme(<UserView tree={tree} summary={summary} />);
@@ -1011,7 +1010,7 @@ const StageLens: React.FC<LensProps> = ({
       cursorPositions={cursorPositions}
       cursorRuntimeStageId={cursorRuntimeStageId}
       granularity={granularity}
-      tagPicker={{ legend, picked: pickedTags, onPick: setPickedTags, available: tagAxisAvailable }}
+      tagPicker={{ legend, picked: pickedTags, onPick: setPickedTags }}
       bookmarks={sidecar}
       {...(slots ? { slots } : {})}
       {...(toolChoice ? { toolChoice: toolChoiceData } : {})}
@@ -1233,7 +1232,6 @@ const EngineerView: React.FC<{
     readonly legend: TagLegend;
     readonly picked: readonly string[];
     readonly onPick: (next: readonly string[]) => void;
-    readonly available: boolean;
   };
   /** BOOKMARKS (0.48.0): the sidecar — a list, never a position. */
   bookmarks?: UseBookmarkSidecarResult;
@@ -1905,7 +1903,6 @@ const EngineerView: React.FC<{
           legend={tagPicker.legend}
           picked={tagPicker.picked}
           onPick={tagPicker.onPick}
-          available={tagPicker.available}
         />
       )}
       {/* The honest sentence for the collapsed plumbing: what is hidden is

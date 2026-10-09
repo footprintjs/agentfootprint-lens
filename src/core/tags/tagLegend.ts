@@ -18,13 +18,11 @@
  *
  * agentfootprint's milestone vocabulary (`'milestone:<kind>'` beside a
  * `'milestone-label:<label>'` carrier) is read back through its own
- * `milestoneFromTags` when the installed peer has it, so a milestone tag
- * prints the label the chart declared; any other tag prints its raw name.
- * `milestoneFromTags` is read off the module namespace at call time — the peer
- * range admits agentfootprint 7 and 8, which have no such symbol.
+ * `milestoneFromTags`, so a milestone tag prints the label the chart
+ * declared; any other tag prints its raw name.
  */
 
-import * as agentfootprint from 'agentfootprint';
+import { milestoneFromTags } from 'agentfootprint';
 
 import { mountLogsOf } from '../utils/snapshotOfRunner.js';
 
@@ -35,17 +33,6 @@ import { mountLogsOf } from '../utils/snapshotOfRunner.js';
  * tag's label instead of listing it.
  */
 const MILESTONE_LABEL_CARRIER = 'milestone-label:';
-
-type MilestoneFromTags = (
-  tags: readonly unknown[] | undefined,
-  labelWhenUndeclared?: string,
-) => { readonly kind: string; readonly label: string } | null;
-
-/** agentfootprint 9.90's reader, when the installed peer ships it. */
-function milestoneReader(): MilestoneFromTags | undefined {
-  const fn = (agentfootprint as { milestoneFromTags?: unknown }).milestoneFromTags;
-  return typeof fn === 'function' ? (fn as MilestoneFromTags) : undefined;
-}
 
 /** One tag the legend lists. */
 export interface TagLegendEntry {
@@ -83,8 +70,7 @@ export interface TagLegend {
  * so a kind tag borrows its sibling carrier's label.
  */
 function labelFor(name: string, siblings: readonly string[]): { label: string; milestone?: string } {
-  const read = milestoneReader();
-  const m = read?.(siblings.includes(name) ? siblings : [name, ...siblings]);
+  const m = milestoneFromTags(siblings.includes(name) ? siblings : [name, ...siblings]);
   if (m && `milestone:${m.kind}` === name) return { label: m.label, milestone: m.kind };
   return { label: name };
 }
