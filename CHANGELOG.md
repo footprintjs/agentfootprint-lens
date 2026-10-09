@@ -31,9 +31,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   for older peers goes, with what it fed: the "tag axis unavailable" state
   and the dotted-path split. `tagStopsFor` and `tagAxisPositions` always
   return an array now; `<TagPicker>`'s `available` is optional (default
-  `true`). `test/packaging/named-imports.test.ts` refuses
-  `import * as … from 'footprintjs…'` under `src/`;
-  `test/packaging/floor-imports.test.ts` pins the 9.26.0 surface.
+  `true`). `test/packaging/named-imports.test.ts` refuses a footprintjs door
+  held as a namespace object under `src/` (`import * as`, a value `import()`,
+  `require()`); `test/packaging/floor-imports.test.ts` pins the 9.26.0 surface.
 
 ## [0.72.1] - 2026-10-01
 

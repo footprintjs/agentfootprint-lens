@@ -1924,12 +1924,14 @@ store's availability is a label. Headless: `bookmarkKey` · `toSidecar` ·
 
 ### `<TagPicker>` — the declared-tag legend and picker
 
-`<TagPicker legend picked onPick available>`. The engineer view mounts it above
+`<TagPicker legend picked onPick available?>`. The engineer view mounts it above
 the chart on `granularity="group"` at the root level; `legend` is
 `tagLegend(structure, snapshot)` (`source: 'structure' | 'log'`), a pick is a
 list of tag names the lens hands to `tagAxisPositions(snapshot, picked, base)`
 (footprintjs 9.21's `tagStops`). Picking never moves the cursor; it changes the
-list the one cursor is a step into.
+list the one cursor is a step into. `available` defaults to `true`; `false` holds
+the strip read-only — the legend still shows, every chip is disabled, and the
+strip says so (`TAG_PICKER_LABELS.tagAxisUnavailable`).
 
 ### `<BugReportButton>` — report a bug with the run attached, consent first
 

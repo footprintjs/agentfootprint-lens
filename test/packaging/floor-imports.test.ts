@@ -3,8 +3,9 @@
  * symbol that floor does not export makes the whole lens unbundleable for a
  * consumer on it (0.53.1–0.53.3: `pathSegments`, exported since 9.22.0, took
  * an on-prem app's dev server down at pre-bundle). A symbol newer than the
- * floor waits for a floor raise; it is never read off a namespace instead
- * (`named-imports.test.ts`), so every name the lens reads is checked here.
+ * floor waits for a floor raise; it is never read off a namespace object instead
+ * (`import * as`, a value `import()` or `require()` — `named-imports.test.ts`
+ * refuses all three), so every footprintjs value the lens reads is checked here.
  *
  * This walks every `import { … } from 'footprintjs' | 'footprintjs/…'` under
  * src/ and requires each VALUE name to be on the 9.26.0 surface, pinned here
@@ -36,7 +37,7 @@ const TRACE_FLOOR = new Set([
   'ControlDepRecorder', 'controlDepRecorder',
   'QualityRecorder', 'formatQualityTrace', 'qualityTrace',
 ]);
-/** The root barrel names the lens reads (all older than 9.17). */
+/** The root barrel names the lens reads — all on the 9.26.0 root door (its dist/esm/index.d.ts). */
 const ROOT_FLOOR = new Set(['enableDevMode', 'disableDevMode', 'isDevMode']);
 
 function walk(dir: string, out: string[] = []): string[] {
