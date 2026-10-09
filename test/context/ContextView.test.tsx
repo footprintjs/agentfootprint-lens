@@ -39,7 +39,7 @@ describe('<ContextView> standalone', () => {
 
   it('at a model-call stop it lists keys with their writers and shows the served badge for that epoch', () => {
     const fixture = load('flat-dynamic-tools');
-    const positions = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, [])!;
+    const positions = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, []);
     const turnStep = positions.findIndex((p) => p.label.startsWith('LLM turn'));
     expect(turnStep).toBeGreaterThan(0);
     render(<ContextView runner={fixture.runner} />);
@@ -107,7 +107,7 @@ describe('<ContextView> handed the ONE cursor and the previous stop', () => {
 describe('<ContextView> two layers (0.54.0)', () => {
   it('at a model-call stop the served document is on top — the Served tab itself, at that epoch — and the record beneath', () => {
     const fixture = load('flat-dynamic-tools');
-    const positions = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, [])!;
+    const positions = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, []);
     const turnStep = positions.findIndex((p) => p.label.startsWith('LLM turn'));
     render(<ContextView runner={fixture.runner} />);
     for (let i = 0; i < turnStep; i++) fireEvent.click(screen.getByLabelText('Next step'));
@@ -138,7 +138,7 @@ describe('<ContextView> two layers (0.54.0)', () => {
 
   it('a long value opens in place and closes again', () => {
     const fixture = load('flat-dynamic-tools');
-    const positions = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, [])!;
+    const positions = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, []);
     const turnStep = positions.findIndex((p) => p.label.startsWith('LLM turn'));
     render(<ContextView runner={fixture.runner} />);
     for (let i = 0; i < turnStep; i++) fireEvent.click(screen.getByLabelText('Next step'));
@@ -211,7 +211,7 @@ describe('<ContextView shared> (0.58.0)', () => {
 
   it('without a recorder it reads the shared address over its own milestone axis', () => {
     const fixture = load('flat-dynamic-tools');
-    const own = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, [])!;
+    const own = tagAxisPositions(fixture.snapshot, MILESTONE_AXIS, []);
     render(<Host fixture={fixture} withRecorder={false} />);
     expect(screen.getByTestId('context-view').getAttribute('data-step')).toBe(String(own.length - 1));
     fireEvent.click(screen.getByLabelText('Previous step'));

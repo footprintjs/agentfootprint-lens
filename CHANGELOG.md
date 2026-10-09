@@ -23,6 +23,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Shared replay's end control is labeled **Latest**: it selects the current last
   stop and holds that address. An unselected shared cursor still follows the
   growing end; numeric cursors retain their **Live** control.
+- footprintjs doors are read by name, never off a namespace (footprintjs's
+  trace-extraction plan, step E2): a name read off a namespace could leave its
+  door with no type error. `tagStops` and `pathSegments` are named imports from
+  `footprintjs/trace`, and `milestoneFromTags` from `agentfootprint`. The peer
+  floors (`^9.26.0`, `^9.116.0`) ship all three, so the call-time detection
+  for older peers goes, with what it fed: the "tag axis unavailable" state
+  and the dotted-path split. `tagStopsFor` and `tagAxisPositions` always
+  return an array now; `<TagPicker>`'s `available` is optional (default
+  `true`). `test/packaging/named-imports.test.ts` refuses a footprintjs door
+  held as a namespace object under `src/` (`import * as`, a value `import()`,
+  `require()`); `test/packaging/floor-imports.test.ts` pins the 9.26.0 surface.
 
 ## [0.72.1] - 2026-10-01
 

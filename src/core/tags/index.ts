@@ -5,4 +5,4 @@
  */
 
 export { tagLegend, declaredTagsOf, hitTagsOf, type TagLegend, type TagLegendEntry } from './tagLegend.js';
-export { tagAxisPositions, tagStopsFor, tagStopsStrategy } from './tagAxis.js';
+export { tagAxisPositions, tagStopsFor } from './tagAxis.js';

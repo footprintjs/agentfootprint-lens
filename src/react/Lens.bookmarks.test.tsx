@@ -13,7 +13,8 @@
  *     tag axis's length, the cursor lands on that axis through the funnel,
  *     and the default axis is back when the pick is cleared;
  *   · the picker says "no chart in this recording" when the structure did not
- *     travel, and is absent on the per-step reading.
+ *     travel, and is absent on the per-step reading; held read-only
+ *     (`available={false}`), it disables every chip and says so.
  */
 
 import React from 'react';
@@ -24,7 +25,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { Lens, type LensCursorAt } from './index.js';
 import { memoryBookmarkStore, noBookmarkStore, toSidecar, bookmarkKey } from '../core/bookmarks/index.js';
 import { LABELS as BOOKMARK_LABELS } from './components/BookmarksTab.js';
-import { LABELS as TAG_LABELS } from './components/TagPicker.js';
+import { LABELS as TAG_LABELS, TagPicker } from './components/TagPicker.js';
 import { load, loadTampered } from '../../test/served/helpers.js';
 
 const openBookmarks = (): void => {
@@ -259,5 +260,16 @@ describe('<Lens> · tag legend and picker', () => {
     const f = load('flat-dynamic-tools');
     render(<Lens recorder={f.recorder} runner={f.runner as never} view="engineer" granularity="step" step={0} bookmarkStore={memoryBookmarkStore()} />);
     expect(screen.queryByTestId('tag-picker')).toBeNull();
+  });
+
+  it('held read-only (available={false}): the legend still shows, every chip is disabled, and the strip says so', () => {
+    const legend = {
+      source: 'structure',
+      entries: [{ name: 'audit', label: 'audit', declared: true, hits: 1, rootHits: 1, mountHits: 0 }],
+    } as const;
+    render(<TagPicker legend={legend} picked={[]} onPick={() => {}} available={false} />);
+    expect(screen.getByTestId('tag-picker').dataset.available).toBe('false');
+    expect(screen.getByTestId('tag-picker-unavailable')).toHaveTextContent(TAG_LABELS.tagAxisUnavailable);
+    expect((screen.getByTestId('tag-chip') as HTMLButtonElement).disabled).toBe(true);
   });
 });

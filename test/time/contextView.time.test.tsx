@@ -35,7 +35,7 @@ function load() {
 describe('<ContextView> — the Time band under the Findings band', () => {
   it('absent before the first time row, drawn from the fold at the last stop', () => {
     const { runner, snapshot } = load();
-    const positions = tagAxisPositions(snapshot, MILESTONE_AXIS, [])!;
+    const positions = tagAxisPositions(snapshot, MILESTONE_AXIS, []);
     expect(positions.length).toBeGreaterThan(1);
     render(<ContextView runner={runner} />);
     expect(screen.getByTestId('context-view').getAttribute('data-step')).toBe('0');

@@ -1546,13 +1546,8 @@ legend.source;                                  // 'structure' | 'log'
 legend.entries.map((e) => [e.label, e.hits]);   // [['Iteration', 2], ['LLM turn', 2], ['audit', 0], …]
 
 const axis = tagAxisPositions(snapshot, ['milestone:llm-turn'], scrubAxisFor(recorder, 'group'));
-axis?.map((p) => p.label);                      // ['Run · start', 'LLM turn 1', 'LLM turn 2', 'Run · end']
+axis.map((p) => p.label);                       // ['Run · start', 'LLM turn 1', 'LLM turn 2', 'Run · end']
 ```
-
-**Older peers.** `tagStops` (footprintjs 9.21) and `milestoneFromTags`
-(agentfootprint 9.90) are read off their module namespaces at call time: on a
-peer without them the legend prints raw names, the strip says *tag axis
-unavailable*, and nothing else changes. The peer ranges are untouched.
 
 ---
 
@@ -1929,12 +1924,14 @@ store's availability is a label. Headless: `bookmarkKey` · `toSidecar` ·
 
 ### `<TagPicker>` — the declared-tag legend and picker
 
-`<TagPicker legend picked onPick available>`. The engineer view mounts it above
+`<TagPicker legend picked onPick available?>`. The engineer view mounts it above
 the chart on `granularity="group"` at the root level; `legend` is
 `tagLegend(structure, snapshot)` (`source: 'structure' | 'log'`), a pick is a
 list of tag names the lens hands to `tagAxisPositions(snapshot, picked, base)`
 (footprintjs 9.21's `tagStops`). Picking never moves the cursor; it changes the
-list the one cursor is a step into.
+list the one cursor is a step into. `available` defaults to `true`; `false` holds
+the strip read-only — the legend still shows, every chip is disabled, and the
+strip says so (`TAG_PICKER_LABELS.tagAxisUnavailable`).
 
 ### `<BugReportButton>` — report a bug with the run attached, consent first
 

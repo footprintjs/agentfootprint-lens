@@ -1,13 +1,16 @@
 /**
- * The lens's peer floor is footprintjs ^9.17.0. A STATIC named import of a
+ * The lens's peer floor is footprintjs ^9.26.0. A STATIC named import of a
  * symbol that floor does not export makes the whole lens unbundleable for a
  * consumer on it (0.53.1–0.53.3: `pathSegments`, exported since 9.22.0, took
  * an on-prem app's dev server down at pre-bundle). A symbol newer than the
- * floor is read at call time (`tagStops`, `milestoneFromTags`, `pathSegments`).
+ * floor waits for a floor raise; it is never read off a namespace object instead
+ * (`import * as`, a value `import()` or `require()` — `named-imports.test.ts`
+ * refuses all three), so every footprintjs value the lens reads is checked here.
  *
  * This walks every `import { … } from 'footprintjs' | 'footprintjs/…'` under
- * src/ and requires each VALUE name to be on the 9.17.0 surface, pinned here
- * from that package's own d.ts. Type-only names are free.
+ * src/ and requires each VALUE name to be on the 9.26.0 surface, pinned here
+ * from that package's own d.ts — re-pin it when the floor moves. Type-only
+ * names are free.
  */
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -16,61 +19,25 @@ import { describe, expect, it } from 'vitest';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'src');
 
-/** footprintjs 9.17.0 — every value export of `footprintjs/trace` (from its dist/esm/trace.d.ts). */
+/** footprintjs 9.26.0 — every value export of `footprintjs/trace` (its dist/esm/trace.d.ts, in its order). */
 const TRACE_FLOOR = new Set([
-  'BRANCH_SEGMENT_MARKER',
-  'BoundaryStateStore',
-  'KeyedStore',
-  'SequenceStore',
-  'CommitRangeIndex',
-  'TopologyRecorder',
-  'commitStop',
+  'buildRuntimeStageId', 'createExecutionCounter', 'parseRuntimeStageId', 'splitStageId',
+  'BRANCH_SEGMENT_MARKER', 'buildBranchSegment', 'hasBranchSegmentMarker', 'isBranchSegment', 'parseBranchSegment',
   'walkSubflowSpec',
-  'buildCommitIndex',
-  'ROOT_RUNTIME_STAGE_ID',
-  'ROOT_SUBFLOW_ID',
-  'ControlDepRecorder',
-  'buildBranchSegment',
-  'buildRuntimeStageId',
-  'commitIndexOf',
-  'commitStopsStrategy',
-  'commitValueAt',
-  'controlDepRecorder',
-  'QualityRecorder',
-  'formatQualityTrace',
-  'createExecutionCounter',
-  'elementProvenance',
-  'findCommit',
-  'findLastWriter',
-  'flattenCausalDAG',
-  'formatCausalChain',
-  'arrayProvenance',
-  'formatForwardSlice',
-  'formatSlice',
-  'formatTimeline',
-  'forwardSliceForKey',
-  'forwardSliceToJSON',
-  'hasBranchSegmentMarker',
-  'inOutRecorder',
-  'isBranchSegment',
-  'keyTimeline',
-  'keysReadFromExecutionTree',
-  'keysReadFromMap',
-  'normaliseStateKey',
-  'parseBranchSegment',
-  'parseRuntimeStageId',
-  'qualityTrace',
-  'resolveKeysReadSource',
-  'sliceForKey',
-  'sliceToJSON',
-  'splitStageId',
-  'stateAt',
-  'timeTravel',
-  'causalChain',
-  'topologyRecorder',
-  'InOutRecorder',
+  'pathSegments',
+  'buildCommitIndex', 'commitIndexOf', 'commitValueAt', 'findCommit', 'findCommits', 'findLastWriter',
+  'commitStops', 'commitStopsStrategy', 'filterStops', 'isCommitBundle', 'splitAxis', 'stateAt', 'tagStops', 'timeTravel',
+  'causalChain', 'flattenCausalDAG', 'formatCausalChain',
+  'arrayProvenance', 'elementProvenance', 'formatForwardSlice', 'formatSlice', 'formatTimeline', 'forwardSliceForKey',
+  'forwardSliceToJSON', 'keysReadFromExecutionTree', 'keysReadFromMap', 'keyTimeline', 'normaliseStateKey',
+  'resolveKeysReadSource', 'sliceForKey', 'sliceToJSON',
+  'BoundaryStateStore', 'KeyedStore', 'SequenceStore', 'CommitRangeIndex',
+  'TopologyRecorder', 'topologyRecorder',
+  'InOutRecorder', 'inOutRecorder', 'ROOT_RUNTIME_STAGE_ID', 'ROOT_SUBFLOW_ID',
+  'ControlDepRecorder', 'controlDepRecorder',
+  'QualityRecorder', 'formatQualityTrace', 'qualityTrace',
 ]);
-/** The root barrel names the lens reads (all older than 9.17). */
+/** The root barrel names the lens reads — all on the 9.26.0 root door (its dist/esm/index.d.ts). */
 const ROOT_FLOOR = new Set(['enableDevMode', 'disableDevMode', 'isDevMode']);
 
 function walk(dir: string, out: string[] = []): string[] {
@@ -97,8 +64,8 @@ function namedImports(source: string): { readonly from: string; readonly names: 
   return out;
 }
 
-describe('every static value import from footprintjs is on the 9.17.0 floor', () => {
-  it('names newer than the floor are read at call time, never imported by name', () => {
+describe('every static value import from footprintjs is on the 9.26.0 floor', () => {
+  it('no name newer than the floor is imported', () => {
     const offenders: string[] = [];
     for (const file of walk(SRC)) {
       for (const { from, names } of namedImports(readFileSync(file, 'utf8'))) {
@@ -110,7 +77,7 @@ describe('every static value import from footprintjs is on the 9.17.0 floor', ()
         }
         for (const name of names)
           if (!floor.has(name))
-            offenders.push(`${file}: '${name}' from '${from}' is not on the 9.17.0 surface`);
+            offenders.push(`${file}: '${name}' from '${from}' is not on the 9.26.0 surface`);
       }
     }
     expect(offenders).toEqual([]);

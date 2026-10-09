@@ -68,7 +68,7 @@ describe('tagLegend', () => {
       ['LLM turn', 1, 'llm-turn'],
       ['Route', 1, 'decision'],
     ]);
-    const stops = tagStopsFor(f.snapshot, ['audit'])!;
+    const stops = tagStopsFor(f.snapshot, ['audit']);
     expect(stops.filter((s) => s.kind === 'commit').map((s) => s.stageId)).toEqual(['route', 'finish']);
     // `normalise` (untagged) folded into the LLM turn before it: the audit
     // axis's first kept stop starts after it.
@@ -100,7 +100,7 @@ describe('tagLegend', () => {
 describe('tagAxisPositions — the Lens’s positions over tagStops', () => {
   it('borrows the default axis’s bookends and lists one ordinal-labelled stop per tagged stage', () => {
     const f = load('flat-dynamic-tools');
-    const axis = tagAxisPositions(f.snapshot, ['milestone:llm-turn'], f.positions)!;
+    const axis = tagAxisPositions(f.snapshot, ['milestone:llm-turn'], f.positions);
     expect(axis[0]).toBe(f.positions[0]);
     expect(axis[axis.length - 1]).toBe(f.positions[f.positions.length - 1]);
     const inner = axis.slice(1, -1);
@@ -111,7 +111,7 @@ describe('tagAxisPositions — the Lens’s positions over tagStops', () => {
 
   it('any-of: two picked tags interleave in commit order; an empty log is an empty axis', () => {
     const f = load('flat-dynamic-tools');
-    const axis = tagAxisPositions(f.snapshot, ['milestone:llm-turn', 'milestone:tool-call'], f.positions)!;
+    const axis = tagAxisPositions(f.snapshot, ['milestone:llm-turn', 'milestone:tool-call'], f.positions);
     const inner = axis.slice(1, -1);
     expect(inner.map((p) => p.milestone)).toEqual(['llm-turn', 'tool-call', 'llm-turn']);
     for (let i = 1; i < inner.length; i++) expect(inner[i]!.commitIdx).toBeGreaterThan(inner[i - 1]!.commitIdx);
@@ -123,7 +123,7 @@ describe('tagAxisPositions — the Lens’s positions over tagStops', () => {
     const snapshot = f.snapshot as Parameters<typeof timeTravel>[0];
     const fold = f.snapshot as Parameters<typeof stateAt>[0];
     const commitAxis = scrubAxisFor(f.recorder, 'step');
-    const picked = tagAxisPositions(f.snapshot, ['milestone:llm-turn', 'milestone:decision'], f.positions)!;
+    const picked = tagAxisPositions(f.snapshot, ['milestone:llm-turn', 'milestone:decision'], f.positions);
     for (const p of picked.slice(1, -1)) {
       const twin = commitAxis.find((c) => c.runtimeStageId === p.runtimeStageId);
       expect(twin, p.runtimeStageId).toBeDefined();
@@ -143,9 +143,9 @@ describe('tagAxisPositions — the Lens’s positions over tagStops', () => {
     }
   });
 
-  it('tagStopsFor reads the library strategy off the namespace (present on this peer)', () => {
+  it('tagStopsFor hands back the library’s stops: start and end bookends, each commit stop’s meta holding a picked tag', () => {
     const f = load('flat-dynamic-tools');
-    const stops = tagStopsFor(f.snapshot, ['milestone:llm-turn'])!;
+    const stops = tagStopsFor(f.snapshot, ['milestone:llm-turn']);
     expect(stops[0]?.kind).toBe('start');
     expect(stops[stops.length - 1]?.kind).toBe('end');
     expect(stops.filter((s) => s.kind === 'commit').every((s) => s.meta?.includes('milestone:llm-turn'))).toBe(true);
