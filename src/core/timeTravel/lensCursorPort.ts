@@ -1,10 +1,10 @@
 /**
- * `openLensCursor` — the Lens's cursor MOVEMENT, through footprintjs's port.
+ * `openLensCursor` — the Lens's cursor MOVEMENT, through Foottrace's port.
  *
  * THE ONE-CURSOR LAW IS UNCHANGED, and this is the file where that has to be
  * argued rather than asserted. The Lens owns its cursor as a STEP, in React
  * state, behind the single `moveTo` funnel (`useLensCursor`). A
- * `TimeTravel` instance from footprintjs holds a position of its own — so
+ * `TimeTravel` instance from Foottrace holds a position of its own — so
  * holding one across moves would be exactly the second cursor v0.1 bans.
  *
  * It is not held that way. The port instance here is a CALCULATOR, not a
@@ -31,8 +31,8 @@
  * lensStopsStrategy(positions) })`.
  */
 
-import { timeTravel } from 'footprintjs/trace';
-import type { Mark, Move, MoveRefusal, Stop, TimeTravel } from 'footprintjs/trace';
+import { timeTravel } from 'foottrace';
+import type { Mark, Move, MoveRefusal, Stop, TimeTravel } from 'foottrace';
 
 import type { CursorPosition } from '../group/cursorPositionsAtDrill.js';
 import { lensStopsStrategy } from './lensStops.js';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BoundaryRecorder, type BoundaryRangeLabel } from 'agentfootprint/observe';
-import { CommitRangeIndex } from 'footprintjs/trace';
+import { CommitRangeIndex } from 'foottrace';
 import { buildGroups } from './buildGroups.js';
 import { findInflightBranches } from '../utils/findInflightBranches.js';
 
@@ -14,7 +14,7 @@ const child: BoundaryRangeLabel = {
 
 describe('boundary queries accept the reader contract, not a concrete index class', () => {
   for (const [name, makeIndex] of [
-    ['the existing FootPrint index', () => new CommitRangeIndex<BoundaryRangeLabel>()],
+    ['the canonical Foottrace index', () => new CommitRangeIndex<BoundaryRangeLabel>()],
     ['the installed AgentFootprint recorder index', () => new BoundaryRecorder().boundaryIndex],
   ] as const) {
     it(name, () => {

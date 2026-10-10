@@ -4,7 +4,7 @@
  * place, with the ones it cannot REPORTED rather than dropped.
  */
 
-import type { Mark } from 'footprintjs/trace';
+import type { Mark } from 'foottrace';
 
 import { mountLogsOf } from '../utils/snapshotOfRunner.js';
 import type { Bookmark, BookmarkSidecar, SidecarReading } from './types.js';

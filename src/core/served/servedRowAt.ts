@@ -3,7 +3,7 @@
  *
  * Role: a pure query over a recording. Nothing here holds a position: the
  * cursor is the caller's (the Why Lens's single step, already moved through
- * footprintjs's time-travel port), and this function answers "which LLM call
+ * Foottrace's time-travel port), and this function answers "which LLM call
  * does that stop show?" the same way every time it is asked.
  *
  * The rule, in order:

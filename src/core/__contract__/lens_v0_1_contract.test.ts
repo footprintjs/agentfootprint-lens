@@ -23,7 +23,7 @@
 import { describe, it, expect } from 'vitest';
 import { Agent, LLMCall, Parallel, type LLMProvider } from 'agentfootprint'
 import { MockProvider } from 'agentfootprint/providers';
-import { CommitRangeIndex } from 'footprintjs/trace';
+import { CommitRangeIndex } from 'foottrace';
 import { lensRecorder } from '../LensRecorder.js';
 import { timingRecorder } from '../TimingRecorder.js';
 import { buildSpecTreeFromBoundary } from '../buildSpecTreeFromBoundary.js';

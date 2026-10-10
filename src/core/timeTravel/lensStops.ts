@@ -26,8 +26,8 @@
  * `lensCursorPort.ts`.
  */
 
-import { parseRuntimeStageId } from 'footprintjs/trace';
-import type { Stop, StopKind, TimeTravelStrategy } from 'footprintjs/trace';
+import { parseRuntimeStageId } from 'foottrace';
+import type { Stop, StopKind, TimeTravelStrategy } from 'foottrace';
 
 import type { CursorPosition } from '../group/cursorPositionsAtDrill.js';
 

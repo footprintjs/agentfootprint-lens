@@ -2,6 +2,7 @@
 // Its imports must resolve there, never against the repository's devDependencies.
 import assert from 'node:assert/strict';
 import { createRequire, register } from 'node:module';
+import { realpathSync } from 'node:fs';
 
 // Node has no CSS loader. Ignore only stylesheets, for both module formats;
 // missing exports and every other loading/runtime error must fail this check.
@@ -23,7 +24,9 @@ const surfaces = {
   'agentfootprint-lens/skillgraph': ['SkillGraphDebugger'],
   'agentfootprint-lens/context': ['ContextView'],
   'agentfootprint/observe': ['BoundaryRecorder'],
-  'footprintjs/trace': ['CommitRangeIndex'],
+  'footprintjs/trace': ['SequenceStore', 'KeyedStore', 'walkSubflowSpec'],
+  'foottrace': ['CommitRangeIndex', 'stateAt', 'timeTravel', 'tagStops', 'sliceForKey'],
+  'foottrace/paths': ['pathSegments'],
   // Every renderer value imported by Lens. ESM also checks named imports in
   // the packed JS, so adding a new unavailable import fails without this list.
   'footprint-explainable-ui': ['coolDark', 'coolLight', 'tokensToCSSVars'],
@@ -44,6 +47,20 @@ const structure = {
   id: 'read', name: 'Read', type: 'stage',
   next: { id: 'answer', name: 'Answer', type: 'stage' },
 };
+
+// Every participant that depends on Foottrace resolves the same physical owner.
+const canonicalRecord = realpathSync(require.resolve('foottrace'));
+const lensRequire = createRequire(require.resolve('agentfootprint-lens/core'));
+assert.equal(realpathSync(lensRequire.resolve('foottrace')), canonicalRecord);
+for (const name of ['agentfootprint', 'footprintjs']) {
+  const manifest = require(`${name}/package.json`);
+  if (manifest.dependencies?.foottrace || manifest.peerDependencies?.foottrace) {
+    const peerRequire = createRequire(require.resolve(name));
+    assert.equal(realpathSync(peerRequire.resolve('foottrace')), canonicalRecord,
+      `${name} and Lens must share one physical Foottrace`);
+  }
+}
+console.log('The consumer, Lens and every record-dependent engine peer share one physical Foottrace');
 
 for (const [format, load] of [
   ['ESM', (specifier) => import(specifier)],
@@ -97,11 +114,11 @@ for (const [format, load] of [
   // Foottrace index. The published reader must accept both, including a
   // query-only view, without depending on either class's constructor identity.
   const { BoundaryRecorder } = modules['agentfootprint/observe'];
-  const { CommitRangeIndex } = modules['footprintjs/trace'];
+  const { CommitRangeIndex } = modules['foottrace'];
   const { buildGroups } = modules['agentfootprint-lens/core'];
   for (const [owner, index] of [
     ['AgentFootprint', new BoundaryRecorder().boundaryIndex],
-    ['FootPrint', new CommitRangeIndex()],
+    ['Foottrace', new CommitRangeIndex()],
   ]) {
     index.open({
       type: 'run.entry', runtimeStageId: '__root__#0', subflowPath: [], depth: 0, ts: 0,

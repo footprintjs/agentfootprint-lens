@@ -25,8 +25,9 @@
  *
  * Pure; frozen returns; no React. Consumers with their own UI read this.
  */
-import { pathSegments, stateAt } from 'footprintjs/trace';
-import type { FoldSource, FoldedState } from 'footprintjs/trace';
+import { pathSegments } from 'foottrace/paths';
+import { stateAt } from 'foottrace';
+import type { FoldSource, FoldedState } from 'foottrace';
 
 import type { EventLogEntry } from '../types.js';
 import { servedRowAt, servedRowForEpoch } from '../served/servedRowAt.js';
@@ -101,7 +102,7 @@ export interface ContextAtOptions {
 }
 
 /**
- * The top-level key a trace-row path names: the first of footprintjs's own
+ * The top-level key a trace-row path names: the first of Foottrace's record-path
  * `pathSegments`, so a dotted key name stays ONE key.
  */
 export function firstSegment(path: string): string {

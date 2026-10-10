@@ -7,8 +7,8 @@
  * (`import * as`, a value `import()` or `require()` — `named-imports.test.ts`
  * refuses all three), so every footprintjs value the lens reads is checked here.
  *
- * This walks every `import { … } from 'footprintjs' | 'footprintjs/…'` under
- * src/ and requires each VALUE name to be on the 9.26.0 surface, pinned here
+ * This walks every named FootPrint or Foottrace import under
+ * src/ and requires each VALUE name to be on its peer floor, pinned here
  * from that package's own d.ts — re-pin it when the floor moves. Type-only
  * names are free.
  */
@@ -39,6 +39,25 @@ const TRACE_FLOOR = new Set([
 ]);
 /** The root barrel names the lens reads — all on the 9.26.0 root door (its dist/esm/index.d.ts). */
 const ROOT_FLOOR = new Set(['enableDevMode', 'disableDevMode', 'isDevMode']);
+/** Foottrace 1.0.0 — root values, from its published dist/esm/index.d.ts. */
+const RECORD_FLOOR = new Set([
+  'buildRuntimeStageId', 'createExecutionCounter', 'parseRuntimeStageId', 'splitStageId',
+  'UnknownVerbError', 'applySmartMerge', 'buildCommitIndex', 'commitIndexOf', 'commitValueAt',
+  'commitValueAtWithBasis', 'findCommit', 'findCommits', 'findLastWriter', 'findLastWriterWithBasis',
+  'inferLegacyPhases', 'recordsPhases', 'commitStops', 'commitStopsStrategy', 'filterStops',
+  'isCommitBundle', 'splitAxis', 'stateAt', 'tagStops', 'timeTravel', 'causalChain',
+  'flattenCausalDAG', 'formatCausalChain', 'arrayProvenance', 'elementProvenance',
+  'formatForwardSlice', 'formatSlice', 'formatTimeline', 'forwardSliceForKey', 'forwardSliceToJSON',
+  'keysReadFromExecutionTree', 'keysReadFromMap', 'keyTimeline', 'resolveKeysReadSource',
+  'sliceForKey', 'sliceToJSON', 'HONESTY_CODES', 'CommitRangeIndex', 'EXECUTION_DELIMITER',
+  'PATH_DELIMITER', 'isExecutionKey', 'joinPath', 'idPathSegments', 'stageIdOf', 'subflowSegmentsOf',
+  'deepEqual', 'serveRecord',
+]);
+/** Foottrace 1.0.0 — record-path values, from its published dist/esm/paths.d.ts. */
+const PATH_FLOOR = new Set([
+  'normaliseStateKey', 'pathSegments', 'isDeniedSegment', 'nativeGet', 'nativeHas',
+  'setNestedValue', 'updateNestedValue',
+]);
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -51,7 +70,7 @@ function walk(dir: string, out: string[] = []): string[] {
 
 function namedImports(source: string): { readonly from: string; readonly names: string[] }[] {
   const out: { from: string; names: string[] }[] = [];
-  const re = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"](footprintjs(?:\/[a-z]+)?)['"]/g;
+  const re = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]((?:footprintjs|foottrace)(?:\/[a-z]+)?)['"]/g;
   for (const m of source.matchAll(re)) {
     if (m[0].startsWith('import type')) continue;
     const names = m[1]!
@@ -64,20 +83,21 @@ function namedImports(source: string): { readonly from: string; readonly names: 
   return out;
 }
 
-describe('every static value import from footprintjs is on the 9.26.0 floor', () => {
+describe('every static engine or record value import is on its declared floor', () => {
   it('no name newer than the floor is imported', () => {
     const offenders: string[] = [];
     for (const file of walk(SRC)) {
       for (const { from, names } of namedImports(readFileSync(file, 'utf8'))) {
         const floor =
-          from === 'footprintjs' ? ROOT_FLOOR : from === 'footprintjs/trace' ? TRACE_FLOOR : undefined;
+          from === 'footprintjs' ? ROOT_FLOOR : from === 'footprintjs/trace' ? TRACE_FLOOR
+            : from === 'foottrace' ? RECORD_FLOOR : from === 'foottrace/paths' ? PATH_FLOOR : undefined;
         if (floor === undefined) {
           offenders.push(`${file}: imports from '${from}', which has no pinned floor here`);
           continue;
         }
         for (const name of names)
           if (!floor.has(name))
-            offenders.push(`${file}: '${name}' from '${from}' is not on the 9.26.0 surface`);
+            offenders.push(`${file}: '${name}' from '${from}' is not on its pinned peer floor`);
       }
     }
     expect(offenders).toEqual([]);

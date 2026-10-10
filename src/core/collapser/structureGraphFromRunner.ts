@@ -19,7 +19,8 @@
  * the structure here stays faithful to the run.
  */
 
-import { walkSubflowSpec, splitStageId, type WalkerItem } from "footprintjs/trace";
+import { walkSubflowSpec, type WalkerItem } from 'footprintjs/trace';
+import { splitStageId } from 'foottrace';
 import { createTraceStructureRecorder } from "footprint-explainable-ui/flowchart";
 import type { TraceGraph } from "footprint-explainable-ui/flowchart";
 import type { StructureRecorder } from "footprintjs";

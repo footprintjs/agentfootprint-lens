@@ -1,7 +1,7 @@
 /**
  * The tag axis — the Why Lens's scrub positions rebuilt from DECLARED tags.
  *
- * footprintjs 9.21's `tagStops(names)` is the strategy: keep the stops whose
+ * Foottrace's `tagStops(names)` is the strategy: keep the stops whose
  * first bundle carries any of the asked-for tags, fold the untagged stages
  * into the tagged stop before them (`filterStops`), and carry the bundle's
  * whole tag array as `Stop.meta`. This module speaks those stops in the
@@ -18,8 +18,8 @@
  * library's `'start'` / `'end'` stops supply only the commit indices.
  */
 
-import { tagStops } from 'footprintjs/trace';
-import type { Stop, TimeTravelStrategy } from 'footprintjs/trace';
+import { tagStops } from 'foottrace';
+import type { Stop, TimeTravelStrategy } from 'foottrace';
 import { milestoneFromTags } from 'agentfootprint';
 
 import type { CursorPosition } from '../group/cursorPositionsAtDrill.js';

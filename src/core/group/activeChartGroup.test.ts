@@ -8,7 +8,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { CommitRangeIndex } from 'footprintjs/trace';
+import { CommitRangeIndex } from 'foottrace';
 import type { BoundaryRangeLabel } from 'agentfootprint/observe';
 import { buildGroups } from './buildGroups.js';
 import { activeChartGroup, chartNodeIdOf } from './activeChartGroup.js';

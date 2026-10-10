@@ -1,6 +1,6 @@
 # `core/timeTravel/` — the cursor's MOVEMENT, borrowed from the library
 
-The lens owns **which stops exist**. footprintjs owns **where a move lands**.
+The lens owns **which stops exist**. Foottrace owns **where a move lands**.
 This folder is that seam and nothing else: two files, no state, no React.
 
 > **A stage id is an ADDRESS, not a POSITION.** It says WHICH stage, never WHERE
@@ -11,7 +11,7 @@ This folder is that seam and nothing else: two files, no state, no React.
 > to an inner log, or the event has no stage at all.
 
 - `lensStops.ts` — `lensStopsStrategy(positions)`: the lens's
-  `CursorPosition[]` wearing footprintjs's `Stop`, in the same order, so
+  `CursorPosition[]` wearing Foottrace's `Stop`, in the same order, so
   `stop.step` IS the index into the position list.
 - `lensCursorPort.ts` — `openLensCursor(positions)`: the interface the UI moves
   through (`first` / `last` / `prev` / `next` / `toStep` / `toAddress`), each

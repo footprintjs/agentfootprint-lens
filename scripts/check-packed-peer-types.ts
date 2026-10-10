@@ -2,15 +2,18 @@
 // TypeScript. Imports must resolve to the installed peers, not repo source.
 import { buildGroups, type Group } from 'agentfootprint-lens/core';
 import { BoundaryRecorder, type BoundaryRangeLabel } from 'agentfootprint/observe';
-import { CommitRangeIndex } from 'footprintjs/trace';
+import { CommitRangeIndex, sliceForKey, keysReadFromExecutionTree } from 'foottrace';
+import type { RuntimeSnapshot } from 'footprintjs';
 
 const recorder = new BoundaryRecorder();
-const originalIndex = new CommitRangeIndex<BoundaryRangeLabel>();
+const canonicalIndex = new CommitRangeIndex<BoundaryRangeLabel>();
 
-// The AgentFootprint 10 lane supplies Foottrace's class; the 9.x lane and
-// direct FootPrint callers retain their existing concrete-class inputs.
+// Both AgentFootprint's 9.x engine-owned and 10.x Foottrace-owned indexes fit
+// the structural query port. Foottrace also reads the engine snapshot cast-free.
 export const recorderGroups: readonly Group[] = buildGroups(recorder.boundaryIndex);
-export const originalGroups: readonly Group[] = buildGroups(originalIndex);
+export const canonicalGroups: readonly Group[] = buildGroups(canonicalIndex);
+export const readSnapshot = (snapshot: RuntimeSnapshot, key: string) =>
+  sliceForKey(snapshot.commitLog, key, keysReadFromExecutionTree(snapshot.executionTree));
 export const queryGroups: readonly Group[] = buildGroups({
   enclosing: recorder.boundaryIndex.enclosing.bind(recorder.boundaryIndex),
   overlapping: recorder.boundaryIndex.overlapping.bind(recorder.boundaryIndex),

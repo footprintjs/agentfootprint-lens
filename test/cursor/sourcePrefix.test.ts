@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { stateAt } from 'footprintjs/trace';
+import { stateAt } from 'foottrace';
 
 import { readSourcePosition, resolveSourcePrefix } from '../../src/core/cursor/sourcePrefix.js';
 

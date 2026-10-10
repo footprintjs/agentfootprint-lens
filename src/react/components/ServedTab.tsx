@@ -19,7 +19,7 @@
  *   3. VERIFIED MEANS HASHES AGREE. The badge reads what `core/served/verify`
  *      decided with the library's own `receiptHash` / `messageDigestInput`.
  *   4. AUTHORITY OMISSIONS COME FROM THE FOLD. Hidden skill ids are read at the
- *      stop through footprintjs's `stateAt` (`foldFactsAt`), never from the
+ *      stop through Foottrace's `stateAt` (`foldFactsAt`), never from the
  *      receipt, and labelled "hidden from the model".
  *   5. ONE CURSOR. Props in (`cursorRuntimeStageId`, `commitIdx` — or, since
  *      0.51.0, the whole `cursor` those two are read off), a jump request out

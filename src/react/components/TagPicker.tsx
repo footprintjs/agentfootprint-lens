@@ -9,7 +9,7 @@
  * recording carried no structure the strip says which list it is showing.
  *
  * Picking chips does NOT move the cursor. It hands the picked names up; the
- * Lens rebuilds its positions through footprintjs's `tagStops(names)` and the
+ * Lens rebuilds its positions through Foottrace's `tagStops(names)` and the
  * ONE cursor is re-seated on the new axis by the funnel it already has. The
  * default axis — the Lens's own grouping — is what an empty pick means.
  *
