@@ -18,10 +18,12 @@ require.extensions['.css'] = () => {};
 
 const surfaces = {
   'agentfootprint-lens': ['Lens', 'Replay', 'observeRecording'],
-  'agentfootprint-lens/core': ['LensRecorder', 'observeRecording'],
+  'agentfootprint-lens/core': ['LensRecorder', 'observeRecording', 'buildGroups'],
   'agentfootprint-lens/why': ['WhyLens'],
   'agentfootprint-lens/skillgraph': ['SkillGraphDebugger'],
   'agentfootprint-lens/context': ['ContextView'],
+  'agentfootprint/observe': ['BoundaryRecorder'],
+  'footprintjs/trace': ['CommitRangeIndex'],
   // Every renderer value imported by Lens. ESM also checks named imports in
   // the packed JS, so adding a new unavailable import fails without this list.
   'footprint-explainable-ui': ['coolDark', 'coolLight', 'tokensToCSSVars'],
@@ -56,6 +58,37 @@ for (const [format, load] of [
     modules[specifier] = loaded;
   }
 
+  // AgentFootprint 9 creates a FootPrint index; AgentFootprint 10 creates a
+  // Foottrace index. The published reader must accept both, including a
+  // query-only view, without depending on either class's constructor identity.
+  const { BoundaryRecorder } = modules['agentfootprint/observe'];
+  const { CommitRangeIndex } = modules['footprintjs/trace'];
+  const { buildGroups } = modules['agentfootprint-lens/core'];
+  for (const [owner, index] of [
+    ['AgentFootprint', new BoundaryRecorder().boundaryIndex],
+    ['FootPrint', new CommitRangeIndex()],
+  ]) {
+    index.open({
+      type: 'run.entry', runtimeStageId: '__root__#0', subflowPath: [], depth: 0, ts: 0,
+    }, 0);
+    const child = index.open({
+      type: 'subflow.entry', runtimeStageId: 'work#1', subflowPath: ['work'],
+      subflowId: 'work', subflowName: 'Work', depth: 1, ts: 1,
+    }, 2);
+    index.close(child, 5);
+    const groups = buildGroups(index);
+    assert.deepEqual(
+      groups.map((group) => [group.runtimeGroupId, group.parentGroupId, group.closesAtCommitIdx]),
+      [['__root__#0', undefined, undefined], ['work#1', '__root__#0', 5]],
+      `${format}: the public group reader accepts ${owner}'s real boundary index`,
+    );
+    assert.deepEqual(buildGroups({
+      enclosing: index.enclosing.bind(index),
+      overlapping: index.overlapping.bind(index),
+    }), groups, `${format}: only boundary queries are required`);
+    assert.equal(index.size, 2, `${format}: querying does not mutate ${owner}'s index`);
+  }
+
   // Loading alone cannot catch a missing runtime handle method: replay must
   // actually seed the two recorded stages, or an older renderer stays unlit.
   const { recorder } = modules['agentfootprint-lens/core'].observeRecording({ snapshot, structure });
@@ -79,5 +112,5 @@ for (const [format, load] of [
   assert.match(html, /lens-replay/);
   assert.match(html, /react-flow/);
   assert.doesNotMatch(html, /lens-replay--no-structure/);
-  console.log(`${format}: all packed entry points, renderer exports, replay overlay and React render passed`);
+  console.log(`${format}: all packed entry points, boundary queries, renderer exports, replay overlay and React render passed`);
 }

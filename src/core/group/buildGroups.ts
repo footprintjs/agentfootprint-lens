@@ -29,8 +29,7 @@
  *   needed for Lens v0.1's expected scale.
  */
 
-import type { CommitRangeIndex } from 'footprintjs/trace';
-import type { BoundaryRangeLabel } from 'agentfootprint/observe';
+import type { BoundaryQueries } from './BoundaryQueries.js';
 import type { Group } from './Group.js';
 import { groupDisplayNameForLabel } from './groupDisplayName.js';
 
@@ -40,7 +39,7 @@ function samePath(a: readonly string[], b: readonly string[]): boolean {
 }
 
 export function buildGroups(
-  boundaryIndex: CommitRangeIndex<BoundaryRangeLabel>,
+  boundaryIndex: BoundaryQueries,
 ): readonly Group[] {
   // CommitRangeIndex doesn't expose a direct "all ranges" accessor, but
   // `overlapping(0, MAX)` returns every range overlapping that slice —

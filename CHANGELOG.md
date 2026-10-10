@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.74.0] - 2026-10-09
+
+### Added
+
+- Accepts AgentFootprint 10 alongside the existing `^9.116.0` range. Boundary
+  queries depend only on the read methods they use, so both the older engine
+  index and AgentFootprint 10's Foottrace index are accepted without casts or
+  runtime adapters. No exports are removed and query behavior is unchanged.
+- Compatibility gates retain the AgentFootprint 9.116.0 floor combinations and
+  add the exact AgentFootprint 10 candidate, including packed ESM/CJS boundary
+  queries, replay and rendering. The FootPrint peer remains `^9.26.0` until the
+  separate record-reader migration; this release does not claim FootPrint 10
+  support.
+
 ## [0.73.0] - 2026-10-09
 
 ### Added
