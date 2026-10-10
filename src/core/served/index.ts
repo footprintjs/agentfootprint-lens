@@ -8,7 +8,7 @@
  *     | 'damaged' | 'not-on-record', decided by the library's own hashes;
  *   `sincePrevious(row, previous)`   — what entered and left between two epochs;
  *   `foldFactsAt(recording, cursor)` — the agent's own keys at the stop, read
- *     from the fold through footprintjs's `stateAt`;
+ *     from the fold through Foottrace's `stateAt`;
  *   `servedGraphAt({ row, fold, checks, since })` — the same row as three
  *     bands (held · served · withheld) and the edges between them. A second
  *     VIEW, never a second data path;

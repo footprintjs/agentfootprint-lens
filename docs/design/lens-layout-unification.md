@@ -3,7 +3,7 @@
 Last revised: Phase 5 Layer 4 of v5 migration.
 
 Builds on:
-- Phase 5 Layer 1 — `CommitRangeIndex` (footprintjs/trace)
+- Phase 5 Layer 1 — `CommitRangeIndex` (foottrace)
 - Phase 5 Layer 2 — BoundaryRecorder commit ranges
 - Phase 5 Layer 3 — Lens commentary slider (selectors + hook)
 

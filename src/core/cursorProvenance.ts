@@ -9,7 +9,7 @@
  *   2. for a chosen key: the backward slice that produced its value AS OF
  *      the cursor — who wrote it, what those writers read, transitively.
  *
- * This is a thin, canonical composition over footprintjs' slice layer
+ * This is a thin, canonical composition over Foottrace's slice layer
  * (`sliceForKey` + `keysReadFromExecutionTree`, fp ≥ 9.10.0) — the SAME
  * queries the trace toolpack's `backtrack` tool and eui's Data Trace run,
  * so the panel, the LLM tool, and the shell can never disagree. Lens adds
@@ -23,8 +23,8 @@
  * (readTracking 'off') — the UI must say "unknowable", not "independent".
  */
 
-import { flattenCausalDAG, formatSlice, keysReadFromExecutionTree, sliceForKey } from 'footprintjs/trace';
-import type { MissingSliceReason } from 'footprintjs/trace';
+import { flattenCausalDAG, formatSlice, keysReadFromExecutionTree, sliceForKey } from 'foottrace';
+import type { MissingSliceReason } from 'foottrace';
 
 /** One frame of the backward slice, in BFS order (depth 0 = the writer). */
 export interface ProvenanceFrame {
@@ -49,7 +49,7 @@ export interface KeyProvenance {
   readonly missing?: MissingSliceReason;
   /** True when the snapshot carries NO read tracking — edges unknowable. */
   readonly readsWarning: boolean;
-  /** THE parity artifact: footprintjs' own `formatSlice` string — the SAME
+  /** THE parity artifact: Foottrace's own `formatSlice` string — the SAME
    *  text the trace toolpack's `backtrack` LLM tool returns (honesty
    *  envelope included). [Copy story] emits this verbatim. */
   readonly story: string;

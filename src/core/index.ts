@@ -191,7 +191,7 @@ export {
   type CommitSyncEntry,
 } from "./group/buildCommitSyncMap.js";
 
-// TIME TRAVEL THROUGH ONE PORT (0.46.0) — cursor MOVEMENT is footprintjs
+// TIME TRAVEL THROUGH ONE PORT (0.46.0) — cursor MOVEMENT is Foottrace
 // 9.17's `timeTravel()` now, over the Lens's own stops. `lensStopsStrategy`
 // is the seam (the Lens's `CursorPosition[]`, wearing the port's `Stop`);
 // `openLensCursor` is the interface the UI moves through, so prev / next /
@@ -235,7 +235,7 @@ export type { StructureGraphOptions } from "./collapser/structureGraphFromRunner
 // bundle (no casts, no `spec`), so the consumer just spreads it and cannot
 // mis-wire the data→UI seam. See ./explainableShellProps.ts.
 // cursorProvenance — "where did this come from?" for the ONE cursor: the
-// canonical footprintjs variable slice (sliceForKey), cursor-anchored, with
+// canonical Foottrace variable slice (sliceForKey), cursor-anchored, with
 // honest missing/reads-warning states. Feeds <WhereFrom>.
 export {
   cursorProvenance,
@@ -352,7 +352,7 @@ export {
 } from "./served/index.js";
 
 // BOOKMARKS (0.48.0) — the READER'S mark, kept beside a recording and never in
-// it. footprintjs holds marks on the cursor (`mark` / `marks` / `jumpToMark`)
+// it. Foottrace holds marks on the cursor (`mark` / `marks` / `jumpToMark`)
 // and nowhere else; this is the sidecar that seeds them when a recording is
 // opened and is written back when the reader changes one. A store never
 // throws — an unavailable one is a label on screen. See src/core/bookmarks/README.md.
@@ -373,7 +373,7 @@ export {
 
 // DECLARED TAGS, read side (0.48.0) — the legend (what the chart CAN produce
 // from its structure, what the run DID hit from `bundle.tags`) and the tag
-// axis: the Lens's own positions over footprintjs 9.21's `tagStops`, so a
+// axis: the Lens's own positions over Foottrace's `tagStops`, so a
 // picked tag set rides the same port and the same funnel as the default axis.
 export {
   tagLegend,

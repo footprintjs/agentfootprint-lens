@@ -20,7 +20,7 @@
 export interface Bookmark {
   /**
    * The stop's address — `[subflowPath/]stageId#executionIndex`, the same
-   * string footprintjs's `Mark.runtimeStageId` carries. Names the stop on
+   * string Foottrace's `Mark.runtimeStageId` carries. Names the stop on
    * EVERY axis, which is what lets a bookmark survive a change of grouping.
    */
   readonly runtimeStageId: string;

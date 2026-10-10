@@ -59,7 +59,7 @@ import {
   type StepGraph,
 } from 'agentfootprint/observe';
 import { isDevMode } from 'footprintjs';
-import type { RangeToken } from 'footprintjs/trace';
+import type { RangeToken } from 'foottrace';
 import { overlayFromSnapshot } from 'footprint-explainable-ui/flowchart';
 import { LensRecorder, type LensRecorderOptions } from './LensRecorder.js';
 

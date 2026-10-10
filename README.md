@@ -27,13 +27,19 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 ## 30-second quick start
 
 ```bash
-npm install agentfootprint agentfootprint-lens
+npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
 Lens requires `footprint-explainable-ui >=0.34.0 <1.0.0`. Earlier versions
 lack renderer APIs used by Lens even if an older peer range accepted them.
 The minimum and current tested renderer versions are checked with packed
 installs on both React 18 and React 19; an import failure fails the check.
+
+Node.js 22 or newer is required, matching the `foottrace ^1.0.0` peer that
+owns record reading. Both `footprintjs ^9.26.0 || ^10.0.0` and
+`agentfootprint ^9.116.0 || ^10.0.0` remain supported. Engine recorders stay
+on FootPrint; saved-record readers come from Foottrace. Lens's public exports,
+recorded data, and cursor behavior are unchanged.
 
 ```tsx
 import { useMemo } from 'react';
@@ -901,7 +907,7 @@ dashboard had a third — and they disagreed at exactly the places nobody tests:
 ▶ at the last stop, a jump to a stage that is not on this ruler, a step stored
 from a longer run.
 
-footprintjs 9.17 owns that arithmetic now. `timeTravel(snapshot, { strategy })`
+Foottrace owns that arithmetic now (introduced in footprintjs 9.17). `timeTravel(snapshot, { strategy })`
 is the **reader's cursor over a finished trace**: `first` / `last` / `prev` /
 `next` / `jumpTo`, one position, and one law — **a refused move never moves the
 cursor**, it returns the reason and the nearest stop it could name. Since
@@ -954,7 +960,7 @@ fold wants the run's snapshot — which movement never reads. Want them over thi
 same ruler? Build the library's cursor directly, with the lens's stops:
 
 ```ts
-import { timeTravel } from 'footprintjs/trace';
+import { timeTravel } from 'foottrace';
 import { scrubAxisFor, lensStopsStrategy } from 'agentfootprint-lens/core';
 
 // A LIVE run. `runner.getLastSnapshot()` IS footprintjs's own snapshot, so it
@@ -1323,7 +1329,7 @@ tool schema).
 - **Authority omissions come from the fold.** A receipt never names what a
   caller's ROLE was not allowed to see (the library's first law). The tab's
   audience is an operator, so it MAY show the skill ids hidden from the model —
-  but it reads them from the committed state at the stop through footprintjs's
+  but it reads them from the committed state at the stop through Foottrace's
   `stateAt`, labelled **hidden from the model**, never from the receipt.
 - **One cursor.** The tab takes the lens's position as props and holds none of
   its own. On an llm-turn stop it shows that epoch. On any other stop it shows
@@ -1465,7 +1471,7 @@ puts the mark and when:
 | **Derived tag** | the reader, at read time, from the fold | computed by a strategy; never stored | the lens's own grouping (milestones, banded by iteration) — the default axis |
 | **Bookmark** | the reader, at read time, by choice | on the cursor (`mark` / `marks` / `jumpToMark`); persisted beside a recording, never in it | the **Bookmarks** tab |
 
-Only the first two had a place in the lens. footprintjs holds a bookmark on the
+Only the first two had a place in the lens. Foottrace holds a bookmark on the
 cursor and, by its own law, nowhere else — the log and the snapshot are the
 run's record, not the reader's notes — so a bookmark vanished when the page
 closed. And a run's own tags (agentfootprint 9.90 declares every milestone as
@@ -1508,7 +1514,7 @@ End reach them on every axis, and they share one synthetic address.
 
 Headless, the sidecar is four functions in `/core`: `bookmarkKey(snapshot)`,
 `toSidecar(key, bookmarks)`, `fromSidecar(json, snapshot)` (reports
-`orphaned`), `bookmarksToMarks(bookmarks, positions)` to seed footprintjs's
+`orphaned`), `bookmarksToMarks(bookmarks, positions)` to seed Foottrace's
 `timeTravel(snapshot, { marks })`; stores are `localStorageBookmarkStore()`,
 `memoryBookmarkStore()`, `noBookmarkStore()`, or any `BookmarkStore` of your
 own. See `src/core/bookmarks/README.md`.
@@ -1524,7 +1530,7 @@ stop is reached — and the counts from the **log**. A recording that carried no
 structure lists only *tags this run hit* and says *no chart in this recording*.
 A declared tag the run never hit is shown and disabled.
 
-**Pick a chip and the ruler is rebuilt** through footprintjs 9.21's
+**Pick a chip and the ruler is rebuilt** through Foottrace's
 `tagStops(names)`: the stops whose bundle carries any picked tag, the untagged
 stages folded into the tagged stop before them, the run's bookends kept. It is
 the same one cursor on a different list — the cursor **keeps its commit**, not
@@ -1934,7 +1940,7 @@ store's availability is a label. Headless: `bookmarkKey` · `toSidecar` ·
 the chart on `granularity="group"` at the root level; `legend` is
 `tagLegend(structure, snapshot)` (`source: 'structure' | 'log'`), a pick is a
 list of tag names the lens hands to `tagAxisPositions(snapshot, picked, base)`
-(footprintjs 9.21's `tagStops`). Picking never moves the cursor; it changes the
+(Foottrace's `tagStops`). Picking never moves the cursor; it changes the
 list the one cursor is a step into. `available` defaults to `true`; `false` holds
 the strip read-only — the legend still shows, every chip is disabled, and the
 strip says so (`TAG_PICKER_LABELS.tagAxisUnavailable`).
@@ -2025,7 +2031,7 @@ so instead of drawing an empty graph.
 snippets.
 
 The cursor is headless too: `scrubAxisFor` builds the ruler, `openLensCursor`
-moves along it through footprintjs's `timeTravel()` port, `resolveNavigation`
+moves along it through Foottrace's `timeTravel()` port, `resolveNavigation`
 turns an address into a step with every rung named, and `stepForCommitIdx`
 carries a position between the two axes. See
 [Time travel through one port](#time-travel-through-one-port).

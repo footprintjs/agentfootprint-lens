@@ -1,6 +1,6 @@
 /**
  * ARCHITECTURE (footprintjs extraction plan, step E2): the lens reads every
- * footprintjs door BY NAME, never off a namespace object.
+ * engine and record door BY NAME, never off a namespace object.
  *
  * A namespace object lets a name be read through a cast —
  * `(trace as { tagStops?: unknown }).tagStops` — and a name read that way can
@@ -24,8 +24,8 @@ import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
-/** `footprintjs` or `footprintjs/<subpath>` — never `footprintjs-<other>`. */
-const DOOR = /^footprintjs(\/|$)/;
+/** The engine/record package or subpath — never a similarly prefixed package. */
+const DOOR = /^(?:footprintjs|foottrace)(\/|$)/;
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -36,7 +36,7 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-/** Each place one source file holds a footprintjs door as a namespace object. */
+/** Each place one source file holds an engine or record door as a namespace. */
 function namespaceReads(fileName: string, text: string): string[] {
   const kind = fileName.endsWith('.tsx') ? ts.ScriptKind.TSX : ts.ScriptKind.TS;
   const file = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, false, kind);
@@ -64,8 +64,8 @@ function namespaceReads(fileName: string, text: string): string[] {
   return reads;
 }
 
-describe('architecture: no footprintjs door is read off a namespace', () => {
-  it('src/ holds no footprintjs door as a namespace object', () => {
+describe('architecture: no engine or record door is read off a namespace', () => {
+  it('src/ holds no footprintjs or foottrace door as a namespace object', () => {
     const offenders = walk(join(ROOT, 'src')).flatMap((file) =>
       namespaceReads(file, readFileSync(file, 'utf8')).map((read) => `${relative(ROOT, file)}: ${read}`),
     );
@@ -77,6 +77,8 @@ describe('architecture: no footprintjs door is read off a namespace', () => {
       `import * as … from 'footprintjs/trace'`,
     ]);
     expect(namespaceReads('b.tsx', `import type * as fp from 'footprintjs';`)).toEqual([`import * as … from 'footprintjs'`]);
+    expect(namespaceReads('records.ts', `import * as records from 'foottrace'; import type * as paths from 'foottrace/paths';`))
+      .toEqual([`import * as … from 'foottrace'`, `import * as … from 'foottrace/paths'`]);
     expect(
       namespaceReads('c.ts', `async function f() { return [await import('footprintjs/trace'), require('footprintjs')]; }`),
     ).toEqual([`import('footprintjs/trace')`, `require('footprintjs')`]);

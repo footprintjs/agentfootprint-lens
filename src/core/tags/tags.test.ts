@@ -14,7 +14,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { stateAt, timeTravel } from 'footprintjs/trace';
+import { stateAt, timeTravel } from 'foottrace';
 
 import { load, loadTampered } from '../../../test/served/helpers.js';
 import { scrubAxisFor } from '../group/scrubAxisFor.js';

@@ -35,6 +35,8 @@ export default defineConfig({
     "footprint-explainable-ui",
     "@xyflow/react",
     /^footprintjs(\/|$)/,
+    // Record readers and path helpers have one consumer-provided owner too.
+    /^foottrace(\/|$)/,
     // agentfootprint (+ subpaths /observe, /trace) is a peerDependency — it MUST be
     // external. Bundling a copy would give a CONSUMER of the published lens two
     // distinct agentfootprint instances at runtime (cross-instance `instanceof` /

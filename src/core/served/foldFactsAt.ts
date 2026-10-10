@@ -5,7 +5,7 @@
  * is the library's first law, and it holds because committed state is readable
  * by debugging tools. This tab's audience IS a debugging tool's audience (an
  * operator), so it MAY show which skills were hidden from the model — but it
- * reads them from the fold at the stop, through footprintjs's own `stateAt`,
+ * reads them from the fold at the stop, through Foottrace's own `stateAt`,
  * never from the receipt and never by re-deriving them.
  *
  * Nothing is computed here beyond "which keys are present and what they hold".
@@ -25,7 +25,7 @@
  * and the receipt, the view and the one cursor stay on screen.
  */
 
-import { stateAt, type FoldBasis, type FoldedState, type FoldSource } from 'footprintjs/trace';
+import { stateAt, type FoldBasis, type FoldedState, type FoldSource } from 'foottrace';
 
 import type { ServedCursor } from './types.js';
 

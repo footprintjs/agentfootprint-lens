@@ -5,6 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.76.0] - 2026-10-10
+
+### Migration prerequisites
+
+- Node.js 22 or newer replaces the previous Node.js 18 minimum. Install the
+  new required `foottrace ^1.0.0` peer alongside Lens. Existing Node.js 18/20
+  applications must upgrade their runtime before moving from 0.75 to 0.76.
+  No Lens exports are removed.
+
+### Changed
+
+- Record readers and record types now come from the `foottrace ^1.0.0` peer;
+  path helpers use `foottrace/paths`. Engine stores, topology types and the
+  structure walker remain on FootPrint. Both peers are external in the
+  published bundles, so the application supplies one physical Foottrace.
+- Accepts FootPrint 10 alongside the unchanged 9.26.0 floor. AgentFootprint's
+  `^9.116.0 || ^10.0.0` peer range is unchanged. Node.js 22 or newer is now
+  required, matching Foottrace's minimum. Add `foottrace` to the application's
+  install; no Lens exports, stored-record formats, or cursor behavior change.
+- Import-ownership and packed ESM/CJS/type checks cover the canonical readers,
+  the older peer floors, and the extracted engine. The structural boundary
+  query port and older-peer time-axis fallback remain intact.
+
 ## [0.75.0] - 2026-10-09
 
 ### Fixed

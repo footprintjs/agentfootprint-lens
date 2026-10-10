@@ -1,4 +1,4 @@
-import { stateAt, type FoldSource, type FoldedState } from 'footprintjs/trace';
+import { stateAt, type FoldSource, type FoldedState } from 'foottrace';
 
 /** The optional sourcePosition wire carried by a version-1 TrustBoundaries fact. */
 export interface SourcePosition {
