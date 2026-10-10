@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.76.0] - 2026-10-10
 
+### Migration prerequisites
+
+- Node.js 22 or newer replaces the previous Node.js 18 minimum. Install the
+  new required `foottrace ^1.0.0` peer alongside Lens. Existing Node.js 18/20
+  applications must upgrade their runtime before moving from 0.75 to 0.76.
+  No Lens exports are removed.
+
 ### Changed
 
 - Record readers and record types now come from the `foottrace ^1.0.0` peer;

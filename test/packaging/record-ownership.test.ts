@@ -23,8 +23,8 @@ const recordNames = new Set(entries.flatMap((entry) =>
     .map((symbol) => symbol.name),
 ));
 
-function misplaced(text: string): string[] {
-  const source = ts.createSourceFile('input.tsx', text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+function misplaced(text: string, fileName = 'input.ts'): string[] {
+  const source = ts.createSourceFile(fileName, text, ts.ScriptTarget.Latest, true);
   const found: string[] = [];
   const inspect = (node: ts.Node): void => {
     if ((ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
@@ -79,10 +79,24 @@ describe('canonical record import ownership', () => {
     `)).toEqual(['stateAt', 'FoldSource', 'RangeToken', 'pathSegments', 'SharedMemory']);
   });
 
+  it('finds a forbidden import after a TypeScript generic arrow', () => {
+    expect(misplaced(`
+      const identity = <T>(value: T) => value;
+      import { stateAt } from 'footprintjs/trace';
+    `)).toEqual(['stateAt']);
+  });
+
+  it('finds a forbidden import after JSX', () => {
+    expect(misplaced(`
+      const panel = <section>Recorded state</section>;
+      import { stateAt } from 'footprintjs/trace';
+    `, 'input.tsx')).toEqual(['stateAt']);
+  });
+
   it('source, tests, demos and packaging probes import records only from their owner', () => {
     const files = ['src', 'test', 'demo', 'scripts'].flatMap((dir) => sources(join(root, dir)));
     expect(files.length).toBeGreaterThan(100);
-    expect(files.flatMap((file) => misplaced(readFileSync(file, 'utf8'))
+    expect(files.flatMap((file) => misplaced(readFileSync(file, 'utf8'), file)
       .map((name) => `${relative(root, file)}: ${name}`))).toEqual([]);
   }, 30_000);
 });
