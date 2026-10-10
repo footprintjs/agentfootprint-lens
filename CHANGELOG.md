@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.75.0] - 2026-10-09
+
+### Fixed
+
+- The dataset time-axis helper keeps only the three AgentFootprint read
+  functions it uses in browser bundles. Its optional-function adapter no longer
+  returns the entire module namespace, which had retained unrelated agent and
+  engine code. No public exports, features, or peer ranges change; older peers
+  without those functions still return the same unjudged declaration.
+- A built-package browser regression refuses retained agent/engine execution
+  modules when importing this helper. Packed ESM/CJS compatibility checks also
+  exercise the old-peer fallback and current library judgments. Publishing now
+  builds before testing, so packaging regressions cannot be skipped because
+  the build output is absent.
+
 ## [0.74.0] - 2026-10-09
 
 ### Added

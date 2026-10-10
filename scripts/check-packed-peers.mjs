@@ -18,7 +18,7 @@ require.extensions['.css'] = () => {};
 
 const surfaces = {
   'agentfootprint-lens': ['Lens', 'Replay', 'observeRecording'],
-  'agentfootprint-lens/core': ['LensRecorder', 'observeRecording', 'buildGroups'],
+  'agentfootprint-lens/core': ['LensRecorder', 'observeRecording', 'buildGroups', 'datasetTimeAxisOf'],
   'agentfootprint-lens/why': ['WhyLens'],
   'agentfootprint-lens/skillgraph': ['SkillGraphDebugger'],
   'agentfootprint-lens/context': ['ContextView'],
@@ -56,6 +56,41 @@ for (const [format, load] of [
       assert.notEqual(loaded[name], undefined, `${format}: ${specifier} must export ${name}`);
     }
     modules[specifier] = loaded;
+  }
+
+  // Use the installed peer's real exports, never a mock. The matrix's native
+  // 9.116.0 floor predates all three time-axis methods. A narrower browser
+  // import must preserve that synchronous, honest fallback in both formats.
+  const agent = await load('agentfootprint');
+  const { datasetTimeAxisOf } = modules['agentfootprint-lens/core'];
+  const rawAxis = { column: 'at', unit: 'iso', aggregate: 'raw' };
+  const meta = { timeAxis: rawAxis };
+  const rows = [{ at: '2026-10-09T12:00:00Z' }, { at: 'not a timestamp' }];
+  assert.deepEqual(datasetTimeAxisOf({}), { status: 'absent' });
+  if (require('agentfootprint/package.json').version === '9.116.0') {
+    for (const name of ['readTimeAxis', 'describeTimeAxis', 'normaliseInstants']) {
+      assert.equal(agent[name], undefined, `${format}: the native floor has no ${name}`);
+    }
+  }
+  const axisView = datasetTimeAxisOf(meta, rows);
+  if (typeof agent.readTimeAxis !== 'function') {
+    assert.deepEqual(axisView, { status: 'unjudged', raw: rawAxis });
+    assert.equal(axisView.raw, rawAxis, `${format}: preserve the unjudged declaration`);
+    console.log(`${format}: native older-peer time-axis absence returns unjudged, not a validation claim`);
+  } else {
+    const reading = agent.readTimeAxis(meta);
+    assert.equal(reading.status, 'declared');
+    assert.equal(axisView.status, 'declared');
+    assert.deepEqual(axisView.axis, reading.axis);
+    assert.equal(axisView.summary, agent.describeTimeAxis(reading.axis));
+    const oracle = agent.normaliseInstants(rows, reading.axis);
+    assert.equal(axisView.values.status, oracle.status);
+    assert.equal(axisView.values.placed, oracle.points?.length ?? 0);
+    assert.equal(axisView.values.clockUnknown, oracle.status === 'instants' ? 0 : oracle.count);
+    assert.deepEqual(axisView.values.counts, oracle.counts);
+    const malformed = { timeAxis: { column: 'at', unit: 'unsupported' } };
+    assert.deepEqual(datasetTimeAxisOf(malformed), agent.readTimeAxis(malformed));
+    console.log(`${format}: time-axis declaration, summary, values and refusal match the installed library`);
   }
 
   // AgentFootprint 9 creates a FootPrint index; AgentFootprint 10 creates a
