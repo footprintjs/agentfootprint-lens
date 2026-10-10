@@ -36,11 +36,10 @@
  *        key linking back to ReactFlow node ids.
  */
 
-import type { CommitRangeIndex } from 'footprintjs/trace';
-import type { BoundaryRangeLabel } from 'agentfootprint/observe';
+import type { BoundaryQueries } from '../group/BoundaryQueries.js';
 
 export function findInflightBranches(
-  boundaryIndex: CommitRangeIndex<BoundaryRangeLabel>,
+  boundaryIndex: Pick<BoundaryQueries, 'enclosing'>,
   commitIdx: number,
 ): readonly string[] {
   if (!Number.isFinite(commitIdx) || commitIdx < 0) return [];

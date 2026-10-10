@@ -82,3 +82,68 @@ jobs:
           npm ls footprint-explainable-ui agentfootprint footprintjs react react-dom --depth=0
           cp "$GITHUB_WORKSPACE/scripts/check-packed-peers.mjs" ./check-packed-peers.mjs
           node ./check-packed-peers.mjs
+          npm install --strict-peer-deps --save-exact typescript@5.4.5
+          cp "$GITHUB_WORKSPACE/scripts/check-packed-peer-types.ts" ./check-packed-peer-types.mts
+          cp "$GITHUB_WORKSPACE/scripts/check-packed-peer-types.ts" ./check-packed-peer-types.cts
+          npx tsc --noEmit --strict --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext check-packed-peer-types.mts check-packed-peer-types.cts
+
+  # The next AgentFootprint major changes the nominal owner of boundary indexes.
+  # Keep the four existing FLOOR combinations above; also build/typecheck/test
+  # Lens against the actual, immutable next-major source, not a renamed 9.x tarball.
+  # Replace this candidate lane with the published 10.x release during Lens E5.
+  agent-candidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: lens
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: lens
+      - uses: actions/checkout@v4
+        with:
+          repository: footprintjs/agentfootprint
+          ref: 3dd2474d5868155784a7bef816f5473c71b61a37
+          path: agent-candidate
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g npm@11
+      - name: Build the exact AgentFootprint 10 candidate (never publish)
+        working-directory: agent-candidate
+        run: |
+          test "$(git rev-parse HEAD)" = 3dd2474d5868155784a7bef816f5473c71b61a37
+          npm ci
+          node scripts/release-prepare.mjs --bump auto
+          node -e "if(require('./package.json').version !== '10.0.0') process.exit(1)"
+          npm run build
+          npm pack --ignore-scripts
+      - name: Install Lens against the candidate with unchanged peer declarations
+        run: |
+          npm pkg set devDependencies.agentfootprint=file:../agent-candidate/agentfootprint-10.0.0.tgz
+          npm pkg set devDependencies.footprintjs=9.48.3
+          npm install --strict-peer-deps
+          npm ls agentfootprint footprintjs foottrace
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - run: npx publint
+      - run: npx @arethetypeswrong/cli --pack
+      - run: npm pack
+      - name: Check the packed Lens with the real next-major boundary index
+        run: |
+          mkdir -p /tmp/agent-candidate-consumer
+          cd /tmp/agent-candidate-consumer
+          npm init -y >/dev/null
+          npm install --strict-peer-deps --save-exact \
+            "$GITHUB_WORKSPACE/agent-candidate/agentfootprint-10.0.0.tgz" \
+            footprintjs@9.48.3 react@19.0.0 react-dom@19.0.0 \
+            "@xyflow/react@^12.0.0" footprint-explainable-ui@0.38.0
+          npm install --strict-peer-deps "$GITHUB_WORKSPACE"/lens/agentfootprint-lens-*.tgz
+          cp "$GITHUB_WORKSPACE/lens/scripts/check-packed-peers.mjs" ./check-packed-peers.mjs
+          node ./check-packed-peers.mjs
+          npm install --strict-peer-deps --save-exact typescript@5.4.5
+          cp "$GITHUB_WORKSPACE/lens/scripts/check-packed-peer-types.ts" ./check-packed-peer-types.mts
+          cp "$GITHUB_WORKSPACE/lens/scripts/check-packed-peer-types.ts" ./check-packed-peer-types.cts
+          npx tsc --noEmit --strict --skipLibCheck --target ES2022 --module NodeNext --moduleResolution NodeNext check-packed-peer-types.mts check-packed-peer-types.cts
