@@ -120,7 +120,10 @@ jobs:
         working-directory: engine-candidate
         run: |
           test "$(git rev-parse HEAD)" = 8ee851119ad7b6e9d4195fc9f53526c506fe153e
-          npm ci
+          # FootPrint deliberately has no committed lockfile (platform-native
+          # build dependencies). Match its npm 11 fresh-install policy while
+          # refusing peer conflicts; do not manufacture or bypass a lockfile.
+          npm install --strict-peer-deps
           npm version major --no-git-tag-version --ignore-scripts
           node -e "if(require('./package.json').version !== '10.0.0') process.exit(1)"
           git diff --exit-code HEAD -- src
