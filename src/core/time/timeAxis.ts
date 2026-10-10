@@ -12,9 +12,10 @@
  * second copy of any rule.
  *
  * Under a peer older than 9.128.0 the three are absent: read at CALL time
- * through the namespace (the `served/verify.ts` · `toolDigestOf` precedent,
- * so an older peer still links), and the declaration is then printed as the
- * ticket holds it, labelled not checked — never as declared-and-valid.
+ * through explicit namespace properties (so an older peer still links), and
+ * the declaration is then printed as the ticket holds it, labelled not checked
+ * — never as declared-and-valid. Never return the whole namespace: that makes
+ * every agent export observable and retains the runtime in browser bundles.
  */
 
 import * as agentfootprint from 'agentfootprint';
@@ -36,11 +37,6 @@ export interface AxisCountsShape {
   readonly unreadable: number;
   readonly missing: number;
 }
-
-type TimeAxisReading =
-  | { readonly status: 'absent' }
-  | { readonly status: 'declared'; readonly axis: DatasetTimeAxisShape }
-  | { readonly status: 'malformed'; readonly issues: readonly string[] };
 
 type NormalisedAxis =
   | {
@@ -81,18 +77,27 @@ export interface AxisValues {
   readonly counts: AxisCountsShape;
 }
 
-type Door = {
-  readonly readTimeAxis?: (meta: unknown) => TimeAxisReading;
-  readonly describeTimeAxis?: (axis: DatasetTimeAxisShape) => string | undefined;
-  readonly normaliseInstants?: (rows: readonly unknown[], axis: DatasetTimeAxisShape) => NormalisedAxis;
-};
+// A private port derived from the official implementation, optional because
+// the supported peer floor predates these functions. These implementation
+// types do not escape into the Lens's public, older-peer-compatible shapes.
+type Door = Partial<Pick<
+  typeof agentfootprint,
+  'readTimeAxis' | 'describeTimeAxis' | 'normaliseInstants'
+>>;
 
 /** The three judges, read at call time (absent under an older peer). */
 function door(): Door {
-  return agentfootprint as unknown as Door;
+  return {
+    readTimeAxis: agentfootprint.readTimeAxis,
+    describeTimeAxis: agentfootprint.describeTimeAxis,
+    normaliseInstants: agentfootprint.normaliseInstants,
+  };
 }
 
-function valuesOf(rows: readonly unknown[], axis: DatasetTimeAxisShape): AxisValues | undefined {
+function valuesOf(
+  rows: readonly unknown[],
+  axis: Parameters<typeof agentfootprint.normaliseInstants>[1],
+): AxisValues | undefined {
   const normalise = door().normaliseInstants;
   if (typeof normalise !== 'function') return undefined;
   try {

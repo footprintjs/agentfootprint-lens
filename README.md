@@ -1259,6 +1259,12 @@ Headless: `foldTimeRows(ledger, coverage?)`, `answerOfReading(turn, reading)`,
 `timeStandingOf(assessment, ledger?)`, `timeAskOf(pause)`,
 `datasetTimeAxisOf(meta, rows?)`.
 
+The dataset-axis helper depends only on AgentFootprint's three time-axis read
+functions, not its execution runtime. It reads those optional properties at
+call time: peers before 9.128.0 still show a declared axis as `unjudged`, while
+newer peers supply the judgment and counts. The browser packaging test checks
+that importing this helper does not retain the agent or engine execution code.
+
 ## The Served tab
 
 **At every LLM call, exactly what the model was served — provable from the log.**

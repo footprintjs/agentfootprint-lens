@@ -37,8 +37,10 @@ jobs:
       # job has NO publish power, so an unpinned/compromised dep here cannot reach the
       # registry token. A library's CI SHOULD test against the deps a consumer resolves.
       - run: npm install
-      - run: npm test
       - run: npm run build
+      # Packaging regressions inspect dist, so they must run after the build.
+      # Otherwise Vitest legitimately skips them in an unbuilt checkout.
+      - run: npm test
 
       # Packaging-correctness gate — block a publish that would ship a types masquerade /
       # broken subpath export.
