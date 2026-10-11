@@ -111,7 +111,7 @@ try {
         '@types/react': lane.types['@types/react'],
       }, 'record-only');
       const packages = installedPackageNames(join(recordOnly, 'node_modules'));
-      assertRecordIsolation(packages);
+      assertRecordIsolation(packages, lane.react);
       report.recordOnly = { packages };
       assertInstalled(join(recordOnly, 'node_modules/footprint-explainable-ui'), flow.files, 'record-only Flow');
     });
@@ -153,7 +153,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
       checkTypes(recordOnly, 'record-types', consumer);
     });
     // A mounted browser host necessarily installs ReactDOM; never conflate it
-    // with the independent five-package record-only isolation check above.
+    // with the independent React-version-specific isolation check above.
     recordConsumer = join(evidence, 'record-browser');
     step('explicit separate record browser host install', () => install(recordConsumer, {
       'footprint-explainable-ui': `file:${flow.path}`, foottrace: '1.0.3',
@@ -181,7 +181,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
     if (recordConsumer) assertInstalled(join(recordConsumer, 'node_modules/footprint-explainable-ui'), flow.files, 'record browser Flow');
     if (recordOnly) {
       assertInstalled(join(recordOnly, 'node_modules/footprint-explainable-ui'), flow.files, 'record-only Flow');
-      assertRecordIsolation(installedPackageNames(join(recordOnly, 'node_modules')));
+      assertRecordIsolation(installedPackageNames(join(recordOnly, 'node_modules')), lane.react);
     }
   });
   report.status = flags.browser === 'no' && lane.kind === 'modern' ? 'diagnostic-without-browser' : 'passed';

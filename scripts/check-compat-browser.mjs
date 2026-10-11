@@ -7,6 +7,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { assertInstalled, candidate } from './compat/contract.mjs';
+import { assertBrowserOutputSafe, assertBrowserOutputUnchanged, captureBrowserOutput } from './compat/browser-output.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const options = Object.fromEntries(process.argv.slice(2).reduce((pairs, arg, index, all) => {
@@ -64,25 +65,30 @@ async function runBrowser(consumerPath, kind) {
   await writeFile(join(target, 'index.html'), '<!doctype html><html><head><meta charset="utf-8"><title>Lens package compatibility</title><link rel="icon" href="data:,"></head><body style="margin:16px;font-family:system-ui"><div id="root"></div><script type="module" src="/host.jsx"></script></body></html>');
   const chunks = [];
   // Match this project's documented Vite browser host. No aliases, externals,
-  // polyfills or shims: the plugin records output, never changes it. Vite may
+  // polyfills or shims: the plugin records module metadata, never changes it. Vite may
   // visit unused Node imports while analysing the agent barrel; only retained
   // module bytes can execute. Fail if any Node adapter survives tree shaking.
   await build({ root: target, configFile: false, build: { outDir: output, emptyOutDir: false },
     plugins: [{ name: 'compatibility-evidence', generateBundle(_options, bundle) {
       for (const [file, item] of Object.entries(bundle)) if (item.type === 'chunk') {
-        chunks.push({ file, sha256: sha(item.code), imports: item.imports, dynamicImports: item.dynamicImports,
+        chunks.push({ file, preFinalSha256: sha(item.code), imports: item.imports, dynamicImports: item.dynamicImports,
           modules: Object.fromEntries(Object.entries(item.modules).map(([id, details]) => [
             relative(consumer, id).split(sep).join('/'), { renderedLength: details.renderedLength, renderedExports: details.renderedExports },
-          ])),
-          forbiddenRuntimeText: /(?:node:module|node:fs|createRequire)/.test(item.code) });
+          ])) });
       }
     } }] });
-  await writeFile(join(proof, 'metafile.json'), JSON.stringify({ bundler: `vite ${viteVersion}`, chunks }, null, 2));
+  const servedOutput = captureBrowserOutput(output);
+  for (const chunk of chunks) {
+    assert.ok(servedOutput.files[chunk.file], `The recorded chunk ${chunk.file} was not emitted`);
+    chunk.sha256 = servedOutput.files[chunk.file];
+  }
+  await writeFile(join(proof, 'metafile.json'), JSON.stringify({ bundler: `vite ${viteVersion}`,
+    moduleMetadataPhase: 'generateBundle', servedOutputPhase: 'after awaited build', chunks, servedOutput }, null, 2));
   assert.ok(chunks.length, 'A real browser bundle must be emitted');
   const inputs = chunks.flatMap(chunk => Object.entries(chunk.modules).filter(([, details]) => details.renderedLength > 0).map(([id]) => id));
   const forbiddenRuntime = /(?:__vite-browser-external|node_modules\/agentfootprint\/dist\/esm\/(?:lib\/lazyRequire\.js|(?:lib\/semantics|lib\/tool-lint)\/cli\.js|adapters\/|embedders\/|providers(?:\/|\.js)|core\/(?:Agent|RunnerBase|runnerLive|runner|LLMCall|codeRunnerTool)\.js|core\/agent\/stages\/))/;
   assert.deepEqual(inputs.filter(input => forbiddenRuntime.test(input)), [], 'Node adapters or agent execution runtime survived in an offline browser replay');
-  assert.ok(chunks.every(chunk => !chunk.forbiddenRuntimeText), 'Emitted JavaScript must not contain Node runtime imports');
+  assertBrowserOutputSafe(servedOutput);
   assert.ok(inputs.some(input => input.includes('node_modules/footprint-explainable-ui/dist/')), 'Use the installed Flow Lens, never its source');
   if (kind === 'replay') assert.ok(inputs.some(input => input.includes('node_modules/agentfootprint-lens/dist/')), 'Use the installed Why Lens');
   else assert.ok(!inputs.some(input => /node_modules\/(?:agentfootprint(?:-lens)?|footprintjs|hcifootprint|vizfootprint|@xyflow|dagre)\//.test(input)));
@@ -92,6 +98,7 @@ async function runBrowser(consumerPath, kind) {
       const path = resolve(output, `.${url.pathname === '/' ? '/index.html' : url.pathname}`);
       assert.ok(path.startsWith(`${output}${sep}`));
       const bytes = await readFile(path);
+      assert.equal(sha(bytes), servedOutput.files[relative(output, path).split(sep).join('/')], 'Only unchanged captured build bytes may be served');
       response.writeHead(200, { 'Content-Type': path.endsWith('.js') ? 'text/javascript' : path.endsWith('.css') ? 'text/css' : 'text/html', 'Cache-Control': 'no-store' });
       response.end(bytes);
     } catch { response.writeHead(404); response.end('Not found'); }
@@ -125,10 +132,12 @@ async function runBrowser(consumerPath, kind) {
     assert.deepEqual(remote, [], 'Browser attempted to reach an external service');
     assert.deepEqual(failures, [], 'Browser errors are genuine compatibility failures');
     verifyInstalled();
+    assertBrowserOutputUnchanged(output, servedOutput);
     const result = { passed: true, kind, lane: options.lane, flowVersion: options['flow-version'], versions,
       archiveProof, archiveProofSha256: sha(archiveProofBytes),
       fixtureHashes: kind === 'replay' ? { 'tagged-chart.json': fixtures['tagged-chart.json'] } : { 'flow.json': fixtures['flow.json'], 'hci.json': fixtures['hci.json'] },
       hostSha256: sha(source), bundle: chunks.map(({ file, sha256 }) => ({ file, sha256 })),
+      servedOutput,
       bundler: `vite ${viteVersion}`, browser: { version: browser.version(), executable: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || 'Playwright-managed Chromium' },
       requests, remote, failures, observations };
     await writeFile(join(proof, 'verification.json'), JSON.stringify(result, null, 2));

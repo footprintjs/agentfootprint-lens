@@ -96,12 +96,24 @@ test('physical package inspection finds nested leaks and rejects links', () => {
 });
 
 test('record-only allowlist rejects a graph, engine, agent or duplicate record owner', () => {
-  const names = ['@types/react', 'csstype', 'footprint-explainable-ui', 'foottrace', 'react'];
-  assertRecordIsolation(names);
-  for (const extra of ['@xyflow/react', 'dagre', 'react-dom', 'footprintjs', 'agentfootprint', 'foottrace']) {
-    assert.throws(() => assertRecordIsolation([...names, extra].sort()));
+  for (const major of ['18', '19']) {
+    const names = ['@types/react', 'csstype', 'footprint-explainable-ui', 'foottrace', 'react',
+      ...(major === '18' ? ['@types/prop-types', 'js-tokens', 'loose-envify'] : [])].sort();
+    assertRecordIsolation(names, major);
+    for (const extra of ['@xyflow/react', 'dagre', 'react-dom', 'footprintjs', 'agentfootprint', 'foottrace', 'unknown-package']) {
+      assert.throws(() => assertRecordIsolation([...names, extra].sort(), major));
+    }
+    assert.throws(() => assertRecordIsolation(names.slice(1), major));
   }
-  assert.throws(() => assertRecordIsolation(names.slice(1)));
+});
+
+test('record-only closures are React-major-specific, never a shared superset', () => {
+  const react19 = ['@types/react', 'csstype', 'footprint-explainable-ui', 'foottrace', 'react'];
+  const react18 = [...react19, '@types/prop-types', 'js-tokens', 'loose-envify'].sort();
+  assert.throws(() => assertRecordIsolation(react18, '19'));
+  assert.throws(() => assertRecordIsolation(react19, '18'));
+  assert.throws(() => assertRecordIsolation(react19, '20'));
+  assert.throws(() => assertRecordIsolation(react19));
 });
 
 test('malformed nested package is not mistaken for an absent node_modules', () => {

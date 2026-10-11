@@ -120,8 +120,14 @@ export function installedPackageNames(modules) {
   return names.sort();
 }
 
-export function assertRecordIsolation(names) {
-  assert.deepEqual(names, ['@types/react', 'csstype', 'footprint-explainable-ui', 'foottrace', 'react'],
+export function assertRecordIsolation(names, reactMajor) {
+  assert.ok(['18', '19'].includes(String(reactMajor)), 'record isolation requires the declared React major');
+  const expected = ['@types/react', 'csstype', 'footprint-explainable-ui', 'foottrace', 'react'];
+  // Exact declared transitive closure, not an open-ended exception. React
+  // 18.3.1 -> loose-envify -> js-tokens; @types/react18.3.3 -> @types/prop-types.
+  // React19.0.0 and its matching types require none of those three packages.
+  if (String(reactMajor) === '18') expected.push('@types/prop-types', 'js-tokens', 'loose-envify');
+  assert.deepEqual(names, expected.sort(),
     'record-only installation must contain only the viewer, React/types, and Foottrace');
 }
 
