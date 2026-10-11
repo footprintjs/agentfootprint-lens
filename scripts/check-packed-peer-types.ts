@@ -4,6 +4,14 @@ import { buildGroups, type Group } from 'agentfootprint-lens/core';
 import { BoundaryRecorder, type BoundaryRangeLabel } from 'agentfootprint/observe';
 import { CommitRangeIndex, sliceForKey, keysReadFromExecutionTree } from 'foottrace';
 import type { RuntimeSnapshot } from 'footprintjs';
+import { Lens, Replay } from 'agentfootprint-lens';
+import { WhyLens } from 'agentfootprint-lens/why';
+import { SkillGraphDebugger } from 'agentfootprint-lens/skillgraph';
+import { ContextView } from 'agentfootprint-lens/context';
+
+// All five public doors participate in each strict consumer resolution. This
+// traverses their declarations, including React and the installed Flow Lens.
+export const publicComponents = { Lens, Replay, WhyLens, SkillGraphDebugger, ContextView };
 
 const recorder = new BoundaryRecorder();
 const canonicalIndex = new CommitRangeIndex<BoundaryRangeLabel>();

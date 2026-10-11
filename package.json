@@ -92,6 +92,7 @@
     "fixtures:time": "npx --yes tsx test/time/fixtures/generate.ts",
     "clean": "rm -rf dist",
     "test:coverage": "vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text-summary --coverage.reportsDirectory=coverage",
+    "test:compat-helpers": "node --test scripts/compat/*.test.mjs",
     "coverage:badge": "npm run test:coverage; node scripts/coverage-badge.mjs"
   },
   "keywords": [
@@ -121,7 +122,7 @@
   "peerDependencies": {
     "@xyflow/react": "^12.0.0",
     "agentfootprint": "^9.116.0 || ^10.0.0",
-    "footprint-explainable-ui": ">=0.34.0 <1.0.0",
+    "footprint-explainable-ui": ">=0.34.0 <1.0.0 || ^1.0.0",
     "footprintjs": "^9.26.0 || ^10.0.0",
     "foottrace": "^1.0.0",
     "react": "^18.0.0 || ^19.0.0",
@@ -140,9 +141,9 @@
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
     "agentfootprint": "10.1.0",
-    "footprint-explainable-ui": ">=0.34.0 <1.0.0",
+    "footprint-explainable-ui": ">=0.34.0 <1.0.0 || ^1.0.0",
     "footprintjs": "^10.0.0",
-    "foottrace": "1.0.1",
+    "foottrace": "1.0.3",
     "jsdom": "^29.0.2",
     "publint": "^0.3.0",
     "react": "^18.3.1",

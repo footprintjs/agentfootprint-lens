@@ -2,7 +2,8 @@
 // Its imports must resolve there, never against the repository's devDependencies.
 import assert from 'node:assert/strict';
 import { createRequire, register } from 'node:module';
-import { realpathSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 
 // Node has no CSS loader. Ignore only stylesheets, for both module formats;
 // missing exports and every other loading/runtime error must fail this check.
@@ -52,8 +53,20 @@ const structure = {
 const canonicalRecord = realpathSync(require.resolve('foottrace'));
 const lensRequire = createRequire(require.resolve('agentfootprint-lens/core'));
 assert.equal(realpathSync(lensRequire.resolve('foottrace')), canonicalRecord);
-for (const name of ['agentfootprint', 'footprintjs']) {
-  const manifest = require(`${name}/package.json`);
+for (const name of ['agentfootprint', 'footprintjs', 'footprint-explainable-ui']) {
+  // Flow Lens does not export package.json. Walk from its real public entry,
+  // not an assumed node_modules location or a bypass of its exports contract.
+  let directory = dirname(realpathSync(require.resolve(name)));
+  let manifest;
+  while (true) {
+    if (existsSync(join(directory, 'package.json'))) {
+      const possible = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'));
+      if (possible.name === name) { manifest = possible; break; }
+    }
+    const parent = dirname(directory);
+    assert.notEqual(parent, directory, `cannot locate ${name}'s manifest`);
+    directory = parent;
+  }
   if (manifest.dependencies?.foottrace || manifest.peerDependencies?.foottrace) {
     const peerRequire = createRequire(require.resolve(name));
     assert.equal(realpathSync(peerRequire.resolve('foottrace')), canonicalRecord,
