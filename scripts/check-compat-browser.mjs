@@ -61,7 +61,9 @@ async function runBrowser(consumerPath, kind) {
       assert.throws(() => installed.resolve(name), { code: 'MODULE_NOT_FOUND' }, `${name} leaked into the record browser host`);
     }
   }
-  const output = join(target, 'public');
+  // Build and serve the very files retained by the hosted browser/** artifact.
+  // Keep module resolution at the installed consumer, not at the evidence path.
+  const output = join(proof, 'served-output');
   await writeFile(join(target, 'index.html'), '<!doctype html><html><head><meta charset="utf-8"><title>Lens package compatibility</title><link rel="icon" href="data:,"></head><body style="margin:16px;font-family:system-ui"><div id="root"></div><script type="module" src="/host.jsx"></script></body></html>');
   const chunks = [];
   // Match this project's documented Vite browser host. No aliases, externals,
@@ -77,7 +79,7 @@ async function runBrowser(consumerPath, kind) {
           ])) });
       }
     } }] });
-  const servedOutput = captureBrowserOutput(output);
+  const servedOutput = { ...captureBrowserOutput(output), retainedPath: 'served-output' };
   for (const chunk of chunks) {
     assert.ok(servedOutput.files[chunk.file], `The recorded chunk ${chunk.file} was not emitted`);
     chunk.sha256 = servedOutput.files[chunk.file];
