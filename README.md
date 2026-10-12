@@ -30,16 +30,79 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-Lens requires `footprint-explainable-ui >=0.34.0 <1.0.0`. Earlier versions
+This unreleased compatibility bridge accepts
+`footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0`. Earlier versions
 lack renderer APIs used by Lens even if an older peer range accepted them.
-The minimum and current tested renderer versions are checked with packed
-installs on both React 18 and React 19; an import failure fails the check.
+The released Why Lens 0.76.0 still accepts only the 0.x renderer range; this
+branch does not publish either Lens package or rename either package.
 
 Node.js 22 or newer is required, matching the `foottrace ^1.0.0` peer that
 owns record reading. Both `footprintjs ^9.26.0 || ^10.0.0` and
 `agentfootprint ^9.116.0 || ^10.0.0` remain supported. Engine recorders stay
 on FootPrint; saved-record readers come from Foottrace. Lens's public exports,
 recorded data, and cursor behavior are unchanged.
+
+### Flow Lens 1 compatibility checks (unreleased)
+
+The bridge adds no door and removes no export. Existing imports from
+`agentfootprint-lens`, `/core`, `/why`, `/skillgraph`, and `/context` stay the
+same. The independent Flow Lens package adds `/record`; Why Lens continues
+to use its existing root and `/flowchart` APIs, including its graph stylesheet.
+Why's direct graph import is not a lazy-loading claim.
+
+The checks build **one Why tarball** and install those exact bytes normally in
+every consumer. Four historical lanes retain AgentFootprint 9.116.0,
+FootPrint 9.26.0, Foottrace 1.0.0, Flow 0.34.0/0.38.0, and React 18.3.1/19.0.0.
+Twelve modern lanes cross Flow 0.34.0/0.38.0/the exact unreleased 1.0.0
+candidate with those React versions and Node 22/24, using AgentFootprint
+10.1.0, FootPrint 10.0.0, and Foottrace 1.0.3. The earlier two extraction
+source-build checks remain separate checks; their installed consumers use
+the same Why tarball too. Peer floors are not raised.
+
+Each lane checks all five doors in ESM and CommonJS and compiles public
+declarations under NodeNext ESM, NodeNext CommonJS, and Bundler resolution,
+without `skipLibCheck`. The declaration toolchain is TypeScript 5.4.5 with
+Node 22.12.0 types and matching React types. Those types support TypeScript
+5.0+ and meet Vite's optional Node-type peer; Node 26 types require TypeScript
+5.6, so they would test a different compiler contract. This test-tool choice
+does not raise any runtime floor. The existing boundary
+type-error controls, native older-agent fallback, real replay seeding, and
+single physical Foottrace owner checks are retained.
+
+Modern lanes also mount the installed packages in Chromium, replaying a saved
+Flow record through Replay and the observed Lens shell, checking the native
+transport, graph cursor, and theme. Candidate `/record` hosts separately check
+literal visible values and explanation text. The browser host uses
+Vite, the same bundler as this package's demo, without resolver aliases,
+externals, or browser stubs. Its production-module inspection rejects retained
+Node-only provider loading code; this is a Vite/browser compatibility check,
+not a claim about every bundler's treatment of unused imports. Candidate lanes
+separately install `/record` with only React, its types, and Foottrace, check
+its ESM/CommonJS behavior and declarations on saved Flow/HCI recordings, and
+then mount a different browser host that explicitly includes ReactDOM. That
+browser host is not the record-only isolation proof. These are compatibility
+checks, not the later real-app field test or permission to release.
+
+The candidate source commit and full tarball digest are pinned in
+`scripts/compat/contract.mjs`. Its already-reviewed, tracked build is packed
+with npm 11.21.0 and `--ignore-scripts`; it is never rebuilt or selected by a
+mutable branch. Archive contents must match the source/build files, and every
+installed Why/Flow file is checked before and after the probes. CI retains
+the archives, hashes, logs, dependency trees, and browser evidence, including
+failed runs. There are no peer overrides, forced installs, runtime stubs, or
+producer/model calls.
+
+To reproduce a lane locally after a normal Why build, pack Why, then run
+`scripts/compat/prepare-artifacts.mjs` with `--why-tar`, `--flow-source`
+(the pinned clean candidate checkout), and `--out`. Run
+`scripts/compat/run-lane.mjs` with `--kind modern`, `--flow candidate`,
+`--react 18` (or `19`), `--node 22` (or `24`, matching the running Node),
+`--artifacts`, a new `--evidence` directory, and `--flow-source`.
+`--install-browser yes` installs Chromium and its CI system dependencies;
+an already installed browser can instead be selected with
+`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`. Evidence is retained, never deleted on
+failure. `--browser no` is diagnostic-only and cannot report a passing modern
+lane.
 
 ```tsx
 import { useMemo } from 'react';
