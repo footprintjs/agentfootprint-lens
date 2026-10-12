@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { assertInstalled, assertRecordIsolation, candidate, installedPackageNames,
   laneContract, parseFlags, sha256, tooling } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
+import { assertWhyIdentity } from './why-identity.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const flags = parseFlags(process.argv.slice(2),
@@ -47,7 +48,7 @@ function checkTypes(consumer, stem, toolConsumer = consumer) {
 
 try {
   const contract = JSON.parse(readFileSync(join(artifacts, 'contract.json'), 'utf8'));
-  assert.equal(contract.schema, 1);
+  const whyIdentity = assertWhyIdentity(contract);
   assert.deepEqual(contract.candidate, candidate);
   if (process.env.GITHUB_RUN_ID) {
     assert.equal(contract.source.workflowRun, process.env.GITHUB_RUN_ID,
@@ -55,10 +56,9 @@ try {
     assert.equal(contract.source.workflowAttempt, process.env.GITHUB_RUN_ATTEMPT);
     assert.equal(contract.source.whyCommit, process.env.GITHUB_SHA, 'Why archive source does not match this checked commit');
   }
-  assert.equal(contract.why.path, 'agentfootprint-lens-0.76.0.tgz');
   assert.equal(contract.flow.path, 'footprint-explainable-ui-1.0.0.tgz');
-  const why = inspectArchive(join(artifacts, contract.why.path), evidence,
-    { name: 'agentfootprint-lens', version: '0.76.0', expectedSha: contract.why.sha256 });
+  const why = inspectArchive(join(artifacts, whyIdentity.filename), evidence,
+    { ...whyIdentity, expectedSha: contract.why.sha256 });
   assert.deepEqual(why.files, contract.why.files);
   report.packages.why = { sha256: why.sha256, files: why.files, source: contract.source };
   let flow;

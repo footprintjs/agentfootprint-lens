@@ -43,9 +43,10 @@ jobs:
       - name: Pack one Why artifact and the exact reviewed Flow candidate
         run: |
           mkdir -p compat-artifacts
+          why_archive="$(node scripts/compat/why-identity.mjs)"
           npm pack --ignore-scripts --pack-destination compat-artifacts
           node scripts/compat/prepare-artifacts.mjs \
-            --why-tar compat-artifacts/agentfootprint-lens-0.76.0.tgz \
+            --why-tar "compat-artifacts/$why_archive" \
             --flow-source flow-candidate --out compat-artifacts
       - uses: actions/upload-artifact@v4
         with:
@@ -234,7 +235,8 @@ jobs:
             "@xyflow/react@^12.0.0" footprint-explainable-ui@0.38.0
           # The independent source build above is retained, but the consumer
           # still receives the ONE original Why artifact, not a lane rebuild.
-          npm install --strict-peer-deps "$GITHUB_WORKSPACE"/compat-artifacts/agentfootprint-lens-0.76.0.tgz
+          why_archive="$(node "$GITHUB_WORKSPACE/lens/scripts/compat/why-identity.mjs" --artifacts "$GITHUB_WORKSPACE/compat-artifacts")"
+          npm install --strict-peer-deps "$why_archive"
           node "$GITHUB_WORKSPACE/lens/scripts/compat/check-existing-consumer.mjs" \
             --artifacts "$GITHUB_WORKSPACE/compat-artifacts" --consumer /tmp/extracted-peer-consumer \
             --evidence "$GITHUB_WORKSPACE/extracted-evidence" --phase before
