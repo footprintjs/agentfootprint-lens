@@ -15,7 +15,7 @@
  * object: `import * as x from 'footprintjs…'` (and `import type * as`),
  * `export * as x from 'footprintjs…'` (and `export type * as`), a value
  * `import('footprintjs…')`, and `require('footprintjs…')` — a template-literal
- * specifier included. A plain `export * from` re-exports names, not a namespace. A type query
+ * specifier included (one with substitutions is judged by its fixed head). A plain `export * from` re-exports names, not a namespace. A type query
  * `import('footprintjs').Name` is a named read and stays allowed.
  * agentfootprint's `.eslintrc.js` holds the same rule.
  */
@@ -60,9 +60,17 @@ function namespaceReads(fileName: string, text: string): string[] {
           : ts.isIdentifier(callee) && callee.text === 'require'
             ? 'require'
             : undefined;
-      const door = node.arguments[0];
-      if (how !== undefined && door !== undefined && ts.isStringLiteralLike(door) && DOOR.test(door.text))
-        reads.push(`${how}('${door.text}')`);
+      const arg = node.arguments[0];
+      // A template with substitutions (`footprintjs/${x}`) is judged by its fixed head.
+      const door =
+        arg === undefined
+          ? undefined
+          : ts.isTemplateExpression(arg)
+            ? arg.head.text
+            : ts.isStringLiteralLike(arg)
+              ? arg.text
+              : undefined;
+      if (how !== undefined && door !== undefined && DOOR.test(door)) reads.push(`${how}('${door}')`);
     }
     ts.forEachChild(node, visit);
   };
@@ -96,10 +104,12 @@ describe('architecture: no engine or record door is read off a namespace', () =>
       `export * as … from 'footprintjs'`,
       `export * as … from 'foottrace'`,
     ]);
-    expect(namespaceReads('f.ts', 'async function f() { return [await import(`footprintjs`), require(`foottrace`)]; }')).toEqual([
-      `import('footprintjs')`,
-      `require('foottrace')`,
-    ]);
+    expect(
+      namespaceReads(
+        'f.ts',
+        'async function f(x: string) { return [await import(`footprintjs`), require(`foottrace`), await import(`footprintjs/${x}`), await import(`footprintjs-x/${x}`)]; }',
+      ),
+    ).toEqual([`import('footprintjs')`, `require('foottrace')`, `import('footprintjs/')`]);
   });
 
   it('bites: each namespace form of any door; never a named import, a type query or another package', () => {
