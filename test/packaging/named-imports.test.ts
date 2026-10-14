@@ -11,9 +11,11 @@
  * peer floor.
  *
  * The lens has no ESLint, so this file is the check. Anywhere under src/,
- * tests included, it refuses the three ways to hold a door as a namespace
- * object: `import * as x from 'footprintjs…'` (and `import type * as`), a value
- * `import('footprintjs…')`, and `require('footprintjs…')`. A type query
+ * tests included, it refuses the four ways to hold a door as a namespace
+ * object: `import * as x from 'footprintjs…'` (and `import type * as`),
+ * `export * as x from 'footprintjs…'` (and `export type * as`), a value
+ * `import('footprintjs…')`, and `require('footprintjs…')` — a template-literal
+ * specifier included. A plain `export * from` re-exports names, not a namespace. A type query
  * `import('footprintjs').Name` is a named read and stays allowed.
  * agentfootprint's `.eslintrc.js` holds the same rule.
  */
@@ -46,6 +48,10 @@ function namespaceReads(fileName: string, text: string): string[] {
       const bindings = node.importClause?.namedBindings;
       if (DOOR.test(node.moduleSpecifier.text) && bindings !== undefined && ts.isNamespaceImport(bindings))
         reads.push(`import * as … from '${node.moduleSpecifier.text}'`);
+    } else if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
+      const clause = node.exportClause;
+      if (DOOR.test(node.moduleSpecifier.text) && clause !== undefined && ts.isNamespaceExport(clause))
+        reads.push(`export * as … from '${node.moduleSpecifier.text}'`);
     } else if (ts.isCallExpression(node)) {
       const callee = node.expression;
       const how =
@@ -70,6 +76,30 @@ describe('architecture: no engine or record door is read off a namespace', () =>
       namespaceReads(file, readFileSync(file, 'utf8')).map((read) => `${relative(ROOT, file)}: ${read}`),
     );
     expect(offenders).toEqual([]);
+  });
+
+  it('bites: a namespace re-export of any door; never a plain `export *` or a named re-export', () => {
+    expect(
+      namespaceReads(
+        'e.ts',
+        [
+          `export * as trace from 'footprintjs/trace';`,
+          `export type * as fp from 'footprintjs';`,
+          `export * as records from 'foottrace';`,
+          `export * from 'footprintjs';`,
+          `export { tagStops } from 'footprintjs/trace';`,
+          `export * as other from 'footprintjs-x';`,
+        ].join('\n'),
+      ),
+    ).toEqual([
+      `export * as … from 'footprintjs/trace'`,
+      `export * as … from 'footprintjs'`,
+      `export * as … from 'foottrace'`,
+    ]);
+    expect(namespaceReads('f.ts', 'async function f() { return [await import(`footprintjs`), require(`foottrace`)]; }')).toEqual([
+      `import('footprintjs')`,
+      `require('foottrace')`,
+    ]);
   });
 
   it('bites: each namespace form of any door; never a named import, a type query or another package', () => {
