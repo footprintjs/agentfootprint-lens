@@ -46,6 +46,8 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
+import { familyOf, isIn, moduleDefining } from './installedModules.js';
+
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const dist = resolve(repoRoot, 'dist');
 const ENTRIES = ['index.js', 'core.js', 'why.js', 'skillgraph.js', 'context.js'] as const;
@@ -288,19 +290,35 @@ describe.skipIf(!built)('sideEffects: false is true of the built package', () =>
     // This package's own chunks, by the built dist's absolute path — not by the
     // checkout's folder name (a worktree is not called `agentfootprint-lens`).
     expect(only(lens, `${dist}/`).length).toBeGreaterThanOrEqual(3);
+    // Each family is found in the INSTALLED agentfootprint by a symbol defined
+    // at its top level, wherever its layout puts the folder. An anchor no
+    // module defines throws, so "carries none of it" can never pass by looking
+    // in a folder that is not there.
+    const families = ['describeBugReport', 'traceToolpack', 'localizeContextBug'].map((anchor) => familyOf(anchor));
+    for (const family of families) {
+      expect(family.modules.length, `${family.folder} holds no module`).toBeGreaterThan(0);
+    }
+    const carried = (modules: readonly string[], folder: string): string[] =>
+      modules.filter((id) => isIn(id, folder));
     for (const name of ['Lens', 'SkillGraphFlow']) {
       const modules = name === 'Lens' ? lens : await syncModulesOf(name);
-      for (const family of ['lib/bug-report/', 'lib/trace-toolpack/', 'lib/context-bisect/']) {
-        expect(only(modules, family), `${name} carries ${family}`).toEqual([]);
+      for (const { folder } of families) {
+        expect(carried(modules, folder), `${name} carries ${folder}`).toEqual([]);
       }
     }
     // The button names describeBugReport / exportBugReport / githubDeviceSignIn:
     // their modules come (inlined here, because the core's static import of the
     // door puts it in the same graph — a page with no Lens gets them as a
     // chunk of their own), and the families the old NAMESPACE dragged do not.
+    // The positive check also proves the module ids match the paths the
+    // helper hands back, so the absences above compare like with like.
     const button = await syncModulesOf('BugReportButton');
-    expect(only(button, 'lib/bug-report/build.js'), 'describeBugReport rides with the button').toHaveLength(1);
-    expect(only(button, 'trace-toolpack/traceToolpack.js')).toEqual([]);
-    expect(only(button, 'context-bisect/localize.js')).toEqual([]);
+    const at = (symbol: string): string[] => {
+      const path = moduleDefining(symbol);
+      return button.filter((id) => isIn(id, path));
+    };
+    expect(at('describeBugReport'), 'describeBugReport rides with the button').toHaveLength(1);
+    expect(at('traceToolpack')).toEqual([]);
+    expect(at('localizeContextBug')).toEqual([]);
   }, 120_000);
 });

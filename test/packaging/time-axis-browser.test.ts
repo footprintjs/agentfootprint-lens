@@ -14,6 +14,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { familyOf, isIn, moduleDefining } from './installedModules.js';
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CORE = join(ROOT, 'dist', 'core.js');
 
@@ -55,16 +57,30 @@ describe.skipIf(!existsSync(CORE))('packed datasetTimeAxisOf browser closure', (
     const retained = new Set(chunks.flatMap((chunk) => Object.entries(chunk.modules)
       .filter(([, module]) => module.renderedLength > 0)
       .map(([id]) => id.replace(/\\/g, '/'))));
-    const runtime = [...retained].filter((id) =>
-      /\/agentfootprint\/dist\/esm\/(?:core\/(?:Agent|RunnerBase)\.js|core\/agent\/|core-flow\/|patterns\/)/.test(id)
-      || /\/footprintjs\/dist\/esm\/lib\/(?:runner|engine)\//.test(id));
+    // The agent execution engine and footprintjs's runner and traverser,
+    // located by what each part defines — a dependency's dist layout is its
+    // own and moves (see installedModules.ts). A part that cannot be found
+    // throws. The axis check below proves the helper's real paths and the
+    // bundler's module ids agree for an installed package; every part here
+    // comes from the same resolution, so the absence is real.
+    const engine = [
+      moduleDefining('Agent'),
+      moduleDefining('RunnerBase'),
+      familyOf('AgentBuilder').folder, // the agent's chart builders
+      familyOf('Sequence').folder, // the core-flow compositions
+      familyOf('swarm').folder, // the multi-agent patterns
+      familyOf('FlowChartExecutor', 'footprintjs').folder, // the run wiring
+      familyOf('traversalContextFor', 'footprintjs').folder, // the traverser
+    ];
+    const runtime = [...retained].filter((id) => engine.some((part) => isIn(id, part)));
     const bytes = chunks.reduce((total, chunk) => total + Buffer.byteLength(chunk.code), 0);
 
     // Before/after evidence is useful, but the invariant is ownership, not a
     // brittle byte threshold that grows stale when the time library evolves.
     console.info(`datasetTimeAxisOf browser: ${bytes} JS bytes; ${retained.size} retained modules; ${runtime.length} execution modules`);
     expect(chunks.some((chunk) => chunk.code.includes('datasetTimeAxisOf'))).toBe(true);
-    expect([...retained].some((id) => id.endsWith('/agentfootprint/dist/esm/core/time/axis.js')),
+    const axis = moduleDefining('readTimeAxis');
+    expect([...retained].some((id) => isIn(id, axis)),
       'the real library axis judges must still be present').toBe(true);
     expect(runtime, 'a pure dataset reader must not ship the agent execution engine').toEqual([]);
   }, 120_000);
