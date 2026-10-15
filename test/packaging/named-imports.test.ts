@@ -11,11 +11,15 @@
  * peer floor.
  *
  * The lens has no ESLint, so this file is the check. Anywhere under src/,
- * tests included, it refuses the four ways to hold a door as a namespace
- * object: `import * as x from 'footprintjs…'` (and `import type * as`),
+ * tests included, it refuses the five ways to hold a door — `footprintjs`,
+ * `foottrace`, or a subpath of either — as a namespace object:
+ * `import * as x from 'footprintjs…'` (and `import type * as`),
  * `export * as x from 'footprintjs…'` (and `export type * as`), a value
- * `import('footprintjs…')`, and `require('footprintjs…')` — a template-literal
- * specifier included (one with substitutions is judged by its fixed head). A plain `export * from` re-exports names, not a namespace. A type query
+ * `import('footprintjs…')`, `require('footprintjs…')` — a template-literal
+ * specifier included (one with substitutions is judged by its fixed head) —
+ * and TypeScript's `import x = require('footprintjs…')` (and
+ * `import type x = require`, `export import x = require`). A plain
+ * `export * from` re-exports names, not a namespace. A type query
  * `import('footprintjs').Name` is a named read and stays allowed.
  * agentfootprint's `.eslintrc.js` holds the same rule.
  */
@@ -52,6 +56,9 @@ function namespaceReads(fileName: string, text: string): string[] {
       const clause = node.exportClause;
       if (DOOR.test(node.moduleSpecifier.text) && clause !== undefined && ts.isNamespaceExport(clause))
         reads.push(`export * as … from '${node.moduleSpecifier.text}'`);
+    } else if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)) {
+      const ref = node.moduleReference.expression;
+      if (ts.isStringLiteral(ref) && DOOR.test(ref.text)) reads.push(`import … = require('${ref.text}')`);
     } else if (ts.isCallExpression(node)) {
       const callee = node.expression;
       const how =
@@ -110,6 +117,31 @@ describe('architecture: no engine or record door is read off a namespace', () =>
         'async function f(x: string) { return [await import(`footprintjs`), require(`foottrace`), await import(`footprintjs/${x}`), await import(`footprintjs-x/${x}`)]; }',
       ),
     ).toEqual([`import('footprintjs')`, `require('foottrace')`, `import('footprintjs/')`]);
+  });
+
+  it("bites: TypeScript's `import x = require()` of any door; never another package or an alias", () => {
+    expect(
+      namespaceReads(
+        'g.ts',
+        [
+          `import fp = require('footprintjs');`,
+          `import type trace = require('footprintjs/trace');`,
+          `export import records = require('foottrace');`,
+          `import write = require('foottrace/write');`,
+          `import paths = require('foottrace/paths');`,
+          `import other = require('footprintjs-x');`,
+          `import af = require('agentfootprint');`,
+          `namespace N { export const v = 1; }`,
+          `import alias = N.v;`,
+        ].join('\n'),
+      ),
+    ).toEqual([
+      `import … = require('footprintjs')`,
+      `import … = require('footprintjs/trace')`,
+      `import … = require('foottrace')`,
+      `import … = require('foottrace/write')`,
+      `import … = require('foottrace/paths')`,
+    ]);
   });
 
   it('bites: each namespace form of any door; never a named import, a type query or another package', () => {
