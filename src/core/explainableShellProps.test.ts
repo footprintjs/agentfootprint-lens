@@ -23,7 +23,7 @@ import {
  *  `'retry'` joined the set in eui 0.32.0. */
 const SHELL_KNOWN_TYPES = [
   'stage', 'step', 'condition', 'fork', 'selector', 'subflow',
-  'loop', 'break', 'error', 'pause', 'resume', 'emit', 'retry',
+  'loop', 'break', 'error', 'pause', 'resume', 'emit', 'retry', 'attempt',
 ] as const;
 
 async function runAgent(opts: { withTool?: boolean } = {}) {
@@ -129,14 +129,32 @@ describe('toShellNarrativeEntries — footprintjs 9.15 retry entries (REGRESSION
   });
 });
 
+describe('toShellNarrativeEntries — footprintjs 10.1 attempt entries (REGRESSION)', () => {
+  const attempt = {
+    type: 'attempt',
+    text: 'attempt 2 of 3 succeeded',
+    depth: 1,
+    stageName: 'CallLLM',
+    stageId: 'call-llm',
+    runtimeStageId: 'call-llm#0',
+  } as unknown as CombinedNarrativeEntry;
+
+  it('passes an attempt through as an attempt, keeping its text and stage ids', () => {
+    const [out] = toShellNarrativeEntries([attempt]);
+    expect(out!.type).toBe('attempt');
+    expect(out!.text).toBe('attempt 2 of 3 succeeded');
+    expect(out!.runtimeStageId).toBe('call-llm#0');
+  });
+});
+
 describe('toShellNarrativeEntries — eui vocabulary (PROPERTY)', () => {
   it.each(SHELL_KNOWN_TYPES)('passes a %s entry through untouched', (type) => {
-    const [out] = toShellNarrativeEntries([{ type, text: 't', depth: 0 }]);
+    const [out] = toShellNarrativeEntries([{ type: type as CombinedNarrativeEntry['type'], text: 't', depth: 0 }]);
     expect(out!.type).toBe(type);
   });
 
   it('every emitted type is one eui declares — for any input type', () => {
-    const inputs: CombinedNarrativeEntry['type'][] = [...SHELL_KNOWN_TYPES];
+    const inputs: CombinedNarrativeEntry['type'][] = [...SHELL_KNOWN_TYPES] as CombinedNarrativeEntry['type'][];
     const out = toShellNarrativeEntries(inputs.map((type) => ({ type, text: 't', depth: 0 })));
     for (const e of out) expect(SHELL_KNOWN_TYPES).toContain(e.type);
   });
