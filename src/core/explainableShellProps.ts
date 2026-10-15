@@ -83,6 +83,9 @@ const SHELL_ENTRY_TYPES: Record<ShellNarrativeEntry['type'], true> = {
   // eui >= 0.32.0 renders retry with its own icon, label and warning-weight
   // colour. Listing it here IS the passthrough — there is no separate branch.
   retry: true,
+  // eui >= 0.38.1 renders footprintjs 10.1's per-attempt line with its own
+  // badge, so the narrative panel shows every attempt of a retried stage.
+  attempt: true,
 };
 
 /** Where an entry type eui does not know is rendered: the generic step line —
@@ -93,7 +96,7 @@ const SHELL_ENTRY_TYPES: Record<ShellNarrativeEntry['type'], true> = {
 const GENERIC_ENTRY_TYPE = 'step' satisfies ShellNarrativeEntry['type'];
 
 function isShellEntryType(
-  type: CombinedNarrativeEntry['type'],
+  type: string,
 ): type is ShellNarrativeEntry['type'] {
   return Object.prototype.hasOwnProperty.call(SHELL_ENTRY_TYPES, type);
 }
