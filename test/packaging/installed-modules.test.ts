@@ -1,15 +1,15 @@
 /** @vitest-environment node */
 /**
- * The locator the packaging tests use to find agentfootprint modules by what
+ * The locator the packaging tests use to find a dependency's modules by what
  * they define. Its refusal is what keeps their absence checks from passing
- * vacuously when agentfootprint moves a folder, so the refusal is pinned here.
+ * vacuously when a dependency moves a folder, so the refusal is pinned here.
  */
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 
-import { familyOf, isIn, moduleDefining } from './agentfootprintModules.js';
+import { familyOf, isIn, moduleDefining } from './installedModules.js';
 
-describe('agentfootprint modules, located by what they define', () => {
+describe('installed modules, located by what they define', () => {
   it('finds the one module that declares the symbol (re-exports are not declarations)', () => {
     const build = moduleDefining('describeBugReport');
     expect(readFileSync(build, 'utf8')).toMatch(/^export function describeBugReport\(/m);
@@ -23,7 +23,8 @@ describe('agentfootprint modules, located by what they define', () => {
   });
 
   it('refuses a symbol no module defines: an anchor out of reach fails, never passes vacuously', () => {
-    expect(() => moduleDefining('noAgentfootprintModuleDefinesThis')).toThrow(/found 0/);
-    expect(() => familyOf('noAgentfootprintModuleDefinesThis')).toThrow(/found 0/);
+    expect(() => moduleDefining('noModuleDefinesThis')).toThrow(/found 0/);
+    expect(() => familyOf('noModuleDefinesThis')).toThrow(/found 0/);
+    expect(() => familyOf('noModuleDefinesThis', 'footprintjs')).toThrow(/found 0/);
   });
 });

@@ -14,7 +14,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
-import { familyOf, isIn, moduleDefining } from './agentfootprintModules.js';
+import { familyOf, isIn, moduleDefining } from './installedModules.js';
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CORE = join(ROOT, 'dist', 'core.js');
@@ -57,20 +57,21 @@ describe.skipIf(!existsSync(CORE))('packed datasetTimeAxisOf browser closure', (
     const retained = new Set(chunks.flatMap((chunk) => Object.entries(chunk.modules)
       .filter(([, module]) => module.renderedLength > 0)
       .map(([id]) => id.replace(/\\/g, '/'))));
-    // agentfootprint's execution engine, located by what each part defines —
-    // its dist layout is its own and moves (see agentfootprintModules.ts).
-    // Each family is non-empty by construction, and the axis check below proves
-    // these paths and the bundler's module ids agree, so the absence is real.
+    // The agent execution engine and footprintjs's runner and traverser,
+    // located by what each part defines — a dependency's dist layout is its
+    // own and moves (see installedModules.ts). A part that cannot be found
+    // throws, and the axis check below proves these paths and the bundler's
+    // module ids agree, so the absence is real.
     const engine = [
       moduleDefining('Agent'),
       moduleDefining('RunnerBase'),
       familyOf('AgentBuilder').folder, // the agent's chart builders
       familyOf('Sequence').folder, // the core-flow compositions
       familyOf('swarm').folder, // the multi-agent patterns
+      familyOf('FlowChartExecutor', 'footprintjs').folder, // the run wiring
+      familyOf('traversalContextFor', 'footprintjs').folder, // the traverser
     ];
-    const runtime = [...retained].filter((id) =>
-      engine.some((part) => isIn(id, part))
-      || /\/footprintjs\/dist\/esm\/lib\/(?:runner|engine)\//.test(id));
+    const runtime = [...retained].filter((id) => engine.some((part) => isIn(id, part)));
     const bytes = chunks.reduce((total, chunk) => total + Buffer.byteLength(chunk.code), 0);
 
     // Before/after evidence is useful, but the invariant is ownership, not a

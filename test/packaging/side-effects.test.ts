@@ -46,7 +46,7 @@ import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
-import { familyOf, isIn, moduleDefining } from './agentfootprintModules.js';
+import { familyOf, isIn, moduleDefining } from './installedModules.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const dist = resolve(repoRoot, 'dist');
@@ -291,10 +291,10 @@ describe.skipIf(!built)('sideEffects: false is true of the built package', () =>
     // checkout's folder name (a worktree is not called `agentfootprint-lens`).
     expect(only(lens, `${dist}/`).length).toBeGreaterThanOrEqual(3);
     // Each family is found in the INSTALLED agentfootprint by a symbol defined
-    // at its top level, wherever its layout puts the folder, and must hold at
-    // least one module — so "carries none of it" can never pass by looking in
-    // a folder that is not there.
-    const families = ['describeBugReport', 'traceToolpack', 'localizeContextBug'].map(familyOf);
+    // at its top level, wherever its layout puts the folder. An anchor no
+    // module defines throws, so "carries none of it" can never pass by looking
+    // in a folder that is not there.
+    const families = ['describeBugReport', 'traceToolpack', 'localizeContextBug'].map((anchor) => familyOf(anchor));
     for (const family of families) {
       expect(family.modules.length, `${family.folder} holds no module`).toBeGreaterThan(0);
     }
@@ -313,7 +313,10 @@ describe.skipIf(!built)('sideEffects: false is true of the built package', () =>
     // The positive check also proves the module ids match the paths the
     // helper hands back, so the absences above compare like with like.
     const button = await syncModulesOf('BugReportButton');
-    const at = (symbol: string): string[] => button.filter((id) => isIn(id, moduleDefining(symbol)));
+    const at = (symbol: string): string[] => {
+      const path = moduleDefining(symbol);
+      return button.filter((id) => isIn(id, path));
+    };
     expect(at('describeBugReport'), 'describeBugReport rides with the button').toHaveLength(1);
     expect(at('traceToolpack')).toEqual([]);
     expect(at('localizeContextBug')).toEqual([]);
