@@ -14,6 +14,8 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
+import { familyOf, isIn, moduleDefining } from './agentfootprintModules.js';
+
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const CORE = join(ROOT, 'dist', 'core.js');
 
@@ -55,8 +57,19 @@ describe.skipIf(!existsSync(CORE))('packed datasetTimeAxisOf browser closure', (
     const retained = new Set(chunks.flatMap((chunk) => Object.entries(chunk.modules)
       .filter(([, module]) => module.renderedLength > 0)
       .map(([id]) => id.replace(/\\/g, '/'))));
+    // agentfootprint's execution engine, located by what each part defines —
+    // its dist layout is its own and moves (see agentfootprintModules.ts).
+    // Each family is non-empty by construction, and the axis check below proves
+    // these paths and the bundler's module ids agree, so the absence is real.
+    const engine = [
+      moduleDefining('Agent'),
+      moduleDefining('RunnerBase'),
+      familyOf('AgentBuilder').folder, // the agent's chart builders
+      familyOf('Sequence').folder, // the core-flow compositions
+      familyOf('swarm').folder, // the multi-agent patterns
+    ];
     const runtime = [...retained].filter((id) =>
-      /\/agentfootprint\/dist\/esm\/(?:core\/(?:Agent|RunnerBase)\.js|core\/agent\/|core-flow\/|patterns\/)/.test(id)
+      engine.some((part) => isIn(id, part))
       || /\/footprintjs\/dist\/esm\/lib\/(?:runner|engine)\//.test(id));
     const bytes = chunks.reduce((total, chunk) => total + Buffer.byteLength(chunk.code), 0);
 
@@ -64,7 +77,8 @@ describe.skipIf(!existsSync(CORE))('packed datasetTimeAxisOf browser closure', (
     // brittle byte threshold that grows stale when the time library evolves.
     console.info(`datasetTimeAxisOf browser: ${bytes} JS bytes; ${retained.size} retained modules; ${runtime.length} execution modules`);
     expect(chunks.some((chunk) => chunk.code.includes('datasetTimeAxisOf'))).toBe(true);
-    expect([...retained].some((id) => id.endsWith('/agentfootprint/dist/esm/core/time/axis.js')),
+    const axis = moduleDefining('readTimeAxis');
+    expect([...retained].some((id) => isIn(id, axis)),
       'the real library axis judges must still be present').toBe(true);
     expect(runtime, 'a pure dataset reader must not ship the agent execution engine').toEqual([]);
   }, 120_000);
