@@ -60,8 +60,9 @@ describe.skipIf(!existsSync(CORE))('packed datasetTimeAxisOf browser closure', (
     // The agent execution engine and footprintjs's runner and traverser,
     // located by what each part defines — a dependency's dist layout is its
     // own and moves (see installedModules.ts). A part that cannot be found
-    // throws, and the axis check below proves these paths and the bundler's
-    // module ids agree, so the absence is real.
+    // throws. The axis check below proves the helper's real paths and the
+    // bundler's module ids agree for an installed package; every part here
+    // comes from the same resolution, so the absence is real.
     const engine = [
       moduleDefining('Agent'),
       moduleDefining('RunnerBase'),
