@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Align the development Foottrace pin with the newer FootPrint 10 dependency
-  cohort at 1.2.0, avoiding a second physical record owner in SDK candidate
+  cohort at 1.3.0, avoiding a second physical record owner in SDK candidate
   checks. A source-installation regression checks that both engine peers
   resolve Lens's canonical Foottrace. The public `^1.0.0` peer range, older
   compatibility lanes, exports, and runtime behavior are unchanged.
