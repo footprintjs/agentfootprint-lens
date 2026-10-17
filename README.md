@@ -42,6 +42,11 @@ owns record reading. Both `footprintjs ^9.26.0 || ^10.0.0` and
 on FootPrint; saved-record readers come from Foottrace. Lens's public exports,
 recorded data, and cursor behavior are unchanged.
 
+The repository's development cohort pins Foottrace 1.3.0 so newer FootPrint
+10 candidates and Lens resolve the same physical record owner. The public
+`foottrace ^1.0.0` peer and the older compatibility lanes remain supported;
+this development pin adds no Lens API or record behavior.
+
 ### Flow Lens 1 compatibility checks (unreleased)
 
 The bridge adds no door and removes no export. Existing imports from

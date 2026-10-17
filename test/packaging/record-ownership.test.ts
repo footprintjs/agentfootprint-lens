@@ -1,6 +1,6 @@
 /** The published Foottrace declarations own record names; FootPrint owns the engine. */
 import { createRequire } from 'node:module';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
@@ -57,6 +57,14 @@ function sources(dir: string): string[] {
 }
 
 describe('canonical record import ownership', () => {
+  it('the source test installation shares one physical Foottrace with each engine peer', () => {
+    const recordOwner = realpathSync(require.resolve('foottrace'));
+    for (const peer of ['footprintjs', 'agentfootprint']) {
+      const peerRequire = createRequire(require.resolve(peer));
+      expect(realpathSync(peerRequire.resolve('foottrace')), peer + ' must share Lens\'s record owner').toBe(recordOwner);
+    }
+  });
+
   it('derives values and types from all three published Foottrace doors', () => {
     expect(entries).toHaveLength(3);
     for (const name of ['CommitRangeIndex', 'RangeToken', 'FoldSource', 'timeTravel', 'SharedMemory', 'pathSegments']) {
