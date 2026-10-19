@@ -9,13 +9,16 @@ import { describe, expect, it } from 'vitest';
 const require = createRequire(import.meta.url);
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const manifest = require.resolve('foottrace/package.json');
-const doors = Object.values(JSON.parse(readFileSync(manifest, 'utf8')).exports) as Array<
-  string | { require?: { types?: string } }
->;
-const entries = doors.flatMap((door) =>
-  typeof door !== 'string' && door.require?.types
-    ? [resolve(dirname(manifest), door.require.types)] : [],
-);
+type DeclarationDoor = { require?: { types?: string }; import?: { types?: string }; types?: string };
+const doors = Object.entries(JSON.parse(readFileSync(manifest, 'utf8')).exports)
+  .filter(([name]) => name !== './package.json') as Array<[string, DeclarationDoor]>;
+const entries = doors.map(([name, door]) => {
+  const declaration = door.require?.types ?? door.import?.types ?? door.types;
+  if (typeof declaration !== 'string') throw new Error(`Foottrace ${name} has no declared public types`);
+  const path = resolve(dirname(manifest), declaration);
+  if (!existsSync(path)) throw new Error(`Foottrace ${name} declaration is missing: ${declaration}`);
+  return path;
+});
 const program = ts.createProgram(entries, { skipLibCheck: true });
 const checker = program.getTypeChecker();
 const recordNames = new Set(entries.flatMap((entry) =>
@@ -65,8 +68,9 @@ describe('canonical record import ownership', () => {
     }
   });
 
-  it('derives values and types from all three published Foottrace doors', () => {
-    expect(entries).toHaveLength(3);
+  it('derives values and types from the installed Foottrace exports, including the canonical doors Lens uses', () => {
+    expect(doors.map(([name]) => name)).toEqual(expect.arrayContaining(['.', './write', './paths']));
+    expect(entries).toHaveLength(doors.length);
     for (const name of ['CommitRangeIndex', 'RangeToken', 'FoldSource', 'timeTravel', 'SharedMemory', 'pathSegments']) {
       expect(recordNames.has(name), name).toBe(true);
     }

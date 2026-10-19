@@ -6,13 +6,13 @@ import test from 'node:test';
 import { assertInstalled, assertOwner, assertRecordIsolation, hashFiles, installedPackageNames,
   laneContract, parseFlags, publishedSourceFiles, safeArchiveNames, sha256 } from './contract.mjs';
 
-test('the four historical lanes retain exact runtime floors', () => {
+test('the four floor lanes require FootPrint 10 and preserve renderer/React floors', () => {
   const ids = [];
   for (const flow of ['0.34.0', '0.38.0']) for (const react of ['18', '19']) {
-    const lane = laneContract({ kind: 'historical', flow, react, node: '22' });
+    const lane = laneContract({ kind: 'floor', flow, react, node: '22' });
     ids.push(lane.id);
-    assert.equal(lane.peers.agentfootprint, '9.116.0');
-    assert.equal(lane.peers.footprintjs, '9.26.0');
+    assert.equal(lane.peers.agentfootprint, '10.0.0');
+    assert.equal(lane.peers.footprintjs, '10.0.0');
     assert.equal(lane.peers.foottrace, '1.0.0');
   }
   assert.equal(new Set(ids).size, 4);
@@ -32,14 +32,15 @@ test('the twelve modern lanes include both old renderers and the real candidate'
   assert.equal(new Set(ids).size, 12);
 });
 
-test('invalid and historically unclaimed combinations fail closed', () => {
+test('invalid and removed historical runtime combinations fail closed', () => {
   for (const input of [
+    { kind: 'historical', flow: '0.38.0', react: '18', node: '22' },
     { kind: 'other', flow: '0.38.0', react: '18', node: '22' },
     { kind: 'modern', flow: 'latest', react: '18', node: '22' },
     { kind: 'modern', flow: 'candidate', react: '17', node: '22' },
     { kind: 'modern', flow: 'candidate', react: '18', node: '20' },
-    { kind: 'historical', flow: 'candidate', react: '18', node: '22' },
-    { kind: 'historical', flow: '0.38.0', react: '18', node: '24' },
+    { kind: 'floor', flow: 'candidate', react: '18', node: '22' },
+    { kind: 'floor', flow: '0.38.0', react: '18', node: '24' },
   ]) assert.throws(() => laneContract(input));
 });
 

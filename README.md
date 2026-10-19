@@ -37,13 +37,13 @@ The released Why Lens 0.76.0 still accepts only the 0.x renderer range; this
 branch does not publish either Lens package or rename either package.
 
 Node.js 22 or newer is required, matching the `foottrace ^1.0.0` peer that
-owns record reading. Both `footprintjs ^9.26.0 || ^10.0.0` and
+owns record reading. Both `footprintjs ^10.0.0` and
 `agentfootprint ^9.116.0 || ^10.0.0` remain supported. Engine recorders stay
 on FootPrint; saved-record readers come from Foottrace. Lens's public exports,
 recorded data, and cursor behavior are unchanged.
 
-The repository's development cohort pins Foottrace 1.3.0 so newer FootPrint
-10 candidates and Lens resolve the same physical record owner. The public
+The repository's development cohort pins Foottrace 1.6.0 so AgentFootprint
+10.7, newer FootPrint 10 candidates and Lens resolve the same physical record owner. The public
 `foottrace ^1.0.0` peer and the older compatibility lanes remain supported;
 this development pin adds no Lens API or record behavior.
 
@@ -56,13 +56,14 @@ to use its existing root and `/flowchart` APIs, including its graph stylesheet.
 Why's direct graph import is not a lazy-loading claim.
 
 The checks build **one Why tarball** and install those exact bytes normally in
-every consumer. Four historical lanes retain AgentFootprint 9.116.0,
-FootPrint 9.26.0, Foottrace 1.0.0, Flow 0.34.0/0.38.0, and React 18.3.1/19.0.0.
+every consumer. Four floor lanes use AgentFootprint 10.0.0, FootPrint 10.0.0,
+Foottrace 1.0.0, Flow 0.34.0/0.38.0, and React 18.3.1/19.0.0.
 Twelve modern lanes cross Flow 0.34.0/0.38.0/the exact unreleased 1.0.0
 candidate with those React versions and Node 22/24, using AgentFootprint
 10.1.0, FootPrint 10.0.0, and Foottrace 1.0.3. The earlier two extraction
 source-build checks remain separate checks; their installed consumers use
-the same Why tarball too. Peer floors are not raised.
+the same Why tarball too. FootPrint 9 is no longer a supported runtime peer;
+reading older saved records remains supported.
 
 Each lane checks all five doors in ESM and CommonJS and compiles public
 declarations under NodeNext ESM, NodeNext CommonJS, and Bundler resolution,
@@ -975,7 +976,7 @@ dashboard had a third — and they disagreed at exactly the places nobody tests:
 ▶ at the last stop, a jump to a stage that is not on this ruler, a step stored
 from a longer run.
 
-Foottrace owns that arithmetic now (introduced in footprintjs 9.17). `timeTravel(snapshot, { strategy })`
+Foottrace owns that arithmetic through its public record-reading API. `timeTravel(snapshot, { strategy })`
 is the **reader's cursor over a finished trace**: `first` / `last` / `prev` /
 `next` / `jumpTo`, one position, and one law — **a refused move never moves the
 cursor**, it returns the reason and the nearest stop it could name. Since
@@ -1043,8 +1044,7 @@ if (snapshot) {
 }
 ```
 
-A **stored** recording meets the port with no cast either, since footprintjs
-9.18. The lens types `Recording.snapshot.commitLog` as `readonly unknown[]` —
+A **stored** recording meets the Foottrace port with no cast either. The lens types `Recording.snapshot.commitLog` as `readonly unknown[]` —
 a recording arrives as parsed JSON, and the lens will not claim that what came
 back off disk is a `CommitBundle` — and `TimeTravelSource.commitLog` accepts
 exactly that, narrowing per row where it folds, which is the only place that
@@ -1059,11 +1059,7 @@ if (recording.snapshot) {
 }
 ```
 
-(Under footprintjs 9.17 — the floor when this narrowing landed, now below
-the peer floor of `^9.26.0` — the same call needs
-`recording.snapshot as unknown as TimeTravelSource`, and a bad row throws
-inside the fold; a types-only difference the lens's `foldFactsAt` reports as
-`foldError`.) **Movement never needs a snapshot at all**: `openLensCursor`
+**Movement never needs a snapshot at all**: `openLensCursor`
 reads the stops and nothing else, which is why the lens's own cursor is
 unaffected either way.
 

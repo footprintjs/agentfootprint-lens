@@ -1,5 +1,5 @@
 /**
- * The lens's peer floor is footprintjs ^9.26.0. A STATIC named import of a
+ * The lens's peer floor is footprintjs ^10.0.0. A STATIC named import of a
  * symbol that floor does not export makes the whole lens unbundleable for a
  * consumer on it (0.53.1–0.53.3: `pathSegments`, exported since 9.22.0, took
  * an on-prem app's dev server down at pre-bundle). A symbol newer than the
@@ -19,25 +19,16 @@ import { describe, expect, it } from 'vitest';
 
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'src');
 
-/** footprintjs 9.26.0 — every value export of `footprintjs/trace` (its dist/esm/trace.d.ts, in its order). */
+/** footprintjs 10.0.0 — every value export of `footprintjs/trace` (its dist/esm/trace.d.ts, in its order). */
 const TRACE_FLOOR = new Set([
-  'buildRuntimeStageId', 'createExecutionCounter', 'parseRuntimeStageId', 'splitStageId',
-  'BRANCH_SEGMENT_MARKER', 'buildBranchSegment', 'hasBranchSegmentMarker', 'isBranchSegment', 'parseBranchSegment',
   'walkSubflowSpec',
-  'pathSegments',
-  'buildCommitIndex', 'commitIndexOf', 'commitValueAt', 'findCommit', 'findCommits', 'findLastWriter',
-  'commitStops', 'commitStopsStrategy', 'filterStops', 'isCommitBundle', 'splitAxis', 'stateAt', 'tagStops', 'timeTravel',
-  'causalChain', 'flattenCausalDAG', 'formatCausalChain',
-  'arrayProvenance', 'elementProvenance', 'formatForwardSlice', 'formatSlice', 'formatTimeline', 'forwardSliceForKey',
-  'forwardSliceToJSON', 'keysReadFromExecutionTree', 'keysReadFromMap', 'keyTimeline', 'normaliseStateKey',
-  'resolveKeysReadSource', 'sliceForKey', 'sliceToJSON',
-  'BoundaryStateStore', 'KeyedStore', 'SequenceStore', 'CommitRangeIndex',
-  'TopologyRecorder', 'topologyRecorder',
+  'BRANCH_SEGMENT_MARKER', 'buildBranchSegment', 'hasBranchSegmentMarker', 'isBranchSegment', 'parseBranchSegment',
+  'BoundaryStateStore', 'ControlDepRecorder', 'controlDepRecorder',
   'InOutRecorder', 'inOutRecorder', 'ROOT_RUNTIME_STAGE_ID', 'ROOT_SUBFLOW_ID',
-  'ControlDepRecorder', 'controlDepRecorder',
-  'QualityRecorder', 'formatQualityTrace', 'qualityTrace',
+  'KeyedStore', 'QualityRecorder', 'formatQualityTrace', 'qualityTrace',
+  'SequenceStore', 'TopologyRecorder', 'topologyRecorder',
 ]);
-/** The root barrel names the lens reads — all on the 9.26.0 root door (its dist/esm/index.d.ts). */
+/** The root barrel names the lens reads — all on the 10.0.0 root door (its dist/esm/index.d.ts). */
 const ROOT_FLOOR = new Set(['enableDevMode', 'disableDevMode', 'isDevMode']);
 /** Foottrace 1.0.0 — root values, from its published dist/esm/index.d.ts. */
 const RECORD_FLOOR = new Set([

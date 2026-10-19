@@ -7,6 +7,16 @@ const candidateStep = workflow.split('      - name: Build the exact extracted Fo
   ?.split('\n      - name:')[0];
 
 describe('extracted engine compatibility workflow', () => {
+  it('declares and tests only supported FootPrint 10 runtime peers', () => {
+    const manifest = JSON.parse(readFileSync(resolve('package.json'), 'utf8'));
+    expect(manifest.peerDependencies.footprintjs).toBe('^10.0.0');
+    expect(workflow).toContain('engine: [published10, extracted10]');
+    expect(workflow).not.toContain('published9');
+    expect(workflow).not.toMatch(/footprintjs(?:=|@)(?:9\.)/);
+    expect(workflow).toContain('--kind floor');
+    expect(workflow).not.toContain('--kind historical');
+  });
+
   it('uses the producer fresh-install policy without weakening peer resolution', () => {
     // FootPrint intentionally has no committed lock: its platform-native build
     // dependencies are freshly resolved by npm 11 in its own CI and publisher.
