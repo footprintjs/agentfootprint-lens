@@ -65,9 +65,9 @@ describe('canonical record import ownership', () => {
     }
   });
 
-  it('derives values and types from all three published Foottrace doors', () => {
-    expect(entries).toHaveLength(3);
-    for (const name of ['CommitRangeIndex', 'RangeToken', 'FoldSource', 'timeTravel', 'SharedMemory', 'pathSegments']) {
+  it('derives values and types from all five published Foottrace doors', () => {
+    expect(entries).toHaveLength(5);
+    for (const name of ['CommitRangeIndex', 'RangeToken', 'FoldSource', 'timeTravel', 'SharedMemory', 'pathSegments', 'explain', 'exportProv']) {
       expect(recordNames.has(name), name).toBe(true);
     }
     for (const name of ['KeyedStore', 'SequenceStore', 'Topology', 'TopologyEdge', 'TopologyNode', 'walkSubflowSpec', 'WalkerItem']) {
