@@ -71,7 +71,7 @@ jobs:
         # 0.31 first exports overlayFromSnapshot; 0.34 first adds runtime.seed
         # and collapseTraceGraph. Lens needs all three, so 0.34 is the floor.
         # Keep this minimum aligned with the peer/dev ranges in package.json.
-        # Hold agentfootprint/footprintjs/foottrace at their compatible floors.
+        # Hold AgentFootprint/FootPrint 10 and Foottrace at their compatible floors.
         eui: ["0.34.0", "0.38.0"]
         react: ["18.3.1", "19.0.0"]
     steps:
@@ -87,7 +87,7 @@ jobs:
       - name: Preserve all four native floors with the same packed Why Lens
         run: |
           react_version="${{ matrix.react }}"
-          node scripts/compat/run-lane.mjs --kind historical --flow "${{ matrix.eui }}" \
+          node scripts/compat/run-lane.mjs --kind floor --flow "${{ matrix.eui }}" \
             --react "${react_version%%.*}" --node 22 --artifacts compat-artifacts --evidence compat-evidence
       - uses: actions/upload-artifact@v4
         if: always()
@@ -149,8 +149,8 @@ jobs:
             compat-evidence/browser/**
           if-no-files-found: error
 
-  # Keep all four FLOOR combinations above. The modern graph uses the published
-  # AgentFootprint 10 plus either the published engine or the exact extracted
+  # Keep all four FLOOR combinations above on FootPrint 10. The graph uses
+  # AgentFootprint 10 plus either published FootPrint 10 or the exact extracted
   # FootPrint source prepared with its normal version-only release step.
   # This is never a renamed 9.x implementation and never publishes a candidate.
   extracted-peers:
@@ -160,7 +160,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        engine: [published9, extracted10]
+        engine: [published10, extracted10]
     defaults:
       run:
         working-directory: lens
@@ -211,7 +211,7 @@ jobs:
           if [ "${{ matrix.engine }}" = extracted10 ]; then
             npm pkg set devDependencies.footprintjs=file:../engine-candidate/footprintjs-10.0.0.tgz
           else
-            npm pkg set devDependencies.footprintjs=9.48.3
+            npm pkg set devDependencies.footprintjs=10.0.0
           fi
           npm install --strict-peer-deps
           npm ls agentfootprint footprintjs foottrace
@@ -228,7 +228,7 @@ jobs:
           if [ "${{ matrix.engine }}" = extracted10 ]; then
             engine="$GITHUB_WORKSPACE/engine-candidate/footprintjs-10.0.0.tgz"
           else
-            engine=footprintjs@9.48.3
+            engine=footprintjs@10.0.0
           fi
           npm install --strict-peer-deps --save-exact \
             agentfootprint@10.0.0 "$engine" foottrace@1.0.0 react@19.0.0 react-dom@19.0.0 \

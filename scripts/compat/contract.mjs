@@ -20,12 +20,12 @@ export const tooling = Object.freeze({
 });
 
 export function laneContract({ kind, flow, react, node }) {
-  assert.ok(['historical', 'modern'].includes(kind), `unknown lane kind: ${kind}`);
+  assert.ok(['floor', 'modern'].includes(kind), `unknown lane kind: ${kind}`);
   assert.ok(['0.34.0', '0.38.0', 'candidate'].includes(flow), `unknown Flow: ${flow}`);
   assert.ok(['18', '19'].includes(String(react)), `unknown React: ${react}`);
   assert.ok(['22', '24'].includes(String(node)), `unknown Node: ${node}`);
-  assert.ok(kind !== 'historical' || (flow !== 'candidate' && String(node) === '22'),
-    'historical lanes preserve the four original Node 22 combinations');
+  assert.ok(kind !== 'floor' || (flow !== 'candidate' && String(node) === '22'),
+    'floor lanes preserve the four Node 22 renderer/React combinations');
   const react18 = String(react) === '18';
   return {
     id: `${kind}-flow-${flow}-react-${react}-node-${node}`,
@@ -35,9 +35,9 @@ export function laneContract({ kind, flow, react, node }) {
       'react-dom': react18 ? '18.3.1' : '19.0.0',
       '@xyflow/react': '12.10.2',
       dagre: '0.8.5',
-      agentfootprint: kind === 'historical' ? '9.116.0' : '10.1.0',
-      footprintjs: kind === 'historical' ? '9.26.0' : '10.0.0',
-      foottrace: kind === 'historical' ? '1.0.0' : '1.0.3',
+      agentfootprint: kind === 'floor' ? '10.0.0' : '10.1.0',
+      footprintjs: '10.0.0',
+      foottrace: kind === 'floor' ? '1.0.0' : '1.0.3',
     },
     types: {
       '@types/react': react18 ? '18.3.3' : '19.0.0',

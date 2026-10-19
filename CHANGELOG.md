@@ -13,8 +13,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   newer FootPrint 10 dependency cohort at 1.6.0, avoiding a second physical
   record owner in SDK candidate checks. The source-installation regression
   checks that both engine peers resolve Lens's canonical Foottrace and reads
-  declarations from all five published record doors. The public `^1.0.0` peer range, older
-  compatibility lanes, exports, and runtime behavior are unchanged.
+  the installed package's public declaration doors without assuming a count
+  or requiring optional APIs Lens does not use. The public Foottrace `^1.0.0`
+  peer range, Lens exports, and saved-record readers are unchanged.
+
+### Changed
+
+- Require `footprintjs ^10.0.0`; FootPrint 9 runtime support is removed.
+  Compatibility lanes now exercise published/extracted FootPrint 10, including
+  the 10.0.0 floor. Older saved-record reading and the renderer/React lanes
+  remain covered; no record reader or fixture is removed.
 
 ## [0.76.0] - 2026-10-10
 
