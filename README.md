@@ -42,8 +42,8 @@ owns record reading. Both `footprintjs ^10.0.0` and
 on FootPrint; saved-record readers come from Foottrace. Lens's public exports,
 recorded data, and cursor behavior are unchanged.
 
-The repository's development cohort pins Foottrace 1.6.0 so AgentFootprint
-10.7, newer FootPrint 10 candidates and Lens resolve the same physical record owner. The public
+The repository's development cohort pins Foottrace 1.7.0 so newer FootPrint 10
+candidates, AgentFootprint and Lens resolve the same physical record owner. The public
 `foottrace ^1.0.0` peer and the older compatibility lanes remain supported;
 this development pin adds no Lens API or record behavior.
 
