@@ -9,6 +9,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Update the development-only Foottrace pin to 1.7.0 so FootPrint candidates
+  requiring its native read-source writer share one record owner with Lens.
+  The public peer range, source code, exports and saved-record readers are unchanged.
+
 - Align the development Foottrace pin with AgentFootprint 10.7 and the
   newer FootPrint 10 dependency cohort at 1.6.0, avoiding a second physical
   record owner in SDK candidate checks. The source-installation regression
