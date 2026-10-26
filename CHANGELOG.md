@@ -7,7 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Accept AgentFootprint 11 alongside the existing 9 and 10 peer ranges. A
+  dedicated compatibility lane tests the actual, unpublished 11.0.0 release
+  candidate with strict source and packed-package installs; existing older
+  peer lanes remain intact. This does not publish either package.
+
 ### Fixed
+
+- Bind both time-fixture approval decisions to the request shown at their
+  pause, as AgentFootprint 11 requires. The generators still compile with
+  AgentFootprint 10.1.0. A subprocess check executes both resumed calls and
+  retains the historical saved recordings unchanged.
 
 - Update the development-only Foottrace pin to 1.7.0 so FootPrint candidates
   requiring its native read-source writer share one record owner with Lens.

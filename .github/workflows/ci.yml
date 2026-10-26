@@ -36,6 +36,7 @@ jobs:
       - run: npm run test:compat-helpers
       - run: npm run build
       - run: npm test
+      - run: npm run fixtures:time:check
       # Packaging-correctness gate (dual CJS/ESM types + exports). attw exits non-zero on a
       # types masquerade / broken subpath; publint on a packaging error.
       - run: npx publint
@@ -55,6 +56,70 @@ jobs:
             compat-artifacts/*.tgz
             compat-artifacts/contract.json
             compat-artifacts/*.log
+          if-no-files-found: error
+
+  # The registry does not carry AgentFootprint 11 yet. Build its exact reviewed
+  # release commit, never change its version or publish it. Older lanes stay intact.
+  agentfootprint-11:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: lens
+      - uses: actions/checkout@v4
+        with:
+          repository: footprintjs/agentfootprint
+          ref: 607114965535cc9c0f0b7a4745746172a7bff641
+          path: agent-candidate
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g npm@11.21.0
+      - name: Build the reviewed AgentFootprint 11 archive (never publish)
+        working-directory: agent-candidate
+        run: |
+          test "$(git rev-parse HEAD)" = 607114965535cc9c0f0b7a4745746172a7bff641
+          node -e "if(require('./package.json').version !== '11.0.0') process.exit(1)"
+          npm ci
+          npm run build
+          git diff --exit-code HEAD -- src package.json package-lock.json
+          mkdir -p "$GITHUB_WORKSPACE/agent11-evidence"
+          npm pack --ignore-scripts --json --pack-destination "$GITHUB_WORKSPACE/agent11-evidence" > "$GITHUB_WORKSPACE/agent11-evidence/agent-pack.json"
+      - name: Check Lens source against the real candidate
+        working-directory: lens
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const p = JSON.parse(readFileSync('package.json', 'utf8'));
+          p.devDependencies.agentfootprint = `file:${process.env.GITHUB_WORKSPACE}/agent11-evidence/agentfootprint-11.0.0.tgz`;
+          writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          NODE
+          npm install --strict-peer-deps
+          npm run typecheck
+          npm run build
+          npm test
+          npm run fixtures:time:check
+          # The source install only changed its dev input. Pack the committed
+          # manifest, not a package containing a CI-local dependency path.
+          git show HEAD:package.json > package.json
+          npm pack --ignore-scripts --json --pack-destination "$GITHUB_WORKSPACE/agent11-evidence" > "$GITHUB_WORKSPACE/agent11-evidence/lens-pack.json"
+      - name: Check strict packed install, runtime and declarations
+        working-directory: lens
+        run: |
+          node scripts/check-agentfootprint-candidate.mjs \
+            --agent-tar "$GITHUB_WORKSPACE/agent11-evidence/agentfootprint-11.0.0.tgz" \
+            --lens-tar "$GITHUB_WORKSPACE/agent11-evidence/$(node scripts/compat/why-identity.mjs)" \
+            --evidence "$GITHUB_WORKSPACE/agent11-evidence/packed"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agentfootprint-11-compatibility
+          path: |
+            agent11-evidence/**/*.json
+            agent11-evidence/**/*.log
+            agent11-evidence/*.tgz
           if-no-files-found: error
 
   # Check both dependency resolution and the packed runtime contract. A successful

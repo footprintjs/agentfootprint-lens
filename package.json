@@ -90,6 +90,7 @@
     "demo:record": "npx --yes tsx demo/generate-skill-run.ts",
     "fixtures:tool-progress": "npx --yes tsx scripts/generate-tool-progress-turn.ts",
     "fixtures:time": "npx --yes tsx test/time/fixtures/generate.ts",
+    "fixtures:time:check": "node scripts/check-time-approval-fixtures.mjs",
     "clean": "rm -rf dist",
     "test:coverage": "vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text-summary --coverage.reportsDirectory=coverage",
     "test:compat-helpers": "node --test scripts/compat/*.test.mjs",
@@ -121,7 +122,7 @@
   },
   "peerDependencies": {
     "@xyflow/react": "^12.0.0",
-    "agentfootprint": "^9.116.0 || ^10.0.0",
+    "agentfootprint": "^9.116.0 || ^10.0.0 || ^11.0.0",
     "footprint-explainable-ui": ">=0.34.0 <1.0.0 || ^1.0.0",
     "footprintjs": "^10.0.0",
     "foottrace": "^1.0.0",
