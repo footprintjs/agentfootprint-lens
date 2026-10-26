@@ -338,10 +338,12 @@ async function clockOnResume() {
     (b) => b.time({ zone: LA }),
   );
   const paused = await agent.run({ message: 'activity', time: { now: NOW, window: LAST_HOUR } });
-  if (!isPaused(paused)) throw new Error('clock-on-resume: expected a check-in pause');
+  if (!isPaused(paused) || !paused.checkIn) throw new Error('clock-on-resume: expected a check-in pause');
+  // Keep this inferred object compatible with older peers whose helper did not require a request.
+  const decisionInput = { request: paused.checkIn, by: 'ops' };
   wall = NOW_MS + 30 * 60_000;
   const cp = JSON.parse(JSON.stringify(paused.checkpoint));
-  await agent.resume(cp, checkInApproved({ by: 'ops' }), {
+  await agent.resume(cp, checkInApproved(decisionInput), {
     time: { now: '2026-10-09T16:10:00Z', zone: 'Europe/Paris' },
   });
   return frozen(agent);
@@ -500,9 +502,10 @@ async function shifted() {
     (b) => b.time({ zone: LA }),
   );
   const paused = await agent.run({ message: 'activity in the last hour', time: { now: NOW } });
-  if (!isPaused(paused)) throw new Error('shifted: expected a check-in pause');
+  if (!isPaused(paused) || !paused.checkIn) throw new Error('shifted: expected a check-in pause');
+  const decisionInput = { request: paused.checkIn, by: 'ops' };
   wall = NOW_MS + 30 * 60_000;
-  await agent.resume(JSON.parse(JSON.stringify(paused.checkpoint)), checkInApproved({ by: 'ops' }));
+  await agent.resume(JSON.parse(JSON.stringify(paused.checkpoint)), checkInApproved(decisionInput));
   return frozenWithStanding(agent);
 }
 
