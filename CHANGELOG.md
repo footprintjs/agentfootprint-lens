@@ -7,12 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.77.0] - 2026-10-25
+
+### Migration prerequisites
+
+- FootPrint 10 is now required; applications using FootPrint 9 must upgrade
+  that engine before installing Lens 0.77. Node.js 22 and Foottrace remain
+  required as in 0.76. AgentFootprint 9 and 10 remain supported, with 11 added.
+  No Lens public export or saved-record format is removed.
+
 ### Added
 
 - Accept AgentFootprint 11 alongside the existing 9 and 10 peer ranges. A
   dedicated compatibility lane tests the actual, unpublished 11.0.0 release
   candidate with strict source and packed-package installs; existing older
-  peer lanes remain intact. This does not publish either package.
+  peer lanes remain intact. The compatibility jobs never publish packages.
+
+- Accept the independent Flow renderer's 1.x line alongside the existing
+  `>=0.34.0 <1.0.0` range. Strict packed, ownership, declaration and browser
+  checks cover the published 0.x renderers and the exact reviewed 1.0.0
+  candidate. This Lens release does not publish or rename the Flow package.
+
+- Pass FootPrint 10.1 `attempt` entries through to the narrative panel. Other
+  shell entry kinds keep their existing handling.
 
 ### Fixed
 
