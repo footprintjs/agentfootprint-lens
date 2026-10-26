@@ -30,16 +30,15 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-This unreleased compatibility bridge accepts
+Lens 0.77 accepts
 `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0`. Earlier versions
 lack renderer APIs used by Lens even if an older peer range accepted them.
-The released Why Lens 0.76.0 still accepts only the 0.x renderer range; this
-branch does not publish either Lens package or rename either package.
+Lens 0.76 accepted only the 0.x renderer range. This release does not publish
+or rename the independent Flow renderer package.
 
 Node.js 22 or newer is required, matching the `foottrace ^1.0.0` peer that
 owns record reading. Both `footprintjs ^10.0.0` and
-`agentfootprint ^9.116.0 || ^10.0.0 || ^11.0.0` are supported by this unreleased
-bridge. Engine recorders stay
+`agentfootprint ^9.116.0 || ^10.0.0 || ^11.0.0` are supported. Engine recorders stay
 on FootPrint; saved-record readers come from Foottrace. Lens's public exports,
 recorded data, and cursor behavior are unchanged.
 
@@ -48,7 +47,7 @@ candidates, AgentFootprint and Lens resolve the same physical record owner. The 
 `foottrace ^1.0.0` peer and the older compatibility lanes remain supported;
 this development pin adds no Lens API or record behavior.
 
-### AgentFootprint 11 compatibility (unreleased)
+### AgentFootprint 11 compatibility
 
 The two time-fixture approval scenarios now approve the exact request shown at
 the pause. Their inferred decision objects also compile with the existing
@@ -64,7 +63,7 @@ normally with strict peer checks, and tests Lens source, approval fixtures,
 published runtime doors and strict package declarations. The development pin
 stays on 10.1.0 until 11 is published; the CI candidate is not a registry release.
 
-### Flow Lens 1 compatibility checks (unreleased)
+### Flow Lens 1 compatibility checks
 
 The bridge adds no door and removes no export. Existing imports from
 `agentfootprint-lens`, `/core`, `/why`, `/skillgraph`, and `/context` stay the
@@ -104,7 +103,7 @@ separately install `/record` with only React, its types, and Foottrace, check
 its ESM/CommonJS behavior and declarations on saved Flow/HCI recordings, and
 then mount a different browser host that explicitly includes ReactDOM. That
 browser host is not the record-only isolation proof. These are compatibility
-checks, not the later real-app field test or permission to release.
+checks, not the later real-app field test.
 
 The candidate source commit and full tarball digest are pinned in
 `scripts/compat/contract.mjs`. Its already-reviewed, tracked build is packed
