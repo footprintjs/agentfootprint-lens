@@ -46,6 +46,28 @@ export function laneContract({ kind, flow, react, node }) {
   };
 }
 
+// Engine pins for the unpublished AgentFootprint candidate lanes, by major.
+// 11 keeps the pins its lane was reviewed with. 12 uses the floors its own
+// package.json declares: peer footprintjs ^10.6.0, dependency foottrace ^1.8.0.
+// A lower Foottrace would install a second, nested record owner under it.
+const agentCandidateEngines = Object.freeze({
+  11: Object.freeze({ footprintjs: '10.0.0', foottrace: '1.7.0' }),
+  12: Object.freeze({ footprintjs: '10.6.0', foottrace: '1.8.0' }),
+});
+
+export function agentCandidateContract(version) {
+  const match = typeof version === 'string'
+    && /^([1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/.exec(version);
+  assert.ok(match, `--agent-version must be an exact release version, not ${version}`);
+  const major = match[1];
+  assert.ok(Object.hasOwn(agentCandidateEngines, major),
+    `no reviewed engine pins for AgentFootprint ${major}`);
+  return Object.freeze({
+    version, major, consumer: `lens-agentfootprint-${major}-consumer`,
+    engines: agentCandidateEngines[major],
+  });
+}
+
 export function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
 }

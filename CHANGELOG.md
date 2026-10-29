@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Accept AgentFootprint 12 alongside the existing 9, 10 and 11 peer ranges. A
+  dedicated compatibility lane tests the actual, unpublished 12.0.0 release
+  candidate with strict source and packed-package installs, using the
+  FootPrint 10.6.0 and Foottrace 1.8.0 floors that candidate declares; the 11
+  lane and every older peer lane remain intact. This publishes neither package.
+
 ## [0.77.0] - 2026-10-25
 
 ### Migration prerequisites

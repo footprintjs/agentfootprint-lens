@@ -38,7 +38,8 @@ or rename the independent Flow renderer package.
 
 Node.js 22 or newer is required, matching the `foottrace ^1.0.0` peer that
 owns record reading. Both `footprintjs ^10.0.0` and
-`agentfootprint ^9.116.0 || ^10.0.0 || ^11.0.0` are supported. Engine recorders stay
+`agentfootprint ^9.116.0 || ^10.0.0 || ^11.0.0 || ^12.0.0` are supported; the
+12 range is unreleased (Lens 0.77.0 accepts up to 11). Engine recorders stay
 on FootPrint; saved-record readers come from Foottrace. Lens's public exports,
 recorded data, and cursor behavior are unchanged.
 
@@ -62,6 +63,19 @@ It builds and packs that source without publishing, installs the actual archive
 normally with strict peer checks, and tests Lens source, approval fixtures,
 published runtime doors and strict package declarations. The development pin
 stays on 10.1.0 until 11 is published; the CI candidate is not a registry release.
+
+### AgentFootprint 12 compatibility (unreleased)
+
+CI keeps the AgentFootprint 11 lane and adds an AgentFootprint 12 lane using
+release candidate commit `36824d10ab907060eb485420c978987342cbe561`. It runs
+the same checks: build and pack that source without publishing, install the
+actual archive with strict peer checks, then test Lens source, approval
+fixtures, published runtime doors and strict package declarations. Its packed
+consumer uses the floors the candidate declares, FootPrint 10.6.0 and
+Foottrace 1.8.0, so one physical Foottrace is shared. 12.0.0 makes a code
+run's `ok` optional (`undefined` means unknown, never success); Lens reads no
+code-run result, so its source is unchanged. The development pin stays on
+10.1.0; the CI candidate is not a registry release.
 
 ### Flow Lens 1 compatibility checks
 
