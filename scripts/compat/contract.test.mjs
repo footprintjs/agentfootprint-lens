@@ -3,8 +3,9 @@ import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { assertInstalled, assertOwner, assertRecordIsolation, hashFiles, installedPackageNames,
-  laneContract, parseFlags, publishedSourceFiles, safeArchiveNames, sha256 } from './contract.mjs';
+import { agentCandidateContract, assertInstalled, assertOwner, assertRecordIsolation, hashFiles,
+  installedPackageNames, laneContract, parseFlags, publishedSourceFiles, safeArchiveNames,
+  sha256 } from './contract.mjs';
 
 test('the four floor lanes require FootPrint 10 and preserve renderer/React floors', () => {
   const ids = [];
@@ -42,6 +43,28 @@ test('invalid and removed historical runtime combinations fail closed', () => {
     { kind: 'floor', flow: 'candidate', react: '18', node: '22' },
     { kind: 'floor', flow: '0.38.0', react: '18', node: '24' },
   ]) assert.throws(() => laneContract(input));
+});
+
+test('the AgentFootprint 11 candidate lane keeps the engine pins it was reviewed with', () => {
+  const lane = agentCandidateContract('11.0.0');
+  assert.equal(lane.version, '11.0.0');
+  assert.equal(lane.consumer, 'lens-agentfootprint-11-consumer');
+  assert.deepEqual(lane.engines, { footprintjs: '10.0.0', foottrace: '1.7.0' });
+});
+
+test('the AgentFootprint 12 candidate lane pins the engine floors its manifest declares', () => {
+  const lane = agentCandidateContract('12.0.0');
+  assert.equal(lane.version, '12.0.0');
+  assert.equal(lane.consumer, 'lens-agentfootprint-12-consumer');
+  assert.deepEqual(lane.engines, { footprintjs: '10.6.0', foottrace: '1.8.0' });
+  assert.ok(Object.isFrozen(lane) && Object.isFrozen(lane.engines));
+});
+
+test('candidate versions that are inexact or have no reviewed pins fail closed', () => {
+  for (const version of [undefined, 12, '', '12', '12.0', 'v12.0.0', '12.0.0-rc.1', ' 12.0.0',
+    '012.0.0', '0.1.0', '10.1.0', '13.0.0', '__proto__']) {
+    assert.throws(() => agentCandidateContract(version));
+  }
 });
 
 test('archives reject traversal, duplicate names and foreign prefixes', () => {
