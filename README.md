@@ -30,20 +30,20 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-Lens 0.77 accepts
+Lens 0.78 accepts
 `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0`. Earlier versions
 lack renderer APIs used by Lens even if an older peer range accepted them.
 Lens 0.76 accepted only the 0.x renderer range. This release does not publish
 or rename the independent Flow renderer package.
 
 Node.js 22 or newer is required, matching the `foottrace ^1.0.0` peer that
-owns record reading. Both `footprintjs ^10.0.0` and
-`agentfootprint ^9.116.0 || ^10.0.0 || ^11.0.0 || ^12.0.0` are supported; the
-12 range is unreleased (Lens 0.77.0 accepts up to 11). Engine recorders stay
-on FootPrint; saved-record readers come from Foottrace. Lens's public exports,
-recorded data, and cursor behavior are unchanged.
+owns record reading. Lens 0.78 accepts `footprintjs ^10.0.0` and
+`agentfootprint ^9.116.0 || ^10.0.0 || ^11.0.0 || ^12.0.0`; Lens 0.77.0
+accepted AgentFootprint only up to 11. Engine recorders stay on FootPrint;
+saved-record readers come from Foottrace. Lens's public exports, recorded data,
+and cursor behavior are unchanged.
 
-The repository's development cohort pins Foottrace 1.7.0 so newer FootPrint 10
+The repository's development cohort pins Foottrace 1.8.0 so newer FootPrint 10
 candidates, AgentFootprint and Lens resolve the same physical record owner. The public
 `foottrace ^1.0.0` peer and the older compatibility lanes remain supported;
 this development pin adds no Lens API or record behavior.
@@ -61,10 +61,11 @@ CI keeps the existing AgentFootprint 10 lanes and adds an AgentFootprint 11 lane
 using release candidate commit `607114965535cc9c0f0b7a4745746172a7bff641`.
 It builds and packs that source without publishing, installs the actual archive
 normally with strict peer checks, and tests Lens source, approval fixtures,
-published runtime doors and strict package declarations. The development pin
-stays on 10.1.0 until 11 is published; the CI candidate is not a registry release.
+published runtime doors and strict package declarations. AgentFootprint 11 is
+published on npm, but this lane still packs the pinned candidate commit instead
+of installing from the registry. The development pin is still 10.1.0.
 
-### AgentFootprint 12 compatibility (unreleased)
+### AgentFootprint 12 compatibility
 
 CI keeps the AgentFootprint 11 lane and adds an AgentFootprint 12 lane using
 release candidate commit `36824d10ab907060eb485420c978987342cbe561`. It runs
@@ -74,8 +75,9 @@ fixtures, published runtime doors and strict package declarations. Its packed
 consumer uses the floors the candidate declares, FootPrint 10.6.0 and
 Foottrace 1.8.0, so one physical Foottrace is shared. 12.0.0 makes a code
 run's `ok` optional (`undefined` means unknown, never success); Lens reads no
-code-run result, so its source is unchanged. The development pin stays on
-10.1.0; the CI candidate is not a registry release.
+code-run result, so its source is unchanged. The development pin is still
+10.1.0, and this lane packs the pinned candidate commit instead of installing
+from the registry.
 
 ### Flow Lens 1 compatibility checks
 
