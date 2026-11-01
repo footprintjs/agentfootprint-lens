@@ -1,7 +1,7 @@
 {
   "name": "agentfootprint-lens",
   "version": "0.78.0",
-  "description": "See through your agent's decisions. React components for debugging agentfootprint runs — messages, prompts, tool calls, decision scope, cost.",
+  "description": "Why Lens: React components for inspecting recorded agentfootprint prompts, tool calls, context and decisions.",
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.js",
@@ -97,14 +97,15 @@
     "coverage:badge": "npm run test:coverage; node scripts/coverage-badge.mjs"
   },
   "keywords": [
+    "react",
     "agentfootprint",
     "footprintjs",
-    "agent",
-    "llm",
+    "agent-debugging",
+    "context-engineering",
+    "trace-viewer",
+    "tool-calling",
+    "execution-provenance",
     "observability",
-    "debugger",
-    "explainable-ai",
-    "react",
     "time-travel"
   ],
   "author": "Sanjay Krishna Anbalagan",
