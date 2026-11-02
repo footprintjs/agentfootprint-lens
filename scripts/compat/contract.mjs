@@ -49,10 +49,12 @@ export function laneContract({ kind, flow, react, node }) {
 // Engine pins for the unpublished AgentFootprint candidate lanes, by major.
 // 11 keeps the pins its lane was reviewed with. 12 uses the floors its own
 // package.json declares: peer footprintjs ^10.6.0, dependency foottrace ^1.8.0.
-// A lower Foottrace would install a second, nested record owner under it.
+// 13 retains those same declared floors. A lower Foottrace would install a
+// second, nested record owner under either major.
 const agentCandidateEngines = Object.freeze({
   11: Object.freeze({ footprintjs: '10.0.0', foottrace: '1.7.0' }),
   12: Object.freeze({ footprintjs: '10.6.0', foottrace: '1.8.0' }),
+  13: Object.freeze({ footprintjs: '10.6.0', foottrace: '1.8.0' }),
 });
 
 export function agentCandidateContract(version) {

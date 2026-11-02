@@ -187,6 +187,71 @@ jobs:
             agent12-evidence/*.tgz
           if-no-files-found: error
 
+
+  # AgentFootprint 13's exact source commit: source/strict packed compatibility
+  # before a Lens release can declare the new peer. Existing lanes stay intact.
+  agentfootprint-13:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: lens
+      - uses: actions/checkout@v4
+        with:
+          repository: footprintjs/agentfootprint
+          ref: ec50f65c848a64ccb5eb308cd7cc9147a0382c8a
+          path: agent-candidate
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g npm@11.21.0
+      - name: Build the reviewed AgentFootprint 13 archive (never publish)
+        working-directory: agent-candidate
+        run: |
+          test "$(git rev-parse HEAD)" = ec50f65c848a64ccb5eb308cd7cc9147a0382c8a
+          node -e "if(require('./package.json').version !== '13.0.0') process.exit(1)"
+          npm ci
+          npm run build
+          git diff --exit-code HEAD -- src package.json package-lock.json
+          mkdir -p "$GITHUB_WORKSPACE/agent13-evidence"
+          npm pack --ignore-scripts --json --pack-destination "$GITHUB_WORKSPACE/agent13-evidence" > "$GITHUB_WORKSPACE/agent13-evidence/agent-pack.json"
+      - name: Check Lens source against the real candidate
+        working-directory: lens
+        run: |
+          node --input-type=module <<'NODE'
+          import { readFileSync, writeFileSync } from 'node:fs';
+          const p = JSON.parse(readFileSync('package.json', 'utf8'));
+          p.devDependencies.agentfootprint = `file:${process.env.GITHUB_WORKSPACE}/agent13-evidence/agentfootprint-13.0.0.tgz`;
+          writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          NODE
+          npm install --strict-peer-deps
+          npm run typecheck
+          npm run build
+          npm test
+          npm run fixtures:time:check
+          # The source install only changed its dev input. Pack the committed
+          # manifest, not a package containing a CI-local dependency path.
+          git show HEAD:package.json > package.json
+          npm pack --ignore-scripts --json --pack-destination "$GITHUB_WORKSPACE/agent13-evidence" > "$GITHUB_WORKSPACE/agent13-evidence/lens-pack.json"
+      - name: Check strict packed install, runtime and declarations
+        working-directory: lens
+        run: |
+          node scripts/check-agentfootprint-candidate.mjs --agent-version 13.0.0 \
+            --agent-tar "$GITHUB_WORKSPACE/agent13-evidence/agentfootprint-13.0.0.tgz" \
+            --lens-tar "$GITHUB_WORKSPACE/agent13-evidence/$(node scripts/compat/why-identity.mjs)" \
+            --evidence "$GITHUB_WORKSPACE/agent13-evidence/packed"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: agentfootprint-13-compatibility
+          path: |
+            agent13-evidence/**/*.json
+            agent13-evidence/**/*.log
+            agent13-evidence/*.tgz
+          if-no-files-found: error
+
   # Check both dependency resolution and the packed runtime contract. A successful
   # install alone cannot catch a renderer that lacks a statically imported API.
   # NEVER add --legacy-peer-deps / --force or downgrade smoke failures to warnings.
