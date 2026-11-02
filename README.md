@@ -2,7 +2,9 @@
 
 <sub>npm package: <a href="https://www.npmjs.com/package/agentfootprint-lens"><code>agentfootprint-lens</code></a></sub>
 
-**grouped by what matters: pinpoint why this answer**
+**React components for inspecting recorded agent runs, grouped by context and decisions.**
+
+[Install and quick start](#30-second-quick-start) · [Agent runtime](https://github.com/footprintjs/agentfootprint)
 
 _Part of the **[footprintjs ecosystem](https://footprintjs.github.io/)** — the self-explaining stack._
 
