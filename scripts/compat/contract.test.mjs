@@ -60,9 +60,17 @@ test('the AgentFootprint 12 candidate lane pins the engine floors its manifest d
   assert.ok(Object.isFrozen(lane) && Object.isFrozen(lane.engines));
 });
 
+test('the AgentFootprint 13 candidate lane pins the actual manifest floors', () => {
+  const lane = agentCandidateContract('13.0.0');
+  assert.equal(lane.version, '13.0.0');
+  assert.equal(lane.consumer, 'lens-agentfootprint-13-consumer');
+  assert.deepEqual(lane.engines, { footprintjs: '10.6.0', foottrace: '1.8.0' });
+  assert.ok(Object.isFrozen(lane) && Object.isFrozen(lane.engines));
+});
+
 test('candidate versions that are inexact or have no reviewed pins fail closed', () => {
   for (const version of [undefined, 12, '', '12', '12.0', 'v12.0.0', '12.0.0-rc.1', ' 12.0.0',
-    '012.0.0', '0.1.0', '10.1.0', '13.0.0', '__proto__']) {
+    '012.0.0', '0.1.0', '10.1.0', '14.0.0', '__proto__']) {
     assert.throws(() => agentCandidateContract(version));
   }
 });

@@ -43,6 +43,10 @@ accepted AgentFootprint only up to 11. Engine recorders stay on FootPrint;
 saved-record readers come from Foottrace. Lens's public exports, recorded data,
 and cursor behavior are unchanged.
 
+This source candidate also declares `agentfootprint ^13.0.0`, tested against
+the exact source described below. The published Lens 0.78.0 package still ends
+at AgentFootprint 12; npm consumers need a subsequent compatible Lens release.
+
 The repository's development cohort pins Foottrace 1.8.0 so newer FootPrint 10
 candidates, AgentFootprint and Lens resolve the same physical record owner. The public
 `foottrace ^1.0.0` peer and the older compatibility lanes remain supported;
@@ -78,6 +82,17 @@ run's `ok` optional (`undefined` means unknown, never success); Lens reads no
 code-run result, so its source is unchanged. The development pin is still
 10.1.0, and this lane packs the pinned candidate commit instead of installing
 from the registry.
+
+### AgentFootprint 13 compatibility
+
+CI retains every older lane and adds AgentFootprint 13 using exact source
+commit `ec50f65c848a64ccb5eb308cd7cc9147a0382c8a` (version 13.0.0).
+It builds and packs the unmodified source, tests Lens against that archive,
+then checks strict packed installation, runtime doors and all declaration
+modes. The consumer keeps FootPrint 10.6.0 and Foottrace 1.8.0, matching the
+candidate's declared floors and retaining one physical record owner. No
+candidate version is rewritten and no package is published by this lane.
+The regular development dependency remains AgentFootprint 10.1.0.
 
 ### Flow Lens 1 compatibility checks
 
