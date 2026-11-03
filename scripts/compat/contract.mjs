@@ -59,8 +59,9 @@ const agentCandidateEngines = Object.freeze({
 
 export function agentCandidateContract(version) {
   const match = typeof version === 'string'
-    && /^([1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)$/.exec(version);
-  assert.ok(match, `--agent-version must be an exact release version, not ${version}`);
+    && /^([1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-rc\.(?:0|[1-9][0-9]*))?$/.exec(version);
+  assert.ok(match,
+    `--agent-version must be an exact release or rc.N version, not ${version}`);
   const major = match[1];
   assert.ok(Object.hasOwn(agentCandidateEngines, major),
     `no reviewed engine pins for AgentFootprint ${major}`);

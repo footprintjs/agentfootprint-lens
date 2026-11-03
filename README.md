@@ -95,6 +95,10 @@ candidate's declared floors and retaining one physical record owner. No
 candidate version is rewritten and no package is published by this lane.
 The regular development dependency remains AgentFootprint 10.1.0.
 
+The local packed-candidate checker also accepts exact `-rc.N` versions for
+majors with reviewed engine pins. It checks the archive's original version;
+a new major still needs reviewed pins and its own compatibility proof.
+
 ### Flow Lens 1 compatibility checks
 
 The bridge adds no door and removes no export. Existing imports from
