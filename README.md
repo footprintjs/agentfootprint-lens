@@ -48,7 +48,7 @@ and cursor behavior are unchanged.
 AgentFootprint 13 support is included in Lens 0.79.0, tested against the exact
 source described below. Lens 0.78.0 accepts AgentFootprint only up to 12.
 
-The repository's development cohort pins Foottrace 1.8.0 so newer FootPrint 10
+The repository's development cohort pins Foottrace 1.11.0 so newer FootPrint 10
 candidates, AgentFootprint and Lens resolve the same physical record owner. The public
 `foottrace ^1.0.0` peer and the older compatibility lanes remain supported;
 this development pin adds no Lens API or record behavior.
