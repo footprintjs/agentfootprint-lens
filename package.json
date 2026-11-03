@@ -94,7 +94,8 @@
     "clean": "rm -rf dist",
     "test:coverage": "vitest run --coverage --coverage.reporter=json-summary --coverage.reporter=text-summary --coverage.reportsDirectory=coverage",
     "test:compat-helpers": "node --test scripts/compat/*.test.mjs",
-    "coverage:badge": "npm run test:coverage; node scripts/coverage-badge.mjs"
+    "coverage:badge": "npm run test:coverage; node scripts/coverage-badge.mjs",
+    "test:contract:foottrace": "tsc -p contract/tsconfig.json && vitest run --config contract/foottrace.config.ts"
   },
   "keywords": [
     "react",

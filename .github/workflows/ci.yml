@@ -34,6 +34,7 @@ jobs:
       - run: npm install -g npm@11.21.0
       - run: npm install --strict-peer-deps
       - run: npm run test:compat-helpers
+      - run: npm run test:contract:foottrace
       - run: npm run build
       - run: npm test
       - run: npm run fixtures:time:check
