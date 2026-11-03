@@ -68,9 +68,26 @@ test('the AgentFootprint 13 candidate lane pins the actual manifest floors', () 
   assert.ok(Object.isFrozen(lane) && Object.isFrozen(lane.engines));
 });
 
+test('exact RC versions retain the reviewed major engine pins and archive identity', () => {
+  for (const major of ['11', '12', '13']) {
+    for (const suffix of ['0', '1', '12']) {
+      const version = `${major}.0.0-rc.${suffix}`;
+      const stable = agentCandidateContract(`${major}.0.0`);
+      const lane = agentCandidateContract(version);
+      assert.equal(lane.version, version);
+      assert.equal(lane.major, major);
+      assert.equal(lane.consumer, stable.consumer);
+      assert.deepEqual(lane.engines, stable.engines);
+      assert.ok(Object.isFrozen(lane) && Object.isFrozen(lane.engines));
+    }
+  }
+});
+
 test('candidate versions that are inexact or have no reviewed pins fail closed', () => {
-  for (const version of [undefined, 12, '', '12', '12.0', 'v12.0.0', '12.0.0-rc.1', ' 12.0.0',
-    '012.0.0', '0.1.0', '10.1.0', '14.0.0', '__proto__']) {
+  for (const version of [undefined, 12, '', '12', '12.0', 'v12.0.0', ' 12.0.0',
+    '012.0.0', '0.1.0', '10.1.0', '14.0.0', '14.0.0-rc.0', '__proto__',
+    '13.0.0-rc', '13.0.0-rc.01', '13.0.0-rc.-1', '13.0.0-RC.1',
+    '13.0.0-beta.1', '13.0.0-rc.1+build', '13.0.0+build', '13.0.0\n', '13.0.0-rc.1\n']) {
     assert.throws(() => agentCandidateContract(version));
   }
 });
