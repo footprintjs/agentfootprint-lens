@@ -1,6 +1,6 @@
 {
   "name": "agentfootprint-lens",
-  "version": "0.78.0",
+  "version": "0.79.0",
   "description": "Why Lens: React components for inspecting recorded agentfootprint prompts, tool calls, context and decisions.",
   "type": "module",
   "main": "./dist/index.cjs",

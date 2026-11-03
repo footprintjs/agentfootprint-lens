@@ -32,22 +32,21 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-Lens 0.78 accepts
+Lens 0.79.0 accepts
 `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0`. Earlier versions
 lack renderer APIs used by Lens even if an older peer range accepted them.
 Lens 0.76 accepted only the 0.x renderer range. This release does not publish
 or rename the independent Flow renderer package.
 
 Node.js 22 or newer is required, matching the `foottrace ^1.0.0` peer that
-owns record reading. Lens 0.78 accepts `footprintjs ^10.0.0` and
-`agentfootprint ^9.116.0 || ^10.0.0 || ^11.0.0 || ^12.0.0`; Lens 0.77.0
+owns record reading. Lens 0.79.0 accepts `footprintjs ^10.0.0` and
+`agentfootprint ^9.116.0 || ^10.0.0 || ^11.0.0 || ^12.0.0 || ^13.0.0`; Lens 0.77.0
 accepted AgentFootprint only up to 11. Engine recorders stay on FootPrint;
 saved-record readers come from Foottrace. Lens's public exports, recorded data,
 and cursor behavior are unchanged.
 
-This source candidate also declares `agentfootprint ^13.0.0`, tested against
-the exact source described below. The published Lens 0.78.0 package still ends
-at AgentFootprint 12; npm consumers need a subsequent compatible Lens release.
+AgentFootprint 13 support is included in Lens 0.79.0, tested against the exact
+source described below. Lens 0.78.0 accepts AgentFootprint only up to 12.
 
 The repository's development cohort pins Foottrace 1.8.0 so newer FootPrint 10
 candidates, AgentFootprint and Lens resolve the same physical record owner. The public

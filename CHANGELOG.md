@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.79.0] - 2026-11-02
+
+### Fixed
+
+- Accept AgentFootprint 13 alongside the existing 9, 10, 11 and 12 peer ranges.
+  The compatibility lane checks strict source and packed-package installation,
+  runtime imports and declarations against the exact 13.0.0 source, retaining
+  the FootPrint 10.6.0 and Foottrace 1.8.0 floors. Lens runtime source, public
+  exports and saved-record formats are unchanged.
+- Clarify package discovery and ecosystem navigation in the package metadata
+  and README.
+
 ## [0.78.0] - 2026-10-29
 
 ### Migration prerequisites
