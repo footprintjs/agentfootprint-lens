@@ -16,7 +16,7 @@
 
 import React from 'react';
 
-import { T } from '../react/theme/index.js';
+import { T } from '../theme/index.js';
 
 export interface DoorRefusalCardProps {
   /** The door's name, worn as the card's eyebrow (e.g. "Why Lens"). */

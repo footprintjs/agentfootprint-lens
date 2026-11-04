@@ -31,7 +31,7 @@
  */
 
 import type { Edge, Node } from '@xyflow/react';
-import { dagreLayout, type DagreLayoutOptions } from '../../react/layout/dagreLayout.js';
+import { dagreLayout, type DagreLayoutOptions } from './dagreLayout.js';
 import type { LensGroupOutput, LensNode } from '../translate/types.js';
 import {
   defaultSize,

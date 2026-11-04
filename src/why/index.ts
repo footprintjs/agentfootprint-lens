@@ -34,7 +34,7 @@ export {
   type AgentRecordingInput,
   type RecordingEnvelopeLike,
   type RecordingVerdict,
-} from '../doors/recordingInput.js';
+} from '../core/recordingInput.js';
 
 // The shell, for hosts that already hold a recorder.
 export {
