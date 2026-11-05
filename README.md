@@ -77,7 +77,8 @@ strict NodeNext/Bundler declarations, mock-agent recording/replay and Chromium
 rendering remain covered. Candidate `/record` isolation and browser checks
 remain separate.
 
-Each matrix job first installs the repository's committed source lock. Its
+Each matrix job first installs the repository's committed source lock. Consumer
+evidence lives outside that checkout to avoid inheriting its dependencies. Its
 isolated consumer fixture then performs a normal strict resolution and a fresh
 `npm ci` replay for that renderer/React combination and the newly built Lens
 tarball. Those generated fixture locks contain a CI-local Lens archive path:

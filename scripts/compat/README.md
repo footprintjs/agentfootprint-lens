@@ -21,6 +21,11 @@ entry must contain the real registry URL and integrity. The fixture lock has
 a local Lens archive path and is non-portable evidence. It is separate from
 the portable committed repository lock used by every source gate.
 
+Consumer evidence must be outside the repository (CI uses `$RUNNER_TEMP`) so
+Node cannot satisfy isolated fixture imports from the source install above them.
+The path guard rejects in-repository evidence before installation; the unchanged
+record-only fixture also requires forbidden packages to be unresolvable.
+
 The runner checks ESM/CJS, strict declarations, native recording and browser
 replay, then verifies installed and archive bytes again. `process.mjs` owns
 bounded subprocesses and data-only archive inspection. Adjacent tests exercise

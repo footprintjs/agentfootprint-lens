@@ -135,19 +135,19 @@ jobs:
         run: |
           node scripts/compat/run-lane.mjs --kind native --flow "${{ matrix.flow }}" \
             --react "${{ matrix.react }}" --node "${{ matrix.node }}" \
-            --artifacts compat-artifacts --evidence compat-evidence \
+            --artifacts compat-artifacts --evidence "$RUNNER_TEMP/compat-evidence" \
             --flow-source flow-candidate --install-browser yes
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: native-${{ matrix.flow }}-react${{ matrix.react }}-node${{ matrix.node }}
           path: |
-            compat-evidence/*.json
-            compat-evidence/*.log
-            compat-evidence/*.tgz
-            compat-evidence/consumer/package*.json
-            compat-evidence/consumer/native-recording.json
-            compat-evidence/record-only/package*.json
-            compat-evidence/record-browser/package*.json
-            compat-evidence/browser/**
+            ${{ runner.temp }}/compat-evidence/*.json
+            ${{ runner.temp }}/compat-evidence/*.log
+            ${{ runner.temp }}/compat-evidence/*.tgz
+            ${{ runner.temp }}/compat-evidence/consumer/package*.json
+            ${{ runner.temp }}/compat-evidence/consumer/native-recording.json
+            ${{ runner.temp }}/compat-evidence/record-only/package*.json
+            ${{ runner.temp }}/compat-evidence/record-browser/package*.json
+            ${{ runner.temp }}/compat-evidence/browser/**
           if-no-files-found: error

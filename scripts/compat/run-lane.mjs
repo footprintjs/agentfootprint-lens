@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertInstalled, assertRecordIsolation, assertSingleFoottrace, candidate, nativeCandidate, installedPackageNames,
+import { assertEvidenceOutsideRepository, assertInstalled, assertRecordIsolation, assertSingleFoottrace, candidate, nativeCandidate, installedPackageNames,
   laneContract, parseFlags, sha256, tooling } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertNativeSourceMetadata } from './stage-proof.mjs';
@@ -21,6 +21,7 @@ assert.equal(process.versions.node.split('.')[0], lane.node, 'run this lane with
 assert.ok(flags.artifacts && flags.evidence, '--artifacts and --evidence are required');
 const artifacts = resolve(flags.artifacts);
 const evidence = resolve(flags.evidence);
+assertEvidenceOutsideRepository(root, evidence);
 mkdirSync(dirname(evidence), { recursive: true });
 mkdirSync(evidence); // A repeated run must not overwrite an earlier failure's evidence.
 const report = { schema: 1, lane, node: process.version, npm: command('npm', ['--version']).trim(),

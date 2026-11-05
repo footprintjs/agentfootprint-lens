@@ -50,6 +50,9 @@ describe('native footprintjs 11 / agentfootprint 14 compatibility', () => {
     expect(runner).toContain("agentProfile === 'published' ? publishedCandidate.version");
     expect(runner).toContain('assertRegistryLock');
     expect(runner).toContain('assertSingleFoottrace');
+    expect(runner).toContain('assertEvidenceOutsideRepository(root, evidence)');
+    expect(workflow).toContain('--evidence "$RUNNER_TEMP/compat-evidence"');
+    expect(workflow).toContain('${{ runner.temp }}/compat-evidence/consumer/package*.json');
     expect(runner).toContain('check-native-recording.mjs');
     expect(runner).toContain("'--skipLibCheck', 'false'");
     expect(runner).toContain("['ci', '--strict-peer-deps'");
