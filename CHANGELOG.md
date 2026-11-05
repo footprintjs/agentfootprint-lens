@@ -5,17 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.80.0] - 2026-11-05
 
 ### Breaking
 
-- The next major supports agentfootprint 14 and footprintjs 11 only, with
-  Foottrace 1.11 or newer. Earlier installed runtime lines are not supported;
+- Support agentfootprint 14 and footprintjs 11 only, with Foottrace 1.11.1
+  or newer. Earlier installed runtime lines are not supported;
   old saved recordings remain readable.
 
 ### Changed
 
-- Pin published `agentfootprint@14.0.0-rc.0` and ship a committed dependency lock.
+- Pin the final `agentfootprint@14.0.0` and `footprintjs@11.0.0` cohort, with
+  a normally generated committed dependency lock.
 - Group the explain view under STAND — State · Trace · Assess · Name · Decide,
   retaining the account's sentences, the answer's standing, its recorded reasons
   and evidence pointers.
