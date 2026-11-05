@@ -62,6 +62,7 @@ describe('source-selected native compatibility workflow', () => {
     expect(runner).toContain('assertRegistryLock');
     expect(runner).toContain('assertSingleFoottrace');
     expect(runner).toContain('expected-cohort.json');
+    expect(runner).toContain("command(process.execPath, ['check-native-recording.mjs'], { cwd: consumer");
     expect(probe).toContain('assert.deepEqual(versions, expectedCohort.pins');
     expect(probe).toContain('assert.equal(entry.integrity, expected.integrity)');
     expect(runner).toContain('assertEvidenceOutsideRepository(root, evidence)');

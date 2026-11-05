@@ -37,9 +37,8 @@ export function deriveCohort(manifest, lock) {
     assert.ok(entry, `${name}: locked package entry required`);
     assert.equal(entry.version, version, `${name}: locked package version`);
     assert.ok(!entry.link, `${name}: linked package forbidden`);
-    let url;
-    try { url = new URL(entry.resolved); } catch { assert.fail(`${name}: locked archive URL required`); }
-    assert.equal(url.protocol, 'https:', `${name}: HTTPS archive required`);
+    assert.equal(entry.resolved, `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`,
+      `${name}: canonical registry archive URL required`);
     const digest = typeof entry.integrity === 'string' && /^sha512-([A-Za-z0-9+/]+={0,2})$/.exec(entry.integrity)?.[1];
     assert.ok(digest && Buffer.from(digest, 'base64').length === 64 &&
       Buffer.from(digest, 'base64').toString('base64') === digest, `${name}: locked SHA512 integrity required`);

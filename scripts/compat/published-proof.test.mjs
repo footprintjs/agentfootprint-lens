@@ -12,7 +12,7 @@ function fixture() {
   const pins = Object.fromEntries(names.map((name, i) => [name, `${70 + i}.2.3-example.4`]));
   const lock = { lockfileVersion: 3, packages: { '': { devDependencies: { ...pins } } } };
   for (const name of names) lock.packages[`node_modules/${name}`] = { version: pins[name],
-    resolved: `https://registry.example.test/${name}/-/${name}-${pins[name]}.tgz`,
+    resolved: `https://registry.npmjs.org/${name}/-/${name}-${pins[name]}.tgz`,
     integrity: `sha512-${digest('sha512', 'base64')}` };
   const cohort = deriveCohort({ devDependencies: pins }, lock);
   const expected = cohort.packages.agentfootprint;
@@ -75,3 +75,16 @@ for (const [field, value] of [['version', 'different'], ['resolved', 'file:/synt
     assert.throws(() => proof.assertRegistryLock(lock, expected), { code: 'ERR_ASSERTION' });
   });
 }
+
+
+test('consumer lock root cannot select a file input instead of the source pin', () => {
+  const { expected, lock } = fixture();
+  lock.packages[''].devDependencies.agentfootprint = 'file:/synthetic-agent.tgz';
+  assert.throws(() => proof.assertRegistryLock(lock, expected), { code: 'ERR_ASSERTION' });
+});
+
+test('consumer lock must contain the selected package entry', () => {
+  const { expected, lock } = fixture();
+  delete lock.packages['node_modules/agentfootprint'];
+  assert.throws(() => proof.assertRegistryLock(lock, expected), { code: 'ERR_ASSERTION' });
+});

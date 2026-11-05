@@ -9,13 +9,17 @@ import * as contracts from './contract.mjs';
 
 const names = ['agentfootprint', 'footprintjs', 'foottrace'];
 
+function archiveUrl(name, version) {
+  return `https://registry.npmjs.org/${name}/-/${name}-${version}.tgz`;
+}
+
 function fixture() {
   const pins = { agentfootprint: '90.1.2-fixture.3', footprintjs: '91.2.3', foottrace: '92.3.4+fixture.5' };
   const manifest = { name: 'synthetic-consumer', devDependencies: { ...pins } };
   const lock = { lockfileVersion: 3, packages: { '': { devDependencies: { ...pins } } } };
   for (const [name, version] of Object.entries(pins)) {
     lock.packages[`node_modules/${name}`] = { version,
-      resolved: `https://registry.example.test/${name}/-/${name}-${version}.tgz`,
+      resolved: archiveUrl(name, version),
       integrity: `sha512-${createHash('sha512').update(`synthetic bytes for ${name}`).digest('base64')}` };
   }
   return { pins, manifest, lock };
@@ -61,16 +65,63 @@ for (const name of names) {
       const changed = '95.6.7-fixture.8';
       manifest.devDependencies[name] = changed;
       lock.packages[`node_modules/${name}`].version = changed;
-      lock.packages[`node_modules/${name}`].resolved = `https://registry.example.test/${name}/-/${name}-${changed}.tgz`;
+      lock.packages[`node_modules/${name}`].resolved = archiveUrl(name, changed);
     }],
     ['missing installed package entry', ({ lock }) => { delete lock.packages[`node_modules/${name}`]; }],
     ['different installed package version', ({ lock }) => { lock.packages[`node_modules/${name}`].version = '95.6.7-fixture.8'; }],
     ['missing archive URL', ({ lock }) => { delete lock.packages[`node_modules/${name}`].resolved; }],
     ['non-HTTPS archive URL', ({ lock }) => { lock.packages[`node_modules/${name}`].resolved = 'http://registry.example.test/synthetic.tgz'; }],
     ['local archive URL', ({ lock }) => { lock.packages[`node_modules/${name}`].resolved = 'file:../synthetic.tgz'; }],
+    ['another registry host', ({ lock }) => {
+      const entry = lock.packages[`node_modules/${name}`];
+      entry.resolved = entry.resolved.replace('registry.npmjs.org', 'registry.example.test');
+    }],
+    ['another package archive path', ({ pins, lock }) => {
+      lock.packages[`node_modules/${name}`].resolved = archiveUrl('synthetic-other', pins[name]);
+    }],
+    ['embedded archive credentials', ({ lock }) => {
+      const entry = lock.packages[`node_modules/${name}`];
+      const url = new URL(entry.resolved);
+      url.username = 'synthetic-user';
+      url.password = 'synthetic-password';
+      entry.resolved = url.href;
+    }],
+    ['surrounding archive whitespace', ({ lock }) => {
+      const entry = lock.packages[`node_modules/${name}`];
+      entry.resolved = ` ${entry.resolved}\t`;
+    }],
+    ['a non-string single-element archive array', ({ lock }) => {
+      const entry = lock.packages[`node_modules/${name}`];
+      entry.resolved = [entry.resolved];
+    }],
+    ['a non-string archive URL object', ({ lock }) => {
+      const entry = lock.packages[`node_modules/${name}`];
+      entry.resolved = new URL(entry.resolved);
+    }],
     ['missing integrity', ({ lock }) => { delete lock.packages[`node_modules/${name}`].integrity; }],
     ['wrong integrity algorithm', ({ lock }) => { lock.packages[`node_modules/${name}`].integrity = `sha1-${createHash('sha1').update('synthetic').digest('base64')}`; }],
     ['malformed SHA512 integrity', ({ lock }) => { lock.packages[`node_modules/${name}`].integrity = 'sha512-not-a-digest'; }],
+    ['valid base64 with a short SHA512 digest', ({ lock }) => {
+      lock.packages[`node_modules/${name}`].integrity = `sha512-${Buffer.alloc(63, 1).toString('base64')}`;
+    }],
+    ['valid base64 with a long SHA512 digest', ({ lock }) => {
+      lock.packages[`node_modules/${name}`].integrity = `sha512-${Buffer.alloc(65, 1).toString('base64')}`;
+    }],
+    ['noncanonical base64 padding bits', ({ lock }) => {
+      const entry = lock.packages[`node_modules/${name}`];
+      const digest = entry.integrity.slice('sha512-'.length);
+      assert.ok(digest.endsWith('=='));
+      const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+      const index = digest.length - 3;
+      const changed = digest.slice(0, index) + alphabet[alphabet.indexOf(digest[index]) + 1] + digest.slice(index + 1);
+      assert.match(changed, /^[A-Za-z0-9+/]+==$/);
+      assert.deepEqual(Buffer.from(changed, 'base64'), Buffer.from(digest, 'base64'),
+        'only unused padding bits change, not the decoded digest');
+      entry.integrity = `sha512-${changed}`;
+    }],
+    ['a trailing newline in the whole integrity string', ({ lock }) => {
+      lock.packages[`node_modules/${name}`].integrity += '\n';
+    }],
     ['linked package', ({ lock }) => { lock.packages[`node_modules/${name}`].link = true; }],
   ];
   for (const [label, mutate] of invalid) test(`${name}: ${label} refuses`, () => {
@@ -80,6 +131,13 @@ for (const name of names) {
     assert.throws(() => derive(input.manifest, input.lock), { code: 'ERR_ASSERTION' });
   });
 }
+
+for (const version of [1, 2, 4, '3', undefined]) test(`lockfileVersion ${String(version)} refuses`, () => {
+  assert.equal(typeof contracts.deriveCohort, 'function');
+  const { manifest, lock } = fixture();
+  lock.lockfileVersion = version;
+  assert.throws(() => derive(manifest, lock), { code: 'ERR_ASSERTION' });
+});
 
 test('an explicit source directory reads its manifest and lock without a built package', (t) => {
   assert.equal(typeof contracts.readActiveCohort, 'function');
