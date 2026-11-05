@@ -57,6 +57,12 @@ The 0.80.0 development cohort pins `agentfootprint@14.0.0`,
 generated committed lock after the upstream finals are published, with
 `npm ci --strict-peer-deps` on Node 22 and 24.
 
+The active cohort is derived from the exact development pins in `package.json`
+and the version, registry URL and integrity entries in the committed lock. CI
+joins registry SHA512/SHA1 with the downloaded bytes and locked integrity,
+compares installed files with the archive, and requires one physical Foottrace
+matching the selected pin. Archive SHA256 and size are measured receipt data.
+
 The preceding RC proof compared the published `agentfootprint@14.0.0-rc.0`
 archive with the reviewed offline candidate. Both had SHA256
 `0cabda7905ac5342c57e5741e7f7c48f788114dd6504b92138e9a609f76e7cfc`.
@@ -88,12 +94,10 @@ Archives, source-lock digests, consumer locks, logs, dependency trees and browse
 evidence remain available on failed runs. Browser builds use Vite without
 aliases, externals or stubs.
 
-The previous offline stage/identity helpers and their tests remain available
-as a documented optional lane in `scripts/compat/README.md`, selected explicitly
-with `--agent-profile offline`. They are outside the default published-candidate
-workflow. The earlier generated source locks contained local candidate paths
-and remain non-portable historical evidence. All supported runtime lanes use
-`--kind native`; `--browser no` remains diagnostic-only.
+The previous one-time offline staging lane is removed; its proof remains in
+Git history. New validation always follows the current manifest and committed
+lock. All supported runtime lanes use `--kind native`; `--browser no` remains
+diagnostic-only and cannot report a passing lane.
 
 ```tsx
 import { useMemo } from 'react';

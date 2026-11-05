@@ -3,20 +3,21 @@ import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
+import * as contracts from './contract.mjs';
 import { assertInstalled, assertOwner, assertRecordIsolation, hashFiles,
   installedPackageNames, laneContract, parseFlags, publishedSourceFiles, safeArchiveNames,
   sha256 } from './contract.mjs';
 
 test('the twelve native lanes retain renderer and React coverage on both Nodes', () => {
+  assert.equal(typeof contracts.readActiveCohort, 'function');
+  const cohort = contracts.readActiveCohort();
   const ids = [];
   for (const flow of ['0.34.0', '0.38.0', 'candidate']) for (const react of ['18', '19']) {
     for (const node of ['22', '24']) {
       const lane = laneContract({ kind: 'native', flow, react, node });
       ids.push(lane.id);
       assert.equal(lane.kind, 'native');
-      assert.equal(lane.peers.agentfootprint, '14.0.0-rc.0');
-      assert.equal(lane.peers.footprintjs, '11.0.0-rc.1');
-      assert.equal(lane.peers.foottrace, '1.11.0');
+      for (const [name, version] of Object.entries(cohort.pins)) assert.equal(lane.peers[name], version);
       assert.equal(lane.peers.react, react === '18' ? '18.3.1' : '19.0.0');
       assert.equal(lane.peers['react-dom'], lane.peers.react);
       assert.equal(lane.types['@types/react'], react === '18' ? '18.3.3' : '19.0.0');
@@ -24,6 +25,12 @@ test('the twelve native lanes retain renderer and React coverage on both Nodes',
     }
   }
   assert.equal(new Set(ids).size, 12);
+});
+
+test('lane peers use the supplied cohort instead of a built-in release identity', () => {
+  const pins = { agentfootprint: '90.1.2-fixture.3', footprintjs: '91.2.3', foottrace: '92.3.4' };
+  const lane = laneContract({ kind: 'native', flow: 'candidate', react: '19', node: '24' }, { pins });
+  for (const [name, version] of Object.entries(pins)) assert.equal(lane.peers[name], version);
 });
 
 test('invalid and retired historical runtime combinations fail closed', () => {

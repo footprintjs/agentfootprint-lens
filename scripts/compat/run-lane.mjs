@@ -4,19 +4,18 @@ import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertEvidenceOutsideRepository, assertInstalled, assertRecordIsolation, assertSingleFoottrace, candidate, nativeCandidate, installedPackageNames,
+import { assertEvidenceOutsideRepository, assertInstalled, assertRecordIsolation, assertSingleFoottrace, candidate, installedPackageNames, readActiveCohort,
   laneContract, parseFlags, sha256, tooling } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
-import { assertNativeSourceMetadata } from './stage-proof.mjs';
-import { assertPublishedReceipt, assertRegistryLock, publishedCandidate } from './published-proof.mjs';
+import { assertPublishedReceipt, assertRegistryLock, readPublishedAgent } from './published-proof.mjs';
 import { assertWhyIdentity } from './why-identity.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const flags = parseFlags(process.argv.slice(2),
-  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser', 'agent-profile']);
-const lane = laneContract(flags);
-const agentProfile = flags['agent-profile'] ?? 'published';
-assert.ok(['published', 'offline'].includes(agentProfile), 'unknown agent profile');
+  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser']);
+const cohort = readActiveCohort();
+const agentIdentity = readPublishedAgent(cohort);
+const lane = laneContract(flags, cohort);
 assert.equal(process.versions.node.split('.')[0], lane.node, 'run this lane with its declared Node major');
 assert.ok(flags.artifacts && flags.evidence, '--artifacts and --evidence are required');
 const artifacts = resolve(flags.artifacts);
@@ -42,8 +41,8 @@ function install(directory, dependencies, label) {
   command('npm', ['ci', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
     { cwd: directory, log: join(evidence, `${label}-ci.log`) });
   command('npm', ['ls', '--all', '--json'], { cwd: directory, log: join(evidence, `${label}-tree.json`) });
-  if (label === 'consumer' && agentProfile === 'published') {
-    assertRegistryLock(JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8')));
+  if (label === 'consumer') {
+    assertRegistryLock(JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8')), agentIdentity);
   }
 }
 function checkTypes(consumer, stem, toolConsumer = consumer) {
@@ -63,6 +62,7 @@ try {
   const contract = JSON.parse(readFileSync(join(artifacts, 'contract.json'), 'utf8'));
   const whyIdentity = assertWhyIdentity(contract);
   assert.deepEqual(contract.candidate, candidate);
+  assert.deepEqual(contract.cohort, cohort, 'artifact cohort must match this manifest and committed lock');
   if (process.env.GITHUB_RUN_ID) {
     assert.equal(contract.source.workflowRun, process.env.GITHUB_RUN_ID,
       'Why artifact must come from this workflow, not a prior build');
@@ -74,14 +74,11 @@ try {
     { ...whyIdentity, expectedSha: contract.why.sha256 });
   assert.deepEqual(why.files, contract.why.files);
   report.packages.why = { sha256: why.sha256, files: why.files, source: contract.source };
-  assert.equal(contract.agent.path, `agentfootprint-${nativeCandidate.version}.tgz`);
+  assert.equal(contract.agent.path, agentIdentity.filename);
   const agent = inspectArchive(join(artifacts, contract.agent.path), evidence,
-    { name: 'agentfootprint', version: nativeCandidate.version, expectedSha: contract.agent.sha256 });
+    { ...agentIdentity, expectedSha: contract.agent.sha256 });
   assert.deepEqual(agent.files, contract.agent.files);
-  assert.equal(contract.agentProfile, agentProfile, 'artifact and selected candidate profile must match');
-  const agentSource = agentProfile === 'offline'
-    ? assertNativeSourceMetadata(contract.agentSource, agent.sha256)
-    : assertPublishedReceipt(contract.agentSource, readFileSync(agent.path));
+  const agentSource = assertPublishedReceipt(contract.agentSource, readFileSync(agent.path), agentIdentity);
   report.packages.agent = { sha256: agent.sha256, source: agentSource };
 
   let flow;
@@ -101,14 +98,14 @@ try {
   const consumer = join(evidence, 'consumer');
   step('strict fresh peer install', () => install(consumer, {
     ...lane.peers, ...lane.types, ...tooling,
-    'agentfootprint-lens': `file:${why.path}`, agentfootprint: agentProfile === 'published' ? publishedCandidate.version : `file:${agent.path}`, 'footprint-explainable-ui': `file:${flow.path}`,
+    'agentfootprint-lens': `file:${why.path}`, 'footprint-explainable-ui': `file:${flow.path}`,
   }, 'consumer'));
   const whyInstalled = join(consumer, 'node_modules/agentfootprint-lens');
   const flowInstalled = join(consumer, 'node_modules/footprint-explainable-ui');
   function verifyBytes() {
     assertInstalled(whyInstalled, why.files, 'Why');
     assertInstalled(join(consumer, 'node_modules/agentfootprint'), agent.files, 'AgentFootprint');
-    report.recordOwner = assertSingleFoottrace(join(consumer, 'node_modules'), nativeCandidate.engines.foottrace);
+    report.recordOwner = assertSingleFoottrace(join(consumer, 'node_modules'), cohort.pins.foottrace);
     assertInstalled(flowInstalled, flow.files, 'Flow');
     assert.equal(sha256(readFileSync(why.path)), why.sha256, 'Why archive changed during checks');
     assert.equal(sha256(readFileSync(agent.path)), agent.sha256, 'AgentFootprint archive changed during checks');
@@ -118,6 +115,7 @@ try {
   step('all five ESM/CJS doors, canonical owner, native recording, replay and SSR', () => {
     copyFileSync(join(root, 'scripts/check-packed-peers.mjs'), join(consumer, 'check-packed-peers.mjs'));
     copyFileSync(join(root, 'scripts/check-native-recording.mjs'), join(consumer, 'check-native-recording.mjs'));
+    writeJson(join(consumer, 'expected-cohort.json'), cohort);
     command(process.execPath, ['check-packed-peers.mjs'], { cwd: consumer, log: join(evidence, 'runtime.log') });
     command(process.execPath, ['check-native-recording.mjs'], { cwd: consumer, log: join(evidence, 'native-recording.log') });
   });
@@ -135,7 +133,7 @@ try {
     recordOnly = join(evidence, 'record-only');
     step('separate normal record-only install has no engines or graph peers', () => {
       install(recordOnly, {
-        'footprint-explainable-ui': `file:${flow.path}`, foottrace: nativeCandidate.engines.foottrace, react: lane.peers.react,
+        'footprint-explainable-ui': `file:${flow.path}`, foottrace: cohort.pins.foottrace, react: lane.peers.react,
         '@types/react': lane.types['@types/react'],
       }, 'record-only');
       const packages = installedPackageNames(join(recordOnly, 'node_modules'));
@@ -184,7 +182,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
     // with the independent React-version-specific isolation check above.
     recordConsumer = join(evidence, 'record-browser');
     step('explicit separate record browser host install', () => install(recordConsumer, {
-      'footprint-explainable-ui': `file:${flow.path}`, foottrace: nativeCandidate.engines.foottrace,
+      'footprint-explainable-ui': `file:${flow.path}`, foottrace: cohort.pins.foottrace,
       react: lane.peers.react, 'react-dom': lane.peers['react-dom'],
       ...lane.types, vite: tooling.vite, playwright: tooling.playwright,
     }, 'record-browser'));
