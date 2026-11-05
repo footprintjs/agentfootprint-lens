@@ -30,3 +30,9 @@ All five ESM/CJS doors, strict declaration modes, native mock recording, replay,
 browser behavior and installed/archive byte checks remain. `process.mjs` owns
 bounded subprocesses and data-only archive inspection. Adjacent tests exercise
 derivation, byte/integrity joins, mutation, invalid paths and duplicate owners.
+
+`browser-install.mjs` owns browser provisioning. A subprocess timeout reported
+by `command` permits one retry, with the same 300-second limit per attempt.
+The first output stays in `browser-install.log`; the retry writes
+`browser-install-retry.log`. A second timeout or any other failure still fails
+the lane. Browser assertions and final byte checks run outside this retry.

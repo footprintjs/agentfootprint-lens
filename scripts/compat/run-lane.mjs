@@ -9,6 +9,7 @@ import { assertEvidenceOutsideRepository, assertInstalled, assertRecordIsolation
 import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertPublishedReceipt, assertRegistryLock, readPublishedAgent } from './published-proof.mjs';
 import { assertWhyIdentity } from './why-identity.mjs';
+import { installBrowser } from './browser-install.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const flags = parseFlags(process.argv.slice(2),
@@ -190,8 +191,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
   }
   if (lane.kind === 'native' && flags.browser !== 'no') {
     if (flags['install-browser'] === 'yes') step('install the declared browser for this CI lane', () => {
-      command(process.execPath, [join(consumer, 'node_modules/playwright/cli.js'), 'install', '--with-deps', 'chromium'],
-        { cwd: consumer, log: join(evidence, 'browser-install.log') });
+      installBrowser({ consumer, evidence });
     });
     step('actual installed-package browser replay, cursor, theme and candidate records', () => {
       const args = [join(root, 'scripts/check-compat-browser.mjs'), '--consumer', consumer,
