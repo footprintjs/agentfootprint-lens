@@ -4,9 +4,10 @@ import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertInstalled, assertRecordIsolation, candidate, installedPackageNames,
+import { assertInstalled, assertRecordIsolation, assertSingleFoottrace, candidate, nativeCandidate, installedPackageNames,
   laneContract, parseFlags, sha256, tooling } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
+import { assertNativeSourceMetadata } from './stage-proof.mjs';
 import { assertWhyIdentity } from './why-identity.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -27,10 +28,15 @@ function step(name, run) {
   run(); report.steps.push(name); writeJson(join(evidence, 'verification.json'), report);
 }
 function install(directory, dependencies, label) {
-  mkdirSync(directory); // Never reuse a consumer with unknown installed state.
-  writeJson(join(directory, 'package.json'), { name: `lens-${label}`, version: '1.0.0', private: true, dependencies });
+  const resolution = `${directory}-resolve`;
+  mkdirSync(resolution);
+  mkdirSync(directory); // A different fresh copy replays the generated lock.
+  writeJson(join(resolution, 'package.json'), { name: `lens-${label}`, version: '1.0.0', private: true, dependencies });
   command('npm', ['install', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
-    { cwd: directory, log: join(evidence, `${label}-install.log`) });
+    { cwd: resolution, log: join(evidence, `${label}-resolve.log`) });
+  for (const name of ['package.json', 'package-lock.json']) copyFileSync(join(resolution, name), join(directory, name));
+  command('npm', ['ci', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
+    { cwd: directory, log: join(evidence, `${label}-ci.log`) });
   command('npm', ['ls', '--all', '--json'], { cwd: directory, log: join(evidence, `${label}-tree.json`) });
 }
 function checkTypes(consumer, stem, toolConsumer = consumer) {
@@ -61,6 +67,13 @@ try {
     { ...whyIdentity, expectedSha: contract.why.sha256 });
   assert.deepEqual(why.files, contract.why.files);
   report.packages.why = { sha256: why.sha256, files: why.files, source: contract.source };
+  assert.equal(contract.agent.path, `agentfootprint-${nativeCandidate.version}.tgz`);
+  const agent = inspectArchive(join(artifacts, contract.agent.path), evidence,
+    { name: 'agentfootprint', version: nativeCandidate.version, expectedSha: contract.agent.sha256 });
+  assert.deepEqual(agent.files, contract.agent.files);
+  const nativeSource = assertNativeSourceMetadata(contract.nativeSource, agent.sha256);
+  report.packages.agent = { sha256: agent.sha256, source: nativeSource };
+
   let flow;
   if (lane.flow === 'candidate') {
     flow = inspectArchive(join(artifacts, contract.flow.path), evidence,
@@ -78,20 +91,25 @@ try {
   const consumer = join(evidence, 'consumer');
   step('strict fresh peer install', () => install(consumer, {
     ...lane.peers, ...lane.types, ...tooling,
-    'agentfootprint-lens': `file:${why.path}`, 'footprint-explainable-ui': `file:${flow.path}`,
+    'agentfootprint-lens': `file:${why.path}`, agentfootprint: `file:${agent.path}`, 'footprint-explainable-ui': `file:${flow.path}`,
   }, 'consumer'));
   const whyInstalled = join(consumer, 'node_modules/agentfootprint-lens');
   const flowInstalled = join(consumer, 'node_modules/footprint-explainable-ui');
   function verifyBytes() {
     assertInstalled(whyInstalled, why.files, 'Why');
+    assertInstalled(join(consumer, 'node_modules/agentfootprint'), agent.files, 'AgentFootprint');
+    report.recordOwner = assertSingleFoottrace(join(consumer, 'node_modules'), nativeCandidate.engines.foottrace);
     assertInstalled(flowInstalled, flow.files, 'Flow');
     assert.equal(sha256(readFileSync(why.path)), why.sha256, 'Why archive changed during checks');
+    assert.equal(sha256(readFileSync(agent.path)), agent.sha256, 'AgentFootprint archive changed during checks');
     assert.equal(sha256(readFileSync(flow.path)), flow.sha256, 'Flow archive changed during checks');
   }
   step('all installed bytes equal the archives before probes', verifyBytes);
-  step('all five ESM/CJS doors, native old-peer fallback, canonical owner, replay and SSR', () => {
+  step('all five ESM/CJS doors, canonical owner, native recording, replay and SSR', () => {
     copyFileSync(join(root, 'scripts/check-packed-peers.mjs'), join(consumer, 'check-packed-peers.mjs'));
+    copyFileSync(join(root, 'scripts/check-native-recording.mjs'), join(consumer, 'check-native-recording.mjs'));
     command(process.execPath, ['check-packed-peers.mjs'], { cwd: consumer, log: join(evidence, 'runtime.log') });
+    command(process.execPath, ['check-native-recording.mjs'], { cwd: consumer, log: join(evidence, 'native-recording.log') });
   });
   step('strict NodeNext ESM/CJS and Bundler declarations, with negative controls', () => {
     for (const extension of ['mts', 'cts', 'ts']) copyFileSync(join(root, 'scripts/check-packed-peer-types.ts'),
@@ -107,7 +125,7 @@ try {
     recordOnly = join(evidence, 'record-only');
     step('separate normal record-only install has no engines or graph peers', () => {
       install(recordOnly, {
-        'footprint-explainable-ui': `file:${flow.path}`, foottrace: '1.0.3', react: lane.peers.react,
+        'footprint-explainable-ui': `file:${flow.path}`, foottrace: nativeCandidate.engines.foottrace, react: lane.peers.react,
         '@types/react': lane.types['@types/react'],
       }, 'record-only');
       const packages = installedPackageNames(join(recordOnly, 'node_modules'));
@@ -156,13 +174,13 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
     // with the independent React-version-specific isolation check above.
     recordConsumer = join(evidence, 'record-browser');
     step('explicit separate record browser host install', () => install(recordConsumer, {
-      'footprint-explainable-ui': `file:${flow.path}`, foottrace: '1.0.3',
+      'footprint-explainable-ui': `file:${flow.path}`, foottrace: nativeCandidate.engines.foottrace,
       react: lane.peers.react, 'react-dom': lane.peers['react-dom'],
       ...lane.types, vite: tooling.vite, playwright: tooling.playwright,
     }, 'record-browser'));
     assertInstalled(join(recordConsumer, 'node_modules/footprint-explainable-ui'), flow.files, 'record browser Flow');
   }
-  if (lane.kind === 'modern' && flags.browser !== 'no') {
+  if (lane.kind === 'native' && flags.browser !== 'no') {
     if (flags['install-browser'] === 'yes') step('install the declared browser for this CI lane', () => {
       command(process.execPath, [join(consumer, 'node_modules/playwright/cli.js'), 'install', '--with-deps', 'chromium'],
         { cwd: consumer, log: join(evidence, 'browser-install.log') });
@@ -184,7 +202,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
       assertRecordIsolation(installedPackageNames(join(recordOnly, 'node_modules')), lane.react);
     }
   });
-  report.status = flags.browser === 'no' && lane.kind === 'modern' ? 'diagnostic-without-browser' : 'passed';
+  report.status = flags.browser === 'no' && lane.kind === 'native' ? 'diagnostic-without-browser' : 'passed';
 } catch (error) {
   report.status = 'failed'; report.error = error.stack;
   throw error;

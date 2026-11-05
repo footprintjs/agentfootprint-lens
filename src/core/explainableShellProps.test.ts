@@ -145,6 +145,29 @@ describe('toShellNarrativeEntries — footprintjs 10.1 attempt entries (REGRESSI
     expect(out!.text).toBe('attempt 2 of 3 succeeded');
     expect(out!.runtimeStageId).toBe('call-llm#0');
   });
+
+  it('keeps old recorded wording beside the new answered wording without rewriting either', () => {
+    // Frozen narrative fixtures, not claims of a live native-11 producer run.
+    // The native compatibility cohort separately supplies that producer proof.
+    const historical = Object.freeze({ ...attempt });
+    const current: CombinedNarrativeEntry = Object.freeze({
+      type: 'attempt',
+      text: 'Attempt 2 of 3 at CallLLM answered in 9ms.',
+      depth: 1,
+      stageName: 'CallLLM',
+      stageId: 'call-llm',
+      runtimeStageId: 'call-llm#1',
+    });
+    const entries = Object.freeze([historical, current]);
+    const out = toShellNarrativeEntries(entries);
+    expect(out).toEqual(entries);
+    expect(out.map((e) => e.text)).toEqual([
+      'attempt 2 of 3 succeeded',
+      'Attempt 2 of 3 at CallLLM answered in 9ms.',
+    ]);
+    expect(entries[0]).toBe(historical);
+    expect(entries[1]).toBe(current);
+  });
 });
 
 describe('toShellNarrativeEntries — eui vocabulary (PROPERTY)', () => {

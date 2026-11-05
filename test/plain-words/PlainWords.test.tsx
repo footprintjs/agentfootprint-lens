@@ -60,7 +60,7 @@ describe('<PlainWords> — the real account (fixture A)', () => {
     expect(one.className).toContain('lens-plain-one--warn');
     expect(within(one).getByTestId('plain-tone')).toHaveTextContent(LABELS.toneWarn);
     expect(within(one).getByTestId('plain-line-text')).toHaveTextContent(account.summary.sentence.text);
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(LABELS.inOneLine);
+    expect(screen.getByRole('heading', { level: 2, name: /In one line/ })).toHaveTextContent(LABELS.inOneLine);
   });
 
   it('items are bullets under their line: four under "It did not check", two under "It checked"', () => {

@@ -60,6 +60,17 @@ import {
 
 export { LABELS };
 
+/** Reader headings only; the account still owns every row and sentence. */
+const STAND_HEADINGS: ReadonlyMap<AccountRow['id'], string> = new Map([
+  ['asked', 'State'],
+  ['understood', 'State'],
+  ['checked', 'Trace'],
+  ['not-checked', 'Trace'],
+  ['found', 'Assess'],
+  ['how-sure', 'Name'],
+  ['anything-wrong', 'Decide'],
+]);
+
 export interface PlainWordsProps {
   /** The answer's account — the `account` of the `answer-account` op's reply. */
   readonly account: AnswerAccount;
@@ -298,8 +309,9 @@ const RowView: React.FC<{
 
 /**
  * The In plain words pane: the question and the answer, **In one line** (its
- * tone as a border AND a word), then the seven rows — each line with its
- * chips, who says so, and "show me".
+ * tone as a border AND a word), then STAND (State · Trace · Assess · Name ·
+ * Decide) over the seven rows — each line with its chips, who says so, and
+ * "show me". These headings preserve the answer's standing and its recorded reason.
  */
 export const PlainWords: React.FC<PlainWordsProps> = ({
   account,
@@ -379,9 +391,18 @@ export const PlainWords: React.FC<PlainWordsProps> = ({
         </div>
       </section>
       <div className="lens-plain-rows">
-        {account.rows.map((row) => (
-          <RowView key={row.id} row={row} {...lineProps} />
-        ))}
+        {account.rows.map((row, index) => {
+          const heading = STAND_HEADINGS.get(row.id);
+          const previous = account.rows[index - 1];
+          return (
+            <React.Fragment key={row.id}>
+              {heading !== undefined && heading !== (previous !== undefined ? STAND_HEADINGS.get(previous.id) : undefined) && (
+                <h2 className="lens-plain-heading" data-testid="plain-stand-heading">{heading}</h2>
+              )}
+              <RowView row={row} {...lineProps} />
+            </React.Fragment>
+          );
+        })}
       </div>
     </div>
   );

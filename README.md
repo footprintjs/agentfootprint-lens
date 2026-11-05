@@ -32,135 +32,66 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-Lens 0.79.0 accepts
-`footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0`. Earlier versions
-lack renderer APIs used by Lens even if an older peer range accepted them.
-Lens 0.76 accepted only the 0.x renderer range. This release does not publish
-or rename the independent Flow renderer package.
+The next Lens major supports **agentfootprint 14**, **footprintjs 11** and
+**Foottrace 1.11 or newer**, with Node.js 22 or newer and React 18 or 19.
+During the release-candidate train the peers are `agentfootprint ^14.0.0-rc.0`
+and `footprintjs ^11.0.0-rc.1`. Earlier installed runtime lines are no longer
+supported. Reading older saved recordings remains supported; their fixtures
+and tests are retained unchanged.
 
-Node.js 22 or newer is required, matching the `foottrace ^1.0.0` peer that
-owns record reading. Lens 0.79.0 accepts `footprintjs ^10.0.0` and
-`agentfootprint ^9.116.0 || ^10.0.0 || ^11.0.0 || ^12.0.0 || ^13.0.0`; Lens 0.77.0
-accepted AgentFootprint only up to 11. Engine recorders stay on FootPrint;
-saved-record readers come from Foottrace. Lens's public exports, recorded data,
-and cursor behavior are unchanged.
-
-AgentFootprint 13 support is included in Lens 0.79.0, tested against the exact
-source described below. Lens 0.78.0 accepts AgentFootprint only up to 12.
-
-The repository's development cohort pins Foottrace 1.11.0 so newer FootPrint 10
-candidates, AgentFootprint and Lens resolve the same physical record owner. The public
-`foottrace ^1.0.0` peer and the older compatibility lanes remain supported;
-this development pin adds no Lens API or record behavior.
-
-### AgentFootprint 11 compatibility
-
-The two time-fixture approval scenarios now approve the exact request shown at
-the pause. Their inferred decision objects also compile with the existing
-AgentFootprint 10.1.0 development dependency. Historical recordings are retained.
-`npm run fixtures:time:check` runs the actual generator in a separate process and
-temporary directory, checks that both resumed calls executed once with their
-time findings, and verifies that no saved fixture changed.
-
-CI keeps the existing AgentFootprint 10 lanes and adds an AgentFootprint 11 lane
-using release candidate commit `607114965535cc9c0f0b7a4745746172a7bff641`.
-It builds and packs that source without publishing, installs the actual archive
-normally with strict peer checks, and tests Lens source, approval fixtures,
-published runtime doors and strict package declarations. AgentFootprint 11 is
-published on npm, but this lane still packs the pinned candidate commit instead
-of installing from the registry. The development pin is still 10.1.0.
-
-### AgentFootprint 12 compatibility
-
-CI keeps the AgentFootprint 11 lane and adds an AgentFootprint 12 lane using
-release candidate commit `36824d10ab907060eb485420c978987342cbe561`. It runs
-the same checks: build and pack that source without publishing, install the
-actual archive with strict peer checks, then test Lens source, approval
-fixtures, published runtime doors and strict package declarations. Its packed
-consumer uses the floors the candidate declares, FootPrint 10.6.0 and
-Foottrace 1.8.0, so one physical Foottrace is shared. 12.0.0 makes a code
-run's `ok` optional (`undefined` means unknown, never success); Lens reads no
-code-run result, so its source is unchanged. The development pin is still
-10.1.0, and this lane packs the pinned candidate commit instead of installing
-from the registry.
-
-### AgentFootprint 13 compatibility
-
-CI retains every older lane and adds AgentFootprint 13 using exact source
-commit `ec50f65c848a64ccb5eb308cd7cc9147a0382c8a` (version 13.0.0).
-It builds and packs the unmodified source, tests Lens against that archive,
-then checks strict packed installation, runtime doors and all declaration
-modes. The consumer keeps FootPrint 10.6.0 and Foottrace 1.8.0, matching the
-candidate's declared floors and retaining one physical record owner. No
-candidate version is rewritten and no package is published by this lane.
-The regular development dependency remains AgentFootprint 10.1.0.
-
-The local packed-candidate checker also accepts exact `-rc.N` versions for
-majors with reviewed engine pins. It checks the archive's original version;
-a new major still needs reviewed pins and its own compatibility proof.
-
-### Flow Lens 1 compatibility checks
-
-The bridge adds no door and removes no export. Existing imports from
+The renderer peer remains `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0`.
+Its minimum supplies the renderer APIs used by Lens. Public imports from
 `agentfootprint-lens`, `/core`, `/why`, `/skillgraph`, and `/context` stay the
-same. The independent Flow Lens package adds `/record`; Why Lens continues
-to use its existing root and `/flowchart` APIs, including its graph stylesheet.
-Why's direct graph import is not a lazy-loading claim.
+same. Flow Lens's separate `/record` door is tested independently.
 
-The checks build **one Why tarball** and install those exact bytes normally in
-every consumer. Four floor lanes use AgentFootprint 10.0.0, FootPrint 10.0.0,
-Foottrace 1.0.0, Flow 0.34.0/0.38.0, and React 18.3.1/19.0.0.
-Twelve modern lanes cross Flow 0.34.0/0.38.0/the exact unreleased 1.0.0
-candidate with those React versions and Node 22/24, using AgentFootprint
-10.1.0, FootPrint 10.0.0, and Foottrace 1.0.3. The earlier two extraction
-source-build checks remain separate checks; their installed consumers use
-the same Why tarball too. FootPrint 9 is no longer a supported runtime peer;
-reading older saved records remains supported.
+In plain words groups the existing evidence under **STAND — State · Trace ·
+Assess · Name · Decide**. Name displays the answer's standing and its recorded
+reason. These headings preserve the existing row text, order and evidence
+pointers; they derive no new verdict. New attempt summaries use `answered` and
+`effect`. Historical narrative text, including `succeeded`, remains recorded
+data and is not rewritten by Lens.
 
-Each lane checks all five doors in ESM and CommonJS and compiles public
-declarations under NodeNext ESM, NodeNext CommonJS, and Bundler resolution,
-without `skipLibCheck`. The declaration toolchain is TypeScript 5.4.5 with
-Node 22.12.0 types and matching React types. Those types support TypeScript
-5.0+ and meet Vite's optional Node-type peer; Node 26 types require TypeScript
-5.6, so they would test a different compiler contract. This test-tool choice
-does not raise any runtime floor. The existing boundary
-type-error controls, native older-agent fallback, real replay seeding, and
-single physical Foottrace owner checks are retained.
+### Native compatibility proof
 
-Modern lanes also mount the installed packages in Chromium, replaying a saved
-Flow record through Replay and the observed Lens shell, checking the native
-transport, graph cursor, and theme. Candidate `/record` hosts separately check
-literal visible values and explanation text. The browser host uses
-Vite, the same bundler as this package's demo, without resolver aliases,
-externals, or browser stubs. Its production-module inspection rejects retained
-Node-only provider loading code; this is a Vite/browser compatibility check,
-not a claim about every bundler's treatment of unused imports. Candidate lanes
-separately install `/record` with only React, its types, and Foottrace, check
-its ESM/CommonJS behavior and declarations on saved Flow/HCI recordings, and
-then mount a different browser host that explicitly includes ReactDOM. That
-browser host is not the record-only isolation proof. These are compatibility
-checks, not the later real-app field test.
+Before the AgentFootprint 14 RC is published, CI builds exact main commit
+`bc0b93015ba6b927c1d02528fe76e36da1873b25` using its committed lock and
+producer npm 11.19.0. The reviewed release route's version-only stage creates
+an offline `agentfootprint-14.0.0-rc.0.tgz`: **candidate pack from main bc0b9301
+via the route's stage step; not the published RC**. It changes only the staged
+manifest's version as JSON; all other tracked bytes/modes and the built
+payload must remain identical. CI retains the source/tree identity, before and
+after hashes, pack command/result, route inspection and archive digest. This
+compatibility workflow never publishes a package.
 
-The candidate source commit and full tarball digest are pinned in
-`scripts/compat/contract.mjs`. Its already-reviewed, tracked build is packed
-with npm 11.21.0 and `--ignore-scripts`; it is never rebuilt or selected by a
-mutable branch. Archive contents must match the source/build files, and every
-installed Why/Flow file is checked before and after the probes. CI retains
-the archives, hashes, logs, dependency trees, and browser evidence, including
-failed runs. There are no peer overrides, forced installs, runtime stubs, or
-producer/model calls.
+The committed devDependency names the intended registry RC. CI temporarily
+selects the real offline archive before any Lens install. A normal strict
+install generates a lock in one directory; a separate fresh source checkout
+runs `npm ci --strict-peer-deps` on that exact lock. The committed manifest is
+restored before tests or packing, so the public package contains no local
+archive path. This is **generated-lock replay**, not committed-lock npm ci.
+After the real RC is published, a follow-up must use the registry candidate,
+commit its lock and repeat the published-candidate sweep before Lens releases.
 
-To reproduce a lane locally after a normal Why build, pack Why, then run
-`scripts/compat/prepare-artifacts.mjs` with `--why-tar`, `--flow-source`
-(the pinned clean candidate checkout), and `--out`. Run
-`scripts/compat/run-lane.mjs` with `--kind modern`, `--flow candidate`,
-`--react 18` (or `19`), `--node 22` (or `24`, matching the running Node),
-`--artifacts`, a new `--evidence` directory, and `--flow-source`.
-`--install-browser yes` installs Chromium and its CI system dependencies;
-an already installed browser can instead be selected with
-`PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH`. Evidence is retained, never deleted on
-failure. `--browser no` is diagnostic-only and cannot report a passing modern
-lane.
+Both Node 22 and 24 run the whole Lens suite, including historical saved-record
+data, approval-fixture generation, typechecking, build and packaging checks.
+One canonical Lens archive feeds renderer 0.34.0, 0.38.0 and the exact reviewed
+1.0.0 candidate, each with React 18/19 on Node 22/24. Every consumer checks
+strict generated-lock installation, all five ESM/CommonJS doors, declarations
+under NodeNext ESM/CommonJS and Bundler with `skipLibCheck: false`, canonical
+Foottrace ownership, a real native mock-agent recording, replay and Chromium
+rendering. The browser host uses Vite without aliases, externals or stubs.
+
+The renderer candidate's tracked build is pinned by commit and digest in
+`scripts/compat/contract.mjs`; npm 11.21.0 packs it without rebuilding.
+Candidate `/record` checks separately cover an isolated React/types/Foottrace
+install and a browser host with ReactDOM. Installed package bytes are compared
+to the archives before and after probes. Archives, generated locks, logs,
+dependency trees and browser evidence remain available on failed runs too.
+
+The checked-in CI workflow and `scripts/compat/README.md` document the exact
+staging and consumer commands. All native lanes use `--kind native`; old
+runtime matrices have been retired rather than represented as supported.
+`--browser no` is diagnostic-only and cannot yield a passing native lane.
 
 ```tsx
 import { useMemo } from 'react';
