@@ -6,6 +6,15 @@ const read = (path: string) => readFileSync(resolve(path), 'utf8');
 const workflow = read('.github/workflows/ci.yml');
 
 describe('native footprintjs 11 / agentfootprint 14 compatibility', () => {
+  it('pins every hosted CI job to the reviewed Ubuntu image', () => {
+    const runners = workflow.match(/^[ \t]*runs-on:.*$/gm) ?? [];
+    expect(runners.map((line) => line.trim())).toEqual([
+      'runs-on: ubuntu-24.04',
+      'runs-on: ubuntu-24.04',
+      'runs-on: ubuntu-24.04',
+    ]);
+  });
+
   it('supports only the new runtime line while retaining both React majors and every renderer', () => {
     const manifest = JSON.parse(read('package.json'));
     expect(manifest.peerDependencies.agentfootprint).toBe('^14.0.0-rc.0');
