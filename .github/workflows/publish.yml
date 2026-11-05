@@ -6,9 +6,8 @@ on:
 
 # Least privilege at the top level: NO id-token here. The OIDC publish token is
 # granted ONLY to the `publish` job below, which consumes a pre-built artifact and
-# performs ZERO dependency resolution — so unpinned `npm install` (needed because
-# rolldown's native binding is a platform optional dep, npm #4828) never shares a
-# runtime with the registry token or `npm publish --provenance`.
+# performs ZERO dependency resolution. The build job replays the committed lock
+# with `npm ci` and has no publish permission.
 permissions:
   contents: read
 
