@@ -30,12 +30,19 @@ function installedVersion(name, entry = name) {
 
 const versions = Object.fromEntries(['agentfootprint', 'footprintjs', 'foottrace'].map((name) =>
   [name, installedVersion(name)]));
-assert.deepEqual(versions, {
-  agentfootprint: '14.0.0-rc.0', footprintjs: '11.0.0-rc.1', foottrace: '1.11.0',
-}, 'this probe requires the installed offline AF14/native11 cohort');
+const expectedCohort = JSON.parse(readFileSync(new URL('./expected-cohort.json', import.meta.url), 'utf8'));
+const consumerLock = JSON.parse(readFileSync(new URL('./package-lock.json', import.meta.url), 'utf8'));
+assert.deepEqual(versions, expectedCohort.pins, 'installed versions must match the source-selected cohort');
+for (const [name, expected] of Object.entries(expectedCohort.packages)) {
+  const entry = consumerLock.packages[`node_modules/${name}`];
+  assert.equal(entry.version, expected.version);
+  assert.equal(entry.resolved, expected.tarball);
+  assert.equal(entry.integrity, expected.integrity);
+  assert.ok(!entry.link);
+}
 versions.lens = installedVersion('agentfootprint-lens', 'agentfootprint-lens/core');
 
-const report = { schema: 1, versions, formats: {} };
+const report = { schema: 1, expectedCohort, versions, formats: {} };
 for (const [format, load] of [
   ['ESM', (name) => import(name)],
   ['CJS', (name) => require(name)],

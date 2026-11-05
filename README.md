@@ -58,14 +58,15 @@ candidate. `package-lock.json` is committed; every source gate runs
 `npm ci --strict-peer-deps` on that lock on Node 22 or 24. There is no local
 archive substitution in the development manifest or default workflow.
 
-Before running the suite, CI downloads the published archive and compares its
-SHA512 integrity and SHA1 with registry metadata, its SHA256 with the proven
-offline candidate, its identity with the committed lock, and every installed
-AgentFootprint file with that archive. Both archives have SHA256
+The active cohort is derived from the exact development pins in `package.json`
+and the version, registry URL and integrity entries in the committed lock. CI
+joins registry SHA512/SHA1 with the downloaded bytes and locked integrity,
+compares installed files with the archive, and requires one physical Foottrace
+matching the selected pin. Archive SHA256 and size are measured receipt data.
+
+The earlier AgentFootprint RC matched the one-time offline proof at SHA256
 `0cabda7905ac5342c57e5741e7f7c48f788114dd6504b92138e9a609f76e7cfc`.
-A difference is a publish-route finding; the check fails rather than rewriting
-Lens or accepting a different package. `npm ls foottrace` and a physical
-package scan require one Foottrace 1.11.0 owner.
+That historical receipt is not an identity constant for a later release.
 
 Both Nodes run the whole Lens suite, including historical saved-record data,
 approval-fixture generation, helpers, typechecking, build and packaging checks.
@@ -90,12 +91,10 @@ Archives, source-lock digests, consumer locks, logs, dependency trees and browse
 evidence remain available on failed runs. Browser builds use Vite without
 aliases, externals or stubs.
 
-The previous offline stage/identity helpers and their tests remain available
-as a documented optional lane in `scripts/compat/README.md`, selected explicitly
-with `--agent-profile offline`. They are outside the default published-candidate
-workflow. The earlier generated source locks contained local candidate paths
-and remain non-portable historical evidence. All supported runtime lanes use
-`--kind native`; `--browser no` remains diagnostic-only.
+The previous one-time offline staging lane is removed; its proof remains in
+Git history. New validation always follows the current manifest and committed
+lock. All supported runtime lanes use `--kind native`; `--browser no` remains
+diagnostic-only and cannot report a passing lane.
 
 ```tsx
 import { useMemo } from 'react';

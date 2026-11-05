@@ -29,7 +29,7 @@ jobs:
           node-version: 22
       - run: npm install -g npm@11.21.0
       - run: npm ci --strict-peer-deps
-      - name: Verify the installed registry candidate against the proven archive
+      - name: Verify registry bytes, committed identity and installed files
         run: node scripts/compat/published-proof.mjs --out published-evidence-22 --lock package-lock.json
       - run: npm run test:compat-helpers
       - run: npm run test:contract:foottrace
@@ -43,12 +43,13 @@ jobs:
         run: |
           mkdir -p compat-artifacts
           why_archive="$(node scripts/compat/why-identity.mjs)"
+          agent_archive="$(node scripts/compat/published-proof.mjs --archive-name)"
           npm pack --ignore-scripts --pack-destination compat-artifacts
           node scripts/compat/prepare-artifacts.mjs \
             --why-tar "compat-artifacts/$why_archive" \
             --flow-source flow-candidate --out compat-artifacts \
-            --agent-tar published-evidence-22/agentfootprint-14.0.0-rc.0.tgz \
-            --agent-source published-evidence-22/published-agent.json --agent-profile published
+            --agent-tar "published-evidence-22/$agent_archive" \
+            --agent-source published-evidence-22/published-agent.json
       - uses: actions/upload-artifact@v4
         with:
           name: compatibility-archives
@@ -80,7 +81,7 @@ jobs:
           node-version: 24
       - run: npm install -g npm@11.21.0
       - run: npm ci --strict-peer-deps
-      - name: Verify the installed registry candidate against the proven archive
+      - name: Verify registry bytes, committed identity and installed files
         run: node scripts/compat/published-proof.mjs --out published-evidence-24 --lock package-lock.json
       - run: npm run test:compat-helpers
       - run: npm run test:contract:foottrace
@@ -147,6 +148,7 @@ jobs:
             ${{ runner.temp }}/compat-evidence/*.tgz
             ${{ runner.temp }}/compat-evidence/consumer/package*.json
             ${{ runner.temp }}/compat-evidence/consumer/native-recording.json
+            ${{ runner.temp }}/compat-evidence/consumer/expected-cohort.json
             ${{ runner.temp }}/compat-evidence/record-only/package*.json
             ${{ runner.temp }}/compat-evidence/record-browser/package*.json
             ${{ runner.temp }}/compat-evidence/browser/**
