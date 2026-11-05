@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Breaking
+
+- The next major supports agentfootprint 14 and footprintjs 11 only, with
+  Foottrace 1.11 or newer. Earlier installed runtime lines are not supported;
+  old saved recordings remain readable.
+
+### Changed
+
+- Group the explain view under STAND — State · Trace · Assess · Name · Decide,
+  retaining the account's sentences, the answer's standing, its recorded reasons
+  and evidence pointers.
+
 ## [0.79.0] - 2026-11-02
 
 ### Fixed

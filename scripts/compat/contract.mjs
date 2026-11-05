@@ -19,13 +19,20 @@ export const tooling = Object.freeze({
   vite: '8.3.4', playwright: '1.63.0',
 });
 
+// Offline candidate produced by the reviewed route's stage step, not an npm RC.
+export const nativeCandidate = Object.freeze({
+  profile: 'fp11-af-main',
+  sourceCommit: 'bc0b93015ba6b927c1d02528fe76e36da1873b25',
+  sourceVersion: '13.0.0',
+  version: '14.0.0-rc.0',
+  engines: Object.freeze({ footprintjs: '11.0.0-rc.1', foottrace: '1.11.0' }),
+});
+
 export function laneContract({ kind, flow, react, node }) {
-  assert.ok(['floor', 'modern'].includes(kind), `unknown lane kind: ${kind}`);
+  assert.equal(kind, 'native', `unknown lane kind: ${kind}`);
   assert.ok(['0.34.0', '0.38.0', 'candidate'].includes(flow), `unknown Flow: ${flow}`);
   assert.ok(['18', '19'].includes(String(react)), `unknown React: ${react}`);
   assert.ok(['22', '24'].includes(String(node)), `unknown Node: ${node}`);
-  assert.ok(kind !== 'floor' || (flow !== 'candidate' && String(node) === '22'),
-    'floor lanes preserve the four Node 22 renderer/React combinations');
   const react18 = String(react) === '18';
   return {
     id: `${kind}-flow-${flow}-react-${react}-node-${node}`,
@@ -35,40 +42,14 @@ export function laneContract({ kind, flow, react, node }) {
       'react-dom': react18 ? '18.3.1' : '19.0.0',
       '@xyflow/react': '12.10.2',
       dagre: '0.8.5',
-      agentfootprint: kind === 'floor' ? '10.0.0' : '10.1.0',
-      footprintjs: '10.0.0',
-      foottrace: kind === 'floor' ? '1.0.0' : '1.0.3',
+      agentfootprint: nativeCandidate.version,
+      ...nativeCandidate.engines,
     },
     types: {
       '@types/react': react18 ? '18.3.3' : '19.0.0',
       '@types/react-dom': react18 ? '18.3.0' : '19.0.0',
     },
   };
-}
-
-// Engine pins for the unpublished AgentFootprint candidate lanes, by major.
-// 11 keeps the pins its lane was reviewed with. 12 uses the floors its own
-// package.json declares: peer footprintjs ^10.6.0, dependency foottrace ^1.8.0.
-// 13 retains those same declared floors. A lower Foottrace would install a
-// second, nested record owner under either major.
-const agentCandidateEngines = Object.freeze({
-  11: Object.freeze({ footprintjs: '10.0.0', foottrace: '1.7.0' }),
-  12: Object.freeze({ footprintjs: '10.6.0', foottrace: '1.8.0' }),
-  13: Object.freeze({ footprintjs: '10.6.0', foottrace: '1.8.0' }),
-});
-
-export function agentCandidateContract(version) {
-  const match = typeof version === 'string'
-    && /^([1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)(?:-rc\.(?:0|[1-9][0-9]*))?$/.exec(version);
-  assert.ok(match,
-    `--agent-version must be an exact release or rc.N version, not ${version}`);
-  const major = match[1];
-  assert.ok(Object.hasOwn(agentCandidateEngines, major),
-    `no reviewed engine pins for AgentFootprint ${major}`);
-  return Object.freeze({
-    version, major, consumer: `lens-agentfootprint-${major}-consumer`,
-    engines: agentCandidateEngines[major],
-  });
 }
 
 export function sha256(bytes) {
@@ -143,6 +124,18 @@ export function installedPackageNames(modules) {
   }
   scan(modules);
   return names.sort();
+}
+
+export function assertSingleFoottrace(modules, expectedVersion) {
+  assert.ok(typeof expectedVersion === 'string' && expectedVersion.length > 0,
+    'expected Foottrace version must be explicit');
+  const copies = installedPackageNames(modules).filter((name) => name === 'foottrace').length;
+  assert.equal(copies, 1, 'exactly one physical Foottrace package must be installed');
+  const path = realpathSync(join(modules, 'foottrace'));
+  const manifest = JSON.parse(readFileSync(join(path, 'package.json'), 'utf8'));
+  assert.equal(manifest.name, 'foottrace', 'the root Foottrace directory must own the package');
+  assert.equal(manifest.version, expectedVersion, 'Foottrace version must match the native cohort');
+  return { copies, version: manifest.version, path };
 }
 
 export function assertRecordIsolation(names, reactMajor) {

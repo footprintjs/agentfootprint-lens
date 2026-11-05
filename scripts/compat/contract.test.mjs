@@ -3,93 +3,39 @@ import { mkdtempSync, mkdirSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { agentCandidateContract, assertInstalled, assertOwner, assertRecordIsolation, hashFiles,
+import { assertInstalled, assertOwner, assertRecordIsolation, hashFiles,
   installedPackageNames, laneContract, parseFlags, publishedSourceFiles, safeArchiveNames,
   sha256 } from './contract.mjs';
 
-test('the four floor lanes require FootPrint 10 and preserve renderer/React floors', () => {
-  const ids = [];
-  for (const flow of ['0.34.0', '0.38.0']) for (const react of ['18', '19']) {
-    const lane = laneContract({ kind: 'floor', flow, react, node: '22' });
-    ids.push(lane.id);
-    assert.equal(lane.peers.agentfootprint, '10.0.0');
-    assert.equal(lane.peers.footprintjs, '10.0.0');
-    assert.equal(lane.peers.foottrace, '1.0.0');
-  }
-  assert.equal(new Set(ids).size, 4);
-});
-
-test('the twelve modern lanes include both old renderers and the real candidate', () => {
+test('the twelve native lanes retain renderer and React coverage on both Nodes', () => {
   const ids = [];
   for (const flow of ['0.34.0', '0.38.0', 'candidate']) for (const react of ['18', '19']) {
     for (const node of ['22', '24']) {
-      const lane = laneContract({ kind: 'modern', flow, react, node });
+      const lane = laneContract({ kind: 'native', flow, react, node });
       ids.push(lane.id);
-      assert.equal(lane.peers.agentfootprint, '10.1.0');
-      assert.equal(lane.peers.footprintjs, '10.0.0');
-      assert.equal(lane.peers.foottrace, '1.0.3');
+      assert.equal(lane.kind, 'native');
+      assert.equal(lane.peers.agentfootprint, '14.0.0-rc.0');
+      assert.equal(lane.peers.footprintjs, '11.0.0-rc.1');
+      assert.equal(lane.peers.foottrace, '1.11.0');
+      assert.equal(lane.peers.react, react === '18' ? '18.3.1' : '19.0.0');
+      assert.equal(lane.peers['react-dom'], lane.peers.react);
+      assert.equal(lane.types['@types/react'], react === '18' ? '18.3.3' : '19.0.0');
+      assert.equal(lane.types['@types/react-dom'], react === '18' ? '18.3.0' : '19.0.0');
     }
   }
   assert.equal(new Set(ids).size, 12);
 });
 
-test('invalid and removed historical runtime combinations fail closed', () => {
+test('invalid and retired historical runtime combinations fail closed', () => {
   for (const input of [
+    { kind: 'floor', flow: '0.34.0', react: '18', node: '22' },
+    { kind: 'modern', flow: '0.38.0', react: '19', node: '24' },
     { kind: 'historical', flow: '0.38.0', react: '18', node: '22' },
     { kind: 'other', flow: '0.38.0', react: '18', node: '22' },
-    { kind: 'modern', flow: 'latest', react: '18', node: '22' },
-    { kind: 'modern', flow: 'candidate', react: '17', node: '22' },
-    { kind: 'modern', flow: 'candidate', react: '18', node: '20' },
-    { kind: 'floor', flow: 'candidate', react: '18', node: '22' },
-    { kind: 'floor', flow: '0.38.0', react: '18', node: '24' },
+    { kind: 'native', flow: 'latest', react: '18', node: '22' },
+    { kind: 'native', flow: 'candidate', react: '17', node: '22' },
+    { kind: 'native', flow: 'candidate', react: '18', node: '20' },
   ]) assert.throws(() => laneContract(input));
-});
-
-test('the AgentFootprint 11 candidate lane keeps the engine pins it was reviewed with', () => {
-  const lane = agentCandidateContract('11.0.0');
-  assert.equal(lane.version, '11.0.0');
-  assert.equal(lane.consumer, 'lens-agentfootprint-11-consumer');
-  assert.deepEqual(lane.engines, { footprintjs: '10.0.0', foottrace: '1.7.0' });
-});
-
-test('the AgentFootprint 12 candidate lane pins the engine floors its manifest declares', () => {
-  const lane = agentCandidateContract('12.0.0');
-  assert.equal(lane.version, '12.0.0');
-  assert.equal(lane.consumer, 'lens-agentfootprint-12-consumer');
-  assert.deepEqual(lane.engines, { footprintjs: '10.6.0', foottrace: '1.8.0' });
-  assert.ok(Object.isFrozen(lane) && Object.isFrozen(lane.engines));
-});
-
-test('the AgentFootprint 13 candidate lane pins the actual manifest floors', () => {
-  const lane = agentCandidateContract('13.0.0');
-  assert.equal(lane.version, '13.0.0');
-  assert.equal(lane.consumer, 'lens-agentfootprint-13-consumer');
-  assert.deepEqual(lane.engines, { footprintjs: '10.6.0', foottrace: '1.8.0' });
-  assert.ok(Object.isFrozen(lane) && Object.isFrozen(lane.engines));
-});
-
-test('exact RC versions retain the reviewed major engine pins and archive identity', () => {
-  for (const major of ['11', '12', '13']) {
-    for (const suffix of ['0', '1', '12']) {
-      const version = `${major}.0.0-rc.${suffix}`;
-      const stable = agentCandidateContract(`${major}.0.0`);
-      const lane = agentCandidateContract(version);
-      assert.equal(lane.version, version);
-      assert.equal(lane.major, major);
-      assert.equal(lane.consumer, stable.consumer);
-      assert.deepEqual(lane.engines, stable.engines);
-      assert.ok(Object.isFrozen(lane) && Object.isFrozen(lane.engines));
-    }
-  }
-});
-
-test('candidate versions that are inexact or have no reviewed pins fail closed', () => {
-  for (const version of [undefined, 12, '', '12', '12.0', 'v12.0.0', ' 12.0.0',
-    '012.0.0', '0.1.0', '10.1.0', '14.0.0', '14.0.0-rc.0', '__proto__',
-    '13.0.0-rc', '13.0.0-rc.01', '13.0.0-rc.-1', '13.0.0-RC.1',
-    '13.0.0-beta.1', '13.0.0-rc.1+build', '13.0.0+build', '13.0.0\n', '13.0.0-rc.1\n']) {
-    assert.throws(() => agentCandidateContract(version));
-  }
 });
 
 test('archives reject traversal, duplicate names and foreign prefixes', () => {

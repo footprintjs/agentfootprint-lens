@@ -39,10 +39,10 @@ describe('<PlainWords> accessibility', () => {
     expect(panel).toHaveAccessibleName('In plain words');
   });
 
-  it('headings: h2 "In one line", then one h3 per row, each naming its section', () => {
+  it('headings: h2 "In one line", five STAND headings, then one h3 per row naming its section', () => {
     render(<PlainWords account={account} shown={shown} />);
-    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(1);
-    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(LABELS.inOneLine);
+    expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(6);
+    expect(screen.getByRole('heading', { level: 2, name: /In one line/ })).toHaveTextContent(LABELS.inOneLine);
     const h3 = screen.getAllByRole('heading', { level: 3 });
     expect(h3).toHaveLength(7);
     for (const row of screen.getAllByTestId('plain-row')) {
@@ -76,7 +76,7 @@ describe('<PlainWords> accessibility', () => {
 
   it('focusOnMount moves focus to the pane’s heading (opened from Explain)', () => {
     render(<PlainWords account={account} shown={shown} focusOnMount />);
-    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 2 }));
+    expect(document.activeElement).toBe(screen.getByRole('heading', { level: 2, name: /In one line/ }));
   });
 
   it('without focusOnMount, focus stays where it was', () => {
