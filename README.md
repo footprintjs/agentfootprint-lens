@@ -32,11 +32,10 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-The next Lens major supports **agentfootprint 14**, **footprintjs 11** and
-**Foottrace 1.11 or newer**, with Node.js 22 or newer and React 18 or 19.
-During the release-candidate train the peers are `agentfootprint ^14.0.0-rc.0`
-and `footprintjs ^11.0.0-rc.1`. Earlier installed runtime lines are no longer
-supported. Reading older saved recordings remains supported; their fixtures
+Lens 0.80.0 supports **agentfootprint 14**, **footprintjs 11** and
+**Foottrace 1.11.1 or newer**, with Node.js 22 or newer and React 18 or 19.
+The stable peers are `agentfootprint ^14.0.0` and `footprintjs ^11.0.0`.
+Earlier installed runtime lines are no longer supported. Reading older saved recordings remains supported; their fixtures
 and tests are retained unchanged.
 
 The renderer peer remains `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0`.
@@ -51,12 +50,12 @@ pointers; they derive no new verdict. New attempt summaries use `answered` and
 `effect`. Historical narrative text, including `succeeded`, remains recorded
 data and is not rewritten by Lens.
 
-### Native compatibility proof
+### Compatibility proof and final validation
 
-The repository pins the published `agentfootprint@14.0.0-rc.0` registry
-candidate. `package-lock.json` is committed; every source gate runs
-`npm ci --strict-peer-deps` on that lock on Node 22 or 24. There is no local
-archive substitution in the development manifest or default workflow.
+The 0.80.0 development cohort pins `agentfootprint@14.0.0`,
+`footprintjs@11.0.0` and `foottrace@1.11.1`. Release validation uses a normally
+generated committed lock after the upstream finals are published, with
+`npm ci --strict-peer-deps` on Node 22 and 24.
 
 The active cohort is derived from the exact development pins in `package.json`
 and the version, registry URL and integrity entries in the committed lock. CI
@@ -64,9 +63,13 @@ joins registry SHA512/SHA1 with the downloaded bytes and locked integrity,
 compares installed files with the archive, and requires one physical Foottrace
 matching the selected pin. Archive SHA256 and size are measured receipt data.
 
-The earlier AgentFootprint RC matched the one-time offline proof at SHA256
+The preceding RC proof compared the published `agentfootprint@14.0.0-rc.0`
+archive with the reviewed offline candidate. Both had SHA256
 `0cabda7905ac5342c57e5741e7f7c48f788114dd6504b92138e9a609f76e7cfc`.
-That historical receipt is not an identity constant for a later release.
+That is historical candidate evidence, not a digest or approval for the final
+14.0.0 package. The final cohort requires fresh validation against its own
+published metadata and committed lock. `npm ls foottrace` and the physical
+package scan must show one Foottrace 1.11.1 owner.
 
 Both Nodes run the whole Lens suite, including historical saved-record data,
 approval-fixture generation, helpers, typechecking, build and packaging checks.
