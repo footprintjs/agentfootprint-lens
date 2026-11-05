@@ -7,11 +7,11 @@ import { PlainWords } from './PlainWords.js';
 import { loadReply, tamperedReply } from '../../../test/plain-words/helpers.js';
 
 describe('<PlainWords> — STAND reader order', () => {
-  it('heads the existing rows State, Trace, Assess, Name, Decide without changing their order or text', () => {
+  it('heads the unchanged row order State, Assess, Trace, Name, Decide', () => {
     const { account, shown } = loadReply();
     render(<PlainWords account={account} shown={shown} />);
     expect(screen.getAllByTestId('plain-stand-heading').map((h) => h.textContent)).toEqual([
-      'State', 'Trace', 'Assess', 'Name', 'Decide',
+      'State', 'Assess', 'Trace', 'Name', 'Decide',
     ]);
     const rows = screen.getAllByTestId('plain-row');
     expect(rows.map((r) => r.dataset.row)).toEqual(account.rows.map((r) => r.id));
@@ -22,6 +22,24 @@ describe('<PlainWords> — STAND reader order', () => {
       account.summary.sentence.text, ...account.rows.flatMap((r) => r.lines.map((l) => l.text)),
     ]);
     expect(rows[0]!.compareDocumentPosition(screen.getByTestId('plain-one-liner')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
+  });
+
+  it.each([
+    ['checked', 'Assess'],
+    ['not-checked', 'Assess'],
+    ['found', 'Trace'],
+  ])('heads %s as %s while keeping its sentences and evidence', (id, heading) => {
+    const { account, shown } = loadReply();
+    render(<PlainWords account={account} shown={shown} />);
+    const row = screen.getAllByTestId('plain-row').find((el) => el.dataset.row === id)!;
+    let previous = row.previousElementSibling;
+    while (previous !== null && previous.tagName !== 'H2') previous = previous.previousElementSibling;
+    expect(previous).toHaveTextContent(heading);
+    const recorded = account.rows.find((entry) => entry.id === id)!;
+    expect(within(row).getAllByTestId('plain-line-text').map((el) => el.textContent)).toEqual(
+      recorded.lines.map((line) => line.text),
+    );
+    expect(within(row).getAllByTestId('plain-evidence')).toHaveLength(recorded.lines.length);
   });
 
   it('Name keeps the supplied standing and reason sentence rather than deriving one from summary tone', () => {

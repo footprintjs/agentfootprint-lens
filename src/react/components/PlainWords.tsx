@@ -64,9 +64,9 @@ export { LABELS };
 const STAND_HEADINGS: ReadonlyMap<AccountRow['id'], string> = new Map([
   ['asked', 'State'],
   ['understood', 'State'],
-  ['checked', 'Trace'],
-  ['not-checked', 'Trace'],
-  ['found', 'Assess'],
+  ['checked', 'Assess'],
+  ['not-checked', 'Assess'],
+  ['found', 'Trace'],
   ['how-sure', 'Name'],
   ['anything-wrong', 'Decide'],
 ]);

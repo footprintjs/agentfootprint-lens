@@ -53,50 +53,53 @@ data and is not rewritten by Lens.
 
 ### Native compatibility proof
 
-Before the AgentFootprint 14 RC is published, CI builds exact main commit
-`bc0b93015ba6b927c1d02528fe76e36da1873b25` using its committed lock and
-producer npm 11.19.0. The reviewed release route's version-only stage creates
-an offline `agentfootprint-14.0.0-rc.0.tgz`: **candidate pack from main bc0b9301
-via the route's stage step; not the published RC**. It changes only the staged
-manifest's version as JSON; all other tracked bytes/modes and the built
-payload must remain identical. CI retains the source/tree identity, before and
-after hashes, pack command/result, route inspection and archive digest. This
-compatibility workflow never publishes a package.
+The repository pins the published `agentfootprint@14.0.0-rc.0` registry
+candidate. `package-lock.json` is committed; every source gate runs
+`npm ci --strict-peer-deps` on that lock on Node 22 or 24. There is no local
+archive substitution in the development manifest or default workflow.
 
-The committed devDependency names the intended registry RC. CI temporarily
-selects the real offline archive before any Lens install. A normal strict
-install generates a lock in one directory; a separate fresh source checkout
-runs `npm ci --strict-peer-deps` on that exact lock. The committed manifest is
-restored before tests or packing, so the public package contains no local
-archive path. This is **generated-lock replay**, not committed-lock npm ci.
-After the real RC is published, a follow-up must use the registry candidate,
-commit its lock and repeat the published-candidate sweep before Lens releases.
+Before running the suite, CI downloads the published archive and compares its
+SHA512 integrity and SHA1 with registry metadata, its SHA256 with the proven
+offline candidate, its identity with the committed lock, and every installed
+AgentFootprint file with that archive. Both archives have SHA256
+`0cabda7905ac5342c57e5741e7f7c48f788114dd6504b92138e9a609f76e7cfc`.
+A difference is a publish-route finding; the check fails rather than rewriting
+Lens or accepting a different package. `npm ls foottrace` and a physical
+package scan require one Foottrace 1.11.0 owner.
 
-Both Node 22 and 24 run the whole Lens suite, including historical saved-record
-data, approval-fixture generation, typechecking, build and packaging checks.
-One canonical Lens archive feeds renderer 0.34.0, 0.38.0 and the exact reviewed
-1.0.0 candidate, each with React 18/19 on Node 22/24. Every consumer checks
-strict generated-lock installation, all five ESM/CommonJS doors, declarations
-under NodeNext ESM/CommonJS and Bundler with `skipLibCheck: false`, canonical
-Foottrace ownership, a real native mock-agent recording, replay and Chromium
-rendering. The browser host uses Vite without aliases, externals or stubs.
+Both Nodes run the whole Lens suite, including historical saved-record data,
+approval-fixture generation, helpers, typechecking, build and packaging checks.
+One Lens archive feeds renderer 0.34.0, 0.38.0 and the exact reviewed 1.0.0
+candidate, each with React 18/19 on Node 22/24. Every consumer installs the
+registry AgentFootprint candidate normally and checks its locked integrity and
+installed bytes against the same proven archive. Public ESM/CommonJS doors,
+strict NodeNext/Bundler declarations, mock-agent recording/replay and Chromium
+rendering remain covered. Candidate `/record` isolation and browser checks
+remain separate.
+
+Each matrix job first installs the repository's committed source lock. Its
+isolated consumer fixture then performs a normal strict resolution and a fresh
+`npm ci` replay for that renderer/React combination and the newly built Lens
+tarball. Those generated fixture locks contain a CI-local Lens archive path:
+they are non-portable evidence, not the repository's committed source lock.
 
 The renderer candidate's tracked build is pinned by commit and digest in
 `scripts/compat/contract.mjs`; npm 11.21.0 packs it without rebuilding.
-Candidate `/record` checks separately cover an isolated React/types/Foottrace
-install and a browser host with ReactDOM. Installed package bytes are compared
-to the archives before and after probes. Archives, generated locks, logs,
-dependency trees and browser evidence remain available on failed runs too.
+Archives, source-lock digests, consumer locks, logs, dependency trees and browser
+evidence remain available on failed runs. Browser builds use Vite without
+aliases, externals or stubs.
 
-The checked-in CI workflow and `scripts/compat/README.md` document the exact
-staging and consumer commands. All native lanes use `--kind native`; old
-runtime matrices have been retired rather than represented as supported.
-`--browser no` is diagnostic-only and cannot yield a passing native lane.
+The previous offline stage/identity helpers and their tests remain available
+as a documented optional lane in `scripts/compat/README.md`, selected explicitly
+with `--agent-profile offline`. They are outside the default published-candidate
+workflow. The earlier generated source locks contained local candidate paths
+and remain non-portable historical evidence. All supported runtime lanes use
+`--kind native`; `--browser no` remains diagnostic-only.
 
 ```tsx
 import { useMemo } from 'react';
 import { Agent } from 'agentfootprint';
-import { mock } from 'agentfootprint/llm-providers';
+import { mock } from 'agentfootprint/providers';
 import { Lens, lensRecorder } from 'agentfootprint-lens';
 
 export function App() {
@@ -127,7 +130,7 @@ Three lines of wiring — `lensRecorder()`, `recorder.observe(agent)`, `<Lens re
   from t=0; leave it out and Lens says so instead of drawing an empty box.
 
 Swap `mock(...)` for `anthropic(...)` / `openai(...)` / `ollama(...)` from
-`agentfootprint/llm-providers` — nothing else changes.
+`agentfootprint/providers` — nothing else changes.
 
 ---
 

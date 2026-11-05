@@ -10,24 +10,13 @@ permissions:
   contents: read
 
 jobs:
-  # Keep the existing required source-check name. This is the canonical archive
-  # producer; every public consumer below installs the same retained bytes.
+  # Keep the required source-check name; every source gate uses the committed lock.
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    defaults:
-      run:
-        working-directory: lens
     steps:
       - uses: actions/checkout@v4
         with:
-          path: lens
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: footprintjs/agentfootprint
-          ref: bc0b93015ba6b927c1d02528fe76e36da1873b25
-          path: agent-candidate
           persist-credentials: false
       - uses: actions/checkout@v4
         with:
@@ -38,45 +27,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-      - run: npm install -g npm@11.19.0
-      - name: Build pinned native AgentFootprint source, then stage the offline candidate
-        working-directory: agent-candidate
-        run: |
-          set -euo pipefail
-          SOURCE_SHA=bc0b93015ba6b927c1d02528fe76e36da1873b25
-          VERSION=14.0.0-rc.0
-          PLANNED_VERSION="$VERSION"
-          test "$(git rev-parse HEAD)" = "$SOURCE_SHA"
-          test "$(npm --version)" = 11.19.0
-          node -e "if(require('./package.json').version !== '13.0.0') process.exit(1)"
-          git diff --exit-code HEAD
-          npm ci
-          npm run build
-          node "$GITHUB_WORKSPACE/lens/scripts/compat/stage-proof.mjs" \
-            --phase before --source "$PWD" --evidence "$GITHUB_WORKSPACE/native-evidence"
-          SOURCE_MANIFEST="$(GIT_NO_REPLACE_OBJECTS=1 GIT_CONFIG_NOSYSTEM=1 GIT_CONFIG_GLOBAL=/dev/null git show "$SOURCE_SHA:package.json")"
-          export SOURCE_MANIFEST PLANNED_VERSION
-          # The reviewed release route's version-only stage. No source/lock edit.
-          jq --arg version "$VERSION" '.version = $version' package.json > "$RUNNER_TEMP/package.json"
-          cp "$RUNNER_TEMP/package.json" package.json
-          ARCHIVE_DIR="$GITHUB_WORKSPACE/native-archives"
-          mkdir "$ARCHIVE_DIR"
-          npm pack --ignore-scripts --json --pack-destination "$ARCHIVE_DIR" > "$GITHUB_WORKSPACE/native-evidence/af-pack-result.json"
-          FILE="$(jq -er 'select(type == "array" and length == 1) | .[0].filename | strings' "$GITHUB_WORKSPACE/native-evidence/af-pack-result.json")"
-          test "$FILE" = "agentfootprint-$PLANNED_VERSION.tgz"
-          node scripts/publish-archive/verify.cjs inspect "$ARCHIVE_DIR/$FILE" \
-            > "$GITHUB_WORKSPACE/native-evidence/route-inspection.json"
-          node "$GITHUB_WORKSPACE/lens/scripts/compat/stage-proof.mjs" \
-            --phase after --source "$PWD" --evidence "$GITHUB_WORKSPACE/native-evidence" \
-            --archive "$ARCHIVE_DIR/$FILE" --pack-json "$GITHUB_WORKSPACE/native-evidence/af-pack-result.json"
-      # npm 11 is also the resolver/archive-format control for Lens and Flow.
       - run: npm install -g npm@11.21.0
-      - name: Strict source install and generated-lock replay on Node 22
-        run: |
-          node scripts/compat/source-install.mjs \
-            --agent-tar "$GITHUB_WORKSPACE/native-archives/agentfootprint-14.0.0-rc.0.tgz" \
-            --agent-source "$GITHUB_WORKSPACE/native-evidence/native-source.json" \
-            --evidence "$GITHUB_WORKSPACE/source-evidence-22"
+      - run: npm ci --strict-peer-deps
+      - name: Verify the installed registry candidate against the proven archive
+        run: node scripts/compat/published-proof.mjs --out published-evidence-22 --lock package-lock.json
       - run: npm run test:compat-helpers
       - run: npm run test:contract:foottrace
       - run: npm run typecheck
@@ -87,33 +41,31 @@ jobs:
       - run: npx @arethetypeswrong/cli --pack
       - name: Pack one Lens artifact and the exact reviewed renderer candidate
         run: |
-          mkdir -p "$GITHUB_WORKSPACE/compat-artifacts"
+          mkdir -p compat-artifacts
           why_archive="$(node scripts/compat/why-identity.mjs)"
-          npm pack --ignore-scripts --pack-destination "$GITHUB_WORKSPACE/compat-artifacts"
+          npm pack --ignore-scripts --pack-destination compat-artifacts
           node scripts/compat/prepare-artifacts.mjs \
-            --why-tar "$GITHUB_WORKSPACE/compat-artifacts/$why_archive" \
-            --flow-source "$GITHUB_WORKSPACE/flow-candidate" --out "$GITHUB_WORKSPACE/compat-artifacts" \
-            --agent-tar "$GITHUB_WORKSPACE/native-archives/agentfootprint-14.0.0-rc.0.tgz" \
-            --agent-source "$GITHUB_WORKSPACE/native-evidence/native-source.json"
+            --why-tar "compat-artifacts/$why_archive" \
+            --flow-source flow-candidate --out compat-artifacts \
+            --agent-tar published-evidence-22/agentfootprint-14.0.0-rc.0.tgz \
+            --agent-source published-evidence-22/published-agent.json --agent-profile published
       - uses: actions/upload-artifact@v4
         with:
           name: compatibility-archives
           path: |
             compat-artifacts/*.tgz
             compat-artifacts/contract.json
-            compat-artifacts/native-source.json
+            compat-artifacts/agent-source.json
             compat-artifacts/*.log
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-source-and-lock-node22
+          name: published-source-node22
           path: |
-            native-archives/*.tgz
-            native-evidence/*.json
-            native-evidence/*.log
-            source-evidence-22/*.json
-            source-evidence-22/*.log
+            published-evidence-22/*.tgz
+            published-evidence-22/*.json
+            published-evidence-22/*.log
           if-no-files-found: error
 
   test-24:
@@ -132,12 +84,9 @@ jobs:
         with:
           name: compatibility-archives
           path: compat-artifacts
-      - name: Strict source install and generated-lock replay on Node 24
-        run: |
-          node scripts/compat/source-install.mjs \
-            --agent-tar "$GITHUB_WORKSPACE/compat-artifacts/agentfootprint-14.0.0-rc.0.tgz" \
-            --agent-source "$GITHUB_WORKSPACE/compat-artifacts/native-source.json" \
-            --evidence "$GITHUB_WORKSPACE/source-evidence-24"
+      - run: npm ci --strict-peer-deps
+      - name: Verify the installed registry candidate against the proven archive
+        run: node scripts/compat/published-proof.mjs --out published-evidence-24 --lock package-lock.json
       - run: npm run test:compat-helpers
       - run: npm run test:contract:foottrace
       - run: npm run typecheck
@@ -149,10 +98,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: source-generated-lock-node24
+          name: published-source-node24
           path: |
-            source-evidence-24/*.json
-            source-evidence-24/*.log
+            published-evidence-24/*.json
+            published-evidence-24/*.log
           if-no-files-found: error
 
   # Retire historical installed runtime cohorts. Keep historical record DATA
@@ -186,6 +135,7 @@ jobs:
         with:
           name: compatibility-archives
           path: compat-artifacts
+      - run: npm ci --strict-peer-deps
       - name: Strict packed public runtime, declarations, native recording and browser replay
         run: |
           node scripts/compat/run-lane.mjs --kind native --flow "${{ matrix.flow }}" \
@@ -205,4 +155,29 @@ jobs:
             compat-evidence/record-only/package*.json
             compat-evidence/record-browser/package*.json
             compat-evidence/browser/**
+          if-no-files-found: error
+
+  bootstrap-lock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g npm@11.21.0
+      - name: Temporary normal strict install to produce the first committed lock
+        run: |
+          test ! -f package-lock.json
+          npm install --strict-peer-deps
+          node scripts/compat/published-proof.mjs --out bootstrap-evidence --lock package-lock.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: registry-lock-bootstrap
+          path: |
+            package-lock.json
+            bootstrap-evidence/*.json
+            bootstrap-evidence/*.log
           if-no-files-found: error

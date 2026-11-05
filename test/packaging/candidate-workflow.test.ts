@@ -19,41 +19,36 @@ describe('native footprintjs 11 / agentfootprint 14 compatibility', () => {
     expect(workflow).not.toMatch(/agentfootprint-(?:11|12|13):|extracted-peers:|--kind (?:floor|modern)/);
   });
 
-  it('builds the pinned real source before the reviewed version-only stage and never publishes', () => {
-    const build = workflow.indexOf('npm run build', workflow.indexOf('working-directory: agent-candidate'));
-    const before = workflow.indexOf('--phase before');
-    const stage = workflow.indexOf('jq --arg version');
-    const pack = workflow.indexOf('npm pack --ignore-scripts --json --pack-destination');
-    expect(workflow).toContain('ref: bc0b93015ba6b927c1d02528fe76e36da1873b25');
-    expect(workflow).toContain('npm@11.19.0');
-    expect(workflow).toContain("version !== '13.0.0'");
-    expect(build).toBeGreaterThan(0);
-    expect(before).toBeGreaterThan(build);
-    expect(stage).toBeGreaterThan(before);
-    expect(pack).toBeGreaterThan(stage);
-    expect(workflow).toContain('SOURCE_MANIFEST=');
-    expect(workflow).toContain('node scripts/publish-archive/verify.cjs inspect');
-    expect(workflow).toContain('--phase after');
+  it('uses only the published candidate in the default workflow and retains optional staging proof', () => {
+    expect(workflow).toContain('node scripts/compat/published-proof.mjs');
+    expect(workflow).toContain('--agent-profile published');
+    expect(workflow).not.toMatch(/repository: footprintjs\/agentfootprint|stage-proof|source-install|SOURCE_MANIFEST|jq --arg version/);
     expect(workflow).not.toMatch(/npm (?:publish|version)|workflow_dispatch|--legacy-peer-deps|--force/);
+    expect(read('scripts/compat/stage-proof.mjs')).toContain('export function verifyStageIdentity');
+    expect(read('scripts/compat/stage-proof.test.mjs')).toContain('verifyStageIdentity');
+    expect(read('scripts/compat/README.md')).toContain('--agent-profile offline');
   });
 
-  it('replays each generated strict lock in a fresh copy and restores the public manifest', () => {
-    const sourceInstall = read('scripts/compat/source-install.mjs');
-    expect(sourceInstall).toContain("['install', '--strict-peer-deps'");
-    expect(sourceInstall).toContain("['ci', '--strict-peer-deps'");
-    expect(sourceInstall).toContain("'package-lock.json'");
-    expect(sourceInstall).toContain('source checkout must have no installed tree');
-    expect(sourceInstall).toContain('writeFileSync(manifestFile, original)');
-    expect(workflow.match(/node scripts\/compat\/source-install\.mjs/g)).toHaveLength(2);
+  it('runs every source gate on the committed strict lock, without a local archive dev input', () => {
+    const lock = JSON.parse(read('package-lock.json'));
+    const candidate = lock.packages['node_modules/agentfootprint'];
+    expect(candidate.version).toBe('14.0.0-rc.0');
+    expect(candidate.resolved).toBe('https://registry.npmjs.org/agentfootprint/-/agentfootprint-14.0.0-rc.0.tgz');
+    expect(candidate.integrity).toBe('sha512-82LEqg8hSsheVPZ1p9JCqxV2qGMf28+f9XQnuO2n7BqXkI+frRg9ARrnfa5dTfbfqjNgr5p0UQxaRo8dtnHCRg==');
+    expect(JSON.stringify(lock)).not.toContain('file:');
+    expect(workflow.match(/run: npm ci --strict-peer-deps/g)).toHaveLength(3);
+    expect(workflow).not.toMatch(/npm install --strict-peer-deps|bootstrap-lock/);
     expect(workflow.match(/run: npm test/g)).toHaveLength(2);
     expect(workflow.match(/run: npm run typecheck/g)).toHaveLength(2);
   });
 
   it('uses one archive set for public runtime, strict declarations, browser replay and native recording', () => {
     const runner = read('scripts/compat/run-lane.mjs');
-    expect(workflow).toContain('--agent-source "$GITHUB_WORKSPACE/native-evidence/native-source.json"');
+    expect(workflow).toContain('--agent-source published-evidence-22/published-agent.json');
     expect(workflow).toContain('--install-browser yes');
-    expect(runner).toContain('assertNativeSourceMetadata(contract.nativeSource, agent.sha256)');
+    expect(runner).toContain('assertPublishedReceipt(contract.agentSource, readFileSync(agent.path))');
+    expect(runner).toContain("agentProfile === 'published' ? publishedCandidate.version");
+    expect(runner).toContain('assertRegistryLock');
     expect(runner).toContain('assertSingleFoottrace');
     expect(runner).toContain('check-native-recording.mjs');
     expect(runner).toContain("'--skipLibCheck', 'false'");

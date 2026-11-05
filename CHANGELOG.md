@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Pin published `agentfootprint@14.0.0-rc.0` and ship a committed dependency lock.
 - Group the explain view under STAND — State · Trace · Assess · Name · Decide,
   retaining the account's sentences, the answer's standing, its recorded reasons
   and evidence pointers.
