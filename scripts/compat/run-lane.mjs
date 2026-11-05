@@ -4,20 +4,24 @@ import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertInstalled, assertRecordIsolation, assertSingleFoottrace, candidate, nativeCandidate, installedPackageNames,
+import { assertEvidenceOutsideRepository, assertInstalled, assertRecordIsolation, assertSingleFoottrace, candidate, nativeCandidate, installedPackageNames,
   laneContract, parseFlags, sha256, tooling } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertNativeSourceMetadata } from './stage-proof.mjs';
+import { assertPublishedReceipt, assertRegistryLock, publishedCandidate } from './published-proof.mjs';
 import { assertWhyIdentity } from './why-identity.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const flags = parseFlags(process.argv.slice(2),
-  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser']);
+  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser', 'agent-profile']);
 const lane = laneContract(flags);
+const agentProfile = flags['agent-profile'] ?? 'published';
+assert.ok(['published', 'offline'].includes(agentProfile), 'unknown agent profile');
 assert.equal(process.versions.node.split('.')[0], lane.node, 'run this lane with its declared Node major');
 assert.ok(flags.artifacts && flags.evidence, '--artifacts and --evidence are required');
 const artifacts = resolve(flags.artifacts);
 const evidence = resolve(flags.evidence);
+assertEvidenceOutsideRepository(root, evidence);
 mkdirSync(dirname(evidence), { recursive: true });
 mkdirSync(evidence); // A repeated run must not overwrite an earlier failure's evidence.
 const report = { schema: 1, lane, node: process.version, npm: command('npm', ['--version']).trim(),
@@ -38,6 +42,9 @@ function install(directory, dependencies, label) {
   command('npm', ['ci', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
     { cwd: directory, log: join(evidence, `${label}-ci.log`) });
   command('npm', ['ls', '--all', '--json'], { cwd: directory, log: join(evidence, `${label}-tree.json`) });
+  if (label === 'consumer' && agentProfile === 'published') {
+    assertRegistryLock(JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8')));
+  }
 }
 function checkTypes(consumer, stem, toolConsumer = consumer) {
   const tsc = join(toolConsumer, 'node_modules/typescript/bin/tsc');
@@ -71,8 +78,11 @@ try {
   const agent = inspectArchive(join(artifacts, contract.agent.path), evidence,
     { name: 'agentfootprint', version: nativeCandidate.version, expectedSha: contract.agent.sha256 });
   assert.deepEqual(agent.files, contract.agent.files);
-  const nativeSource = assertNativeSourceMetadata(contract.nativeSource, agent.sha256);
-  report.packages.agent = { sha256: agent.sha256, source: nativeSource };
+  assert.equal(contract.agentProfile, agentProfile, 'artifact and selected candidate profile must match');
+  const agentSource = agentProfile === 'offline'
+    ? assertNativeSourceMetadata(contract.agentSource, agent.sha256)
+    : assertPublishedReceipt(contract.agentSource, readFileSync(agent.path));
+  report.packages.agent = { sha256: agent.sha256, source: agentSource };
 
   let flow;
   if (lane.flow === 'candidate') {
@@ -91,7 +101,7 @@ try {
   const consumer = join(evidence, 'consumer');
   step('strict fresh peer install', () => install(consumer, {
     ...lane.peers, ...lane.types, ...tooling,
-    'agentfootprint-lens': `file:${why.path}`, agentfootprint: `file:${agent.path}`, 'footprint-explainable-ui': `file:${flow.path}`,
+    'agentfootprint-lens': `file:${why.path}`, agentfootprint: agentProfile === 'published' ? publishedCandidate.version : `file:${agent.path}`, 'footprint-explainable-ui': `file:${flow.path}`,
   }, 'consumer'));
   const whyInstalled = join(consumer, 'node_modules/agentfootprint-lens');
   const flowInstalled = join(consumer, 'node_modules/footprint-explainable-ui');

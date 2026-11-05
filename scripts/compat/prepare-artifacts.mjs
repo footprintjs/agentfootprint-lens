@@ -6,11 +6,14 @@ import { basename, join, resolve } from 'node:path';
 import { candidate, nativeCandidate, parseFlags, publishedSourceFiles } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertNativeSourceMetadata } from './stage-proof.mjs';
+import { assertPublishedReceipt } from './published-proof.mjs';
 import { readWhyIdentity } from './why-identity.mjs';
 
-const flags = parseFlags(process.argv.slice(2), ['why-tar', 'flow-source', 'out', 'agent-tar', 'agent-source']);
+const flags = parseFlags(process.argv.slice(2), ['why-tar', 'flow-source', 'out', 'agent-tar', 'agent-source', 'agent-profile']);
 assert.ok(flags['why-tar'] && flags['flow-source'] && flags.out && flags['agent-tar'] && flags['agent-source'],
   'usage: --why-tar <archive> --flow-source <exact M6 checkout> --agent-tar <archive> --agent-source <metadata> --out <directory>');
+const agentProfile = flags['agent-profile'] ?? 'published';
+assert.ok(['published', 'offline'].includes(agentProfile), 'explicit supported agent profile required');
 const out = resolve(flags.out);
 const source = resolve(flags['flow-source']);
 mkdirSync(out, { recursive: true });
@@ -42,10 +45,13 @@ if (process.env.GITHUB_RUN_ID) assert.equal(dirtyTracked, '', 'hosted archive so
 const agentFile = join(out, `agentfootprint-${nativeCandidate.version}.tgz`);
 if (resolve(flags['agent-tar']) !== agentFile) copyFileSync(flags['agent-tar'], agentFile);
 const agent = inspectArchive(agentFile, out, { name: 'agentfootprint', version: nativeCandidate.version });
-const nativeSource = assertNativeSourceMetadata(JSON.parse(readFileSync(flags['agent-source'], 'utf8')), agent.sha256);
-writeJson(join(out, 'native-source.json'), nativeSource);
+const sourceReceipt = JSON.parse(readFileSync(flags['agent-source'], 'utf8'));
+const agentSource = agentProfile === 'offline'
+  ? assertNativeSourceMetadata(sourceReceipt, agent.sha256)
+  : assertPublishedReceipt(sourceReceipt, readFileSync(agentFile));
+writeJson(join(out, 'agent-source.json'), agentSource);
 const report = {
-  schema: 1, nativeSource, agent: { ...agent, path: basename(agent.path) }, whyIdentity, why: { ...why, path: basename(why.path) }, flow: { ...flow, path: basename(flow.path) },
+  schema: 1, agentProfile, agentSource, agent: { ...agent, path: basename(agent.path) }, whyIdentity, why: { ...why, path: basename(why.path) }, flow: { ...flow, path: basename(flow.path) },
   candidate, source: {
     whyCommit: command('git', ['rev-parse', 'HEAD']).trim(),
     whyTree: command('git', ['rev-parse', 'HEAD^{tree}']).trim(),

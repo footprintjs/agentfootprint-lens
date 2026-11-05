@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 
 export const candidate = Object.freeze({
   repository: 'footprintjs/explainable-ui',
@@ -54,6 +54,14 @@ export function laneContract({ kind, flow, react, node }) {
 
 export function sha256(bytes) {
   return createHash('sha256').update(bytes).digest('hex');
+}
+
+export function assertEvidenceOutsideRepository(repository, evidence) {
+  const location = resolve(evidence);
+  const displacement = relative(resolve(repository), location);
+  assert.ok(displacement === '..' || displacement.startsWith(`..${sep}`) || isAbsolute(displacement),
+    'compatibility evidence must be outside the repository');
+  return location;
 }
 
 export function hashFiles(directory, { excludeModules = false } = {}) {
