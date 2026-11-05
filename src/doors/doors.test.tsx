@@ -23,7 +23,8 @@ import { render, screen } from '@testing-library/react';
 import { observeRecording, type Recording } from '../core/observeRecording.js';
 import { SkillGraphDebugger } from '../react/skillgraph/SkillGraphDebugger.js';
 import { WhyLens } from './WhyLens.js';
-import { describeReceived, isAgentRecording, readAgentRecording } from './recordingInput.js';
+import { WhyLens as PublicWhyLens } from '../why/index.js';
+import { REFUSAL_GO_TO } from '../core/recordingInput.js';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', 'core', '__fixtures__');
 
@@ -37,40 +38,18 @@ const BARE_COMMIT_LOG = [
   { idx: 1, runtimeStageId: 'act#1', patch: { result: 'y' }, trace: [] },
 ];
 
-describe('the doors’ shared gate (readAgentRecording)', () => {
-  it('accepts a { snapshot, events, structure } recording', () => {
-    expect(isAgentRecording(fixture('recorded-turn.json'))).toBe(true);
-  });
-
-  it('accepts the persistRecording envelope and unwraps it', () => {
-    const envelope = {
-      format: 'agentfootprint.recording.v1',
-      producer: { agentfootprintVersion: 'x', footprintjsVersion: 'y' },
-      run: { runId: 'run-1', complete: true },
-      privacy: { mode: 'full' },
-      recording: fixture('recorded-turn.json'),
-    };
-    const verdict = readAgentRecording(envelope);
-    expect(verdict.ok).toBe(true);
-    if (verdict.ok) expect(verdict.recording).toBe(envelope.recording);
-  });
-
-  it('names a bare commit log as exactly that', () => {
-    expect(describeReceived(BARE_COMMIT_LOG)).toBe('a bare commit log (an array of commit bundles)');
-  });
-
-  it('names a footprintjs snapshot, a string, and nothing', () => {
-    expect(describeReceived({ commitLog: BARE_COMMIT_LOG, sharedState: {} })).toBe(
-      'a footprintjs run snapshot (a commit log, with no agent events around it)',
-    );
-    expect(describeReceived('{"events":[]}')).toBe(
-      'a string — if it is the recording’s JSON text, parse it first (JSON.parse) and pass the object',
-    );
-    expect(describeReceived(undefined)).toBe('nothing (undefined)');
-  });
-});
-
 describe('<WhyLens> — the why door refuses what it cannot read', () => {
+  it('reads the shared refusal map through the public why entry', () => {
+    const original = REFUSAL_GO_TO['record-the-run'];
+    try {
+      REFUSAL_GO_TO['record-the-run'] = 'Shared recording guidance.';
+      render(<PublicWhyLens recording={{} as never} />);
+      expect(screen.getByTestId('door-refusal-go-to').textContent).toBe('Shared recording guidance.');
+    } finally {
+      REFUSAL_GO_TO['record-the-run'] = original;
+    }
+  });
+
   it('refuses a bare commit log with the full teaching card, verbatim', () => {
     render(<WhyLens recording={BARE_COMMIT_LOG as never} />);
     const card = screen.getByTestId('door-refusal');

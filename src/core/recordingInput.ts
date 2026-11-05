@@ -20,7 +20,7 @@
  * told to parse it; anything unrecognizable is told how to record a run.
  */
 
-import type { Recording } from '../core/observeRecording.js';
+import type { Recording } from './observeRecording.js';
 
 /**
  * The archivable envelope `persistRecording` writes

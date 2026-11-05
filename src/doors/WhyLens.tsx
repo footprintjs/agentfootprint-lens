@@ -31,8 +31,8 @@ import React, { useMemo } from 'react';
 
 import { observeRecording } from '../core/observeRecording.js';
 import { Lens, type LensProps } from '../react/Lens.js';
-import { DoorRefusalCard } from './DoorRefusalCard.js';
-import { REFUSAL_GO_TO, readAgentRecording, type AgentRecordingInput } from './recordingInput.js';
+import { DoorRefusalCard } from '../react/components/DoorRefusalCard.js';
+import { REFUSAL_GO_TO, readAgentRecording, type AgentRecordingInput } from '../core/recordingInput.js';
 
 /** Sentence 1 of the door's refusal — what the Why Lens reads. */
 export const WHY_LENS_READS =

@@ -95,12 +95,12 @@ import {
   selectSkillTopology,
   type DeclaredEdgeInput,
 } from '../../core/selectors/selectSkillTopology.js';
-import { DoorRefusalCard } from '../../doors/DoorRefusalCard.js';
+import { DoorRefusalCard } from '../components/DoorRefusalCard.js';
 import {
   REFUSAL_GO_TO,
   describeReceived,
   refusalDestinationFor,
-} from '../../doors/recordingInput.js';
+} from '../../core/recordingInput.js';
 import { useNarrowRow } from '../narrowLayout.js';
 import { T } from '../theme/index.js';
 import { BeatStrip, type BeatTransport } from './BeatStrip.js';
