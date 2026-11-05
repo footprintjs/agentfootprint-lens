@@ -69,7 +69,6 @@ jobs:
           if-no-files-found: error
 
   test-24:
-    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -80,10 +79,6 @@ jobs:
         with:
           node-version: 24
       - run: npm install -g npm@11.21.0
-      - uses: actions/download-artifact@v4
-        with:
-          name: compatibility-archives
-          path: compat-artifacts
       - run: npm ci --strict-peer-deps
       - name: Verify the installed registry candidate against the proven archive
         run: node scripts/compat/published-proof.mjs --out published-evidence-24 --lock package-lock.json
@@ -155,29 +150,4 @@ jobs:
             compat-evidence/record-only/package*.json
             compat-evidence/record-browser/package*.json
             compat-evidence/browser/**
-          if-no-files-found: error
-
-  bootstrap-lock:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm install -g npm@11.21.0
-      - name: Temporary normal strict install to produce the first committed lock
-        run: |
-          test ! -f package-lock.json
-          npm install --strict-peer-deps
-          node scripts/compat/published-proof.mjs --out bootstrap-evidence --lock package-lock.json
-      - uses: actions/upload-artifact@v4
-        with:
-          name: registry-lock-bootstrap
-          path: |
-            package-lock.json
-            bootstrap-evidence/*.json
-            bootstrap-evidence/*.log
           if-no-files-found: error

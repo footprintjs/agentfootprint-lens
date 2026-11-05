@@ -55,7 +55,7 @@ export function assertRegistryLock(lock, expected = publishedCandidate) {
 
 function main() {
   const flags = parseFlags(process.argv.slice(2), ['out', 'lock']);
-  assert.ok(flags.out && flags.lock, 'usage: --out <fresh directory> --lock <committed source lock>');
+  assert.ok(flags.out && flags.lock, 'usage: --out <fresh directory> --lock <source lock>');
   const out = resolve(flags.out);
   mkdirSync(out);
   const lockBytes = readFileSync(flags.lock);
@@ -77,7 +77,7 @@ function main() {
   command('npm', ['ls', '--all', '--json'], { log: join(out, 'tree.json') });
   writeJson(join(out, 'published-agent.json'), receipt);
   writeJson(join(out, 'source-verification.json'), { schema: 1, node: process.version,
-    npm: command('npm', ['--version']).trim(), policy: 'committed-lock npm ci',
+    npm: command('npm', ['--version']).trim(), policy: 'lock + installed-registry verification',
     lockSha256: sha256(lockBytes), publishedAgent: receipt, recordOwner });
   console.log(JSON.stringify(receipt));
 }
