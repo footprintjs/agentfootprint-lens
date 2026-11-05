@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -22,21 +22,12 @@ jobs:
         with:
           node-version: 22
 
-      # npm PIN, and not a cosmetic one: npm 10 — what setup-node's node-22 still
-      # ships — crashes resolving this dependency set with "Cannot read properties
-      # of null (reading 'edgesOut')", an arborist bug tripped by a transitive
-      # published after 2026-08-30. That is why 0.44.0's run was green and the very
-      # next one was not, with no change to our own deps. Reproduced both ways:
-      # npm 10.9.3 crashes, npm 11 resolves the same package.json cleanly. A
-      # committed lockfile cannot paper over it (rolldown's native binding is a
-      # platform optional dep, npm #4828), so the npm version IS the fix.
-      - run: npm install -g npm@11
+      # Use the reviewed npm version with the committed lockfile.
+      - run: npm install -g npm@11.19.0
 
-      # Fresh per-platform install (no committed lockfile — rolldown's native binding
-      # is a platform optional dep; a one-OS lock breaks the other, npm #4828). This
-      # job has NO publish power, so an unpinned/compromised dep here cannot reach the
-      # registry token. A library's CI SHOULD test against the deps a consumer resolves.
-      - run: npm install
+      # Replay the committed lock with the same strict-peer command as CI.
+      # This build job has no publish permission.
+      - run: npm ci --strict-peer-deps
       - run: npm run build
       # Packaging regressions inspect dist, so they must run after the build.
       # Otherwise Vitest legitimately skips them in an unbuilt checkout.
@@ -62,7 +53,7 @@ jobs:
 
   publish:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       id-token: write # OIDC trusted publishing — granted to THIS job only
@@ -78,7 +69,7 @@ jobs:
 
       # Pinned to the 11.x line: npm 12.0.0 went `latest` on 2026-07-08 with a broken
       # provenance path (MODULE_NOT_FOUND: sigstore) that fails `npm publish --provenance`.
-      - run: npm install -g npm@11
+      - run: npm install -g npm@11.19.0
 
       # Publishes the pre-built, verified artifact. No node_modules, no dependency
       # resolution — the privileged step only packs the dist + package.json that the
