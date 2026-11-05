@@ -12,7 +12,7 @@ permissions:
 jobs:
   # Keep the required source-check name; every source gate uses the committed lock.
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -69,7 +69,7 @@ jobs:
           if-no-files-found: error
 
   test-24:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
@@ -103,7 +103,7 @@ jobs:
   # fixtures in the whole suite, plus public renderer floor/current/candidate.
   peer-matrix:
     needs: test
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
