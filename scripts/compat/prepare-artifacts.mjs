@@ -3,17 +3,16 @@
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { candidate, nativeCandidate, parseFlags, publishedSourceFiles } from './contract.mjs';
+import { candidate, parseFlags, publishedSourceFiles, readActiveCohort } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
-import { assertNativeSourceMetadata } from './stage-proof.mjs';
-import { assertPublishedReceipt } from './published-proof.mjs';
+import { assertPublishedReceipt, readPublishedAgent } from './published-proof.mjs';
 import { readWhyIdentity } from './why-identity.mjs';
 
-const flags = parseFlags(process.argv.slice(2), ['why-tar', 'flow-source', 'out', 'agent-tar', 'agent-source', 'agent-profile']);
+const flags = parseFlags(process.argv.slice(2), ['why-tar', 'flow-source', 'out', 'agent-tar', 'agent-source']);
 assert.ok(flags['why-tar'] && flags['flow-source'] && flags.out && flags['agent-tar'] && flags['agent-source'],
   'usage: --why-tar <archive> --flow-source <exact M6 checkout> --agent-tar <archive> --agent-source <metadata> --out <directory>');
-const agentProfile = flags['agent-profile'] ?? 'published';
-assert.ok(['published', 'offline'].includes(agentProfile), 'explicit supported agent profile required');
+const cohort = readActiveCohort();
+const agentIdentity = readPublishedAgent(cohort);
 const out = resolve(flags.out);
 const source = resolve(flags['flow-source']);
 mkdirSync(out, { recursive: true });
@@ -42,16 +41,14 @@ assert.deepEqual(why.files, publishedSourceFiles(process.cwd()),
   'Why archive must contain exactly this checkout’s package metadata, built dist, README and LICENSE');
 const dirtyTracked = command('git', ['status', '--porcelain', '--untracked-files=no']).trim();
 if (process.env.GITHUB_RUN_ID) assert.equal(dirtyTracked, '', 'hosted archive source must be the checked clean commit');
-const agentFile = join(out, `agentfootprint-${nativeCandidate.version}.tgz`);
+const agentFile = join(out, agentIdentity.filename);
 if (resolve(flags['agent-tar']) !== agentFile) copyFileSync(flags['agent-tar'], agentFile);
-const agent = inspectArchive(agentFile, out, { name: 'agentfootprint', version: nativeCandidate.version });
+const agent = inspectArchive(agentFile, out, agentIdentity);
 const sourceReceipt = JSON.parse(readFileSync(flags['agent-source'], 'utf8'));
-const agentSource = agentProfile === 'offline'
-  ? assertNativeSourceMetadata(sourceReceipt, agent.sha256)
-  : assertPublishedReceipt(sourceReceipt, readFileSync(agentFile));
+const agentSource = assertPublishedReceipt(sourceReceipt, readFileSync(agentFile), agentIdentity);
 writeJson(join(out, 'agent-source.json'), agentSource);
 const report = {
-  schema: 1, agentProfile, agentSource, agent: { ...agent, path: basename(agent.path) }, whyIdentity, why: { ...why, path: basename(why.path) }, flow: { ...flow, path: basename(flow.path) },
+  schema: 1, cohort, agentSource, agent: { ...agent, path: basename(agent.path) }, whyIdentity, why: { ...why, path: basename(why.path) }, flow: { ...flow, path: basename(flow.path) },
   candidate, source: {
     whyCommit: command('git', ['rev-parse', 'HEAD']).trim(),
     whyTree: command('git', ['rev-parse', 'HEAD^{tree}']).trim(),
