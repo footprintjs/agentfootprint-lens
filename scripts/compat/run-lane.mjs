@@ -28,8 +28,8 @@ const report = { schema: 1, lane, node: process.version, npm: command('npm', ['-
   status: 'running', steps: [], packages: {} };
 writeJson(join(evidence, 'verification.json'), report);
 
-function step(name, run) {
-  run(); report.steps.push(name); writeJson(join(evidence, 'verification.json'), report);
+async function step(name, run) {
+  await run(); report.steps.push(name); writeJson(join(evidence, 'verification.json'), report);
 }
 function install(directory, dependencies, label) {
   const resolution = `${directory}-resolve`;
@@ -97,7 +97,7 @@ try {
   report.packages.flow = { sha256: flow.sha256, files: flow.files };
   writeJson(join(evidence, 'archive-proof.json'), { ...report.packages, candidate: lane.flow === 'candidate' ? candidate : null });
   const consumer = join(evidence, 'consumer');
-  step('strict fresh peer install', () => install(consumer, {
+  await step('strict fresh peer install', () => install(consumer, {
     ...lane.peers, ...lane.types, ...tooling,
     'agentfootprint-lens': `file:${why.path}`, 'footprint-explainable-ui': `file:${flow.path}`,
   }, 'consumer'));
@@ -112,15 +112,15 @@ try {
     assert.equal(sha256(readFileSync(agent.path)), agent.sha256, 'AgentFootprint archive changed during checks');
     assert.equal(sha256(readFileSync(flow.path)), flow.sha256, 'Flow archive changed during checks');
   }
-  step('all installed bytes equal the archives before probes', verifyBytes);
-  step('all five ESM/CJS doors, canonical owner, native recording, replay and SSR', () => {
+  await step('all installed bytes equal the archives before probes', verifyBytes);
+  await step('all five ESM/CJS doors, canonical owner, native recording, replay and SSR', () => {
     copyFileSync(join(root, 'scripts/check-packed-peers.mjs'), join(consumer, 'check-packed-peers.mjs'));
     copyFileSync(join(root, 'scripts/check-native-recording.mjs'), join(consumer, 'check-native-recording.mjs'));
     writeJson(join(consumer, 'expected-cohort.json'), cohort);
     command(process.execPath, ['check-packed-peers.mjs'], { cwd: consumer, log: join(evidence, 'runtime.log') });
     command(process.execPath, ['check-native-recording.mjs'], { cwd: consumer, log: join(evidence, 'native-recording.log') });
   });
-  step('strict NodeNext ESM/CJS and Bundler declarations, with negative controls', () => {
+  await step('strict NodeNext ESM/CJS and Bundler declarations, with negative controls', () => {
     for (const extension of ['mts', 'cts', 'ts']) copyFileSync(join(root, 'scripts/check-packed-peer-types.ts'),
       join(consumer, `check-packed-peer-types.${extension}`));
     checkTypes(consumer, 'check-packed-peer-types');
@@ -132,7 +132,7 @@ try {
     assert.ok(flags['flow-source'], 'candidate lanes need --flow-source for immutable recorded fixtures');
     assert.equal(command('git', ['rev-parse', 'HEAD'], { cwd: flags['flow-source'] }).trim(), candidate.commit);
     recordOnly = join(evidence, 'record-only');
-    step('separate normal record-only install has no engines or graph peers', () => {
+    await step('separate normal record-only install has no engines or graph peers', () => {
       install(recordOnly, {
         'footprint-explainable-ui': `file:${flow.path}`, foottrace: cohort.pins.foottrace, react: lane.peers.react,
         '@types/react': lane.types['@types/react'],
@@ -142,7 +142,7 @@ try {
       report.recordOnly = { packages };
       assertInstalled(join(recordOnly, 'node_modules/footprint-explainable-ui'), flow.files, 'record-only Flow');
     });
-    step('record-only ESM/CJS public viewer and literal saved-record expectations', () => {
+    await step('record-only ESM/CJS public viewer and literal saved-record expectations', () => {
       const fixtures = join(resolve(flags['flow-source']), 'pilots/record-lens');
       for (const filename of ['flow.json', 'hci.json']) {
         const path = join(fixtures, 'fixtures', filename);
@@ -172,7 +172,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
       writeFileSync(join(recordOnly, 'check-record.mjs'), source);
       command(process.execPath, ['check-record.mjs'], { cwd: recordOnly, log: join(evidence, 'record-runtime.log') });
     });
-    step('record-only public declarations under all strict resolutions', () => {
+    await step('record-only public declarations under all strict resolutions', () => {
       const source = "import { RecordLens } from 'footprint-explainable-ui/record';\nexport const Viewer = RecordLens;\n";
       for (const extension of ['mts', 'cts', 'ts']) {
         writeFileSync(join(recordOnly, `record-types.${extension}`), source);
@@ -182,7 +182,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
     // A mounted browser host necessarily installs ReactDOM; never conflate it
     // with the independent React-version-specific isolation check above.
     recordConsumer = join(evidence, 'record-browser');
-    step('explicit separate record browser host install', () => install(recordConsumer, {
+    await step('explicit separate record browser host install', () => install(recordConsumer, {
       'footprint-explainable-ui': `file:${flow.path}`, foottrace: cohort.pins.foottrace,
       react: lane.peers.react, 'react-dom': lane.peers['react-dom'],
       ...lane.types, vite: tooling.vite, playwright: tooling.playwright,
@@ -190,10 +190,10 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
     assertInstalled(join(recordConsumer, 'node_modules/footprint-explainable-ui'), flow.files, 'record browser Flow');
   }
   if (lane.kind === 'native' && flags.browser !== 'no') {
-    if (flags['install-browser'] === 'yes') step('install the declared browser for this CI lane', () => {
-      installBrowser({ consumer, evidence });
+    if (flags['install-browser'] === 'yes') await step('install the declared browser for this CI lane', () => {
+      return installBrowser({ consumer, evidence });
     });
-    step('actual installed-package browser replay, cursor, theme and candidate records', () => {
+    await step('actual installed-package browser replay, cursor, theme and candidate records', () => {
       const args = [join(root, 'scripts/check-compat-browser.mjs'), '--consumer', consumer,
         '--evidence', join(evidence, 'browser'), '--lane', lane.id, '--flow-version', flow.version,
         '--archive-proof', join(evidence, 'archive-proof.json')];
@@ -202,7 +202,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
       command(process.execPath, args, { cwd: consumer, log: join(evidence, 'browser.log'), timeout: 180_000 });
     });
   }
-  step('all installed bytes and archives still equal after every probe', () => {
+  await step('all installed bytes and archives still equal after every probe', () => {
     verifyBytes();
     if (recordConsumer) assertInstalled(join(recordConsumer, 'node_modules/footprint-explainable-ui'), flow.files, 'record browser Flow');
     if (recordOnly) {
