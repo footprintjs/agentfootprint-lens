@@ -30,3 +30,22 @@ All five ESM/CJS doors, strict declaration modes, native mock recording, replay,
 browser behavior and installed/archive byte checks remain. `process.mjs` owns
 bounded subprocesses and data-only archive inspection. Adjacent tests exercise
 derivation, byte/integrity joins, mutation, invalid paths and duplicate owners.
+
+`browser-install.mjs` owns two provisioning phases. System dependencies run
+once with `install-deps chromium`, a 300-second limit and a retained
+`browser-dependencies.log`. Any failure stops the lane: a timed-out privileged
+installer may still be running, so it must never be started again automatically.
+
+Only the unprivileged `install chromium` download can retry once, with a
+300-second limit for each attempt. `owned-command.mjs` owns a POSIX process
+group, stops the whole group on timeout and confirms it is gone before reporting
+a retryable timeout. Unconfirmed cleanup refuses instead of retrying; the
+adapter does not claim ownership of processes that escape its group. It is for
+the declared Linux CI image and also has inert POSIX fixtures; Windows refuses
+this process-group path. Output stays in `browser-install.log` and
+`browser-install-retry.log`. The configured execution timeouts total up to
+900 seconds (one dependency phase and two downloads), plus bounded download
+group/drain cleanup. The existing dependency command's timeout applies to its
+direct child; failure does not prove that privileged descendants have stopped.
+Browser assertions and final byte checks still run outside the retry, and the
+lane awaits provisioning before recording that step or opening a browser.
