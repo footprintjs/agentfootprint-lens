@@ -1,12 +1,13 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { COHORT, cohortMismatches, committedJson, type Lock, type Manifest } from './committedInputs';
 
 const read = (path: string) => readFileSync(resolve(path), 'utf8');
 const workflow = read('.github/workflows/ci.yml');
-const manifest = JSON.parse(read('package.json'));
-const lock = JSON.parse(read('package-lock.json'));
-const cohortNames = ['agentfootprint', 'footprintjs', 'foottrace'];
+// The committed cohort, not the working tree: an audit may rewrite the working-tree manifest on purpose.
+const manifest = committedJson<Manifest>('package.json');
+const lock = committedJson<Lock>('package-lock.json');
 
 describe('source-selected native compatibility workflow', () => {
   it('pins every hosted CI job to the reviewed Ubuntu image', () => {
@@ -17,10 +18,7 @@ describe('source-selected native compatibility workflow', () => {
   });
 
   it('derives active package identities from the manifest and lock while retaining renderer/React/Node coverage', () => {
-    for (const name of cohortNames) {
-      expect(lock.packages[''].devDependencies[name]).toBe(manifest.devDependencies[name]);
-      expect(lock.packages[`node_modules/${name}`].version).toBe(manifest.devDependencies[name]);
-    }
+    expect(cohortMismatches(manifest, lock)).toEqual([]);
     expect(workflow).toContain('flow: ["0.34.0", "0.38.0", "candidate"]');
     expect(workflow).toContain('react: ["18", "19"]');
     expect(workflow).toContain('node: [22, 24]');
@@ -40,10 +38,10 @@ describe('source-selected native compatibility workflow', () => {
   });
 
   it('runs every source gate on the committed strict lock, without a local archive dev input', () => {
-    for (const name of cohortNames) {
-      const entry = lock.packages[`node_modules/${name}`];
-      expect(entry.resolved).toMatch(/^https:\/\//);
-      expect(entry.integrity).toMatch(/^sha512-/);
+    for (const name of COHORT) {
+      const entry = lock.packages?.[`node_modules/${name}`];
+      expect(entry?.resolved).toMatch(/^https:\/\//);
+      expect(entry?.integrity).toMatch(/^sha512-/);
     }
     expect(JSON.stringify(lock)).not.toContain('file:');
     expect(workflow.match(/run: npm ci --strict-peer-deps/g)).toHaveLength(3);
