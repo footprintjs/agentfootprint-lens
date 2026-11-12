@@ -14,6 +14,7 @@ import { describe, it } from 'vitest';
 import { LLMCall, Parallel } from 'agentfootprint'
 import { MockProvider } from 'agentfootprint/providers';
 import { lensSnapshotRecorder } from './LensSnapshotRecorder.js';
+import { executionStages } from './utils/executionStages.js';
 
 function llm(reply: string) {
   return LLMCall.create({ provider: new MockProvider({ reply }), model: 'mock' })
@@ -95,42 +96,25 @@ describe('DUMP — footprintjs snapshot vs lens domain projection', () => {
 
 // ─── helpers ────────────────────────────────────────────────────────
 
-function collectPrimitiveRids(
-  node: unknown,
-  out: string[] = [],
-): readonly string[] {
-  if (!node || typeof node !== 'object') return out;
-  const n = node as {
-    description?: string;
-    runtimeStageId?: string;
-    next?: unknown;
-  };
-  if (n.description && /^(Agent|LLMCall|Sequence|Parallel|Conditional|Loop):/.test(n.description)) {
-    if (n.runtimeStageId) out.push(n.runtimeStageId);
+function collectPrimitiveRids(tree: unknown): readonly string[] {
+  const out: string[] = [];
+  for (const n of executionStages<{ description?: string; runtimeStageId?: string }>(tree)) {
+    if (n.description && /^(Agent|LLMCall|Sequence|Parallel|Conditional|Loop):/.test(n.description)) {
+      if (n.runtimeStageId) out.push(n.runtimeStageId);
+    }
   }
-  if (n.next) collectPrimitiveRids(n.next, out);
   return out;
 }
 
-function collectForkChildren(
-  node: unknown,
-  out: string[] = [],
-): readonly string[] {
-  if (!node || typeof node !== 'object') return out;
-  const n = node as {
-    flowMessages?: ReadonlyArray<{
-      type?: string;
-      targetStage?: unknown;
-    }>;
-    next?: unknown;
-  };
-  if (n.flowMessages) {
-    for (const msg of n.flowMessages) {
+function collectForkChildren(tree: unknown): readonly string[] {
+  const out: string[] = [];
+  type Stage = { flowMessages?: ReadonlyArray<{ type?: string; targetStage?: unknown }> };
+  for (const n of executionStages<Stage>(tree)) {
+    for (const msg of n.flowMessages ?? []) {
       if (msg.type === 'children' && Array.isArray(msg.targetStage)) {
         for (const t of msg.targetStage) out.push(String(t));
       }
     }
   }
-  if (n.next) collectForkChildren(n.next, out);
   return out;
 }

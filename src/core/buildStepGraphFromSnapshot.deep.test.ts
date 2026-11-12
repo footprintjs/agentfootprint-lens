@@ -3,7 +3,9 @@
  *
  * Test types: Capability (a 20 000-stage `next` chain builds where a recursive
  * visit overflowed the engine's stack) · Contract (every primitive stage
- * becomes a node and consecutive primitives are joined by a `next` edge).
+ * becomes a node and consecutive primitives are joined by a `next` edge) ·
+ * Contract (the list form of footprintjs 13 builds the same graph as the
+ * linked form of footprintjs 12 and saved runs).
  */
 import { describe, expect, it } from 'vitest';
 import { buildStepGraphFromSnapshot } from './buildStepGraphFromSnapshot.js';
@@ -28,5 +30,23 @@ describe('buildStepGraphFromSnapshot on a long linear run', () => {
     expect(graph.nodes.length).toBe(primitives);
     expect(graph.edges.filter((e) => e.kind === 'next').length).toBe(primitives - 1);
     expect(graph.nodes[0]!.runtimeStageId).toBe('s0#0');
+  });
+
+  it('builds the same graph from the list form as from the linked form', () => {
+    type Stage = { id: string; runtimeStageId: string; name: string; description?: string; next?: Stage };
+    const list: Stage[] = [];
+    for (let i = 0; i < 1_000; i++) {
+      list.push({
+        id: `s${i}`,
+        runtimeStageId: `s${i}#${i}`,
+        name: `S${i}`,
+        ...(i % 7 === 0 ? { description: 'Agent: a loop' } : {}),
+      });
+    }
+    let linked: Stage | undefined;
+    for (let i = list.length - 1; i >= 0; i--) linked = { ...list[i]!, ...(linked ? { next: linked } : {}) };
+    const fromList = buildStepGraphFromSnapshot({ executionTree: list });
+    expect(fromList.nodes.length).toBeGreaterThan(0);
+    expect(fromList).toEqual(buildStepGraphFromSnapshot({ executionTree: linked }));
   });
 });

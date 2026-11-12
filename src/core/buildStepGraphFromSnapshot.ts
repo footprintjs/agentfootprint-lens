@@ -26,7 +26,8 @@
  *   - Decorate nodes with payload (LLM tokens, tool args, context
  *     injections). That's a separate join step against typed events.
  *
- * Algorithm (recursive walk over `executionTree.next`):
+ * Algorithm (one loop over the run's stages, `executionStages` — the
+ * tree's list form or its linked `next` chain, read alike):
  *   1. Each StageSnapshot represents one stage. Inspect its
  *      `description` for composition kind:
  *        - "LLMCall: …"          → subflow node, primitiveKind=LLMCall
@@ -37,10 +38,11 @@
  *        - "Loop: …"             → subflow node + iteration edges
  *   2. Walk `flowMessages` for control-flow transitions (next, fork
  *      with `targetStage[]`, decision with chosen branch, loop).
- *   3. Recurse into `next` chain.
+ *   3. Move on to the next stage in run order.
  */
 
 import type { StepGraph, StepNode, StepEdge } from 'agentfootprint/observe';
+import { executionStages } from './utils/executionStages.js';
 
 /** Footprintjs StageSnapshot — the runtime tree node shape. We only
  *  read fields the snapshot reliably populates; `unknown` for the rest.
@@ -53,7 +55,6 @@ interface StageSnapshot {
   description?: string;
   subflowId?: string;
   flowMessages?: ReadonlyArray<FlowMessage>;
-  next?: StageSnapshot;
 }
 
 interface FlowMessage {
@@ -65,7 +66,8 @@ interface FlowMessage {
 }
 
 interface RuntimeSnapshotLike {
-  executionTree?: StageSnapshot;
+  /** List form (footprintjs 13) or linked form (footprintjs 12, saved runs). */
+  executionTree?: unknown;
 }
 
 /**
@@ -76,15 +78,16 @@ interface RuntimeSnapshotLike {
 export function buildStepGraphFromSnapshot(
   snapshot: RuntimeSnapshotLike | undefined,
 ): StepGraph {
-  if (!snapshot?.executionTree) {
+  const stages = executionStages<StageSnapshot>(snapshot?.executionTree);
+  if (stages.length === 0) {
     return { nodes: [], edges: [] };
   }
   const ctx: BuilderContext = {
     nodes: [],
     edges: [],
-    runStartMs: snapshot.executionTree.flowMessages?.[0]?.timestamp ?? 0,
+    runStartMs: stages[0]!.flowMessages?.[0]?.timestamp ?? 0,
   };
-  visit(snapshot.executionTree, [], ctx);
+  for (let i = 0; i < stages.length; i++) visitOne(stages, i, [], ctx);
   return { nodes: ctx.nodes, edges: ctx.edges };
 }
 
@@ -94,20 +97,14 @@ interface BuilderContext {
   runStartMs: number;
 }
 
-/**
- * Walk one `next` chain — a LOOP, not a recursion (0.58.2). A long linear run
- * links stages by `next` one level per stage; a recursive visit hit the
- * engine's call-stack limit at ~10 000 stages in the browser, the same wall
- * `JSON.stringify` hits on the record (footprintjs 9.26.0). `parentPath` is
- * constant along the chain, so the loop is the recursion, exactly.
- */
-function visit(first: StageSnapshot, parentPath: readonly string[], ctx: BuilderContext): void {
-  for (let stage: StageSnapshot | undefined = first; stage !== undefined; stage = stage.next) {
-    visitOne(stage, parentPath, ctx);
-  }
-}
-
-function visitOne(stage: StageSnapshot, parentPath: readonly string[], ctx: BuilderContext): void {
+/** One stage, `stages[at]`; the stages after it are the ones that ran next. */
+function visitOne(
+  stages: readonly StageSnapshot[],
+  at: number,
+  parentPath: readonly string[],
+  ctx: BuilderContext,
+): void {
+  const stage = stages[at]!;
   const primitiveKind = parsePrimitiveKind(stage.description);
   const isPrimitive = primitiveKind !== undefined;
   const subflowPath = stage.subflowId ? [...parentPath, stage.subflowId] : parentPath;
@@ -175,13 +172,13 @@ function visitOne(stage: StageSnapshot, parentPath: readonly string[], ctx: Buil
     }
   }
 
-  // Recurse into the next stage in the linear chain. The chain ends
-  // when `next` is undefined (terminal stage).
-  if (stage.next) {
+  // The run goes on to the next stage in order. The run ends at the
+  // last stage.
+  if (at + 1 < stages.length) {
     if (isPrimitive) {
       // Emit a `next` edge from THIS stage to the NEXT primitive node
-      // we'll see (resolved when the recursion reaches it).
-      const nextPrimitive = findFirstPrimitive(stage.next);
+      // we'll see (emitted when the loop reaches it).
+      const nextPrimitive = findFirstPrimitive(stages, at + 1);
       if (nextPrimitive) {
         const nextRid = nextPrimitive.runtimeStageId ?? nextPrimitive.id ?? '';
         ctx.edges.push({
@@ -195,13 +192,11 @@ function visitOne(stage: StageSnapshot, parentPath: readonly string[], ctx: Buil
   }
 }
 
-/** Walk the next chain to find the first stage with a primitive
- *  description — i.e., the next StepNode that will be emitted. */
-function findFirstPrimitive(stage: StageSnapshot): StageSnapshot | undefined {
-  let cur: StageSnapshot | undefined = stage;
-  while (cur) {
-    if (parsePrimitiveKind(cur.description) !== undefined) return cur;
-    cur = cur.next;
+/** The first stage from `from` on with a primitive description —
+ *  i.e., the next StepNode that will be emitted. */
+function findFirstPrimitive(stages: readonly StageSnapshot[], from: number): StageSnapshot | undefined {
+  for (let i = from; i < stages.length; i++) {
+    if (parsePrimitiveKind(stages[i]!.description) !== undefined) return stages[i];
   }
   return undefined;
 }
