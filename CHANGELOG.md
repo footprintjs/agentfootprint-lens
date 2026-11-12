@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Read the execution tree in either shape. footprintjs 13 serves
+  `snapshot.executionTree` as a list of stages in run order, with a fork's
+  children in `branches`; footprintjs 12 and older, and runs saved by them,
+  link each stage to the next through `next` and `children`. One module,
+  `src/core/utils/executionStages.ts`, reads both, and
+  `buildStepGraphFromSnapshot` goes through it, so the step graph is the same
+  for either shape. The development pin of Foottrace moves to 1.15.0, the first
+  that reads both shapes in `keysReadFromExecutionTree` and `tagStops`. The peer
+  ranges and public exports are unchanged.
+
 ## [0.81.0] - 2026-11-12
 
 ### Fixed

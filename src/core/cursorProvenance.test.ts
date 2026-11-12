@@ -11,6 +11,16 @@ import { Sequence, LLMCall } from 'agentfootprint';
 import { MockProvider } from 'agentfootprint/providers';
 
 import { cursorProvenance } from './cursorProvenance.js';
+import { executionStages, stageBranches } from './utils/executionStages.js';
+
+/** The same tree in the list form footprintjs 13 serves (`next`/`children` → list + `branches`). */
+function toListForm(tree: unknown): object[] {
+  return executionStages<Record<string, unknown>>(tree).map((stage) => {
+    const { next: _next, children: _children, ...rest } = stage;
+    const branches = stageBranches(stage).map((branch) => toListForm(branch));
+    return branches.length > 0 ? { ...rest, branches } : rest;
+  });
+}
 
 function llm(reply: string) {
   return LLMCall.create({ provider: new MockProvider({ reply }), model: 'mock' })
@@ -47,6 +57,22 @@ describe('cursorProvenance — real runner', () => {
       expect(f.depth).toBeGreaterThan(0);
       expect(f.linkedBy).not.toBe('');
     }
+  });
+
+  it('reads the list-form tree (footprintjs 13) the same as the run it came from', async () => {
+    const seq = Sequence.create({ name: 'pipeline' })
+      .step('draft', llm('a draft'))
+      .step('polish', llm('polished'))
+      .build();
+    await seq.run({ message: 'go' });
+    const snap = seq.getLastSnapshot() as { commitLog: Array<{ runtimeStageId: string; trace: Array<{ path: string }> }>; executionTree: unknown };
+    const anchor = [...snap.commitLog].reverse().find((b) => b.trace.length > 0)!.runtimeStageId;
+    const listed = { getLastSnapshot: () => ({ ...snap, executionTree: toListForm(snap.executionTree) }) };
+
+    const fromRun = cursorProvenance(seq, anchor)!;
+    const fromList = cursorProvenance(listed, anchor)!;
+    expect(fromList.writtenKeys).toEqual(fromRun.writtenKeys);
+    for (const key of fromRun.writtenKeys) expect(fromList.sliceFor(key)).toEqual(fromRun.sliceFor(key));
   });
 
   it('honest absence: slicing a key nobody wrote', async () => {
