@@ -53,15 +53,15 @@ data and is not rewritten by Lens.
 
 ### Compatibility proof and final validation
 
-The development cohort pins `agentfootprint@14.0.0`,
-`footprintjs@11.0.0` and `foottrace@1.11.1`. Release validation uses a normally
+The development cohort pins `agentfootprint@14.4.0`,
+`footprintjs@12.0.0` and `foottrace@1.11.1`. Release validation uses a normally
 generated committed lock after the upstream finals are published, with
 `npm ci --strict-peer-deps` on Node 22 and 24.
 
-0.81.0 widens the footprintjs peer to accept 12 and changes nothing else. The
-cohort stays on footprintjs 11 until footprintjs 12.0.0 is published; until
-then the proof on 12 is the footprintjs consumer audit, which runs this
-repository's build and whole suite against the 12 candidate.
+0.81.0 widened the footprintjs peer to accept 12 and changed nothing else. Now
+that footprintjs 12.0.0 is published, the cohort runs on it: this repository's
+own build and whole suite are the proof on 12. The peer range still accepts 11;
+dropping 11 would be a separate, deliberate release.
 
 The active cohort is derived from the exact development pins in `package.json`
 and the version, registry URL and integrity entries in the committed lock. CI
