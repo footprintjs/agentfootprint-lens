@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.81.0] - 2026-11-12
+
+### Fixed
+
+- Accept footprintjs 12 alongside footprintjs 11: the peer range is now
+  `^11.0.0 || ^12.0.0`. Before this, npm refused Lens beside footprintjs 12.
+  footprintjs 12 also needs agentfootprint 14.4.0 or newer, the first that
+  accepts it. Lens runtime source, public exports and saved-record formats are
+  unchanged; an application on footprintjs 11 needs no change.
+
 ## [0.80.0] - 2026-11-05
 
 ### Breaking

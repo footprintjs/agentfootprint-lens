@@ -32,9 +32,10 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-Lens 0.80.0 supports **agentfootprint 14**, **footprintjs 11** and
+Lens 0.81.0 supports **agentfootprint 14**, **footprintjs 11 or 12** and
 **Foottrace 1.11.1 or newer**, with Node.js 22 or newer and React 18 or 19.
-The stable peers are `agentfootprint ^14.0.0` and `footprintjs ^11.0.0`.
+The stable peers are `agentfootprint ^14.0.0` and `footprintjs ^11.0.0 || ^12.0.0`.
+footprintjs 12 needs agentfootprint 14.4.0 or newer, the first that accepts it.
 Earlier installed runtime lines are no longer supported. Reading older saved recordings remains supported; their fixtures
 and tests are retained unchanged.
 
@@ -52,10 +53,15 @@ data and is not rewritten by Lens.
 
 ### Compatibility proof and final validation
 
-The 0.80.0 development cohort pins `agentfootprint@14.0.0`,
+The development cohort pins `agentfootprint@14.0.0`,
 `footprintjs@11.0.0` and `foottrace@1.11.1`. Release validation uses a normally
 generated committed lock after the upstream finals are published, with
 `npm ci --strict-peer-deps` on Node 22 and 24.
+
+0.81.0 widens the footprintjs peer to accept 12 and changes nothing else. The
+cohort stays on footprintjs 11 until footprintjs 12.0.0 is published; until
+then the proof on 12 is the footprintjs consumer audit, which runs this
+repository's build and whole suite against the 12 candidate.
 
 The active cohort is derived from the exact development pins in `package.json`
 and the version, registry URL and integrity entries in the committed lock. CI
