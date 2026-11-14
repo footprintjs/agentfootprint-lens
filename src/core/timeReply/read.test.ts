@@ -31,6 +31,14 @@ describe('native time reply reader port', () => {
     expect(readTimeReplyInput(request(), () => [{ range: 'missing', correction: 'words' }]).status).toBe('unavailable');
     expect(readTimeReplyInput(request(), () => [...reader(), ...reader()]).status).toBe('unavailable');
   });
+  it('never reflects on a reader-thrown Proxy or revoked Proxy', () => {
+    let traps = 0;
+    const hostile = new Proxy({}, { getPrototypeOf() { traps++; throw Error('private trap detail'); } });
+    const revoked = Proxy.revocable({}, {}); revoked.revoke();
+    for (const error of [hostile, revoked.proxy])
+      expect(readTimeReplyInput(request(), () => { throw error; })).toEqual({ status: 'unavailable', reason: 'binding-unavailable' });
+    expect(traps).toBe(0);
+  });
 });
 
 describe('display metadata safety before the native reader', () => {

@@ -1,9 +1,18 @@
 /** Shared own-data metadata admission for the inspector and native-reader controls. */
+const failures = new WeakMap<object, 'unreadable' | 'presentation-limit'>();
 export class AskMetadataError extends Error {
   constructor(readonly reason: 'unreadable' | 'presentation-limit') {
     super('time-question-unavailable');
     this.name = 'AskMetadataError';
+    failures.set(this, reason);
   }
+}
+/** WeakMap identity reads never reflect on an arbitrary thrown Proxy, including a revoked one. */
+export function askMetadataFailureReason(error: unknown): 'unreadable' | 'presentation-limit' | undefined {
+  return failures.get(error as object);
+}
+function normalizedFailure(error: unknown): AskMetadataError {
+  return failures.has(error as object) ? error as AskMetadataError : new AskMetadataError('unreadable');
 }
 function ownData(value: unknown, key: string): unknown {
   if (value === null || typeof value !== 'object') return undefined;
@@ -14,7 +23,7 @@ function ownData(value: unknown, key: string): unknown {
 /** Normalize hostile descriptor failures without exposing their exception text. */
 export function ownAskData(value: unknown, key: string): unknown {
   try { return ownData(value, key); }
-  catch (error) { throw error instanceof AskMetadataError ? error : new AskMetadataError('unreadable'); }
+  catch (error) { throw normalizedFailure(error); }
 }
 /** Dense ordinary arrays only: never invoke input iterators, methods or numeric accessors. */
 function denseDataArray(value: unknown, max: number): readonly unknown[] {
@@ -34,7 +43,7 @@ function denseDataArray(value: unknown, max: number): readonly unknown[] {
 
 export function askDataArray(value: unknown, max: number): readonly unknown[] {
   try { return denseDataArray(value, max); }
-  catch (error) { throw error instanceof AskMetadataError ? error : new AskMetadataError('unreadable'); }
+  catch (error) { throw normalizedFailure(error); }
 }
 
 export interface AskMetadata {
@@ -125,5 +134,5 @@ function snapshotAskMetadata(request: unknown, include: (field: unknown) => bool
 /** Public-to-this-layer boundary: even Proxy failures keep payload-free diagnostics. */
 export function readAskMetadata(request: unknown, include: (field: unknown) => boolean = () => true): AskMetadata {
   try { return snapshotAskMetadata(request, include); }
-  catch (error) { throw error instanceof AskMetadataError ? error : new AskMetadataError('unreadable'); }
+  catch (error) { throw normalizedFailure(error); }
 }

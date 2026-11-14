@@ -1,5 +1,5 @@
 import { awaitingInputOf } from '../time/awaitingInput.js';
-import { readAskMetadata, preflightAskArrays, askDataArray, ownAskData, AskMetadataError } from '../time/askMetadata.js';
+import { readAskMetadata, preflightAskArrays, askDataArray, ownAskData, askMetadataFailureReason } from '../time/askMetadata.js';
 import type { TimeReplyField, TimeReplyInput, TimeReplyReader, TimeReplyPairView, TimeReplyRequestView } from './types.js';
 const own = ownAskData;
 const id = (value: unknown): string => {
@@ -60,6 +60,6 @@ export function readTimeReplyInput(value: unknown, reader?: TimeReplyReader): Ti
     });
     return { status: 'ready', form: Object.freeze({ request: request as unknown as TimeReplyRequestView,
       requestId: id(snapshot.requestId), pairs: Object.freeze(projected), complete: used.size === rawFields.length }) };
-  } catch (error) { return { status: 'unavailable', reason: error instanceof AskMetadataError && error.reason === 'presentation-limit'
+  } catch (error) { return { status: 'unavailable', reason: askMetadataFailureReason(error) === 'presentation-limit'
     ? 'presentation-limit' : 'binding-unavailable' }; }
 }
