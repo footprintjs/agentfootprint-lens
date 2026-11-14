@@ -221,7 +221,7 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
     // each step formatter — `selectAgentInstances` is cheap but
     // `formatStep` runs N times.
     const agents = selectAgentInstances(stepGraph);
-    const annotationSteps = context !== undefined ? new Map<string, number>() : undefined;
+    const annotationSteps = context !== undefined ? new Map<string, string>() : undefined;
     const payloads = context !== undefined ? contextPayloads(context) : undefined;
     if (payloads) sections.push('Payload views below use ⟦context "id"⟧ only for exact dictionary matches.');
     stepGraph.nodes.forEach((n, i) => {
@@ -315,7 +315,7 @@ function formatStep(
   index: number,
   n: StepNode,
   agents: readonly AgentInstance[],
-  annotationSteps?: Map<string, number>,
+  annotationSteps?: Map<string, string>,
   payloads?: ReturnType<typeof contextPayloads>,
 ): string {
   const lines: string[] = [];
@@ -386,13 +386,20 @@ function formatStep(
       const summary = inj.contentSummary ? ` — ${payloads ? payloads.format(inj.contentSummary) : inj.contentSummary}` : "";
       return `- [${inj.slot}] ${inj.source}${id}${role}${summary}`;
     });
-    const signature = JSON.stringify(annotations);
-    const previous = annotationSteps?.get(signature);
-    if (previous !== undefined) lines.push(`\nStep context annotations match step ${previous}.`);
-    else {
-      annotationSteps?.set(signature, index);
-      lines.push("\n**Context injections:**", ...annotations);
-    }
+    if (annotationSteps !== undefined) {
+      const definitions: string[] = [];
+      const order = annotations.map((annotation, occurrence) => {
+        const previous = annotationSteps.get(annotation);
+        if (previous !== undefined) return previous;
+        const reference = `${index}.${occurrence + 1}`;
+        annotationSteps.set(annotation, reference);
+        definitions.push(`${reference}: ${annotation}`);
+        return reference;
+      });
+      if (definitions.length > 0)
+        lines.push('\n**Step annotation definitions** (presentation references, not capture IDs):', ...definitions);
+      lines.push(`Annotation order: ${order.join(', ')}`);
+    } else lines.push('\n**Context injections:**', ...annotations);
   }
 
   lines.push(""); // trailing blank line between steps

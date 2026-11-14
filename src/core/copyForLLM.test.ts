@@ -41,4 +41,25 @@ describe('copy for AI: stored results are not model-input evidence', () => {
     expect(text.slice(text.indexOf('# Steps'))).not.toContain('native-tool');
   });
 
+  it('stores unchanged annotations once even when each call adds a message', () => {
+    const recorder = { selectSummary: () => ({ status: 'completed', llmCallCount: 2,
+      toolCallCount: 1, iterationCount: 2, totalTokens: { input: 0, output: 0 }, permissionDenials: 0 }),
+      selectEventLog: () => [] } as unknown as LensRecorder;
+    const base = { slot: 'system-prompt', source: 'base', contentSummary: 'unique unchanged rule summary' };
+    const tool = { slot: 'tools', source: 'registry', sourceId: 'lookup', contentSummary: 'unique tool summary' };
+    const next = { slot: 'messages', source: 'tool-result', sourceId: 'result', contentSummary: 'new message summary' };
+    const stepGraph = { nodes: [
+      { id: 'one', kind: 'user->llm', label: 'one', subflowPath: [], injections: [base, tool] },
+      { id: 'two', kind: 'tool->llm', label: 'two', subflowPath: [], injections: [tool, next, base] },
+    ], edges: [] } as unknown as StepGraph;
+    const text = buildLLMText({ recorder, stepGraph, context: { dictionary: [], calls: [] } });
+    expect(text.split('unique unchanged rule summary')).toHaveLength(2);
+    expect(text.split('unique tool summary')).toHaveLength(2);
+    expect(text).toContain('Annotation order: 1.2, 2.2, 1.1');
+    expect(text).toContain('2.2: - [messages] tool-result:result');
+    expect(text).toContain('new message summary');
+    const legacy = buildLLMText({ recorder, stepGraph });
+    expect(legacy.split('unique unchanged rule summary')).toHaveLength(3);
+  });
+
 });
