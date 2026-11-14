@@ -50,6 +50,9 @@
  */
 
 import React from 'react';
+import { awaitingInputOf } from '../../core/time/awaitingInput.js';
+import { readTimeReplyInput, type TimeReplyReader } from '../../core/timeReply.js';
+import { TimeReplyAnswerBox, TimeReplyUnavailable } from './timeReply.js';
 import type { ArtifactResolver } from '../../core/artifacts/types.js';
 import {
   decisionSentence,
@@ -64,6 +67,8 @@ import { ConsentAnswerBox, PlainAnswerBox } from './AnswerBox.js';
 import { decisionComponentFor } from './registry.js';
 
 export interface AwaitingPaneProps {
+  /** Native producer capability, e.g. timeReplyPairs from agentfootprint/time14.4+. */
+  readonly timeReplyReader?: TimeReplyReader;
   /** The pending ask, exactly as the wire served it (`{ awaiting }` body /
    *  stored `pending`). Read structurally — any agentfootprint era's shape
    *  works, and a pre-9.24 payload simply renders its prose question. */
@@ -102,11 +107,22 @@ interface Answered {
   readonly sentence: string;
 }
 
-export const AwaitingPane: React.FC<AwaitingPaneProps> = ({
+export const AwaitingPane: React.FC<AwaitingPaneProps> = (props) => {
+  // Native correction re-asks intentionally retain requestId. Their actual
+  // request generation, not its id, scopes answered/input/collector state.
+  const generation = awaitingInputOf(props.awaiting) ?? props.awaiting.pauseData ?? props.awaiting;
+  const current = React.useRef({ generation, revision: 0 });
+  if (current.current.generation !== generation)
+    current.current = { generation, revision: current.current.revision + 1 };
+  return <AwaitingPaneSession {...props} key={current.current.revision} />;
+};
+
+const AwaitingPaneSession: React.FC<AwaitingPaneProps> = ({
   awaiting,
   resolver,
   onDecision,
   decidedBy,
+  timeReplyReader,
 }) => {
   ensureLensStyles();
   const component: AskComponentView | undefined = readAwaitingComponent(awaiting);
@@ -164,6 +180,15 @@ export const AwaitingPane: React.FC<AwaitingPaneProps> = ({
   );
 
   const consent = isConsentAsk(awaiting);
+  const timeReply = React.useMemo(() => consent
+    ? { status: 'unchecked' as const, reason: 'request-unavailable' as const }
+    : readTimeReplyInput(awaiting, timeReplyReader), [awaiting, timeReplyReader, consent]);
+  const alive = React.useRef(true);
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const respondTime = async (decision: unknown): Promise<void> => {
+    await onDecision(decision);
+    if (alive.current) setAnswered({ decision, sentence: decisionSentence(decision) });
+  };
   const question = awaiting.question ?? awaiting.ask?.question;
 
   // The fallback answer surface — shaped by what the ask IS: consent gates
@@ -171,7 +196,11 @@ export const AwaitingPane: React.FC<AwaitingPaneProps> = ({
   const fallbackBox = consent ? (
     <ConsentAnswerBox decidedBy={decidedBy} respond={respond} />
   ) : (
-    <PlainAnswerBox respond={respond} />
+    timeReply.status === 'unavailable' ? <TimeReplyUnavailable /> :
+    timeReply.status === 'ready' ? timeReply.form.complete && timeReplyReader !== undefined
+      ? <TimeReplyAnswerBox awaiting={awaiting} reader={timeReplyReader} form={timeReply.form} respond={respondTime} />
+      : <TimeReplyUnavailable incomplete />
+    : <PlainAnswerBox respond={respond} />
   );
 
   // ── Answered: the sentence is display; the decision is the record. ──
@@ -293,6 +322,7 @@ export const AwaitingPane: React.FC<AwaitingPaneProps> = ({
           props={component.props ?? {}}
           data={refState.phase === 'resolved' ? refState.data : undefined}
           respond={respond}
+          {...(timeReplyReader !== undefined ? { timeReply } : {})}
         />
       </LensChartBoundary>
     </div>

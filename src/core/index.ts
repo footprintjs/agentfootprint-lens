@@ -443,3 +443,6 @@ export type {
   SourceClockRowShape,
   PeriodDiffersShape,
 } from './time/shapes.js';
+
+export { readTimeReplyInput, submitTimeReplyInput } from './timeReply.js';
+export type { TimeReplyReader, TimeReplyRequestView, TimeReplyPairView, TimeReplyInput, TimeReplyForm, TimeReplyField, TimeReplyValues, TimeReplySubmission } from './timeReply.js';

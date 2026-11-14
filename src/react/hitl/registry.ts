@@ -26,10 +26,13 @@
  */
 
 import type React from 'react';
+import type { TimeReplyInput } from '../../core/timeReply.js';
 import { OptionPicker } from './OptionPicker.js';
 
 /** What every registered decision component receives. */
 export interface DecisionComponentProps {
+  /** Optional native paired-field metadata; the registered collector still owns its complete decision. */
+  readonly timeReply?: TimeReplyInput;
   /** The question in plain words, when the pause carried one. */
   readonly question?: string;
   /** The ask's small inline props, exactly as the asker declared them. */

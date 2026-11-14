@@ -17,6 +17,8 @@
  * with no time field has no time rows (omit, never deny).
  */
 
+import { awaitingInputOf } from './awaitingInput.js';
+
 /** A field value on the wire (`InputValue`). */
 export type InputValue = string | number | boolean;
 
@@ -52,14 +54,6 @@ const isRec = (v: unknown): v is Rec => v !== null && typeof v === 'object' && !
 const isValue = (v: unknown): v is InputValue =>
   typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean';
 
-/** The `AwaitingInput` inside any of the three homes a pause travels in. */
-function awaitingOf(value: unknown): Rec | undefined {
-  if (!isRec(value)) return undefined;
-  if (Array.isArray(value.fields)) return value;
-  if (isRec(value.awaitingInput)) return awaitingOf(value.awaitingInput);
-  if (isRec(value.pauseData)) return awaitingOf(value.pauseData);
-  return undefined;
-}
 
 function fieldOf(raw: unknown, missing: ReadonlySet<string>): TimeAskField | undefined {
   if (!isRec(raw) || typeof raw.id !== 'string' || typeof raw.format !== 'string') return undefined;
@@ -87,7 +81,7 @@ function answerOf(raw: unknown): Readonly<Record<string, InputValue>> | undefine
 }
 
 export function timeAskOf(value: unknown): TimeAsk | undefined {
-  const awaiting = awaitingOf(value);
+  const awaiting = awaitingInputOf(value);
   if (awaiting === undefined) return undefined;
   const missing = new Set(
     Array.isArray(awaiting.missing) ? awaiting.missing.filter((m): m is string => typeof m === 'string') : [],
