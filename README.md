@@ -636,6 +636,51 @@ The headless half is on `agentfootprint-lens/core` — `readAwaitingComponent`
 `decisionSentence`, `isConsentAsk` — so a Vue or CLI shell can build the same
 pane.
 
+### Native time correction controls
+
+For a producer with the public `timeReplyPairs` reader (agentfootprint 14.4+),
+pass that capability explicitly. Lens calls it with the **full original** native
+request, including its opaque context, before projecting formatted fields:
+
+```tsx
+import { timeReplyPairs } from 'agentfootprint/time';
+import { AwaitingPane } from 'agentfootprint-lens';
+
+<AwaitingPane
+  awaiting={reply.awaiting}
+  timeReplyReader={timeReplyPairs}
+  onDecision={async (decision) => {
+    // Await the host's resume operation and render its next pending question.
+    // The host checks its response status; fetch alone does not reject HTTP errors.
+    await resumeAndShowNextQuestion(decision);
+  }}
+/>
+```
+
+The complete-form fallback offers the native range values and labels plus its
+paired optional correction text. An explicit Answer submits exactly one channel
+per pair by its declared field ID. Text, whitespace and values such as `no` go
+unchanged to native resume; Lens does not parse time, convert zones or invent a
+cancellation. A native refused/repeated ask reopens editable controls even when
+its request ID stays the same. Keep native context revisions immutable.
+
+Missing reader retains the existing plain/registered collector path; a reader
+returning no pairs is different from an unreadable binding. An unreadable or
+oversized form states the gap and offers no partial submit. If the native form
+has additional fields, a registered collector must own the **whole** decision.
+It receives optional `timeReply` metadata and can reuse the controlled
+`TimeReplyFields` with its own `values` and `onChange`; switching a pair's channel
+preserves its unrelated values. Lens neither merges nor independently submits
+that collector's decision.
+
+The host owns the wire and acceptance. A returned callback permits a local
+decision record; it does not prove server acceptance. If the callback rejects,
+the remote outcome is unknown: controls stay blocked until the host supplies its
+current question. There is no automatic retry. The headless
+`readTimeReplyInput` and `submitTimeReplyInput` ports are exported from
+`agentfootprint-lens/core`; raw questions, corrections and host errors stay out of
+their chart scope and trace.
+
 ---
 
 ## Scrubbing by group — the active group is a named place

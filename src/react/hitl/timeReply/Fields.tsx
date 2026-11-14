@@ -20,9 +20,9 @@ export function TimeReplyFields({ form, values, onChange, disabled = false }: Ti
   return <div data-testid="time-reply-fields">
     {form.pairs.map(({ range, correction }) => <fieldset key={range.id} disabled={disabled}>
       <label>{range.description ?? range.id}
-        <select className="lens-hitl__input" aria-label={range.description ?? range.id} value={text(range.id)}
+        <select disabled={range.choices.length === 0} className="lens-hitl__input" aria-label={range.description ?? range.id} value={text(range.id)}
           onChange={event => change(range.id, correction.id, event.target.value)}>
-          <option value="">Choose a range</option>
+          <option value="">{range.choices.length === 0 ? 'No range choices supplied' : 'Choose a range'}</option>
           {range.choices.map((choice, index) => <option key={index} value={choice.value}>
             {choice.label ?? choice.value}
           </option>)}

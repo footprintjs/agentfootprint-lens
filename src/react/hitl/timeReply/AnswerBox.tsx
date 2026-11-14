@@ -15,27 +15,28 @@ export function TimeReplyAnswerBox({ awaiting, reader, form, respond }: {
 }): React.ReactElement {
   const [values, setValues] = useState<TimeReplyValues>({});
   const [pending, setPending] = useState(false);
-  const [failed, setFailed] = useState(false);
+  const [failure, setFailure] = useState<'refused' | 'unconfirmed'>();
   const alive = useRef(true);
   const submitting = useRef(false);
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const submit = async (): Promise<void> => {
     if (submitting.current || selectedTimeReply(form, values) === undefined) return;
     submitting.current = true;
-    setPending(true); setFailed(false);
+    setPending(true); setFailure(undefined);
     try {
       const result = await submitTimeReplyInput({ awaiting, reader, values, onAnswer: async answer => {
         if (!alive.current) throw Error('The question changed.');
         await respond(answer);
       } });
-      if (alive.current) setFailed(result.status !== 'submitted');
-    } catch { if (alive.current) setFailed(true); }
+      if (alive.current && result.status !== 'handed-off') setFailure(result.status);
+    } catch { if (alive.current) setFailure('unconfirmed'); }
     finally { submitting.current = false; if (alive.current) setPending(false); }
   };
   return <div className="lens-hitl__answer" data-testid="time-reply-answer">
-    <TimeReplyFields form={form} values={values} onChange={setValues} disabled={pending} />
-    <button type="button" disabled={pending || selectedTimeReply(form, values) === undefined}
+    <TimeReplyFields form={form} values={values} onChange={setValues} disabled={pending || failure !== undefined} />
+    <button type="button" disabled={pending || failure !== undefined || selectedTimeReply(form, values) === undefined}
       onClick={() => { void submit(); }}>Answer</button>
-    {failed && <p role="alert">The time answer could not be submitted. The question remains unanswered.</p>}
+    {failure === 'unconfirmed' && <p role="alert">The host did not confirm this answer. Check its status before retrying.</p>}
+    {failure === 'refused' && <p role="alert">This question changed or cannot be answered from these controls. Request its current form.</p>}
   </div>;
 }

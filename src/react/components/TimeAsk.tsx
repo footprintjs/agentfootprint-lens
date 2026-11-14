@@ -26,7 +26,12 @@ export interface TimeAskRowsProps {
 const valueText = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v) ?? String(v));
 
 export function TimeAskRows({ ask }: TimeAskRowsProps): React.ReactElement | null {
-  const view = useMemo(() => timeAskOf(ask), [ask]);
+  const result = useMemo(() => {
+    try { return { view: timeAskOf(ask), unavailable: false }; }
+    catch { return { view: undefined, unavailable: true }; }
+  }, [ask]);
+  if (result.unavailable) return <div role="alert" data-testid="time-ask-unavailable">{LABELS.askUnavailable}</div>;
+  const view = result.view;
   if (view === undefined) return null;
   return (
     <div style={band} data-testid="time-ask" data-request-id={view.requestId ?? ''}>

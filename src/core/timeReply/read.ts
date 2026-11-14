@@ -1,11 +1,7 @@
 import { awaitingInputOf } from '../time/awaitingInput.js';
+import { readAskMetadata, preflightAskArrays, askDataArray, ownAskData, AskMetadataError } from '../time/askMetadata.js';
 import type { TimeReplyField, TimeReplyInput, TimeReplyReader, TimeReplyPairView, TimeReplyRequestView } from './types.js';
-const own = (value: unknown, key: string): unknown => {
-  if (value === null || typeof value !== 'object') return undefined;
-  const descriptor = Object.getOwnPropertyDescriptor(value, key);
-  if (descriptor && !('value' in descriptor)) throw Error('unreadable');
-  return descriptor?.value;
-};
+const own = ownAskData;
 const id = (value: unknown): string => {
   if (typeof value !== 'string' || !value.length || value.length > 512) throw Error('field');
   return value;
@@ -32,11 +28,21 @@ export function readTimeReplyInput(value: unknown, reader?: TimeReplyReader): Ti
   const request = awaitingInputOf(value);
   if (request === undefined) return { status: 'unchecked', reason: 'request-unavailable' };
   try {
-    const fields = own(request, 'fields');
-    if (!Array.isArray(fields) || fields.length > 128) throw Error('fields');
-    const pairs: readonly TimeReplyPairView[] = reader(request as unknown as TimeReplyRequestView);
-    if (!Array.isArray(pairs) || pairs.length > 32) throw Error('pairs');
+    // Preflight numeric fields/enum/label data before the native reader can traverse them.
+    const rawFields = preflightAskArrays(request);
+    own(request, 'context'); // The native reader receives an opaque own-data context, never an accessor.
+    const pairs = askDataArray(reader(request as unknown as TimeReplyRequestView), 32) as readonly TimeReplyPairView[];
     if (pairs.length === 0) return { status: 'none' };
+    const pairsById = new Set<string>();
+    for (const pair of pairs) { pairsById.add(id(own(pair, 'range'))); pairsById.add(id(own(pair, 'correction'))); }
+    const snapshot = readAskMetadata(request, field => pairsById.has(id(own(field, 'id'))));
+    const fields = snapshot.fields;
+    const allIds = new Set<string>();
+    for (const field of rawFields) {
+      const key = id(own(field, 'id'));
+      if (allIds.has(key)) throw Error('ambiguous field');
+      allIds.add(key);
+    }
     const declarations = new Map<string, unknown>();
     for (const raw of fields) {
       const key = id(own(raw, 'id'));
@@ -53,6 +59,7 @@ export function readTimeReplyInput(value: unknown, reader?: TimeReplyReader): Ti
       return Object.freeze({ range: field(declarations.get(range)), correction: field(declarations.get(correction)) });
     });
     return { status: 'ready', form: Object.freeze({ request: request as unknown as TimeReplyRequestView,
-      requestId: id(own(request, 'requestId')), pairs: Object.freeze(projected), complete: used.size === fields.length }) };
-  } catch { return { status: 'unavailable', reason: 'binding-unavailable' }; }
+      requestId: id(snapshot.requestId), pairs: Object.freeze(projected), complete: used.size === rawFields.length }) };
+  } catch (error) { return { status: 'unavailable', reason: error instanceof AskMetadataError && error.reason === 'presentation-limit'
+    ? 'presentation-limit' : 'binding-unavailable' }; }
 }

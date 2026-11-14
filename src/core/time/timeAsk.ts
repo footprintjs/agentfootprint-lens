@@ -18,6 +18,7 @@
  */
 
 import { awaitingInputOf } from './awaitingInput.js';
+import { readAskMetadata, ownAskData, askDataArray } from './askMetadata.js';
 
 /** A field value on the wire (`InputValue`). */
 export type InputValue = string | number | boolean;
@@ -73,16 +74,13 @@ function fieldOf(raw: unknown, missing: ReadonlySet<string>): TimeAskField | und
   };
 }
 
-function answerOf(raw: unknown): Readonly<Record<string, InputValue>> | undefined {
-  if (!isRec(raw)) return undefined;
-  const out: Record<string, InputValue> = {};
-  for (const [k, v] of Object.entries(raw)) if (isValue(v)) out[k] = v;
-  return Object.keys(out).length > 0 ? out : undefined;
-}
-
 export function timeAskOf(value: unknown): TimeAsk | undefined {
-  const awaiting = awaitingInputOf(value);
-  if (awaiting === undefined) return undefined;
+  const request = awaitingInputOf(value);
+  if (request === undefined) return undefined;
+  const hasTimeField = askDataArray(ownAskData(request, 'fields'), 128)
+    .some(field => typeof ownAskData(field, 'format') === 'string');
+  if (!hasTimeField) return undefined;
+  const awaiting = readAskMetadata(request, field => typeof ownAskData(field, 'format') === 'string');
   const missing = new Set(
     Array.isArray(awaiting.missing) ? awaiting.missing.filter((m): m is string => typeof m === 'string') : [],
   );
@@ -92,7 +90,7 @@ export function timeAskOf(value: unknown): TimeAsk | undefined {
   if (fields.length === 0) return undefined;
   const refused = awaiting.refused;
   const repeat = awaiting.repeat;
-  const answer = isRec(refused) ? answerOf(refused.answer) : undefined;
+  const answer = refused?.answer;
   return {
     ...(typeof awaiting.requestId === 'string' ? { requestId: awaiting.requestId } : {}),
     ...(typeof awaiting.question === 'string' ? { question: awaiting.question } : {}),

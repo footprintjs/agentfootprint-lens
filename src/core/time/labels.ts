@@ -19,6 +19,7 @@
  * and never for a reason the library did not file.
  */
 export const LABELS = Object.freeze({
+  askUnavailable: 'Time question unavailable',
   band: 'time',
   rows: 'rows',
   turn: 'turn',

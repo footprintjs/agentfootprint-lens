@@ -4,10 +4,10 @@ export function submitTimeReply(ports: SubmitPorts, cell: SubmitCell) {
   return async (scope: TypedScope<SubmitState>): Promise<void> => {
     try {
       await ports.onAnswer(cell.answer!);
-      cell.status = 'submitted'; scope.disposition = 'submitted';
+      cell.status = 'handed-off'; scope.disposition = 'handed-off';
     } catch {
       // A host exception can contain a request or correction. It never enters the trace.
-      cell.status = 'failed'; scope.disposition = 'host-answer-failed';
+      cell.status = 'unconfirmed'; scope.disposition = 'host-outcome-unconfirmed';
     }
   };
 }

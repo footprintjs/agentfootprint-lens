@@ -90,8 +90,38 @@ describe('time correction lifecycle and ownership', () => {
     render(<AwaitingPane {...props} />);
     fireEvent.change(screen.getByRole('textbox', { name: 'Correct this reading' }), { target: { value: 'EST' } });
     fireEvent.click(screen.getByRole('button', { name: 'Answer' }));
-    await screen.findByText('The time answer could not be submitted. The question remains unanswered.');
+    await screen.findByText('The host did not confirm this answer. Check its status before retrying.');
     expect(screen.queryByTestId('hitl-decision-record')).toBeNull();
     expect(document.body.textContent).not.toContain('private host response');
+    expect((screen.getByRole('button', { name: 'Answer' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+});
+
+describe('unsafe time metadata stays a named refusal', () => {
+  it('does not let the legacy time header bypass a refused enum getter', () => {
+    let reads = 0; const request = question(); const choices: string[] = [];
+    Object.defineProperty(choices, '0', { enumerable: true, get() { reads++; throw Error('private enum getter'); } });
+    request.fields[0]!.enum = choices;
+    const props = { awaiting: { question: request.question, pauseData: { awaitingInput: request } },
+      onDecision: vi.fn(), timeReplyReader: () => [{ range: 'window', correction: 'window-correction' }] };
+    expect(() => render(<AwaitingPane {...props} />)).not.toThrow();
+    expect(reads).toBe(0); expect(screen.getByTestId('time-ask-unavailable')).toBeDefined();
+    expect(screen.queryByRole('button', { name: 'Answer' })).toBeNull();
+  });
+});
+
+describe('in-place native re-ask revision', () => {
+  it('opens a new generation when repeat/refusal changes even if the request object is retained', async () => {
+    const request: ReturnType<typeof question> & { repeat?: { count: number }; refused?: { reason: string; answer: Record<string, string> } } = question();
+    const onDecision = vi.fn(); const reader = () => [{ range: 'window', correction: 'window-correction' }];
+    const props = () => ({ awaiting: { question: request.question, pauseData: { awaitingInput: request } }, onDecision, timeReplyReader: reader });
+    const view = render(<AwaitingPane {...props()} />);
+    fireEvent.change(screen.getByRole('textbox', { name: 'Correct this reading' }), { target: { value: 'no' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Answer' })); await screen.findByTestId('hitl-decision-record');
+    request.refused = { reason: 'Which part should change?', answer: { 'window-correction': 'no' } }; request.repeat = { count: 1 };
+    view.rerender(<AwaitingPane {...props()} />);
+    expect(screen.queryByTestId('hitl-decision-record')).toBeNull();
+    expect(screen.getByTestId('time-ask-reason').textContent).toBe(request.refused.reason);
+    expect((screen.getByRole('textbox', { name: 'Correct this reading' }) as HTMLTextAreaElement).value).toBe('');
   });
 });

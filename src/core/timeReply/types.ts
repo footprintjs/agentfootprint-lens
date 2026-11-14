@@ -22,5 +22,5 @@ export interface TimeReplyForm {
 export type TimeReplyInput =
   | { readonly status: 'unchecked'; readonly reason: 'reader-missing' | 'request-unavailable' }
   | { readonly status: 'none' }
-  | { readonly status: 'unavailable'; readonly reason: 'binding-unavailable' }
+  | { readonly status: 'unavailable'; readonly reason: 'binding-unavailable' | 'presentation-limit' }
   | { readonly status: 'ready'; readonly form: TimeReplyForm };

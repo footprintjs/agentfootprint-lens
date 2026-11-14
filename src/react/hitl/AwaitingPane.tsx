@@ -50,9 +50,8 @@
  */
 
 import React from 'react';
-import { awaitingInputOf } from '../../core/time/awaitingInput.js';
-import { readTimeReplyInput, type TimeReplyReader } from '../../core/timeReply.js';
-import { TimeReplyAnswerBox, TimeReplyUnavailable } from './timeReply.js';
+import { readTimeReplyInput, type TimeReplyReader, type TimeReplyInput } from '../../core/timeReply.js';
+import { TimeReplyAnswerBox, TimeReplyUnavailable, timeAskGeneration } from './timeReply.js';
 import type { ArtifactResolver } from '../../core/artifacts/types.js';
 import {
   decisionSentence,
@@ -110,19 +109,23 @@ interface Answered {
 export const AwaitingPane: React.FC<AwaitingPaneProps> = (props) => {
   // Native correction re-asks intentionally retain requestId. Their actual
   // request generation, not its id, scopes answered/input/collector state.
-  const generation = awaitingInputOf(props.awaiting) ?? props.awaiting.pauseData ?? props.awaiting;
-  const current = React.useRef({ generation, revision: 0 });
-  if (current.current.generation !== generation)
-    current.current = { generation, revision: current.current.revision + 1 };
-  return <AwaitingPaneSession {...props} key={current.current.revision} />;
+  const timeReply: TimeReplyInput = isConsentAsk(props.awaiting)
+    ? { status: 'unchecked', reason: 'request-unavailable' }
+    : readTimeReplyInput(props.awaiting, props.timeReplyReader);
+  const stamp = timeAskGeneration(props.awaiting, timeReply);
+  const current = React.useRef({ stamp, revision: 0 });
+  if (!stamp.every((value, index) => Object.is(current.current.stamp[index], value)))
+    current.current = { stamp, revision: current.current.revision + 1 };
+  return <AwaitingPaneSession {...props} timeReplyState={timeReply} key={current.current.revision} />;
 };
 
-const AwaitingPaneSession: React.FC<AwaitingPaneProps> = ({
+const AwaitingPaneSession: React.FC<AwaitingPaneProps & { readonly timeReplyState: TimeReplyInput }> = ({
   awaiting,
   resolver,
   onDecision,
   decidedBy,
   timeReplyReader,
+  timeReplyState: timeReply,
 }) => {
   ensureLensStyles();
   const component: AskComponentView | undefined = readAwaitingComponent(awaiting);
@@ -173,6 +176,7 @@ const AwaitingPaneSession: React.FC<AwaitingPaneProps> = ({
 
   const respond = React.useCallback(
     (decision: unknown, sentence?: string): void => {
+      if (!alive.current) return;
       setAnswered({ decision, sentence: sentence ?? decisionSentence(decision) });
       onDecision(decision);
     },
@@ -180,12 +184,10 @@ const AwaitingPaneSession: React.FC<AwaitingPaneProps> = ({
   );
 
   const consent = isConsentAsk(awaiting);
-  const timeReply = React.useMemo(() => consent
-    ? { status: 'unchecked' as const, reason: 'request-unavailable' as const }
-    : readTimeReplyInput(awaiting, timeReplyReader), [awaiting, timeReplyReader, consent]);
   const alive = React.useRef(true);
   React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   const respondTime = async (decision: unknown): Promise<void> => {
+    if (!alive.current) return;
     await onDecision(decision);
     if (alive.current) setAnswered({ decision, sentence: decisionSentence(decision) });
   };

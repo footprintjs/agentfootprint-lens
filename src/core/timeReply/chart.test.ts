@@ -9,7 +9,7 @@ describe('time reply feature chart', () => {
   it('submits exact correction text and keeps the raw request/answer out of its trace', async () => {
     const onAnswer = vi.fn(); const result = await submitTimeReplyInput({ awaiting, reader,
       values: { words: '  private correction  ' }, onAnswer });
-    expect(result.status).toBe('submitted');
+    expect(result.status).toBe('handed-off');
     expect(onAnswer).toHaveBeenCalledWith({ requestId: 'private-request', values: { words: '  private correction  ' } });
     expect(JSON.stringify(result.trace)).not.toContain('private');
   });
@@ -22,6 +22,6 @@ describe('time reply feature chart', () => {
   it('does not leak a host exception or confuse it with an answered question', async () => {
     const result = await submitTimeReplyInput({ awaiting, reader, values: { words: 'no' },
       onAnswer() { throw Error('private host error'); } });
-    expect(result.status).toBe('failed'); expect(JSON.stringify(result.trace)).not.toContain('private');
+    expect(result.status).toBe('unconfirmed'); expect(JSON.stringify(result.trace)).not.toContain('private');
   });
 });

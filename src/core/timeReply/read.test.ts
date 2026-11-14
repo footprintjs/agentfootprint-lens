@@ -32,3 +32,24 @@ describe('native time reply reader port', () => {
     expect(readTimeReplyInput(request(), () => [...reader(), ...reader()]).status).toBe('unavailable');
   });
 });
+
+describe('display metadata safety before the native reader', () => {
+  it('refuses numeric getters without invoking them or the reader', () => {
+    let reads = 0; const labels: string[] = [];
+    Object.defineProperty(labels, '0', { enumerable: true, get() { reads++; return 'private label'; } });
+    const input = request(); input.fields[0]!.labels = labels;
+    const native = vi.fn(reader);
+    expect(readTimeReplyInput(input, native).status).toBe('unavailable');
+    expect(reads).toBe(0); expect(native).not.toHaveBeenCalled();
+  });
+  it('refuses sparse and method-overridden arrays instead of consuming input methods', () => {
+    const input = request(); input.fields[0]!.enum = new Array(2);
+    expect(readTimeReplyInput(input, reader).status).toBe('unavailable');
+    const fields = request().fields; Object.defineProperty(fields, 'find', { get() { throw Error('private'); } });
+    expect(readTimeReplyInput({ ...request(), fields }, reader).status).toBe('unavailable');
+  });
+  it('bounds the complete displayed string budget without truncating a large label', () => {
+    const input = request(); input.fields[0]!.labels = ['x'.repeat(4 * 1024 * 1024)];
+    expect(readTimeReplyInput(input, reader)).toEqual({ status: 'unavailable', reason: 'presentation-limit' });
+  });
+});
