@@ -21,6 +21,11 @@ describe('context opening lifecycle', () => {
     await act(async () => { second(result('current refusal')); });
     expect(screen.getByText('current refusal')).toBeDefined();
   });
+  it('keeps undefined input pending instead of mistaking missing state for its result', () => {
+    vi.mocked(openContextRecording).mockReturnValueOnce(new Promise(() => {}));
+    render(<ContextRecordingGate recording={undefined}>{child}</ContextRecordingGate>);
+    expect(screen.getByRole('status').textContent).toContain('Opening');
+  });
   it('uses a fixed refusal for an unexpected chart failure', async () => {
     vi.mocked(openContextRecording).mockRejectedValueOnce(new Error('private words'));
     render(<ContextRecordingGate recording={{}}>{child}</ContextRecordingGate>);

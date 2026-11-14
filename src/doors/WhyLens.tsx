@@ -41,7 +41,7 @@ import type { RecordingVerdict } from '../core/recordingInput.js';
 
 /** Sentence 1 of the door's refusal — what the Why Lens reads. */
 export const WHY_LENS_READS =
-  'an agent’s recording — the { snapshot, events, structure } that recordRun() froze, the envelope persistRecording() wrote, or producer-decoded context';
+  'an agent’s recording — the { snapshot, events, structure } that recordRun() froze, or the envelope persistRecording() wrote';
 
 export interface WhyLensProps
   extends Pick<

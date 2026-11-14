@@ -20,7 +20,7 @@ export function ContextRecordingGate({ recording, children }: {
     });
     return () => { current = false; };
   }, [recording]);
-  return opened?.input === recording
+  return opened !== undefined && opened.input === recording
     ? children(opened.result.verdict)
     : <div role="status">Opening recorded context…</div>;
 }
