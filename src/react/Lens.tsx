@@ -35,6 +35,7 @@ import {
 } from "../core/selectors/index.js";
 import { LensFlow, type LensFlowProps } from "./LensFlow.js";
 import { SummaryCard } from "./SummaryCard.js";
+import { CopyForLLMButton } from "./copyForLLM/CopyForLLMButton.js";
 import { PlainWords } from "./components/PlainWords.js";
 import { printAnswerAccount } from "./components/AnswerReportPrint.js";
 import { LABELS as PLAIN_WORDS_LABELS, recordedAtOf } from "./components/plainWordsLayout.js";
@@ -3189,88 +3190,6 @@ const AnalystView: React.FC<{
  * subscribes via useSyncExternalStore), so accumulated tokens grow
  * naturally as they arrive.
  */
-/**
- * "Copy for LLM" button — dumps the run as one Markdown blob (run
- * summary + per-boundary rollups + every step with payload + commentary)
- * to the clipboard, ready to paste into a chat for debugging
- * assistance. Mirror of footprint-explainable-ui's NarrativePanel
- * "Copy for LLM" button.
- */
-const CopyForLLMButton: React.FC<{
-  recorder: LensRecorder;
-  stepGraph?: import("agentfootprint/observe").StepGraph;
-  humanizer: Humanizer;
-  appName: string;
-  /** Optional snapshot of view state at copy time (slider position,
-   *  current step, drill path, etc.). Plumbed by EngineerView so the
-   *  copied paste includes a Current View State section — invaluable
-   *  for diagnosing slider-sync / focus / drill bugs from the paste
-   *  alone. */
-  viewState?: import("../core/copyForLLM.js").ViewStateSnapshot;
-}> = ({ recorder, stepGraph, humanizer, appName, viewState }) => {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async (): Promise<void> => {
-    const { buildLLMText } = await import("../core/copyForLLM.js");
-    const text = buildLLMText({
-      recorder,
-      ...(stepGraph ? { stepGraph } : {}),
-      humanizer,
-      appName,
-      ...(viewState ? { viewState } : {}),
-    });
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API may be unavailable (insecure context, sandbox,
-      // older browser). Fall back to a textarea trick: select + copy.
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand("copy");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } finally {
-        document.body.removeChild(ta);
-      }
-    }
-  };
-  return (
-    <button
-      onClick={handleCopy}
-      title="Copy run as LLM-ready text — paste into Claude/ChatGPT to debug"
-      aria-label="Copy run as LLM-ready text"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 6,
-        // Icon-only (the tooltip explains it) — the full "Copy for LLM" label
-        // ate space the metrics row needed. Compact square button.
-        padding: "6px 8px",
-        marginRight: 6,
-        fontSize: 13,
-        fontWeight: 600,
-        fontFamily: "inherit",
-        color: copied ? "#fff" : T.textPrimary,
-        background: copied ? T.warning : T.bgElevated,
-        border: `1px solid ${copied ? T.warning : T.border}`,
-        borderRadius: 6,
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-        flex: "none",
-        transition: "background 0.15s, color 0.15s, border-color 0.15s",
-      }}
-    >
-      {copied ? "✓" : "📋"}
-    </button>
-  );
-};
 
 const LiveStreamLine: React.FC<{ line: string }> = ({ line }) => (
   <div

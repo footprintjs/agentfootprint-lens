@@ -2,7 +2,8 @@
  * <WhyLens> — the `agentfootprint-lens/why` door's mount component.
  *
  * Hand it the RECORDING — `recordRun(agent)`'s `{ snapshot, events,
- * structure }`, or the `persistRecording` envelope around one — and it mounts
+ * structure }`, the `persistRecording` envelope, or the producer-decoded
+ * context port — and it mounts
  * the shipped `<Lens>` shell over the replay, on the MILESTONE axis
  * (`granularity="group"`): the agent's own moments, banded by iteration.
  *
@@ -33,10 +34,11 @@ import { observeRecording } from '../core/observeRecording.js';
 import { Lens, type LensProps } from '../react/Lens.js';
 import { DoorRefusalCard } from '../react/components/DoorRefusalCard.js';
 import { REFUSAL_GO_TO, readAgentRecording, type AgentRecordingInput } from '../core/recordingInput.js';
+import { RecordedContextScope } from '../react/recordedContext.js';
 
 /** Sentence 1 of the door's refusal — what the Why Lens reads. */
 export const WHY_LENS_READS =
-  'an agent’s recording — the { snapshot, events, structure } that recordRun() froze, or the envelope persistRecording() wrote';
+  'an agent’s recording — the { snapshot, events, structure } that recordRun() froze, the envelope persistRecording() wrote, or producer-decoded context';
 
 export interface WhyLensProps
   extends Pick<
@@ -54,7 +56,7 @@ export interface WhyLensProps
     | 'slots'
   > {
   /**
-   * The recording — envelope or `{ snapshot, events, structure }`. The
+   * The recording — envelope, `{ snapshot, events, structure }`, or producer-decoded context. The
    * branded input: anything else refuses at mount (JS) or at build (TS).
    */
   readonly recording: AgentRecordingInput;
@@ -75,6 +77,7 @@ export function WhyLens({ recording, granularity = 'group', view = 'engineer', .
   }
 
   return (
+    <RecordedContextScope view={verdict.context} showPanel={view !== 'user'}>
     <Lens
       recorder={observed.recorder}
       {...(observed.runner !== undefined && { runner: observed.runner })}
@@ -82,5 +85,6 @@ export function WhyLens({ recording, granularity = 'group', view = 'engineer', .
       view={view}
       {...rest}
     />
+    </RecordedContextScope>
   );
 }

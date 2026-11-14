@@ -153,3 +153,54 @@ jobs:
             ${{ runner.temp }}/compat-evidence/record-browser/package*.json
             ${{ runner.temp }}/compat-evidence/browser/**
           if-no-files-found: error
+
+  context-producer:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: footprintjs/agentfootprint
+          ref: d507ab890fd705dddd2cef3aa73dd8859e14e2f2
+          path: producer-agent
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: footprintjs/foottrace
+          ref: 1b23607453bea28d0a8d846d0bac4029c6ea8f99
+          path: producer-values
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g npm@11.21.0
+      - run: npm ci --strict-peer-deps
+      - run: npm ci
+        working-directory: producer-values
+      - run: npm run build
+        working-directory: producer-values
+      - run: npm ci
+        working-directory: producer-agent
+      - run: npm run build
+        working-directory: producer-agent
+      - name: Generate from actual reviewed producer doors
+        run: |
+          node scripts/context-fixture/generate.mjs \
+            --agent-head d507ab890fd705dddd2cef3aa73dd8859e14e2f2 \
+            --values-head 1b23607453bea28d0a8d846d0bac4029c6ea8f99 \
+            --out "$RUNNER_TEMP/context-producer.json" > context-producer-generation.log 2>&1
+      - name: Read exact decoded values and model messages with the locked Lens peers
+        run: |
+          LENS_CONTEXT_FIXTURE="$RUNNER_TEMP/context-producer.json" \
+            npx vitest run src/core/recordedContext/producer.test.ts > context-producer-read.log 2>&1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: context-producer-proof
+          path: |
+            context-producer-*.log
+            ${{ runner.temp }}/context-producer.json
+          if-no-files-found: error

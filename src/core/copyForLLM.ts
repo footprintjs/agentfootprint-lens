@@ -36,8 +36,11 @@ import { selectAgentInstances } from "./selectors/selectAgentInstances.js";
 import { selectStepAgentName } from "./selectors/selectStepAgentName.js";
 import type { AgentInstance } from "./selectors/types.js";
 import { STORED_TOOL_RESULT_LABEL } from './toolResultLabels.js';
+import { compactNarration, contextPayloads, printRecordedContext, type RecordedContextView } from './recordedContext.js';
 
 export interface BuildLLMTextArgs {
+  /** Producer-decoded context: dictionary once, recorded call changes and compact narration. */
+  readonly context?: RecordedContextView;
   readonly recorder: LensRecorder;
   readonly stepGraph?: StepGraph;
   /** Optional per-boundary rollups (from
@@ -99,6 +102,7 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
     humanizer,
     appName = "Chatbot",
     viewState,
+    context,
   } = args;
   const summary = recorder.selectSummary();
   const log = recorder.selectEventLog();
@@ -209,6 +213,7 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
   }
 
   // ── 3. Steps (every StepNode with payload) ───────────────────
+  if (context !== undefined) sections.push(`\n${printRecordedContext(context)}\n`);
   if (stepGraph && stepGraph.nodes.length > 0) {
     sections.push("\n# Steps\n");
     // Multi-agent runs get agent-prefixed step headers (e.g.,
@@ -216,8 +221,11 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
     // each step formatter — `selectAgentInstances` is cheap but
     // `formatStep` runs N times.
     const agents = selectAgentInstances(stepGraph);
+    const annotationSteps = context !== undefined ? new Map<string, number>() : undefined;
+    const payloads = context !== undefined ? contextPayloads(context) : undefined;
+    if (payloads) sections.push('Payload views below use ⟦context "id"⟧ only for exact dictionary matches.');
     stepGraph.nodes.forEach((n, i) => {
-      sections.push(formatStep(i + 1, n, agents));
+      sections.push(formatStep(i + 1, n, agents, annotationSteps, payloads));
     });
   }
 
@@ -225,7 +233,8 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
   if (log.length > 0) {
     sections.push("\n# Commentary\n");
     sections.push("```");
-    for (const entry of log) {
+    if (context !== undefined) sections.push(...compactNarration(log, humanizer, appName));
+    else for (const entry of log) {
       const line = humanizer ? humanizer(entry.event) : `[${entry.event.type}]`;
       if (line === null) continue;
       const t = `+${Math.round(entry.runOffsetMs)}ms`.padEnd(10);
@@ -306,6 +315,8 @@ function formatStep(
   index: number,
   n: StepNode,
   agents: readonly AgentInstance[],
+  annotationSteps?: Map<string, number>,
+  payloads?: ReturnType<typeof contextPayloads>,
 ): string {
   const lines: string[] = [];
   const headerSuffix =
@@ -336,14 +347,14 @@ function formatStep(
   // NodeDetailPanel renders.
   if (n.entryPayload !== undefined) {
     lines.push("\n**Boundary input** (inputMapper result):");
-    lines.push("```json");
-    lines.push(safeJson(compactBoundaryPayload(n.entryPayload)));
+    lines.push(payloads ? "```text" : "```json");
+    lines.push(payloads ? payloads.format(compactBoundaryPayload(n.entryPayload)) : safeJson(compactBoundaryPayload(n.entryPayload)));
     lines.push("```");
   }
   if (n.exitPayload !== undefined) {
     lines.push("\n**Boundary output** (outputMapper result):");
-    lines.push("```json");
-    lines.push(safeJson(compactBoundaryPayload(n.exitPayload)));
+    lines.push(payloads ? "```text" : "```json");
+    lines.push(payloads ? payloads.format(compactBoundaryPayload(n.exitPayload)) : safeJson(compactBoundaryPayload(n.exitPayload)));
     lines.push("```");
   }
   if (n.assistantText) {
@@ -355,26 +366,32 @@ function formatStep(
   }
   if (n.toolArgs !== undefined) {
     lines.push("\n**Tool input (args):**");
-    lines.push("```json");
-    lines.push(safeJson(n.toolArgs));
+    lines.push(payloads ? "```text" : "```json");
+    lines.push(payloads ? payloads.format(n.toolArgs) : safeJson(n.toolArgs));
     lines.push("```");
   }
   if (n.toolResult !== undefined) {
     lines.push(`\n**${STORED_TOOL_RESULT_LABEL}:**`);
-    lines.push("```json");
-    lines.push(safeJson(n.toolResult));
+    lines.push(payloads ? "```text" : "```json");
+    lines.push(payloads ? payloads.format(n.toolResult) : safeJson(n.toolResult));
     lines.push("```");
   }
 
   // Engineered injections (filtered to non-baseline sources by callers
   // typically — but here we include all so the LLM has full context).
   if (n.injections && n.injections.length > 0) {
-    lines.push("\n**Context injections:**");
-    for (const inj of n.injections) {
+    const annotations = n.injections.map((inj) => {
       const id = inj.sourceId ? `:${inj.sourceId}` : "";
       const role = inj.asRole ? ` (as ${inj.asRole})` : "";
-      const summary = inj.contentSummary ? ` — ${inj.contentSummary}` : "";
-      lines.push(`- [${inj.slot}] ${inj.source}${id}${role}${summary}`);
+      const summary = inj.contentSummary ? ` — ${payloads ? payloads.format(inj.contentSummary) : inj.contentSummary}` : "";
+      return `- [${inj.slot}] ${inj.source}${id}${role}${summary}`;
+    });
+    const signature = JSON.stringify(annotations);
+    const previous = annotationSteps?.get(signature);
+    if (previous !== undefined) lines.push(`\nStep context annotations match step ${previous}.`);
+    else {
+      annotationSteps?.set(signature, index);
+      lines.push("\n**Context injections:**", ...annotations);
     }
   }
 

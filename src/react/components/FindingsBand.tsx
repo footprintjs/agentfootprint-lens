@@ -41,7 +41,7 @@
  *   5. A SHAPE THE LENS DOES NOT OWN. The rows came off a recording as JSON,
  *      so every row is narrowed by its shape here (`standingOf`, `conflictOf`,
  *      `assertionOf`) and a row that does not fit is passed over, the way
- *      `ServedTab.tsx · collapsedTicketOf` reads a ticket.
+ *      `core/served/collapsedTicket.ts · collapsedTicketOf` reads a ticket.
  *
  * Pure over its props: `rows` is the ledger as the fold holds it at the stop,
  * `toolResults` the state's batch at the same stop. Handed both by
