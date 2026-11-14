@@ -14,7 +14,9 @@ are retained. Source event indexes are pre-filter indexes, not offsets into
 the decoded event array. Native run/mount/call coordinates identify calls.
 
 `ownJson.ts` detaches presentation data without invoking getters, with one
-64 MiB string/key budget, 200,000 nodes and depth 100 across the whole view.
+64 MiB string/key budget, 200,000 nodes and depth 100 across call metadata and dictionary values. Native
+model-input evidence uses a separate shared JSON budget with the same caps;
+payload formatting bounds its ownership and comparison work separately.
 At most 10,000 calls and 100,000 unique pieces are accepted. A missing value,
 malformed port or exhausted budget refuses in fixed words; no partial table
 is presented. These are presentation bounds, not a new redaction policy.

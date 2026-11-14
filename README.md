@@ -2170,8 +2170,10 @@ gaps. A ticket is identified only by its recorded shape. Nested/grouped native
 logs, withheld state, mismatched owners and ambiguous calls remain explicitly
 unavailable here. The panel never joins a step's latest result to a tool id.
 
-Presentation is bounded to 10,000 calls, 100,000 unique pieces, 200,000 JSON
-nodes, depth 100 and 64 MiB of strings/keys. A malformed or unresolved value
+Context admission is bounded to 10,000 calls, 100,000 unique pieces,
+200,000 JSON nodes, depth 100 and 64 MiB of strings/keys. Native model-input
+copying has a separate shared JSON budget with the same node/depth/byte caps;
+payload formatting also has its own bounded ownership and comparison work. A malformed or unresolved value
 refuses the context view; formatting that exceeds its work bound refuses the
 copy without copying partial text. These bounds do not replace producer
 redaction. Copies can grow when they include context omitted by the old copy;
