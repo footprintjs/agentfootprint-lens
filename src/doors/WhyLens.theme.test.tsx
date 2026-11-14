@@ -1,5 +1,7 @@
 import React from 'react';
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, it } from 'vitest';
 import { WhyLens } from './WhyLens.js';
@@ -7,7 +9,8 @@ import { MODE_PALETTES } from '../react/theme/index.js';
 
 afterEach(cleanup);
 function recording() {
-  return JSON.parse(readFileSync(new URL('../core/__fixtures__/recorded-turn.json', import.meta.url), 'utf8'));
+  const fixtures = join(dirname(fileURLToPath(import.meta.url)), '..', 'core', '__fixtures__');
+  return JSON.parse(readFileSync(join(fixtures, 'recorded-turn.json'), 'utf8'));
 }
 function decoded() {
   return { recording: recording(), calls: [{ meta: { runId: 'run', subflowPath: ['root'] },
