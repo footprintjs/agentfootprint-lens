@@ -50,7 +50,7 @@ describe('published native time correction through the host controls', () => {
       expect(isInputPause(done)).toBe(false); expect(handed).toHaveLength(1);
     } finally { await agent.shutdown(); }
   });
-  it('keeps no as a native same-ID re-ask, then accepts a correction without local time parsing', async () => {
+  it('keeps no as a native re-ask, then accepts a correction without local time parsing', async () => {
     const handed: unknown[] = []; const agent = desk(handed);
     try {
       let current = await pause(agent); const wire = wireOf(current); const pair = timeReplyPairs(wire)[0]!;
@@ -65,16 +65,21 @@ describe('published native time correction through the host controls', () => {
       expect(onDecision.mock.calls[0]![0]).toEqual({ requestId: wire.requestId, values: { [pair.correction]: 'no' } });
       expect(handed).toEqual([]);
       if (!isInputPause(next!)) throw Error('Expected native correction hold');
-      current = next!; expect(current.awaitingInput.requestId).toBe(wire.requestId);
-      expect(current.awaitingInput.refused?.reason).toBeTruthy();
+      // Argument asks stamp each round anew; direct requestInput refusals can keep an ID.
+      // Lens accepts the native generation instead of imposing either identity convention.
+      current = next!; expect(current.awaitingInput.requestId).not.toBe(wire.requestId);
       const again = wireOf(current); view.rerender(<AwaitingPane {...props(again)} />);
       expect(screen.queryByTestId('hitl-decision-record')).toBeNull();
-      expect(screen.getByTestId('time-ask-reason').textContent).toBe(again.refused!.reason);
+      expect(screen.getByTestId('hitl-question').textContent).toBe(again.question);
+      const currentPair = timeReplyPairs(again)[0]!;
+      const range = again.fields.find(field => field.id === currentPair.range)!;
+      expect(range.description).toBe('What should change? For example, give a time zone, yesterday, or a full ISO interval.');
+      expect(screen.getByRole('combobox', { name: range.description }).textContent).toContain(range.labels![0]);
       const correction = '2026-10-01T00:00:00Z/2026-10-02T00:00:00Z';
       fireEvent.change(screen.getByRole('textbox'), { target: { value: correction } });
       fireEvent.click(screen.getByRole('button', { name: 'Answer' }));
       await screen.findByTestId('hitl-decision-record');
-      expect(onDecision.mock.calls[1]![0]).toEqual({ requestId: wire.requestId, values: { [pair.correction]: correction } });
+      expect(onDecision.mock.calls[1]![0]).toEqual({ requestId: again.requestId, values: { [currentPair.correction]: correction } });
       expect(isInputPause(next!)).toBe(false);
       expect(handed).toEqual([{ from_ms: Date.parse('2026-10-01T00:00:00Z'), to_ms: Date.parse('2026-10-02T00:00:00Z') }]);
     } finally { await agent.shutdown(); }
