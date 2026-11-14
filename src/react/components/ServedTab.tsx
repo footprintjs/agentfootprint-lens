@@ -1,5 +1,4 @@
 import { collapsedTicketOf } from '../../core/served/collapsedTicket.js';
-export { collapsedTicketOf } from '../../core/served/collapsedTicket.js';
 /**
  * <ServedTab> — at every LLM call, exactly what the model was served, provable
  * from the log.

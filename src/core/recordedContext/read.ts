@@ -23,8 +23,8 @@ export function isEncodedContext(input: unknown): boolean {
 export function readDecodedContext(input: unknown):
   { readonly recording: unknown; readonly context?: RecordedContextView } | undefined {
   try {
-    if (input === null || typeof input !== 'object' || !Object.hasOwn(input, 'calls') ||
-        !Object.hasOwn(input, 'recording')) return undefined;
+    if (input === null || typeof input !== 'object' || !Object.prototype.hasOwnProperty.call(input, 'calls') ||
+        !Object.prototype.hasOwnProperty.call(input, 'recording')) return undefined;
     const budget = presentationBudget();
     const rawCalls = own(input, 'calls');
     if (!Array.isArray(rawCalls) || rawCalls.length > 10_000)

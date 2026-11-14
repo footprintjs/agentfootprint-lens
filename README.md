@@ -2152,6 +2152,10 @@ archive itself. Plain historical recordings and persistRecording envelopes
 keep their existing input path. Raw encoded context archives get a teaching
 refusal until their producer decodes them.
 
+The decoded input opens through a recorded admission chart; pending reads show a
+loading state, and changing the input discards the previous result. Its debug
+trace contains flags and decisions, never raw context values.
+
 The engineer view shows one dictionary and each call's recorded additions,
 removals, unchanged count and order. Expand a reference to see the exact stored
 string, including whitespace. JSON objects retain their JSON values. Copy for

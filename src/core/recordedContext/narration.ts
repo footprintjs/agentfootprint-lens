@@ -13,7 +13,7 @@ export function compactNarration(log: readonly EventLogEntry[], humanizer: Human
     const meta = entry.event.meta;
     const owner = JSON.stringify([entry.event.type, meta.runId, meta.compositionPath,
       meta.subflowPath, meta.runtimeStageId]);
-    const group = groups.at(-1);
+    const group = groups[groups.length - 1];
     if (group?.line === line && group.owner === owner) {
       group.last = entry.runOffsetMs; group.seqs.push(entry.seq);
     } else groups.push({ line, owner, first: entry.runOffsetMs, last: entry.runOffsetMs, seqs: [entry.seq] });
