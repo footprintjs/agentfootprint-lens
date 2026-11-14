@@ -13,3 +13,7 @@ The adjacent Lens producer test verifies exact requests, native model-input
 status, and reports total-copy bytes separately from equal-information context
 bytes. The checked-in fixture remains a historical synthetic record; the
 hosted job generates a fresh one from the pinned sources.
+
+The producer contract has its own workflow; the registry-selected CI cohort
+keeps its existing checks and exact strict-lock policy. The adjacent workflow
+test pins the independent job's source inputs and read-only permissions.

@@ -2,7 +2,7 @@ import React, { createContext, useContext } from 'react';
 import type { RecordedContextView } from '../core/recordedContext.js';
 import { RecordedContextPanel } from './recordedContext/Panel.js';
 
-const Context = createContext<RecordedContextView | undefined>(undefined);
+const Context = /* @__PURE__ */ createContext<RecordedContextView | undefined>(undefined);
 
 /** One immutable model for this recording's view and its copied text. */
 export function RecordedContextScope({ view, children, showPanel = true }: {
