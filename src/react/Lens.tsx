@@ -78,7 +78,7 @@ import {
   drillPathLabels,
 } from "../core/group/drillResolve.js";
 import { tailWindow, MAX_COMMENTARY_LINES } from "./tailWindow.js";
-import { T, MODE_PALETTES } from "./theme/index.js";
+import { T, lensThemeVars, type LensTheme } from "./theme/index.js";
 // Lens's own stylesheet (the `lens-*` classes + the caret / edge keyframes).
 // Injected on first render, once — consumers wire no CSS. See lensStyles.ts.
 import { ensureLensStyles } from "./lensStyles.js";
@@ -94,9 +94,6 @@ import { useBookmarkSidecar, type UseBookmarkSidecarResult } from "./hooks/useBo
 import { bookmarksToMarks, localStorageBookmarkStore, type BookmarkStore } from "../core/bookmarks/index.js";
 import { tagLegend, tagAxisPositions, type TagLegend } from "../core/tags/index.js";
 import { snapshotOfRunner, snapshotLogKey } from "../core/utils/snapshotOfRunner.js";
-// eui's light/dark presets — applied to the chart area from `theme.mode` so the
-// eui-rendered nodes follow dark/light without the consumer hand-setting `--fp-*`.
-import { tokensToCSSVars, coolLight, coolDark } from "footprint-explainable-ui";
 // eui's neutral node-collapse transform. The PREDICATE stays here (the lens is
 // the agentfootprint-aware layer); eui only ever sees a function.
 import { collapseTraceGraph } from "footprint-explainable-ui/flowchart";
@@ -113,31 +110,7 @@ export type LensView = "engineer" | "analyst" | "user";
  */
 export type LensRunnerLike = import("agentfootprint").Runner;
 
-/**
- * The Lens chart's three-colour theme (agentfootprint level).
- *
- * `mode` is the COARSE switch: it applies eui's full light/dark preset as
- * `--fp-*` variables at the Lens root — so the eui-rendered nodes (stages, slot
- * pills, subflow boxes) follow dark/light from this one field, in ALL THREE
- * views, with no hand-setting of `--fp-*`. It also fills in the tokens eui's
- * presets have no cousin for: the elevated surface Lens's own panels (summary,
- * transport, moments rail, detail) sit on, the edge colours, and the
- * injection-source chips — see `MODE_PALETTES`. Every one of those lands in the
- * `--fp-*` tier, so the resolution order is unchanged and a consumer's own
- * `--lens-*` on any ancestor still wins.
- *
- * `ground` is the base (unvisited) colour, `visited` and `current` the executed
- * + cursor colours, layered on top. All optional.
- */
-export interface LensTheme {
-  mode?: 'dark' | 'light';
-  /** Base / unvisited nodes. */
-  ground?: string;
-  /** Executed / done nodes. */
-  visited?: string;
-  /** The node at the current cursor ("now"). */
-  current?: string;
-}
+export type { LensTheme } from "./theme/index.js";
 
 export interface LensProps {
   /** The recorder that was observing the run. Drives EventStream +
@@ -560,19 +533,6 @@ export const Lens: React.FC<LensProps> = (props) =>
   props.shared?.target?.kind === 'source-prefix'
     ? <SourcePrefixLens {...props} shared={props.shared} />
     : <StageLens {...props} />;
-
-function lensThemeVars(theme?: LensTheme): React.CSSProperties {
-  if (!theme) return {};
-  const base = theme.mode ? {
-    ...(tokensToCSSVars(theme.mode === 'light' ? coolLight : coolDark) as React.CSSProperties),
-    ...MODE_PALETTES[theme.mode],
-  } : {};
-  return {
-    ...base,
-    ...(theme.visited !== undefined && { ['--fp-node-visited' as string]: theme.visited }),
-    ...(theme.current !== undefined && { ['--fp-node-cursor' as string]: theme.current }),
-  } as React.CSSProperties;
-}
 
 const SourcePrefixLens: React.FC<LensProps & { shared: SharedCursor }> = ({ recorder, runner, shared, theme }) => {
   useLensRecorder(recorder);

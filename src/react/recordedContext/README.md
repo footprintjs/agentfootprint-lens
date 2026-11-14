@@ -10,3 +10,9 @@ dictionary entry; they do not fetch artifact data. Per-call rows retain
 duplicate occurrences, recorded counts/order and native coordinates. A
 source event index is shown as evidence, not used as a decoded-array index.
 This panel describes recorded context, not provider acceptance.
+
+The decoded dictionary and Lens share the selected palette scope, using the
+same theme projection as direct Lens. Its display-contents wrapper changes no
+layout box. Only --fp-* defaults are stamped; ancestor --lens-* overrides still
+win, and no palette is stamped without an explicit theme. Legacy input keeps
+its original tree without this wrapper.

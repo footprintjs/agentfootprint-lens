@@ -3,6 +3,7 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { readDecodedContext } from '../../core/recordedContext.js';
 import { RecordedContextScope, useRecordedContext } from '../recordedContext.js';
+import { MODE_PALETTES } from '../theme/index.js';
 
 function model() {
   return readDecodedContext({ recording: { events: [] }, calls: [{
@@ -12,6 +13,15 @@ function model() {
 }
 
 describe('recorded context disclosure', () => {
+  it.each(['light', 'dark'] as const)('scopes both surfaces under the selected %s palette', mode => {
+    const props = { view: model(), theme: { mode } };
+    render(<RecordedContextScope {...props}><div style={MODE_PALETTES[mode] as React.CSSProperties}>Lens surface</div></RecordedContextScope>);
+    const panel = screen.getByRole('region', { name: 'Recorded context' });
+    let root: HTMLElement | null = panel;
+    while (root && root.style.getPropertyValue('--fp-bg-elevated') === '') root = root.parentElement;
+    expect(root?.style.getPropertyValue('--fp-bg-elevated')).toBe(MODE_PALETTES[mode]['--fp-bg-elevated']);
+    expect(root?.contains(screen.getByText('Lens surface'))).toBe(true);
+  });
   it('expands the one dictionary value from its call reference without changing its text', () => {
     render(<RecordedContextScope view={model()}><span>Lens</span></RecordedContextScope>);
     const region = screen.getByRole('region', { name: 'Recorded context' });

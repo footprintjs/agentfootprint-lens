@@ -6,3 +6,4 @@ export {
   agentColor,
   type LensTokens,
 } from './tokens.js';
+export { lensThemeVars, type LensTheme } from './variables.js';

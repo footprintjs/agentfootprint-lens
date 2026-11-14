@@ -93,7 +93,7 @@ function WhyLensView({ recording: _recording, verdict, granularity = 'group', vi
   }
 
   return (
-    <RecordedContextScope view={verdict.context} showPanel={view !== 'user'}>
+    <RecordedContextScope view={verdict.context} showPanel={view !== 'user'} theme={rest.theme}>
     <Lens
       recorder={observed.recorder}
       {...(observed.runner !== undefined && { runner: observed.runner })}
