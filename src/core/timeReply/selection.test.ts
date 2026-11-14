@@ -21,4 +21,12 @@ describe('opaque native field keys', () => {
     if (model.status !== 'ready') throw Error('expected form');
     expect(selectedTimeReply(model.form, { r: 'x/y', extra: 'cannot drop this' })).toBeUndefined();
   });
+  it.each([1, false, null, undefined, ''])('does not drop a supplied invalid opposite channel %s', value => {
+    const model = readTimeReplyInput({ requestId: 'r', fields: [
+      { id: 'r', type: 'string', enum: ['x/y'] }, { id: 'c', type: 'string' },
+    ] }, () => [{ range: 'r', correction: 'c' }]);
+    if (model.status !== 'ready') throw Error('expected form');
+    expect(selectedTimeReply(model.form, { r: value, c: 'no' } as never)).toBeUndefined();
+    expect(selectedTimeReply(model.form, { r: 'x/y', c: value } as never)).toBeUndefined();
+  });
 });

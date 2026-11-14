@@ -6,7 +6,12 @@ export function selectedTimeReply(form: TimeReplyForm, values: TimeReplyValues):
   try {
     if (!form.complete) return undefined;
     const allowed = new Set(form.pairs.flatMap(pair => [pair.range.id, pair.correction.id]));
-    if (Reflect.ownKeys(values).some(key => typeof key !== 'string' || !allowed.has(key))) return undefined;
+    for (const key of Reflect.ownKeys(values)) {
+      if (typeof key !== 'string' || !allowed.has(key)) return undefined;
+      const descriptor = Object.getOwnPropertyDescriptor(values, key);
+      if (!descriptor?.enumerable || !('value' in descriptor) ||
+          typeof descriptor.value !== 'string' || descriptor.value.length === 0) return undefined;
+    }
     const entries: [string, string][] = [];
     for (const pair of form.pairs) {
       const read = (id: string): unknown => {
