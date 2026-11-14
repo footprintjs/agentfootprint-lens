@@ -22,6 +22,7 @@
 import React from 'react';
 import type { StepNode } from 'agentfootprint/observe';
 import { T } from './theme/index.js';
+import { ioSectionsFor } from '../core/nodeIoSections.js';
 
 export interface NodeDetailPanelProps {
   /** The selected step node, or undefined when nothing is selected. */
@@ -554,51 +555,7 @@ const ReActStepBody: React.FC<{ node: StepNode }> = ({ node }) => {
   );
 };
 
-/**
- * Per-kind Input/Output sections. The user's mental model:
- *
- *   user→llm   — input: user message (carried via slot boundaries)
- *   llm→tool   — input: LLM's reasoning text · output: tool args (JSON)
- *   tool→llm   — input: tool result (JSON) → next LLM call
- *   llm→user   — output: final answer text
- *
- * Sections with no payload are omitted (adaptive — don't show empty rows).
- */
-function ioSectionsFor(
-  node: StepNode,
-): Array<{ label: string; payload: unknown }> {
-  const out: Array<{ label: string; payload: unknown }> = [];
-  switch (node.kind) {
-    case 'llm->tool': {
-      if (node.assistantText) {
-        out.push({ label: "LLM's reasoning", payload: node.assistantText });
-      }
-      if (node.toolArgs !== undefined) {
-        out.push({ label: 'Tool input (args)', payload: node.toolArgs });
-      }
-      break;
-    }
-    case 'tool->llm': {
-      if (node.toolResult !== undefined) {
-        out.push({ label: 'Tool result sent to LLM', payload: node.toolResult });
-      }
-      break;
-    }
-    case 'llm->user': {
-      if (node.assistantText) {
-        out.push({ label: 'Final answer', payload: node.assistantText });
-      }
-      break;
-    }
-    case 'user->llm':
-    default:
-      // No extra I/O sections for user→llm — the user message already
-      // shows up via the `messages` slot boundary list inside the LLM
-      // card; surfacing it again here would be redundant.
-      break;
-  }
-  return out;
-}
+
 
 /**
  * Sources that are NATIVE channels of every LLM API — not context

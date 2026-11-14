@@ -35,6 +35,7 @@ import type { Humanizer } from "./humanizer.js";
 import { selectAgentInstances } from "./selectors/selectAgentInstances.js";
 import { selectStepAgentName } from "./selectors/selectStepAgentName.js";
 import type { AgentInstance } from "./selectors/types.js";
+import { STORED_TOOL_RESULT_LABEL } from './toolResultLabels.js';
 
 export interface BuildLLMTextArgs {
   readonly recorder: LensRecorder;
@@ -359,7 +360,7 @@ function formatStep(
     lines.push("```");
   }
   if (n.toolResult !== undefined) {
-    lines.push("\n**Tool result sent to LLM:**");
+    lines.push(`\n**${STORED_TOOL_RESULT_LABEL}:**`);
     lines.push("```json");
     lines.push(safeJson(n.toolResult));
     lines.push("```");
