@@ -1,5 +1,5 @@
 /**
- * The lens's peer floor is footprintjs ^10.0.0. A STATIC named import of a
+ * The lens's peer floor includes footprintjs ^11.0.0. A STATIC named import of a
  * symbol that floor does not export makes the whole lens unbundleable for a
  * consumer on it (0.53.1–0.53.3: `pathSegments`, exported since 9.22.0, took
  * an on-prem app's dev server down at pre-bundle). A symbol newer than the
@@ -28,8 +28,11 @@ const TRACE_FLOOR = new Set([
   'KeyedStore', 'QualityRecorder', 'formatQualityTrace', 'qualityTrace',
   'SequenceStore', 'TopologyRecorder', 'topologyRecorder',
 ]);
-/** The root barrel names the lens reads — all on the 10.0.0 root door (its dist/esm/index.d.ts). */
-const ROOT_FLOOR = new Set(['enableDevMode', 'disableDevMode', 'isDevMode']);
+/** Root names used by Lens, rechecked against the published 11.0.0 root door.
+ * flowChart/decide are explicit exports in dist/esm/index.d.ts; archive integrity
+ * sha512-ERVLDzDqJBl9o524lIoIUC9AuPjmhOtZmgDZCODCre2vZxuzxYF6Hm71K1p5yIYLOCD9NFGnqDd0sOkATtfYrA==.
+ * This extends the audited names, not the package's peer floor. */
+const ROOT_FLOOR = new Set(['enableDevMode', 'disableDevMode', 'isDevMode', 'flowChart', 'decide']);
 /** Foottrace 1.0.0 — root values, from its published dist/esm/index.d.ts. */
 const RECORD_FLOOR = new Set([
   'buildRuntimeStageId', 'createExecutionCounter', 'parseRuntimeStageId', 'splitStageId',

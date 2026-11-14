@@ -156,7 +156,7 @@ looks everything else up by the result's id: the result itself from the
 state's `history` tool messages (then the batch, `toolResults`), the
 collapsed ticket from the served wire at the stop's epoch
 (`contextAt(...).served.row.view.messages.asSent`, read by
-`ServedTab.tsx · collapsedTicketOf`), the conflict rows from the same fold.
+`core/served/collapsedTicket.ts · collapsedTicketOf`), the conflict rows from the same fold.
 
 Each card: the tool name, the id (shortened past 12 characters, the full id
 on hover), the iteration, the `basis` as a chip (`direct` / `exploratory`)

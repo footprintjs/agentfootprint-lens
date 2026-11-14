@@ -8,12 +8,14 @@
  * (see `DoorRefusalCard`) instead of a blank panel or a crash. This module is
  * the shared half of that promise — the duck checks and the sentences.
  *
- * Two accepted spellings of "a recording":
+ * Three accepted spellings of "a recording":
  *
  *   { snapshot, events, structure }   what `recordRun(agent)` freezes
  *   the envelope                      what `persistRecording(...)` writes —
  *                                     format-marked `agentfootprint.recording.*`,
  *                                     with the same recording inside it
+ *
+ *   { recording, calls, values }     the producer-decoded context port
  *
  * Everything else gets NAMED, not guessed at: a bare commit log is told where
  * the commit-trace lens lives (footprint-explainable-ui); a JSON string is
@@ -21,6 +23,7 @@
  */
 
 import type { Recording } from './observeRecording.js';
+import { isEncodedContext, readDecodedContext, withRecordedEvidence, type DecodedContextInput, type RecordedContextView } from './recordedContext.js';
 
 /**
  * The archivable envelope `persistRecording` writes
@@ -38,10 +41,10 @@ export interface RecordingEnvelopeLike {
 /**
  * What a door's mount component accepts — the branded input. TypeScript
  * consumers fail at BUILD time on anything else (a bare `CommitBundle[]` has
- * none of a recording's parts, so it is not assignable to either arm); JS
+ * none of a recording's parts, so it is not assignable to any arm); JS
  * consumers get the runtime refusal card instead.
  */
-export type AgentRecordingInput = Recording | RecordingEnvelopeLike;
+export type AgentRecordingInput = Recording | RecordingEnvelopeLike | DecodedContextInput;
 
 /** Where a refused input's reader should go next. */
 export type RefusalDestination = 'commit-trace-lens' | 'record-the-run';
@@ -49,7 +52,7 @@ export type RefusalDestination = 'commit-trace-lens' | 'record-the-run';
 /** The mount-time verdict: the recording (unwrapped from its envelope when it
  *  arrived in one), or the refusal's two facts — what was received, where to go. */
 export type RecordingVerdict =
-  | { readonly ok: true; readonly recording: Recording }
+  | { readonly ok: true; readonly recording: Recording; readonly context?: RecordedContextView }
   | { readonly ok: false; readonly received: string; readonly goTo: RefusalDestination };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -88,6 +91,27 @@ export function isAgentRecording(value: unknown): value is AgentRecordingInput {
  * accept a recording, and NAME anything else in plain language.
  */
 export function readAgentRecording(value: unknown): RecordingVerdict {
+  try {
+    if (isEncodedContext(value)) return { ok: false,
+      received: 'an encoded context recording — decode it with readContextRecording and readValueRecord first',
+      goTo: 'record-the-run' };
+    const decoded = readDecodedContext(value);
+    if (decoded !== undefined) {
+      const verdict = readPlainRecording(decoded.recording);
+      return verdict.ok && decoded.context !== undefined
+        ? { ...verdict, context: withRecordedEvidence(verdict.recording, decoded.context) } : verdict;
+    }
+    return readPlainRecording(value);
+  } catch {
+    return { ok: false, received: 'a context recording whose values or call metadata could not be read safely',
+      goTo: 'record-the-run' };
+  }
+}
+
+function readPlainRecording(value: unknown): RecordingVerdict {
+  if (isEncodedContext(value)) return { ok: false,
+    received: 'an encoded context recording — decode it with readContextRecording and readValueRecord first',
+    goTo: 'record-the-run' };
   // The envelope: format-marked, recording inside. Unwrap and re-check.
   if (
     isPlainObject(value) &&
@@ -95,7 +119,7 @@ export function readAgentRecording(value: unknown): RecordingVerdict {
     value['format'].startsWith('agentfootprint.recording.')
   ) {
     const inner = value['recording'];
-    if (isPlainObject(inner) && looksLikeRecording(inner)) {
+    if (isPlainObject(inner) && !isEncodedContext(inner) && looksLikeRecording(inner)) {
       return { ok: true, recording: inner as Recording };
     }
     return {

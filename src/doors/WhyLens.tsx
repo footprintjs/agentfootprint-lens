@@ -2,7 +2,8 @@
  * <WhyLens> — the `agentfootprint-lens/why` door's mount component.
  *
  * Hand it the RECORDING — `recordRun(agent)`'s `{ snapshot, events,
- * structure }`, or the `persistRecording` envelope around one — and it mounts
+ * structure }`, the `persistRecording` envelope, or the producer-decoded
+ * context port — and it mounts
  * the shipped `<Lens>` shell over the replay, on the MILESTONE axis
  * (`granularity="group"`): the agent's own moments, banded by iteration.
  *
@@ -33,6 +34,10 @@ import { observeRecording } from '../core/observeRecording.js';
 import { Lens, type LensProps } from '../react/Lens.js';
 import { DoorRefusalCard } from '../react/components/DoorRefusalCard.js';
 import { REFUSAL_GO_TO, readAgentRecording, type AgentRecordingInput } from '../core/recordingInput.js';
+import { RecordedContextScope } from '../react/recordedContext.js';
+import { isDecodedContextPort } from '../core/contextOpening.js';
+import { ContextRecordingGate } from '../react/ContextRecordingGate.js';
+import type { RecordingVerdict } from '../core/recordingInput.js';
 
 /** Sentence 1 of the door's refusal — what the Why Lens reads. */
 export const WHY_LENS_READS =
@@ -54,14 +59,27 @@ export interface WhyLensProps
     | 'slots'
   > {
   /**
-   * The recording — envelope or `{ snapshot, events, structure }`. The
+   * The recording — envelope, `{ snapshot, events, structure }`, or producer-decoded context. The
    * branded input: anything else refuses at mount (JS) or at build (TS).
    */
   readonly recording: AgentRecordingInput;
 }
 
-export function WhyLens({ recording, granularity = 'group', view = 'engineer', ...rest }: WhyLensProps): React.ReactElement {
-  const verdict = useMemo(() => readAgentRecording(recording), [recording]);
+export function WhyLens(props: WhyLensProps): React.ReactElement {
+  return isDecodedContextPort(props.recording)
+    ? <ContextRecordingGate recording={props.recording}>
+        {verdict => <WhyLensView {...props} verdict={verdict} />}
+      </ContextRecordingGate>
+    : <LegacyWhyLens {...props} />;
+}
+
+function LegacyWhyLens(props: WhyLensProps): React.ReactElement {
+  const verdict = useMemo(() => readAgentRecording(props.recording), [props.recording]);
+  return <WhyLensView {...props} verdict={verdict} />;
+}
+
+function WhyLensView({ recording: _recording, verdict, granularity = 'group', view = 'engineer', ...rest }:
+  WhyLensProps & { readonly verdict: RecordingVerdict }): React.ReactElement {
   const observed = useMemo(
     () => (verdict.ok ? observeRecording(verdict.recording) : undefined),
     [verdict],
@@ -75,6 +93,7 @@ export function WhyLens({ recording, granularity = 'group', view = 'engineer', .
   }
 
   return (
+    <RecordedContextScope view={verdict.context} showPanel={view !== 'user'} theme={rest.theme}>
     <Lens
       recorder={observed.recorder}
       {...(observed.runner !== undefined && { runner: observed.runner })}
@@ -82,5 +101,6 @@ export function WhyLens({ recording, granularity = 'group', view = 'engineer', .
       view={view}
       {...rest}
     />
+    </RecordedContextScope>
   );
 }

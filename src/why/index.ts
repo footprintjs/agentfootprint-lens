@@ -67,6 +67,7 @@ export {
 } from '../core/group/cursorPositionsAtDrill.js';
 export { stepForCommitIdx } from '../core/group/stepForCommitIdx.js';
 export { stepForRuntimeStageId } from '../core/group/stepForRuntimeStageId.js';
+export type { DecodedContextInput, RecordedContextView } from '../core/recordedContext.js';
 // "Take me to this stage" with an honest answer — the resolver behind
 // `<Lens navigatorRef>`, usable with nothing mounted.
 export {

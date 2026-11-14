@@ -89,7 +89,7 @@ import type { SharedCursor } from '../useSharedCursor.js';
 import { MILESTONE_AXIS } from './ContextView.js';
 import { CoverageRows } from './CoverageBand.js';
 import { foldFindings, type AssertionShape, type FindingsFold, type StandingShape } from './FindingsBand.js';
-import { collapsedTicketOf } from './ServedTab.js';
+import { collapsedTicketOf } from '../../core/served/collapsedTicket.js';
 
 /** Every string this lens owns — names for fields and chips, never a sentence. */
 export const LABELS = Object.freeze({
