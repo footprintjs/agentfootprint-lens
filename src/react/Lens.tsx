@@ -35,6 +35,7 @@ import {
 } from "../core/selectors/index.js";
 import { LensFlow, type LensFlowProps } from "./LensFlow.js";
 import { SummaryCard } from "./SummaryCard.js";
+import { CopyForLLMButton } from "./copyForLLM/CopyForLLMButton.js";
 import { PlainWords } from "./components/PlainWords.js";
 import { printAnswerAccount } from "./components/AnswerReportPrint.js";
 import { LABELS as PLAIN_WORDS_LABELS, recordedAtOf } from "./components/plainWordsLayout.js";
@@ -77,7 +78,7 @@ import {
   drillPathLabels,
 } from "../core/group/drillResolve.js";
 import { tailWindow, MAX_COMMENTARY_LINES } from "./tailWindow.js";
-import { T, MODE_PALETTES } from "./theme/index.js";
+import { T, lensThemeVars, type LensTheme } from "./theme/index.js";
 // Lens's own stylesheet (the `lens-*` classes + the caret / edge keyframes).
 // Injected on first render, once — consumers wire no CSS. See lensStyles.ts.
 import { ensureLensStyles } from "./lensStyles.js";
@@ -93,9 +94,6 @@ import { useBookmarkSidecar, type UseBookmarkSidecarResult } from "./hooks/useBo
 import { bookmarksToMarks, localStorageBookmarkStore, type BookmarkStore } from "../core/bookmarks/index.js";
 import { tagLegend, tagAxisPositions, type TagLegend } from "../core/tags/index.js";
 import { snapshotOfRunner, snapshotLogKey } from "../core/utils/snapshotOfRunner.js";
-// eui's light/dark presets — applied to the chart area from `theme.mode` so the
-// eui-rendered nodes follow dark/light without the consumer hand-setting `--fp-*`.
-import { tokensToCSSVars, coolLight, coolDark } from "footprint-explainable-ui";
 // eui's neutral node-collapse transform. The PREDICATE stays here (the lens is
 // the agentfootprint-aware layer); eui only ever sees a function.
 import { collapseTraceGraph } from "footprint-explainable-ui/flowchart";
@@ -112,31 +110,7 @@ export type LensView = "engineer" | "analyst" | "user";
  */
 export type LensRunnerLike = import("agentfootprint").Runner;
 
-/**
- * The Lens chart's three-colour theme (agentfootprint level).
- *
- * `mode` is the COARSE switch: it applies eui's full light/dark preset as
- * `--fp-*` variables at the Lens root — so the eui-rendered nodes (stages, slot
- * pills, subflow boxes) follow dark/light from this one field, in ALL THREE
- * views, with no hand-setting of `--fp-*`. It also fills in the tokens eui's
- * presets have no cousin for: the elevated surface Lens's own panels (summary,
- * transport, moments rail, detail) sit on, the edge colours, and the
- * injection-source chips — see `MODE_PALETTES`. Every one of those lands in the
- * `--fp-*` tier, so the resolution order is unchanged and a consumer's own
- * `--lens-*` on any ancestor still wins.
- *
- * `ground` is the base (unvisited) colour, `visited` and `current` the executed
- * + cursor colours, layered on top. All optional.
- */
-export interface LensTheme {
-  mode?: 'dark' | 'light';
-  /** Base / unvisited nodes. */
-  ground?: string;
-  /** Executed / done nodes. */
-  visited?: string;
-  /** The node at the current cursor ("now"). */
-  current?: string;
-}
+export type { LensTheme } from "./theme/index.js";
 
 export interface LensProps {
   /** The recorder that was observing the run. Drives EventStream +
@@ -559,19 +533,6 @@ export const Lens: React.FC<LensProps> = (props) =>
   props.shared?.target?.kind === 'source-prefix'
     ? <SourcePrefixLens {...props} shared={props.shared} />
     : <StageLens {...props} />;
-
-function lensThemeVars(theme?: LensTheme): React.CSSProperties {
-  if (!theme) return {};
-  const base = theme.mode ? {
-    ...(tokensToCSSVars(theme.mode === 'light' ? coolLight : coolDark) as React.CSSProperties),
-    ...MODE_PALETTES[theme.mode],
-  } : {};
-  return {
-    ...base,
-    ...(theme.visited !== undefined && { ['--fp-node-visited' as string]: theme.visited }),
-    ...(theme.current !== undefined && { ['--fp-node-cursor' as string]: theme.current }),
-  } as React.CSSProperties;
-}
 
 const SourcePrefixLens: React.FC<LensProps & { shared: SharedCursor }> = ({ recorder, runner, shared, theme }) => {
   useLensRecorder(recorder);
@@ -3189,88 +3150,6 @@ const AnalystView: React.FC<{
  * subscribes via useSyncExternalStore), so accumulated tokens grow
  * naturally as they arrive.
  */
-/**
- * "Copy for LLM" button — dumps the run as one Markdown blob (run
- * summary + per-boundary rollups + every step with payload + commentary)
- * to the clipboard, ready to paste into a chat for debugging
- * assistance. Mirror of footprint-explainable-ui's NarrativePanel
- * "Copy for LLM" button.
- */
-const CopyForLLMButton: React.FC<{
-  recorder: LensRecorder;
-  stepGraph?: import("agentfootprint/observe").StepGraph;
-  humanizer: Humanizer;
-  appName: string;
-  /** Optional snapshot of view state at copy time (slider position,
-   *  current step, drill path, etc.). Plumbed by EngineerView so the
-   *  copied paste includes a Current View State section — invaluable
-   *  for diagnosing slider-sync / focus / drill bugs from the paste
-   *  alone. */
-  viewState?: import("../core/copyForLLM.js").ViewStateSnapshot;
-}> = ({ recorder, stepGraph, humanizer, appName, viewState }) => {
-  const [copied, setCopied] = useState(false);
-  const handleCopy = async (): Promise<void> => {
-    const { buildLLMText } = await import("../core/copyForLLM.js");
-    const text = buildLLMText({
-      recorder,
-      ...(stepGraph ? { stepGraph } : {}),
-      humanizer,
-      appName,
-      ...(viewState ? { viewState } : {}),
-    });
-    try {
-      await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      // Clipboard API may be unavailable (insecure context, sandbox,
-      // older browser). Fall back to a textarea trick: select + copy.
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      ta.style.position = "fixed";
-      ta.style.left = "-9999px";
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand("copy");
-        setCopied(true);
-        setTimeout(() => setCopied(false), 2000);
-      } finally {
-        document.body.removeChild(ta);
-      }
-    }
-  };
-  return (
-    <button
-      onClick={handleCopy}
-      title="Copy run as LLM-ready text — paste into Claude/ChatGPT to debug"
-      aria-label="Copy run as LLM-ready text"
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 6,
-        // Icon-only (the tooltip explains it) — the full "Copy for LLM" label
-        // ate space the metrics row needed. Compact square button.
-        padding: "6px 8px",
-        marginRight: 6,
-        fontSize: 13,
-        fontWeight: 600,
-        fontFamily: "inherit",
-        color: copied ? "#fff" : T.textPrimary,
-        background: copied ? T.warning : T.bgElevated,
-        border: `1px solid ${copied ? T.warning : T.border}`,
-        borderRadius: 6,
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-        flex: "none",
-        transition: "background 0.15s, color 0.15s, border-color 0.15s",
-      }}
-    >
-      {copied ? "✓" : "📋"}
-    </button>
-  );
-};
 
 const LiveStreamLine: React.FC<{ line: string }> = ({ line }) => (
   <div

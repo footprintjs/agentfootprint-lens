@@ -22,6 +22,15 @@ import { render, screen } from '@testing-library/react';
 import type { StepNode } from 'agentfootprint/observe';
 import { NodeDetailPanel } from './NodeDetailPanel.js';
 
+it('keeps stored result rows distinct from evidence of model input', () => {
+  const node = mkNode({ id: 'stored-result', kind: 'tool->llm',
+    toolResult: { rows: [{ name: 'stored-row' }] } });
+  render(<NodeDetailPanel node={node} />);
+  expect(screen.getByText('Stored tool result')).toBeDefined();
+  expect(screen.queryByText('Tool result sent to LLM')).toBeNull();
+  expect(screen.getByText(/stored-row/)).toBeDefined();
+});
+
 // ── Helpers ─────────────────────────────────────────────────────────────
 
 function mkNode(overrides: Partial<StepNode> & Pick<StepNode, 'id' | 'kind'>): StepNode {

@@ -63,6 +63,7 @@ export {
 } from "./humanizer.js";
 export * from "./selectors/index.js";
 export { buildLLMText, type BuildLLMTextArgs } from "./copyForLLM.js";
+export type { DecodedContextInput, RecordedContextView } from './recordedContext.js';
 
 // Groups — a subflow execution, the unit the GROUPED ruler moves by.
 // `groupDisplayName` is THE spelling of a group's name: the WHAT HAPPENED

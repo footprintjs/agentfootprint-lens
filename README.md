@@ -2173,3 +2173,54 @@ The self-explaining stack — from backend pipelines to AI agents. → **[overvi
 ## License
 
 MIT
+
+
+### Producer-decoded context recordings
+
+`WhyLens` also accepts a producer-decoded context recording. Decode outside
+React, using producer versions that export these readers:
+
+```tsx
+import { readContextRecording } from 'agentfootprint/observe';
+import { readValueRecord } from 'foottrace/values';
+import { WhyLens } from 'agentfootprint-lens/why';
+
+const decoded = await readContextRecording(encodedRecording, readValueRecord);
+// Keep this reference stable across renders.
+<WhyLens recording={decoded} />;
+```
+
+The current locked npm peers do not yet export both readers. This is an
+optional structural input port for the reviewed producer changes; Lens does
+not import an unavailable API, change the peer floor, or decode the compact
+archive itself. Plain historical recordings and persistRecording envelopes
+keep their existing input path. Raw encoded context archives get a teaching
+refusal until their producer decodes them.
+
+The decoded input opens through a recorded admission chart; pending reads show a
+loading state, and changing the input discards the previous result. Its debug
+trace contains flags and decisions, never raw context values.
+
+The engineer view shows one dictionary and each call's recorded additions,
+removals, unchanged count and order. Expand a reference to see the exact stored
+string, including whitespace. JSON objects retain their JSON values. Copy for
+AI uses the same dictionary, exact payload references and consecutive repeated
+narration with counts and source sequence/time spans. Custom humanizers may
+still omit internal events by returning null.
+
+Stored tool results have their own label. Tool messages are read separately
+from an exact native root-log call and checked with Lens's existing receipt
+verifier; each says verified, reconstructed or damaged and keeps the recorded
+gaps. A ticket is identified only by its recorded shape. Nested/grouped native
+logs, withheld state, mismatched owners and ambiguous calls remain explicitly
+unavailable here. The panel never joins a step's latest result to a tool id.
+
+Context admission is bounded to 10,000 calls, 100,000 unique pieces,
+200,000 JSON nodes, depth 100 and 64 MiB of strings/keys. Native model-input
+copying has a separate shared JSON budget with the same node/depth/byte caps;
+payload formatting also has its own bounded ownership and comparison work. A malformed or unresolved value
+refuses the context view; formatting that exceeds its work bound refuses the
+copy without copying partial text. These bounds do not replace producer
+redaction. Copies can grow when they include context omitted by the old copy;
+size comparisons must distinguish total-copy bytes from the same fully
+expanded per-call context. The synthetic producer contract reports both.
