@@ -5,6 +5,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.82.0] - 2026-11-14
+
+### Added
+
+- Display producer-decoded recorded context as one dictionary with per-call
+  changes and references that expand to exact stored text. Separate exact
+  model-input evidence from stored tool results and disclose unavailable or
+  reconstructed evidence. Existing recordings retain their existing path.
+- Offer native paired time-range and correction controls through the optional
+  `timeReplyReader` capability. Preserve declared field values and text, leave
+  interpretation and wire submission with the host, and retain registered
+  collectors' complete-form ownership. The host can supply `timeReplyPairs`
+  from the public `agentfootprint/time` door in agentfootprint 14.4 or newer;
+  Lens's existing peer ranges remain unchanged.
+- Reopen revised time questions, including same-ID re-asks, and reject retained
+  callbacks from older question generations. A rejected host callback leaves
+  its remote outcome unconfirmed and requires current host state before retry.
+
+### Fixed
+
+- Apply the selected Lens palette to the decoded context dictionary as well
+  as the Lens surface, preserving consumer CSS overrides and the legacy tree.
+- Refuse unreadable or oversized time metadata with a named gap across both
+  passive time views and controls, without leaking hostile getter exceptions.
+
+### Notes
+
+- Copy output now includes context and input evidence previously omitted, so
+  total copied output can grow despite deduplicating the context itself.
+- No existing peer floor, saved-record format, golden or size baseline is raised.
+
 ## [0.81.0] - 2026-11-12
 
 ### Fixed
