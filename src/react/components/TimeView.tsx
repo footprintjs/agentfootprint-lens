@@ -56,7 +56,12 @@ export function TimeView(props: TimeViewProps): React.ReactElement | null {
   const { rows, coverage, ask, assessment } = props;
   const ledger = useMemo(() => rows ?? [], [rows]);
   const hasBand = useMemo(() => foldTimeRows(ledger, coverage) !== undefined, [ledger, coverage]);
-  const hasAsk = useMemo(() => ask !== undefined && timeAskOf(ask) !== undefined, [ask]);
+  const hasAsk = useMemo(() => {
+    if (ask === undefined) return false;
+    try { return timeAskOf(ask) !== undefined; }
+    // A failed projection must reach TimeAskRows' named gap, never disappear or throw.
+    catch { return true; }
+  }, [ask]);
   const standing = useMemo(() => timeStandingOf(assessment, ledger), [assessment, ledger]);
   if (!hasBand && !hasAsk && standing === undefined) return null;
   return (

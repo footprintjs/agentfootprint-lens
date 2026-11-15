@@ -429,3 +429,5 @@ export {
   type RegisterDecisionComponentArgs,
 } from "./hitl/registry.js";
 export { OptionPicker } from "./hitl/OptionPicker.js";
+
+export { TimeReplyFields, type TimeReplyFieldsProps } from './hitl/timeReply.js';

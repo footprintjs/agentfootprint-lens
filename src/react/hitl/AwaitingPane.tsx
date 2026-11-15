@@ -50,6 +50,8 @@
  */
 
 import React from 'react';
+import { readTimeReplyInput, type TimeReplyReader, type TimeReplyInput } from '../../core/timeReply.js';
+import { TimeReplyAnswerBox, TimeReplyUnavailable, timeAskGeneration } from './timeReply.js';
 import type { ArtifactResolver } from '../../core/artifacts/types.js';
 import {
   decisionSentence,
@@ -64,6 +66,8 @@ import { ConsentAnswerBox, PlainAnswerBox } from './AnswerBox.js';
 import { decisionComponentFor } from './registry.js';
 
 export interface AwaitingPaneProps {
+  /** Native producer capability, e.g. timeReplyPairs from agentfootprint/time14.4+. */
+  readonly timeReplyReader?: TimeReplyReader;
   /** The pending ask, exactly as the wire served it (`{ awaiting }` body /
    *  stored `pending`). Read structurally — any agentfootprint era's shape
    *  works, and a pre-9.24 payload simply renders its prose question. */
@@ -102,11 +106,26 @@ interface Answered {
   readonly sentence: string;
 }
 
-export const AwaitingPane: React.FC<AwaitingPaneProps> = ({
+export const AwaitingPane: React.FC<AwaitingPaneProps> = (props) => {
+  // Native correction re-asks intentionally retain requestId. Their actual
+  // request generation, not its id, scopes answered/input/collector state.
+  const timeReply: TimeReplyInput = isConsentAsk(props.awaiting)
+    ? { status: 'unchecked', reason: 'request-unavailable' }
+    : readTimeReplyInput(props.awaiting, props.timeReplyReader);
+  const stamp = timeAskGeneration(props.awaiting, timeReply);
+  const current = React.useRef({ stamp, revision: 0 });
+  if (!stamp.every((value, index) => Object.is(current.current.stamp[index], value)))
+    current.current = { stamp, revision: current.current.revision + 1 };
+  return <AwaitingPaneSession {...props} timeReplyState={timeReply} key={current.current.revision} />;
+};
+
+const AwaitingPaneSession: React.FC<AwaitingPaneProps & { readonly timeReplyState: TimeReplyInput }> = ({
   awaiting,
   resolver,
   onDecision,
   decidedBy,
+  timeReplyReader,
+  timeReplyState: timeReply,
 }) => {
   ensureLensStyles();
   const component: AskComponentView | undefined = readAwaitingComponent(awaiting);
@@ -157,6 +176,7 @@ export const AwaitingPane: React.FC<AwaitingPaneProps> = ({
 
   const respond = React.useCallback(
     (decision: unknown, sentence?: string): void => {
+      if (!alive.current) return;
       setAnswered({ decision, sentence: sentence ?? decisionSentence(decision) });
       onDecision(decision);
     },
@@ -164,6 +184,13 @@ export const AwaitingPane: React.FC<AwaitingPaneProps> = ({
   );
 
   const consent = isConsentAsk(awaiting);
+  const alive = React.useRef(true);
+  React.useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const respondTime = async (decision: unknown): Promise<void> => {
+    if (!alive.current) return;
+    await onDecision(decision);
+    if (alive.current) setAnswered({ decision, sentence: decisionSentence(decision) });
+  };
   const question = awaiting.question ?? awaiting.ask?.question;
 
   // The fallback answer surface — shaped by what the ask IS: consent gates
@@ -171,7 +198,11 @@ export const AwaitingPane: React.FC<AwaitingPaneProps> = ({
   const fallbackBox = consent ? (
     <ConsentAnswerBox decidedBy={decidedBy} respond={respond} />
   ) : (
-    <PlainAnswerBox respond={respond} />
+    timeReply.status === 'unavailable' ? <TimeReplyUnavailable /> :
+    timeReply.status === 'ready' ? timeReply.form.complete && timeReplyReader !== undefined
+      ? <TimeReplyAnswerBox awaiting={awaiting} reader={timeReplyReader} form={timeReply.form} respond={respondTime} />
+      : <TimeReplyUnavailable incomplete />
+    : <PlainAnswerBox respond={respond} />
   );
 
   // ── Answered: the sentence is display; the decision is the record. ──
@@ -293,6 +324,7 @@ export const AwaitingPane: React.FC<AwaitingPaneProps> = ({
           props={component.props ?? {}}
           data={refState.phase === 'resolved' ? refState.data : undefined}
           respond={respond}
+          {...(timeReplyReader !== undefined ? { timeReply } : {})}
         />
       </LensChartBoundary>
     </div>
