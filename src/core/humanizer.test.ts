@@ -336,15 +336,15 @@ describe('teachingHumanizer — T11: commentaryTemplates override', () => {
   });
 });
 
-// ─── Fallthrough: events without a teaching narrative ─────────────────
+// ─── Raw detail: numeric cost stays available without teaching policy ─
 
-describe('teachingHumanizer — fallthrough to defaultHumanizer', () => {
-  it('cost.tick has no teaching narrative; falls through', () => {
+describe('defaultHumanizer — numeric cost detail', () => {
+  it('renders the recorded incremental and cumulative dollar amounts', () => {
     const event = evt('agentfootprint.cost.tick', {
       estimatedUsd: 0.001,
       cumulative: { estimatedUsd: 0.005 },
     });
-    expect(teachingHumanizer(event)).toBe(defaultHumanizer(event));
+    expect(defaultHumanizer(event)).toBe('Cost +$0.001000 — cumulative $0.005000.');
   });
 });
 
