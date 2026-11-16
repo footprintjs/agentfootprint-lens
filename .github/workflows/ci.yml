@@ -103,8 +103,6 @@ jobs:
   published-commentary-control:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
-    env:
-      LENS_COMMENTARY_AGENT_VERSION: "14.7.2"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -122,6 +120,7 @@ jobs:
           import assert from 'node:assert/strict';
           import { readFileSync } from 'node:fs';
           import { resolve } from 'node:path';
+          import { selectCommentaryKey } from 'agentfootprint';
           import { assertSingleFoottrace } from './scripts/compat/contract.mjs';
           const control = { agentfootprint: '14.7.2', footprintjs: '12.3.0', foottrace: '1.11.1' };
           const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
@@ -133,6 +132,11 @@ jobs:
             console.log(`${name}@${actual.version}`);
           }
           assertSingleFoottrace(resolve('node_modules'), '1.11.1');
+          for (const [type, key] of [
+            ['agentfootprint.cost.tick', null],
+            ['agentfootprint.agent.run_configured', 'event.agentfootprint.agent.run_configured'],
+            ['agentfootprint.integrity.disposition', 'event.agentfootprint.integrity.disposition'],
+          ]) assert.equal(selectCommentaryKey({ type, payload: {} }), key, type);
           JS
           git diff --exit-code -- package.json package-lock.json
       - name: Check real published narration and unchanged historical layout goldens

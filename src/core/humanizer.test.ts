@@ -340,29 +340,40 @@ describe('teachingHumanizer — T11: commentaryTemplates override', () => {
 // The lock cohort and the published-control job deliberately exercise both
 // upstream classifications. null means skip; undefined means fall through.
 // Adding upstream narration must not be mistaken for a Lens layout change.
-const commentaryAgent = process.env.LENS_COMMENTARY_AGENT_VERSION ?? '14.4.0';
-if (commentaryAgent !== '14.4.0' && commentaryAgent !== '14.7.2') {
-  throw new Error(`Undeclared commentary control cohort: ${commentaryAgent}`);
+interface CommentaryCase {
+  type: string;
+  pairs: readonly { key: string | null | undefined; text: string | null }[];
 }
-type CommentaryCase = readonly [type: string, key: string | null | undefined, text: string | null];
-const commentaryCases: Record<'14.4.0' | '14.7.2', readonly CommentaryCase[]> = {
-  '14.4.0': [
-    ['agentfootprint.cost.tick', undefined, 'Cost +$0.001000 — cumulative $0.005000.'],
-    ['agentfootprint.agent.run_configured', undefined, '[agentfootprint.agent.run_configured]'],
-    ['agentfootprint.integrity.disposition', undefined, '[agentfootprint.integrity.disposition]'],
-  ],
-  '14.7.2': [
-    ['agentfootprint.cost.tick', null, null],
-    ['agentfootprint.agent.run_configured', 'event.agentfootprint.agent.run_configured', 'The run recorded its configuration.'],
-    ['agentfootprint.integrity.disposition', 'event.agentfootprint.integrity.disposition', 'The run recorded its disposition of an integrity finding.'],
-  ],
-};
+const commentaryCases: CommentaryCase[] = [
+  {
+    type: 'agentfootprint.cost.tick',
+    pairs: [
+      { key: undefined, text: 'Cost +$0.001000 — cumulative $0.005000.' },
+      { key: null, text: null },
+    ],
+  },
+  {
+    type: 'agentfootprint.agent.run_configured',
+    pairs: [
+      { key: undefined, text: '[agentfootprint.agent.run_configured]' },
+      { key: 'event.agentfootprint.agent.run_configured', text: 'The run recorded its configuration.' },
+    ],
+  },
+  {
+    type: 'agentfootprint.integrity.disposition',
+    pairs: [
+      { key: undefined, text: '[agentfootprint.integrity.disposition]' },
+      { key: 'event.agentfootprint.integrity.disposition', text: 'The run recorded its disposition of an integrity finding.' },
+    ],
+  },
+];
 
-describe(`teachingHumanizer — published commentary contract (${commentaryAgent})`, () => {
-  it.each(commentaryCases[commentaryAgent])('%s preserves the upstream disposition and voice', (type, key, text) => {
+describe('teachingHumanizer — published commentary contract', () => {
+  it.each(commentaryCases)('$type preserves the upstream disposition and voice', ({ type, pairs }) => {
     const event = evt(type, { estimatedUsd: 0.001, cumulative: { estimatedUsd: 0.005 } });
-    expect(selectCommentaryKey(event)).toBe(key);
-    expect(teachingHumanizer(event)).toBe(text);
+    // Check the pair, not two independent sets: explicit skip must never
+    // fall through, and a fallthrough must never silently disappear.
+    expect(pairs).toContainEqual({ key: selectCommentaryKey(event), text: teachingHumanizer(event) });
   });
 });
 
