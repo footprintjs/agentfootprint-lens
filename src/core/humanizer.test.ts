@@ -21,6 +21,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { selectCommentaryKey } from 'agentfootprint';
 import {
   defaultHumanizer,
   makeTeachingHumanizer,
@@ -336,15 +337,43 @@ describe('teachingHumanizer — T11: commentaryTemplates override', () => {
   });
 });
 
-// ─── Raw detail: numeric cost stays available without teaching policy ─
+// The lock cohort and the published-control job deliberately exercise both
+// upstream classifications. null means skip; undefined means fall through.
+// Adding upstream narration must not be mistaken for a Lens layout change.
+interface CommentaryCase {
+  type: string;
+  pairs: readonly { key: string | null | undefined; text: string | null }[];
+}
+const commentaryCases: CommentaryCase[] = [
+  {
+    type: 'agentfootprint.cost.tick',
+    pairs: [
+      { key: undefined, text: 'Cost +$0.001000 — cumulative $0.005000.' },
+      { key: null, text: null },
+    ],
+  },
+  {
+    type: 'agentfootprint.agent.run_configured',
+    pairs: [
+      { key: undefined, text: '[agentfootprint.agent.run_configured]' },
+      { key: 'event.agentfootprint.agent.run_configured', text: 'The run recorded its configuration.' },
+    ],
+  },
+  {
+    type: 'agentfootprint.integrity.disposition',
+    pairs: [
+      { key: undefined, text: '[agentfootprint.integrity.disposition]' },
+      { key: 'event.agentfootprint.integrity.disposition', text: 'The run recorded its disposition of an integrity finding.' },
+    ],
+  },
+];
 
-describe('defaultHumanizer — numeric cost detail', () => {
-  it('renders the recorded incremental and cumulative dollar amounts', () => {
-    const event = evt('agentfootprint.cost.tick', {
-      estimatedUsd: 0.001,
-      cumulative: { estimatedUsd: 0.005 },
-    });
-    expect(defaultHumanizer(event)).toBe('Cost +$0.001000 — cumulative $0.005000.');
+describe('teachingHumanizer — published commentary contract', () => {
+  it.each(commentaryCases)('$type preserves the upstream disposition and voice', ({ type, pairs }) => {
+    const event = evt(type, { estimatedUsd: 0.001, cumulative: { estimatedUsd: 0.005 } });
+    // Check the pair, not two independent sets: explicit skip must never
+    // fall through, and a fallthrough must never silently disappear.
+    expect(pairs).toContainEqual({ key: selectCommentaryKey(event), text: teachingHumanizer(event) });
   });
 });
 
