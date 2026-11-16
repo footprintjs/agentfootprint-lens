@@ -139,8 +139,10 @@ jobs:
           ]) assert.equal(selectCommentaryKey({ type, payload: {} }), key, type);
           JS
           git diff --exit-code -- package.json package-lock.json
-      - name: Check real published narration and unchanged historical layout goldens
-        run: npx vitest run src/core/humanizer.test.ts test/plain-words/analystView.test.tsx
+      - name: Build against the actual published control
+        run: npm run build
+      - name: Check the complete published consumer control, including historical layout goldens
+        run: npm test
 
   # Retire historical installed runtime cohorts. Keep historical record DATA
   # fixtures in the whole suite, plus public renderer floor/current/candidate.
