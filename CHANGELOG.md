@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Breaking
+
+- Require the joint next-major AgentFootprint, engine and Foottrace cohort in
+  both peer and development declarations. The older AF 14, engine 11/12 and
+  Foottrace 1 runtime ranges are removed. Migration: update the three together
+  against the exact admitted candidate archives, prove one physical Foottrace
+  image and run the original consumer checks. This source preparation retains
+  the real prior lock and does not claim registry availability or compatibility.
+  Regenerate the committed lock only against actual published inputs. React,
+  renderer and public API contracts remain unchanged; saved-record readers and
+  goldens are retained. The package version is left to the normal release route.
+
 ## [0.82.0] - 2026-11-14
 
 ### Added

@@ -32,12 +32,29 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-Lens 0.81.0 supports **agentfootprint 14**, **footprintjs 11 or 12** and
-**Foottrace 1.11.1 or newer**, with Node.js 22 or newer and React 18 or 19.
-The stable peers are `agentfootprint ^14.0.0` and `footprintjs ^11.0.0 || ^12.0.0`.
-footprintjs 12 needs agentfootprint 14.4.0 or newer, the first that accepts it.
-Earlier installed runtime lines are no longer supported. Reading older saved recordings remains supported; their fixtures
-and tests are retained unchanged.
+### Migration: next major dependency cohort (draft)
+
+This draft requires the joint `agentfootprint ^15.0.0-rc.0`,
+`footprintjs ^13.0.0-rc.0` and `foottrace ^2.0.0-rc.0` cohort for both peer and
+development dependencies. The earlier AF 14, engine 11/12 and Foottrace 1 lines
+are no longer in the declared runtime ranges. This is intended next-major
+adoption; the source package version stays unchanged until the normal release.
+Node.js 22 or newer and React 18 or 19 remain required. Older saved recordings
+retain their existing readers, fixtures and goldens.
+
+The engine 13 and AF 15 audit archives are not published registry inputs.
+Paired validation needs reviewed source-bound materialization, including AF's
+native version staging, and a strict temporary lock derived before the first
+install. The real committed lock remains the prior AF 14.4.0 / engine 12.0.0 /
+Foottrace 1.11.1 baseline; it does not satisfy these draft declarations. No
+registry URL, integrity or committed local-file lock is invented.
+
+Compatibility stays unverified until the original builds, declarations, runtime,
+record, packaging and browser checks pass against the actual admitted cohort
+with one physical Foottrace image. After separately authorized real publication,
+regenerate the committed lock normally and rerun the required hosted checks.
+The published AF 14 controls below are separate evidence, never substitutes for
+this new cohort. No production fallback or golden update is part of this draft.
 
 The renderer peer remains `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0`.
 Its minimum supplies the renderer APIs used by Lens. Public imports from
@@ -51,19 +68,20 @@ pointers; they derive no new verdict. New attempt summaries use `answered` and
 `effect`. Historical narrative text, including `succeeded`, remains recorded
 data and is not rewritten by Lens.
 
-### Compatibility proof and final validation
+### Published AF 14 controls and historical validation
 
-The development cohort pins `agentfootprint@14.4.0`,
+The following retained procedure and receipts describe the published AF 14
+control cohort, not current draft install readiness or engine 13 / FT 2 / AF 15
+compatibility. That control cohort pins `agentfootprint@14.4.0`,
 `footprintjs@12.0.0` and `foottrace@1.11.1`. Release validation uses a normally
 generated committed lock after the upstream finals are published, with
 `npm ci --strict-peer-deps` on Node 22 and 24.
 
-0.81.0 widened the footprintjs peer to accept 12 and changed nothing else. Now
-that footprintjs 12.0.0 is published, the cohort runs on it: this repository's
-own build and whole suite are the proof on 12. The peer range still accepts 11;
-dropping 11 would be a separate, deliberate release.
+The 0.81.0 stable line widened the footprintjs peer to accept 12 while retaining
+11. Its published-cohort proof below concerns that stable line. The draft above
+deliberately drops both older engine lines for the next major cohort.
 
-The active cohort is derived from the exact development pins in `package.json`
+The recorded control cohort was derived from the exact development pins in `package.json`
 and the version, registry URL and integrity entries in the committed lock. CI
 joins registry SHA512/SHA1 with the downloaded bytes and locked integrity,
 compares installed files with the archive, and requires one physical Foottrace
