@@ -14,6 +14,7 @@ describe('source-selected native compatibility workflow', () => {
     const runners = workflow.match(/^[ \t]*runs-on:.*$/gm) ?? [];
     expect(runners.map((line) => line.trim())).toEqual([
       'runs-on: ubuntu-24.04', 'runs-on: ubuntu-24.04', 'runs-on: ubuntu-24.04',
+      'runs-on: ubuntu-24.04',
     ]);
   });
 
@@ -44,10 +45,20 @@ describe('source-selected native compatibility workflow', () => {
       expect(entry?.integrity).toMatch(/^sha512-/);
     }
     expect(JSON.stringify(lock)).not.toContain('file:');
-    expect(workflow.match(/run: npm ci --strict-peer-deps/g)).toHaveLength(3);
+    expect(workflow.match(/run: npm ci --strict-peer-deps/g)).toHaveLength(4);
     expect(workflow).not.toMatch(/npm install --strict-peer-deps|bootstrap-lock/);
     expect(workflow.match(/run: npm test/g)).toHaveLength(2);
     expect(workflow.match(/run: npm run typecheck/g)).toHaveLength(2);
+  });
+
+  it('keeps unrelated lock pins fixed in the explicit published commentary control', () => {
+    expect(workflow).toContain('published-commentary-control:');
+    expect(workflow).toContain('agentfootprint@14.7.2 footprintjs@12.3.0 foottrace@1.11.1');
+    expect(workflow).toContain('control[name] ?? lock.packages[`node_modules/${name}`].version');
+    expect(workflow).toContain("assertSingleFoottrace(resolve('node_modules'), '1.11.1')");
+    expect(workflow).toContain('git diff --exit-code -- package.json package-lock.json');
+    expect(workflow).toContain('npx vitest run src/core/humanizer.test.ts test/plain-words/analystView.test.tsx');
+    expect(workflow).not.toMatch(/--package-lock=false|LENS_COMMENTARY_AGENT_VERSION/);
   });
 
   it('uses the same selected cohort in the archive, isolated consumer and native probe', () => {
