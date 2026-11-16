@@ -344,7 +344,8 @@ const commentaryAgent = process.env.LENS_COMMENTARY_AGENT_VERSION ?? '14.4.0';
 if (commentaryAgent !== '14.4.0' && commentaryAgent !== '14.7.2') {
   throw new Error(`Undeclared commentary control cohort: ${commentaryAgent}`);
 }
-const commentaryCases = {
+type CommentaryCase = readonly [type: string, key: string | null | undefined, text: string | null];
+const commentaryCases: Record<'14.4.0' | '14.7.2', readonly CommentaryCase[]> = {
   '14.4.0': [
     ['agentfootprint.cost.tick', undefined, 'Cost +$0.001000 — cumulative $0.005000.'],
     ['agentfootprint.agent.run_configured', undefined, '[agentfootprint.agent.run_configured]'],
@@ -355,7 +356,7 @@ const commentaryCases = {
     ['agentfootprint.agent.run_configured', 'event.agentfootprint.agent.run_configured', 'The run recorded its configuration.'],
     ['agentfootprint.integrity.disposition', 'event.agentfootprint.integrity.disposition', 'The run recorded its disposition of an integrity finding.'],
   ],
-} as const;
+};
 
 describe(`teachingHumanizer — published commentary contract (${commentaryAgent})`, () => {
   it.each(commentaryCases[commentaryAgent])('%s preserves the upstream disposition and voice', (type, key, text) => {

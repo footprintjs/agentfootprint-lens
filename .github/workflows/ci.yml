@@ -115,7 +115,7 @@ jobs:
       - run: npm install -g npm@11.21.0
       - run: npm ci --strict-peer-deps
       - name: Install the exact published control without changing source pins
-        run: npm install --no-save --package-lock=false --ignore-scripts --strict-peer-deps agentfootprint@14.7.2 footprintjs@12.3.0 foottrace@1.11.1
+        run: npm install --no-save --ignore-scripts --strict-peer-deps agentfootprint@14.7.2 footprintjs@12.3.0 foottrace@1.11.1
       - name: Verify the actual cohort and single physical record owner
         run: |
           node --input-type=module <<'JS'
@@ -123,13 +123,18 @@ jobs:
           import { readFileSync } from 'node:fs';
           import { resolve } from 'node:path';
           import { assertSingleFoottrace } from './scripts/compat/contract.mjs';
-          for (const [name, version] of Object.entries({ agentfootprint: '14.7.2', footprintjs: '12.3.0', foottrace: '1.11.1' })) {
+          const control = { agentfootprint: '14.7.2', footprintjs: '12.3.0', foottrace: '1.11.1' };
+          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
+          const declared = lock.packages[''];
+          for (const name of Object.keys({ ...declared.dependencies, ...declared.devDependencies })) {
+            const version = control[name] ?? lock.packages[`node_modules/${name}`].version;
             const actual = JSON.parse(readFileSync(resolve('node_modules', name, 'package.json'), 'utf8'));
             assert.equal(actual.version, version, name);
             console.log(`${name}@${actual.version}`);
           }
           assertSingleFoottrace(resolve('node_modules'), '1.11.1');
           JS
+          git diff --exit-code -- package.json package-lock.json
       - name: Check real published narration and unchanged historical layout goldens
         run: npx vitest run src/core/humanizer.test.ts test/plain-words/analystView.test.tsx
 
