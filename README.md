@@ -34,9 +34,10 @@ npm install agentfootprint agentfootprint-lens footprintjs foottrace
 
 ### Migration: next major dependency cohort (draft)
 
-This draft requires the joint `agentfootprint ^15.0.0-rc.0`,
-`footprintjs ^13.0.0-rc.0` and `foottrace ^2.0.0-rc.0` cohort for both peer and
-development dependencies. The earlier AF 14, engine 11/12 and Foottrace 1 lines
+This draft requires the joint peer ranges `agentfootprint ^15.0.0-rc.0`,
+`footprintjs ^13.0.0-rc.0` and `foottrace ^2.0.0-rc.0`. Development identities
+are exact: `agentfootprint 15.0.0-rc.0`, `footprintjs 13.0.0-rc.0` and
+`foottrace 2.0.0-rc.0`. The earlier AF 14, engine 11/12 and Foottrace 1 lines
 are no longer in the declared runtime ranges. This is intended next-major
 adoption; the source package version stays unchanged until the normal release.
 Node.js 22 or newer and React 18 or 19 remain required. Older saved recordings

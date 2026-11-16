@@ -9,8 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Breaking
 
-- Require the joint next-major AgentFootprint, engine and Foottrace cohort in
-  both peer and development declarations. The older AF 14, engine 11/12 and
+- Require the joint next-major AgentFootprint, engine and Foottrace cohort with
+  peer ranges and exact development pins. The older AF 14, engine 11/12 and
   Foottrace 1 runtime ranges are removed. Migration: update the three together
   against the exact admitted candidate archives, prove one physical Foottrace
   image and run the original consumer checks. This source preparation retains

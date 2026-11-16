@@ -49,3 +49,13 @@ group/drain cleanup. The existing dependency command's timeout applies to its
 direct child; failure does not prove that privileged descendants have stopped.
 Browser assertions and final byte checks still run outside the retry, and the
 lane awaits provisioning before recording that step or opening a browser.
+
+## Authored development pins before installation
+
+`check-source-pins.mjs` reads this source manifest and uses `authoredDevPins`
+from `contract.mjs`, sharing the exact-version guard used by `deriveCohort`.
+The CI and context-producer source bootstraps run it before registry installation. It checks
+syntax only: a valid pin does not prove availability, lock identity, archive
+bytes or compatibility. `deriveCohort` still requires the matching root pin,
+locked version, canonical registry URL, integrity and an unlinked package.
+The existing old lock can therefore continue to refuse a draft cohort.

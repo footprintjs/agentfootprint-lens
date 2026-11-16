@@ -22,16 +22,26 @@ export const tooling = Object.freeze({
 
 const cohortNames = Object.freeze(['agentfootprint', 'footprintjs', 'foottrace']);
 
+function exactDevPin(manifest, name) {
+  const version = manifest?.devDependencies?.[name];
+  const parsed = typeof version === 'string' && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(version);
+  assert.ok(parsed && parsed[0] === version && (!parsed[4] || parsed[4].split('.').every((id) =>
+    !/^\d+$/.test(id) || id === '0' || !id.startsWith('0'))), `${name}: exact dev pin required`);
+  return version;
+}
+
+/** Syntax only: no lock, archive identity, availability or compatibility claim. */
+export function authoredDevPins(manifest) {
+  return Object.freeze(Object.fromEntries(cohortNames.map((name) => [name, exactDevPin(manifest, name)])));
+}
+
 export function deriveCohort(manifest, lock) {
   assert.equal(lock?.lockfileVersion, 3, 'source lock format');
   assert.ok(lock.packages?.[''], 'source lock root is required');
   const pins = {};
   const packages = {};
   for (const name of cohortNames) {
-    const version = manifest?.devDependencies?.[name];
-    const parsed = typeof version === 'string' && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(version);
-    assert.ok(parsed && parsed[0] === version && (!parsed[4] || parsed[4].split('.').every((id) =>
-      !/^\d+$/.test(id) || id === '0' || !id.startsWith('0'))), `${name}: exact dev pin required`);
+    const version = exactDevPin(manifest, name);
     assert.equal(lock.packages[''].devDependencies?.[name], version, `${name}: source lock root pin`);
     const entry = lock.packages[`node_modules/${name}`];
     assert.ok(entry, `${name}: locked package entry required`);

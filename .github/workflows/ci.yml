@@ -27,6 +27,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Check authored cohort development pins
+        run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
       - run: npm ci --strict-peer-deps
       - name: Verify registry bytes, committed identity and installed files
@@ -79,6 +81,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Check authored cohort development pins
+        run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
       - run: npm ci --strict-peer-deps
       - name: Verify registry bytes, committed identity and installed files
@@ -110,6 +114,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Check authored cohort development pins
+        run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
       - run: npm ci --strict-peer-deps
       - name: Install the exact published control without changing source pins
@@ -170,6 +176,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: Check authored cohort development pins
+        run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
       - uses: actions/download-artifact@v4
         with:

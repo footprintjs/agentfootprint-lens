@@ -30,6 +30,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Check authored cohort development pins
+        run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
       - run: node --test scripts/context-fixture/*.test.mjs
       - run: npm ci --strict-peer-deps
