@@ -21,6 +21,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { selectCommentaryKey } from 'agentfootprint';
 import {
   defaultHumanizer,
   makeTeachingHumanizer,
@@ -336,15 +337,31 @@ describe('teachingHumanizer — T11: commentaryTemplates override', () => {
   });
 });
 
-// ─── Fallthrough: events without a teaching narrative ─────────────────
+// The lock cohort and the published-control job deliberately exercise both
+// upstream classifications. null means skip; undefined means fall through.
+// Adding upstream narration must not be mistaken for a Lens layout change.
+const commentaryAgent = process.env.LENS_COMMENTARY_AGENT_VERSION ?? '14.4.0';
+if (commentaryAgent !== '14.4.0' && commentaryAgent !== '14.7.2') {
+  throw new Error(`Undeclared commentary control cohort: ${commentaryAgent}`);
+}
+const commentaryCases = {
+  '14.4.0': [
+    ['agentfootprint.cost.tick', undefined, 'Cost +$0.001000 — cumulative $0.005000.'],
+    ['agentfootprint.agent.run_configured', undefined, '[agentfootprint.agent.run_configured]'],
+    ['agentfootprint.integrity.disposition', undefined, '[agentfootprint.integrity.disposition]'],
+  ],
+  '14.7.2': [
+    ['agentfootprint.cost.tick', null, null],
+    ['agentfootprint.agent.run_configured', 'event.agentfootprint.agent.run_configured', 'The run recorded its configuration.'],
+    ['agentfootprint.integrity.disposition', 'event.agentfootprint.integrity.disposition', 'The run recorded its disposition of an integrity finding.'],
+  ],
+} as const;
 
-describe('teachingHumanizer — fallthrough to defaultHumanizer', () => {
-  it('cost.tick has no teaching narrative; falls through', () => {
-    const event = evt('agentfootprint.cost.tick', {
-      estimatedUsd: 0.001,
-      cumulative: { estimatedUsd: 0.005 },
-    });
-    expect(teachingHumanizer(event)).toBe(defaultHumanizer(event));
+describe(`teachingHumanizer — published commentary contract (${commentaryAgent})`, () => {
+  it.each(commentaryCases[commentaryAgent])('%s preserves the upstream disposition and voice', (type, key, text) => {
+    const event = evt(type, { estimatedUsd: 0.001, cumulative: { estimatedUsd: 0.005 } });
+    expect(selectCommentaryKey(event)).toBe(key);
+    expect(teachingHumanizer(event)).toBe(text);
   });
 });
 
