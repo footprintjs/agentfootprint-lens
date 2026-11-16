@@ -27,7 +27,7 @@ describe('source-selected native compatibility workflow', () => {
     expect(workflow).not.toMatch(/agentfootprint-(?:11|12|13):|extracted-peers:|--kind (?:floor|modern)/);
   });
 
-  it('uses one registry-selected cohort and no optional offline staging path', () => {
+  it('uses one registry-selected archive cohort and no optional offline staging path', () => {
     expect(workflow).toContain('node scripts/compat/published-proof.mjs');
     expect(workflow).toContain('agent_archive="$(node scripts/compat/published-proof.mjs --archive-name)"');
     expect(workflow).toContain('--agent-tar "published-evidence-22/$agent_archive"');
@@ -38,7 +38,7 @@ describe('source-selected native compatibility workflow', () => {
     }
   });
 
-  it('runs every source gate on the committed strict lock, without a local archive dev input', () => {
+  it('bootstraps every lane from the strict lock without a local archive dev input', () => {
     for (const name of COHORT) {
       const entry = lock.packages?.[`node_modules/${name}`];
       expect(entry?.resolved).toMatch(/^https:\/\//);
@@ -60,6 +60,7 @@ describe('source-selected native compatibility workflow', () => {
     const published = workflow.split('  published-commentary-control:')[1]!.split('  peer-matrix:')[0]!;
     expect(published).toContain('run: npm run build');
     expect(published).toContain('run: npm test');
+    expect(published).not.toMatch(/upload-artifact|--agent-tar|--kind native/);
     expect(workflow).not.toMatch(/--package-lock=false|LENS_COMMENTARY_AGENT_VERSION/);
   });
 
