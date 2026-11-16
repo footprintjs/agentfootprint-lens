@@ -5,7 +5,12 @@ const source = readFileSync(new URL('../../.github/workflows/context-producer.ym
 test('the producer proof is isolated from the registry-selected compatibility cohort', () => {
   const registry = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.doesNotMatch(registry, /repository: footprintjs\/(?:agentfootprint|foottrace)(?:\s|$)/);
-  assert.equal((registry.match(/run: npm ci --strict-peer-deps/g) ?? []).length, 3);
+  // Both locked source jobs, the explicit published control and the packed
+  // peer matrix install registry cohorts; none may borrow producer sources.
+  assert.equal((registry.match(/run: npm ci --strict-peer-deps/g) ?? []).length, 4);
+  assert.match(registry, /^  published-commentary-control:/m);
+  assert.match(registry, /agentfootprint@14\.7\.2 footprintjs@12\.3\.0 foottrace@1\.11\.1/);
+  assert.doesNotMatch(registry, /--package-lock=false/);
   assert.equal((source.match(/^  context-producer:/gm) ?? []).length, 1);
   assert.match(source, /runs-on: ubuntu-24\.04/);
   assert.match(source, /timeout-minutes: 30/);

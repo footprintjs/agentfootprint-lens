@@ -14,6 +14,7 @@ describe('source-selected native compatibility workflow', () => {
     const runners = workflow.match(/^[ \t]*runs-on:.*$/gm) ?? [];
     expect(runners.map((line) => line.trim())).toEqual([
       'runs-on: ubuntu-24.04', 'runs-on: ubuntu-24.04', 'runs-on: ubuntu-24.04',
+      'runs-on: ubuntu-24.04',
     ]);
   });
 
@@ -26,7 +27,7 @@ describe('source-selected native compatibility workflow', () => {
     expect(workflow).not.toMatch(/agentfootprint-(?:11|12|13):|extracted-peers:|--kind (?:floor|modern)/);
   });
 
-  it('uses one registry-selected cohort and no optional offline staging path', () => {
+  it('uses one registry-selected archive cohort and no optional offline staging path', () => {
     expect(workflow).toContain('node scripts/compat/published-proof.mjs');
     expect(workflow).toContain('agent_archive="$(node scripts/compat/published-proof.mjs --archive-name)"');
     expect(workflow).toContain('--agent-tar "published-evidence-22/$agent_archive"');
@@ -37,17 +38,30 @@ describe('source-selected native compatibility workflow', () => {
     }
   });
 
-  it('runs every source gate on the committed strict lock, without a local archive dev input', () => {
+  it('bootstraps every lane from the strict lock without a local archive dev input', () => {
     for (const name of COHORT) {
       const entry = lock.packages?.[`node_modules/${name}`];
       expect(entry?.resolved).toMatch(/^https:\/\//);
       expect(entry?.integrity).toMatch(/^sha512-/);
     }
     expect(JSON.stringify(lock)).not.toContain('file:');
-    expect(workflow.match(/run: npm ci --strict-peer-deps/g)).toHaveLength(3);
+    expect(workflow.match(/run: npm ci --strict-peer-deps/g)).toHaveLength(4);
     expect(workflow).not.toMatch(/npm install --strict-peer-deps|bootstrap-lock/);
-    expect(workflow.match(/run: npm test/g)).toHaveLength(2);
+    expect(workflow.match(/run: npm test/g)).toHaveLength(3);
     expect(workflow.match(/run: npm run typecheck/g)).toHaveLength(2);
+  });
+
+  it('keeps unrelated lock pins fixed in the explicit published commentary control', () => {
+    expect(workflow).toContain('published-commentary-control:');
+    expect(workflow).toContain('agentfootprint@14.7.2 footprintjs@12.3.0 foottrace@1.11.1');
+    expect(workflow).toContain('control[name] ?? lock.packages[`node_modules/${name}`].version');
+    expect(workflow).toContain("assertSingleFoottrace(resolve('node_modules'), '1.11.1')");
+    expect(workflow).toContain('git diff --exit-code -- package.json package-lock.json');
+    const published = workflow.split('  published-commentary-control:')[1]!.split('  peer-matrix:')[0]!;
+    expect(published).toContain('run: npm run build');
+    expect(published).toContain('run: npm test');
+    expect(published).not.toMatch(/upload-artifact|--agent-tar|--kind native/);
+    expect(workflow).not.toMatch(/--package-lock=false|LENS_COMMENTARY_AGENT_VERSION/);
   });
 
   it('uses the same selected cohort in the archive, isolated consumer and native probe', () => {

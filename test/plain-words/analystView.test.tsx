@@ -5,7 +5,8 @@
  * summary card, the transport and the commentary under a native `<details>`
  * ("More detail"). Without one it is BYTE-IDENTICAL to 0.67.1: the snapshot
  * below was written by this test against the unmodified 0.67.1 `Lens.tsx`
- * before the upgrade landed, so it fails on any drift of the old path.
+ * before the upgrade landed. Compare under the SAME narration inputs: both
+ * versions delegate to agentfootprint's commentary, whose coverage can grow.
  * The `engineer` and `user` views never read the prop.
  */
 import React from 'react';
@@ -17,10 +18,19 @@ import { Lens, PLAIN_WORDS_LABELS as LABELS } from '../../src/react/index.js';
 import { load } from '../served/helpers.js';
 import { loadReply } from './helpers.js';
 
+// Retain the two historical fixture lines through the existing narration port.
+// No production humanizer or golden changes: the old and current humanizer
+// owners are byte-identical. Real upstream dispositions/default prose are
+// checked separately in humanizer.test.ts, including the published cohort.
+const historicalCommentary = {
+  'event.agentfootprint.agent.run_configured': '[agentfootprint.agent.run_configured]',
+  'event.agentfootprint.integrity.disposition': '[agentfootprint.integrity.disposition]',
+};
+
 describe('<Lens view="analyst"> without an account', () => {
   it('renders byte-identical to 0.67.1 (snapshot written before the upgrade)', () => {
     const f = load('flat-dynamic-tools');
-    const { container } = render(<Lens recorder={f.recorder} view="analyst" />);
+    const { container } = render(<Lens recorder={f.recorder} view="analyst" commentaryTemplates={historicalCommentary} />);
     expect(container.innerHTML).toMatchSnapshot();
   });
 
@@ -30,7 +40,7 @@ describe('<Lens view="analyst"> without an account', () => {
     // palette at its root — so the root's style gains exactly those four
     // declarations. Strip them and the rest is 0.67.1's bytes.
     const f = load('flat-dynamic-tools');
-    const { container } = render(<Lens recorder={f.recorder} view="analyst" theme={{ mode: 'light' }} />);
+    const { container } = render(<Lens recorder={f.recorder} view="analyst" theme={{ mode: 'light' }} commentaryTemplates={historicalCommentary} />);
     const tones = /--fp-tone-(?:ok|warn|bad|unknown): [^;]+;\s?/g;
     expect(container.innerHTML.match(tones)).toHaveLength(4);
     expect(container.innerHTML.replace(tones, '')).toMatchSnapshot();
