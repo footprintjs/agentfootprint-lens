@@ -1226,7 +1226,13 @@ recording), else the line says `not recorded`.
 
 With `account`, the analyst view leads with `<PlainWords>` and folds the
 summary card, the transport and the commentary under a native **More detail**
-`<details>`. Without it, the analyst view is byte-for-byte what it was. The
+`<details>`. Without it, the previous analyst rendering is preserved for the
+same recording, narration and resolved theme inputs. Default narration follows the installed
+AgentFootprint selector and templates: `null` skips a line, `undefined` falls
+back to Lens's default humanizer, and a template key renders its selected prose.
+An upstream wording or disposition change is therefore distinct from an analyst
+layout change. Use `commentaryTemplates` to override selected template text;
+pass a `humanizer` to own event inclusion and the complete narration. The
 `engineer` and `user` views never read the prop.
 
 Needs agentfootprint ≥ 9.116.0 (the release that ships `AnswerAccount` and the

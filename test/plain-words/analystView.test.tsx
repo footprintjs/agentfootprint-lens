@@ -3,9 +3,12 @@
  *
  * With an `account`, the analyst view leads with `<PlainWords>` and folds the
  * summary card, the transport and the commentary under a native `<details>`
- * ("More detail"). Without one it is BYTE-IDENTICAL to 0.67.1: the snapshot
+ * ("More detail"). Without one its layout is BYTE-IDENTICAL with the same
+ * narration inputs as 0.67.1: the snapshot
  * below was written by this test against the unmodified 0.67.1 `Lens.tsx`
- * before the upgrade landed, so it fails on any drift of the old path.
+ * before the upgrade landed. Only those two layout oracles receive explicit
+ * frozen fixture narration; default narration wiring has its own unmocked test.
+ * Historical test titles remain stable because they are the immutable snapshot keys.
  * The `engineer` and `user` views never read the prop.
  */
 import React from 'react';
@@ -16,11 +19,12 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { Lens, PLAIN_WORDS_LABELS as LABELS } from '../../src/react/index.js';
 import { load } from '../served/helpers.js';
 import { loadReply } from './helpers.js';
+import { legacyAnalystNarration } from './legacyAnalystNarration/index.js';
 
 describe('<Lens view="analyst"> without an account', () => {
   it('renders byte-identical to 0.67.1 (snapshot written before the upgrade)', () => {
     const f = load('flat-dynamic-tools');
-    const { container } = render(<Lens recorder={f.recorder} view="analyst" />);
+    const { container } = render(<Lens recorder={f.recorder} view="analyst" humanizer={legacyAnalystNarration} />);
     expect(container.innerHTML).toMatchSnapshot();
   });
 
@@ -30,7 +34,7 @@ describe('<Lens view="analyst"> without an account', () => {
     // palette at its root — so the root's style gains exactly those four
     // declarations. Strip them and the rest is 0.67.1's bytes.
     const f = load('flat-dynamic-tools');
-    const { container } = render(<Lens recorder={f.recorder} view="analyst" theme={{ mode: 'light' }} />);
+    const { container } = render(<Lens recorder={f.recorder} view="analyst" theme={{ mode: 'light' }} humanizer={legacyAnalystNarration} />);
     const tones = /--fp-tone-(?:ok|warn|bad|unknown): [^;]+;\s?/g;
     expect(container.innerHTML.match(tones)).toHaveLength(4);
     expect(container.innerHTML.replace(tones, '')).toMatchSnapshot();
