@@ -45,3 +45,13 @@ test('an installed byte change in the context owner refuses before any runtime p
   writeFileSync(join(f.root, 'node_modules/contextfootprint/index.js'), 'changed inert bytes');
   assert.throws(() => verifyNativeInstalled(f.root, f.input), /installed files must exactly match/);
 });
+
+test('ordinary tool-cache containers remain traversed without inventing package identities', t => {
+  const f = fixture(t); const cache = join(f.root, 'node_modules/.vite/deps');
+  mkdirSync(cache, { recursive: true });
+  writeFileSync(join(cache, 'package.json'), JSON.stringify({ type: 'module' }));
+  assert.equal(verifyNativeInstalled(f.root, f.input).packages.length, 4);
+  const hidden = join(cache, 'hidden-record'); mkdirSync(hidden);
+  writeFileSync(join(hidden, 'package.json'), JSON.stringify({ name: 'foottrace', version: '2.0.0' }));
+  assert.throws(() => verifyNativeInstalled(f.root, f.input), /one physical foottrace/);
+});

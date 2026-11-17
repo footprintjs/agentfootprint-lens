@@ -12,29 +12,22 @@ export function scanInstalledPackages(root) {
     const physical = realpathSync(directory);
     assert.ok(!visited.has(physical), 'duplicate/linked installed directory');
     visited.add(physical);
+    if (existsSync(join(directory, 'package.json'))) {
+      const manifest = readJson(join(directory, 'package.json'));
+      // Tool caches can carry module-format metadata without being packages.
+      // Traverse them fully: a named hidden or aliased package still counts.
+      if (typeof manifest.name === 'string' && manifest.name.length > 0)
+        found.push({ path: physical, manifest });
+    }
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       if (entry.name === '.bin' && directory.endsWith('/node_modules')) continue;
       const path = join(directory, entry.name);
       assert.equal(lstatSync(path).isSymbolicLink(), false, 'linked installed package/file');
       if (!entry.isDirectory()) continue;
-      if (entry.name === 'node_modules') modules(path);
-      else visit(path);
+      visit(path);
     }
   }
-  function modules(directory) {
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
-      if (entry.name === '.bin') continue;
-      const path = join(directory, entry.name);
-      assert.equal(lstatSync(path).isSymbolicLink(), false, 'linked installed package');
-      if (!entry.isDirectory()) continue;
-      if (entry.name.startsWith('@')) modules(path);
-      else {
-        found.push({ path: realpathSync(path), manifest: readJson(join(path, 'package.json')) });
-        visit(path);
-      }
-    }
-  }
-  modules(join(root, 'node_modules'));
+  visit(join(root, 'node_modules'));
   return found;
 }
 
