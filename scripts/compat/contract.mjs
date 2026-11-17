@@ -12,6 +12,13 @@ export const candidate = Object.freeze({
   sha256: 'd5bcc09551a77cab1c8ec98a0a521b129b0db37597094e86a90a5a4170603a83',
 });
 
+/** Reviewed public source API; separate from the immutable historical candidate. */
+export const lazyRenderer = Object.freeze({
+  version: '1.0.1',
+  tarball: 'https://registry.npmjs.org/footprint-explainable-ui/-/footprint-explainable-ui-1.0.1.tgz',
+  integrity: 'sha512-LTCb0DzNQCbJqN2/YCFdWr0H47/elJDONPpWp3PglDNkpqmfeyVv80vKA0vQhlnlVUy3wUR+kCP0VvzCNsDeTQ==',
+});
+
 // The compiler's supported declaration floor is independent of the runtime
 // being exercised. @types/node 26 requires TS >=5.6; using it with TS 5.4
 // creates an unrelated empty-consumer failure, not a Lens compatibility test.
@@ -56,7 +63,7 @@ export function readActiveCohort(directory = resolve(dirname(fileURLToPath(impor
 
 export function laneContract({ kind, flow, react, node }, cohort = readActiveCohort()) {
   assert.equal(kind, 'native', `unknown lane kind: ${kind}`);
-  assert.ok(['0.34.0', '0.38.0', 'candidate'].includes(flow), `unknown Flow: ${flow}`);
+  assert.ok(['0.34.0', '0.38.0', 'candidate', lazyRenderer.version].includes(flow), `unknown Flow: ${flow}`);
   assert.ok(['18', '19'].includes(String(react)), `unknown React: ${react}`);
   assert.ok(['22', '24'].includes(String(node)), `unknown Node: ${node}`);
   const react18 = String(react) === '18';

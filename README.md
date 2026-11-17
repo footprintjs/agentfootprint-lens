@@ -79,8 +79,11 @@ package scan must show one Foottrace 1.11.1 owner.
 
 Both Nodes run the whole Lens suite, including historical saved-record data,
 approval-fixture generation, helpers, typechecking, build and packaging checks.
-One Lens archive feeds renderer 0.34.0, 0.38.0 and the exact reviewed 1.0.0
-candidate, each with React 18/19 on Node 22/24. Every consumer installs the
+One Lens archive feeds renderer 0.34.0, 0.38.0, the exact reviewed 1.0.0
+candidate and published 1.0.1, each with React 18/19 on Node 22/24. The four
+1.0.1 lanes additionally exercise the packed lazy-source exports, native exact
+child admission and declarations; the twelve preceding lanes remain intact.
+Every consumer installs the
 registry AgentFootprint candidate normally and checks its locked integrity and
 installed bytes against the same proven archive. Public ESM/CommonJS doors,
 strict NodeNext/Bundler declarations, mock-agent recording/replay and Chromium
@@ -2230,3 +2233,14 @@ copy without copying partial text. These bounds do not replace producer
 redaction. Copies can grow when they include context omitted by the old copy;
 size comparisons must distinguish total-copy bytes from the same fully
 expanded per-call context. The synthetic producer contract reports both.
+
+
+### Native lazy recording sources
+
+The optional `agentfootprint-lens/recording` server codec and
+`agentfootprint-lens/recording/react` client source load exact recorded child
+invocations on demand through the renderer's native RecordingSource API. Lens
+keeps one observed recorder/runner and the host's existing shared cursor.
+Renderer 1.0.1 or newer is required only for this optional feature; existing
+recorder/runner integrations retain their supported peer range. See the
+[loading and ownership contract](https://github.com/footprintjs/agentfootprint-lens/blob/main/src/recording/README.md).

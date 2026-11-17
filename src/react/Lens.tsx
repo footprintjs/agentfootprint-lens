@@ -52,7 +52,12 @@ import { openLensCursor, type LensCursorPort } from "../core/timeTravel/lensCurs
 import type { LensCursor } from "../core/cursor/lensCursor.js";
 import { foldCommitIdxOf } from "../core/cursor/foldAt.js";
 import type { CursorStepper } from "./TimeTravel.js";
-import type { SharedCursor } from './useSharedCursor.js';
+import { useSharedCursor, type SharedCursor } from './useSharedCursor.js';
+import type { LensRecordingSource } from './recordingSource/types.js';
+import { useLensSource } from './recordingSource/useLensSource.js';
+import { RecordingSourceView } from './recordingSource/RecordingSourceView.js';
+import { useRecordingSource } from './recordingSource/useRecordingSource.js';
+import type { CursorAddress } from '../core/cursor/sharedCursor.js';
 import { useLensNavigator, type LensNavigator } from "./useLensNavigator.js";
 import { useNarrowRow } from "./narrowLayout.js";
 import { useLensRecorder } from "./hooks/useLensRecorder.js";
@@ -116,6 +121,8 @@ export interface LensProps {
   /** The recorder that was observing the run. Drives EventStream +
    *  Summary + selected-node detail. */
   readonly recorder: LensRecorder;
+  /** Creator-owned lazy data; the existing shared address remains the position owner. */
+  readonly recordingSource?: LensRecordingSource;
   /**
    * Chart node colours (agentfootprint-level 3-colour theme): `ground`
    * (base/unvisited) + `visited` + `current`, plus `mode` for the neutral
@@ -521,6 +528,14 @@ export interface LensDetailSlotProps {
    * from `useLensCursor` instead. (0.51.1)
    */
   readonly cursor?: LensCursor;
+  /** Exact native invocation ancestry when using a recording source. */
+  readonly invocationPath?: readonly string[];
+  /** Admitted root snapshot with currently ready exact children. */
+  readonly snapshot?: unknown;
+  /** Actual visible axis: resolve exact runtime IDs here before onNavigate. */
+  readonly axis?: readonly CursorPosition[];
+  /** Explicit native local-scope stop navigation; loads first, then moves the same shared cursor. */
+  readonly onNavigateRecordingAddress?: (address: CursorAddress, options?: { readonly signal?: AbortSignal }) => Promise<boolean>;
 }
 
 /**
@@ -529,17 +544,38 @@ export interface LensDetailSlotProps {
  * state while an exact source prefix (including -1) is held by the host.
  * Entering this mode resets local visual drill state, not the shared target.
  */
-export const Lens: React.FC<LensProps> = (props) =>
-  props.shared?.target?.kind === 'source-prefix'
+export const Lens: React.FC<LensProps> = (props) => {
+  if (props.recordingSource !== undefined && (props.recordingSource.observed.recorder !== props.recorder
+    || (props.runner !== undefined && props.runner !== props.recordingSource.observed.runner))) {
+    return <p role="status">The recording source does not match this reader.</p>;
+  }
+  if (props.recordingSource !== undefined && props.shared === undefined) return <SourceOwnedLens {...props} />;
+  return props.shared?.target?.kind === 'source-prefix'
     ? <SourcePrefixLens {...props} shared={props.shared} />
     : <StageLens {...props} />;
+};
 
-const SourcePrefixLens: React.FC<LensProps & { shared: SharedCursor }> = ({ recorder, runner, shared, theme }) => {
+/** A standalone lazy Lens gets one address owner; an external owner wins. */
+const SourceOwnedLens: React.FC<LensProps> = (props) => {
+  const sourceSnapshot = useRecordingSource(props.recordingSource);
+  const shared = useSharedCursor(props.recorder, sourceSnapshot?.recording.snapshot, {scopePositions: props.recordingSource?.getAxis});
+  return shared.target?.kind === 'source-prefix'
+    ? <SourcePrefixLens {...props} shared={shared} />
+    : <StageLens {...props} shared={shared} />;
+};
+
+const SourcePrefixLens: React.FC<LensProps & { shared: SharedCursor }> = ({ recorder, runner, shared, theme, recordingSource }) => {
   useLensRecorder(recorder);
   const snapshot = snapshotOfRunner(runner ?? recorder.observedRunner());
   const target = shared.target;
   const resolution = shared.sourcePrefix;
   const stages = shared.forAxis('step');
+  const sourcePath = target?.kind === 'source-prefix' ? target.position.drillPath : [];
+  const sourceFeature = useLensSource(recordingSource, sourcePath, () => {});
+  const exactSource = sourceFeature.snapshot?.invocations.find(value => value.invocationPath.length === sourcePath.length
+    && value.invocationPath.every((id, index) => id === sourcePath[index]));
+  const alreadyLoaded = sourceFeature.snapshot?.loads.some(value => value.status === 'ready'
+    && value.request.invocationPath.length === sourcePath.length && value.request.invocationPath.every((id, index) => id === sourcePath[index]));
   if (target?.kind !== 'source-prefix') return <></>;
   return <section aria-label="Source prefix" style={{ ...lensThemeVars(theme), padding: 16, height: '100%', overflow: 'auto', color: T.textPrimary, background: T.bgElevated, fontSize: 13, lineHeight: 1.55 }}>
     <div style={{ maxWidth: 920, margin: '0 auto' }}>
@@ -551,15 +587,21 @@ const SourcePrefixLens: React.FC<LensProps & { shared: SharedCursor }> = ({ reco
         ? 'The exact source prefix is available. State values are not displayed in this metadata view.'
         : sourcePrefixMessage(resolution.state)
       : resolution ? sourcePrefixMessage(resolution) : 'The source prefix is unavailable.'}</p>
+    {exactSource !== undefined && !alreadyLoaded && <div>
+      <button type="button" disabled={sourceFeature.pending} onClick={() => sourceFeature.choose(exactSource)}>Load recorded source</button>
+      {sourceFeature.pending && <><span role="status">Loading recorded source…</span><button type="button" onClick={sourceFeature.cancel}>Cancel loading</button></>}
+      {sourceFeature.failed && <p role="status">The recorded source could not be loaded.</p>}
+    </div>}
     <p>Execution views are not shown while this source prefix is selected. Switching views does not move the held target. Returning to execution resets the local visual drill.</p>
     <button style={TRUST_BUTTON_STYLE} type="button" disabled={stages.total === 0} onClick={() => stages.moveTo(stages.total - 1)}>Show final execution step</button>
     </div>
-    <TrustBoundaryView snapshot={snapshot} shared={shared} />
+    <TrustBoundaryView snapshot={snapshot} shared={shared} recordingSource={recordingSource} />
   </section>;
 };
 
 const StageLens: React.FC<LensProps> = ({
   recorder,
+  recordingSource,
   theme,
   runner,
   stepGraph,
@@ -598,7 +640,7 @@ const StageLens: React.FC<LensProps> = ({
   // (real runtime-stage node ids + slot pills via the built-in node types), so
   // `<Lens recorder runner />` renders the composition graph with no manual
   // chart wiring. An explicit `chart` prop still wins (full override).
-  const effectiveChart = useMemo(
+  const baseChart = useMemo(
     () =>
       chart ??
       (runner
@@ -696,7 +738,13 @@ const StageLens: React.FC<LensProps> = ({
   // Lives at the Lens level so the slider total — which depends on
   // drillPath via hop count — can be computed in this scope. EngineerView
   // receives drillPath + setters as props.
-  const { drillPath, drillTo } = useDrillPath();
+  const { drillPath, drillTo } = useDrillPath(recordingSource === undefined ? [] : shared?.address?.drillPath ?? []);
+  const sourceFeature = useLensSource(recordingSource, drillPath, drillTo, shared);
+  const effectiveChart = useMemo(() => recordingSource === undefined ? baseChart : {
+    ...baseChart,
+    graph: recordingSource.getGraph(sourceFeature.invocationPath),
+    nodeTypes: baseChart?.nodeTypes ?? LENS_NODE_TYPES,
+  }, [recordingSource, baseChart, sourceFeature.snapshot?.recording, sourceFeature.invocationPath]);
 
   // ─── ONE-CURSOR architecture (Lens v0.1, compound time axis) ──────
   // Cursor type = runtimeStageId (same address space as Trace + commitLog).
@@ -714,12 +762,15 @@ const StageLens: React.FC<LensProps> = ({
   // The grouped reading keeps the MILESTONE axis (iteration / context / LLM
   // turn / route / tool call), which `stepBands` bands by iteration. The
   // cursor is still ONE runtimeStageId; only the position SET differs.
-  const defaultPositions = useCursorPositions(
+  const legacyPositions = useCursorPositions(
     recorder,
     drillPath,
     undefined,
     granularity === 'step' ? 'commit' : 'milestone',
   );
+  const defaultPositions = useMemo(() => recordingSource !== undefined && sourceFeature.invocationPath.length > 0
+    ? recordingSource.getAxis(sourceFeature.invocationPath) : legacyPositions,
+  [recordingSource, sourceFeature.invocationPath, sourceFeature.snapshot?.recording, legacyPositions]);
   // THE RUN'S OWN SNAPSHOT, adopted only when its log key moves (a live
   // runner mints a new object per read). Read by the tag legend, the tag
   // axis and the bookmark key — the Served tab reads it the same way.
@@ -841,9 +892,10 @@ const StageLens: React.FC<LensProps> = ({
   // so only an explicit stop selection may move it. Numeric cursors retain
   // their existing reset when the local scope changes.
   const changeDrill = useCallback((path: readonly string[]) => {
+    if (recordingSource !== undefined) { sourceFeature.drill(path); return; }
     drillTo(path);
     if (shared === undefined) handleFocusChange(0);
-  }, [drillTo, shared, handleFocusChange]);
+  }, [recordingSource, sourceFeature.drill, drillTo, shared, handleFocusChange]);
   // AXIS SWAP KEEPS THE COMMIT, NOT THE STEP NUMBER. A pick (or a Clear) is a
   // different LIST for the same one cursor; step 8 of one list is nowhere near
   // step 8 of the other, and carrying the number across would move the reader
@@ -904,12 +956,23 @@ const StageLens: React.FC<LensProps> = ({
         height: "100%",
       }}
     >
-      <LensNotes notes={notes} />
-      {readTrustBoundaries(freshSnapshot).status !== 'missing' && <details style={{ maxHeight: '45%', overflow: 'auto' }}>
+      {recordingSource !== undefined && view === 'engineer' && <RecordingSourceView
+        path={sourceFeature.invocationPath} childCount={sourceFeature.childCount}
+        pending={sourceFeature.pending} preparing={sourceFeature.preparing} failed={sourceFeature.failed}
+        open={sourceFeature.open} query={sourceFeature.query} choices={sourceFeature.choices} count={sourceFeature.choiceCount}
+        currentRequest={sourceFeature.currentRequest} heldRequest={sourceFeature.heldRequest}
+        onToggle={sourceFeature.toggle} onQuery={sourceFeature.setQuery} onChoose={sourceFeature.choose}
+        onCancel={sourceFeature.cancel} onRoot={() => sourceFeature.drill([])} />}
+      {!sourceFeature.pending && <LensNotes notes={notes} />}
+      {!sourceFeature.pending && readTrustBoundaries(freshSnapshot).status !== 'missing' && <details style={{ maxHeight: '45%', overflow: 'auto' }}>
         <summary>Trust boundaries</summary>
-        <TrustBoundaryView snapshot={freshSnapshot} shared={shared} />
+        <TrustBoundaryView snapshot={freshSnapshot} shared={shared} recordingSource={recordingSource} />
       </details>}
-      <div style={{ flex: 1, minHeight: 0 }}>{content}</div>
+      <div style={{ flex: 1, minHeight: 0 }} aria-busy={sourceFeature.pending || undefined}>
+        {recordingSource === undefined ? content : <div {...(sourceFeature.pending ? { inert: '' } : {})} aria-hidden={sourceFeature.pending || undefined}
+          style={{ height: '100%', minHeight: 0, opacity: sourceFeature.pending ? 0 : undefined,
+            pointerEvents: sourceFeature.pending ? 'none' : undefined }}>{content}</div>}
+      </div>
     </div>
   );
 
@@ -965,6 +1028,12 @@ const StageLens: React.FC<LensProps> = ({
       showSummary={showSummary}
       liveStreamLine={liveStreamLine}
       drillPath={drillPath}
+      {...(recordingSource !== undefined && { sourceNode: sourceFeature.node,
+        invocationPath: sourceFeature.invocationPath, sourceSnapshot: sourceFeature.snapshot?.recording.snapshot,
+        sourceOverlay: recordingSource.getOverlay(sourceFeature.invocationPath),
+        sourceSubflowId: sourceFeature.snapshot?.invocations.find(value => value.invocationPath.length === sourceFeature.invocationPath.length
+          && value.invocationPath.every((id,index) => id === sourceFeature.invocationPath[index]))?.subflowId,
+        onNavigateRecordingAddress: sourceFeature.navigate })}
       onDrillInto={changeDrill}
       onDrillTo={changeDrill}
       syncMap={syncMap}
@@ -1158,6 +1227,12 @@ const EngineerView: React.FC<{
   /** Drill state — lifted to Lens so the slider total (which depends
    *  on drillPath) can be computed in the parent scope. */
   drillPath: readonly string[];
+  sourceNode?: (nodeId: string) => void;
+  invocationPath?: readonly string[];
+  sourceSnapshot?: unknown;
+  sourceOverlay?: import('footprint-explainable-ui/flowchart').RuntimeOverlay;
+  sourceSubflowId?: string;
+  onNavigateRecordingAddress?: (address: CursorAddress, options?: { readonly signal?: AbortSignal }) => Promise<boolean>;
   onDrillInto: (path: readonly string[]) => void;
   onDrillTo: (path: readonly string[]) => void;
   /** Per-commit sync map — read for commentary cutoff resolution. */
@@ -1216,6 +1291,12 @@ const EngineerView: React.FC<{
   showSummary,
   liveStreamLine,
   drillPath,
+  sourceNode,
+  invocationPath,
+  sourceSnapshot,
+  sourceOverlay,
+  sourceSubflowId,
+  onNavigateRecordingAddress,
   onDrillInto,
   onDrillTo,
   syncMap,
@@ -1272,9 +1353,9 @@ const EngineerView: React.FC<{
   // every render is O(n) per render on a long run. Recompute only when the
   // overlay's monotonic version() bumps (once per overlay-mutating event).
   const traceOverlay = useMemo(
-    () => recorder.runtime.getOverlay(),
+    () => sourceOverlay ?? recorder.runtime.getOverlay(),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [recorder, recorder.runtime.version()],
+    [recorder, recorder.runtime.version(), sourceOverlay],
   );
 
 
@@ -1790,6 +1871,8 @@ const EngineerView: React.FC<{
         recorder={recorder}
         onNavigate={onFocusChange}
         cursor={cursor}
+        axis={cursorPositions}
+        {...(invocationPath !== undefined && { invocationPath, snapshot: sourceSnapshot, onNavigateRecordingAddress })}
       />
     ) : null;
 
@@ -2018,6 +2101,7 @@ const EngineerView: React.FC<{
               <LensChartBoundary>
               <LensFlow
                 chart={chartForCanvas ?? chart}
+                {...(invocationPath !== undefined && {currentSubflowId: sourceSubflowId ?? null})}
                 {...(sliceCone && { sliceCone })}
                 {...(theme ? { colors: {
                   default: theme.ground ?? (theme.mode === 'dark' ? '#94a3b8' : '#64748b'),
@@ -2030,6 +2114,7 @@ const EngineerView: React.FC<{
                 {...(activeChartGroupHighlight ? { activeGroup: activeChartGroupHighlight } : {})}
                 {...(coActiveStageIds ? { coActiveStageIds } : {})}
                 onNodeClick={(nodeId) => {
+                  if (sourceNode !== undefined) { sourceNode(nodeId); return; }
                   // Chart click → drill. resolveDrillChain maps the
                   // build-time node id to a runtimeGroupId chain; null =
                   // not drillable (no match), so we no-op rather than
@@ -2207,6 +2292,8 @@ const EngineerView: React.FC<{
                 onRemove={bookmarks.remove}
                 onNote={bookmarks.setNote}
               />
+            ) : railTab === "served" && invocationPath !== undefined && invocationPath.length > 0 ? (
+              <p role="status" style={{padding: 16, color: T.textSecondary}}>Model-input inspection is unavailable for this recorded child scope. Its local commit index is not a root model-input address.</p>
             ) : railTab === "served" ? (
               <ServedTab
                 runner={servedRunner}
@@ -2215,6 +2302,8 @@ const EngineerView: React.FC<{
                 onJumpTo={jumpToRuntimeStageId}
                 cursor={cursor}
               />
+            ) : invocationPath !== undefined && invocationPath.length > 0 ? (
+              <p role="status" style={{padding: 16, color: T.textSecondary}}>The root event timeline is not indexed by this recorded child’s local commit log. Use the scope’s exact stage stops to inspect its recording.</p>
             ) : (
             <WhatHappenedTimeline
               moments={timelineMoments}
@@ -2247,7 +2336,7 @@ const EngineerView: React.FC<{
                         {/* Variable provenance for the cursor stage — the
                             developer's "why is this value what it is?"
                             (canonical fp slice; frame click = cursor jump). */}
-                        {runner && cursorRuntimeStageId && (
+                        {runner && cursorRuntimeStageId && (invocationPath === undefined || invocationPath.length === 0) && (
                           <WhereFrom
                             runner={runner}
                             cursorRuntimeStageId={cursorRuntimeStageId}

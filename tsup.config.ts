@@ -1,24 +1,17 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  // Four exports:
-  //
-  //   "agentfootprint-lens"            → ./dist/index.{js,cjs}      (React + core)
-  //   "agentfootprint-lens/core"       → ./dist/core.{js,cjs}       (headless)
-  //   "agentfootprint-lens/why"        → ./dist/why.{js,cjs}        (the Why Lens door)
-  //   "agentfootprint-lens/skillgraph" → ./dist/skillgraph.{js,cjs} (the SkillGraph door)
-  //
-  // Consumers using React get the component shell + all views.
-  // Vue/Angular/CLI consumers drop to `/core` for just the
-  // LensRecorder and types. The two DOORS are additions, never moves:
-  // everything behind them is also on the root barrel (src/doors/README.md).
-  // The door count is exactly these two — add sparingly (the af 8.0.0 lesson).
+  // Existing React and headless doors retain their peer floor. The pure
+  // /recording transport codec and opt-in /recording/react native-source
+  // feature have separate entries so server readers never load React/EUI.
   entry: {
     index: "src/index.ts",
     core: "src/core/index.ts",
     why: "src/why/index.ts",
     skillgraph: "src/skillgraph/index.ts",
     context: "src/context/index.ts",
+    recording: "src/recording/index.ts",
+    "recording-react": "src/recording/react.ts",
   },
   format: ["esm", "cjs"],
   dts: true,

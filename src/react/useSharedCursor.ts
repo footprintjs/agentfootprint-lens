@@ -82,7 +82,13 @@ function axisKey(granularity: SharedAxis, drillPath: readonly string[]): string 
   return JSON.stringify([granularity, ...drillPath]);
 }
 
-export function useSharedCursor(recorder: LensRecorder | undefined, snapshot?: unknown): SourceAwareSharedCursor {
+export interface SharedCursorOptions {
+  /** Optional exact child-scope axis, supplied by a native recording source.
+   * Root axes retain their existing commit/milestone projections. */
+  readonly scopePositions?: (drillPath: readonly string[]) => readonly CursorPosition[];
+}
+
+export function useSharedCursor(recorder: LensRecorder | undefined, snapshot?: unknown, options?: SharedCursorOptions): SourceAwareSharedCursor {
   // The address is held WITH the recorder it was read on: another recorder
   // means another run, and a stale address on it would be a claim.
   const [held, setHeld] = useState<{
@@ -112,18 +118,19 @@ export function useSharedCursor(recorder: LensRecorder | undefined, snapshot?: u
   // Positions per axis, once per recorder. Filled from `forAxis`, i.e. during
   // a CONSUMER's render — a manual memo, idempotent (same key, same array),
   // so a StrictMode double render reads what the first one wrote.
-  const axes = useMemo(() => new Map<string, readonly CursorPosition[]>(), [recorder, version, currentSnapshot]);
+  const axes = useMemo(() => new Map<string, readonly CursorPosition[]>(), [recorder, version, currentSnapshot, options?.scopePositions]);
   const positionsFor = useCallback(
     (granularity: SharedAxis, drillPath: readonly string[]): readonly CursorPosition[] => {
       if (recorder === undefined) return NO_POSITIONS;
       const key = axisKey(granularity, drillPath);
       const known = axes.get(key);
       if (known !== undefined) return known;
-      const built = scrubAxisFor(recorder, granularity, drillPath);
+      const built = drillPath.length > 0 && options?.scopePositions !== undefined
+        ? options.scopePositions(drillPath) : scrubAxisFor(recorder, granularity, drillPath);
       axes.set(key, built);
       return built;
     },
-    [recorder, axes],
+    [recorder, axes, options?.scopePositions],
   );
 
   const moveTo = useCallback(
@@ -134,7 +141,14 @@ export function useSharedCursor(recorder: LensRecorder | undefined, snapshot?: u
   );
 
   const selectSourcePrefix = useCallback((position: unknown): SourcePrefixResolution => {
-    const resolved = resolveSourcePrefix(currentSnapshot, position);
+    // A native load can publish between this render and an explicit action's
+    // continuation. Read that recorder's latest admitted snapshot without
+    // waiting for React to commit its subscription render.
+    let selectedSnapshot = currentSnapshot;
+    if (recorder !== undefined && recorder.getVersion() !== version) {
+      try { selectedSnapshot = recorder.observedRunner()?.getLastSnapshot() ?? currentSnapshot; } catch { /* Preserve the captured source on a read failure. */ }
+    }
+    const resolved = resolveSourcePrefix(selectedSnapshot, position);
     if (resolved.status === 'available') {
       setHeld({ on: recorder, target: Object.freeze({ kind: 'source-prefix', position: resolved.position }) });
     }
