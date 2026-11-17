@@ -186,9 +186,12 @@ jobs:
             ${{ runner.temp }}/compat-evidence/*.log
             ${{ runner.temp }}/compat-evidence/*.tgz
             ${{ runner.temp }}/compat-evidence/consumer/package*.json
+            ${{ runner.temp }}/compat-evidence/consumer-resolve/package*.json
             ${{ runner.temp }}/compat-evidence/consumer/native-recording.json
             ${{ runner.temp }}/compat-evidence/consumer/expected-cohort.json
             ${{ runner.temp }}/compat-evidence/record-only/package*.json
+            ${{ runner.temp }}/compat-evidence/record-only-resolve/package*.json
             ${{ runner.temp }}/compat-evidence/record-browser/package*.json
+            ${{ runner.temp }}/compat-evidence/record-browser-resolve/package*.json
             ${{ runner.temp }}/compat-evidence/browser/**
           if-no-files-found: error
