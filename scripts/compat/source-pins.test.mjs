@@ -29,17 +29,19 @@ for (const name of ['agentfootprint', 'footprintjs', 'foottrace']) {
   });
 }
 
-test('both proof workflows check authored pins before any registry install', () => {
+test('both proof workflows check authored pins before installs or native materialization', () => {
   let bootstraps = 0;
   for (const filename of ['ci.yml', 'context-producer.yml']) {
     const source = readFileSync(new URL(`.github/workflows/${filename}`, root), 'utf8');
     for (const job of source.split(/^  (?=[a-z][\w-]*:)/m)) {
-      if (!job.includes('run: npm ci --strict-peer-deps')) continue;
+      if (!job.includes('run: node scripts/compat/check-source-pins.mjs')) continue;
       bootstraps += 1;
       const guard = job.indexOf('run: node scripts/compat/check-source-pins.mjs');
       const install = job.search(/run: npm (?:ci|install)\b/);
       assert.ok(guard >= 0 && install > guard, `${filename}: authored pins before registry install`);
+      const materialize = job.indexOf('node scripts/compat/source-inputs.mjs bootstrap');
+      if (materialize >= 0) assert.ok(materialize > guard);
     }
   }
-  assert.equal(bootstraps, 5, 'four registry lanes and the isolated producer bootstrap');
+  assert.equal(bootstraps, 5, 'source Node22/24, independent CONTROL, packed matrix and producer job');
 });

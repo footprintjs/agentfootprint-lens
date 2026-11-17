@@ -7,12 +7,16 @@ import { candidate, parseFlags, publishedSourceFiles, readActiveCohort } from '.
 import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertPublishedReceipt, readPublishedAgent } from './published-proof.mjs';
 import { readWhyIdentity } from './why-identity.mjs';
+import { inspectInputs, verifyRestored } from './source-inputs.mjs';
 
-const flags = parseFlags(process.argv.slice(2), ['why-tar', 'flow-source', 'out', 'agent-tar', 'agent-source']);
-assert.ok(flags['why-tar'] && flags['flow-source'] && flags.out && flags['agent-tar'] && flags['agent-source'],
+const flags = parseFlags(process.argv.slice(2), ['why-tar', 'flow-source', 'out', 'agent-tar', 'agent-source', 'source-inputs', 'bootstrap-evidence']);
+const native = flags['source-inputs'] ? inspectInputs(resolve(flags['source-inputs'])) : null;
+assert.ok(flags['why-tar'] && flags['flow-source'] && flags.out && (native || flags['agent-tar'] && flags['agent-source']),
   'usage: --why-tar <archive> --flow-source <exact M6 checkout> --agent-tar <archive> --agent-source <metadata> --out <directory>');
-const cohort = readActiveCohort();
-const agentIdentity = readPublishedAgent(cohort);
+assert.ok(!native || flags['bootstrap-evidence'], 'native packing needs the exact restored source proof');
+if (native) verifyRestored(flags['bootstrap-evidence']);
+const cohort = native ? native.cohort : readActiveCohort();
+const agentIdentity = native ? cohort.packages.agentfootprint : readPublishedAgent(cohort);
 const out = resolve(flags.out);
 const source = resolve(flags['flow-source']);
 mkdirSync(out, { recursive: true });
@@ -40,12 +44,25 @@ assert.equal(why.manifest.peerDependencies['footprint-explainable-ui'], '>=0.34.
 assert.deepEqual(why.files, publishedSourceFiles(process.cwd()),
   'Why archive must contain exactly this checkout’s package metadata, built dist, README and LICENSE');
 const dirtyTracked = command('git', ['status', '--porcelain', '--untracked-files=no']).trim();
-if (process.env.GITHUB_RUN_ID) assert.equal(dirtyTracked, '', 'hosted archive source must be the checked clean commit');
+if (process.env.GITHUB_RUN_ID && !native) assert.equal(dirtyTracked, '', 'hosted archive source must be the checked clean commit');
 const agentFile = join(out, agentIdentity.filename);
-if (resolve(flags['agent-tar']) !== agentFile) copyFileSync(flags['agent-tar'], agentFile);
+const agentInput = native ? native.archives.agentfootprint.path : flags['agent-tar'];
+if (resolve(agentInput) !== agentFile) copyFileSync(agentInput, agentFile);
 const agent = inspectArchive(agentFile, out, agentIdentity);
-const sourceReceipt = JSON.parse(readFileSync(flags['agent-source'], 'utf8'));
-const agentSource = assertPublishedReceipt(sourceReceipt, readFileSync(agentFile), agentIdentity);
+const sourceReceipt = native ? native.receipt : JSON.parse(readFileSync(flags['agent-source'], 'utf8'));
+const agentSource = native ? { kind: cohort.kind, qualification: sourceReceipt.qualification,
+  source: sourceReceipt.candidate.source, archiveSha256: agent.sha256,
+  independentReviewSha256: sourceReceipt.independentReviewSha256 }
+  : assertPublishedReceipt(sourceReceipt, readFileSync(agentFile), agentIdentity);
+if (native) {
+  for (const [name, archive] of Object.entries(native.archives)) {
+    const filename = `${name}-${archive.version}.tgz`;
+    const original = archive.path;
+    if (resolve(original) !== join(out, filename)) copyFileSync(original, join(out, filename));
+  }
+  copyFileSync(join(flags['source-inputs'], 'input.json'), join(out, 'input.json'));
+  inspectInputs(out);
+}
 writeJson(join(out, 'agent-source.json'), agentSource);
 const report = {
   schema: 1, cohort, agentSource, agent: { ...agent, path: basename(agent.path) }, whyIdentity, why: { ...why, path: basename(why.path) }, flow: { ...flow, path: basename(flow.path) },

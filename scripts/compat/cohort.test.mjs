@@ -162,6 +162,10 @@ test('the default source root derives current checked-in identity independently 
   const previous = process.cwd();
   try {
     process.chdir(directory);
-    assert.deepEqual(contracts.readActiveCohort(), derive(manifest, lock));
+    const stale = names.find(name => lock.packages[''].devDependencies[name] !== manifest.devDependencies[name]);
+    if (stale) {
+      assert.throws(() => derive(manifest, lock), { code: 'ERR_ASSERTION', message: new RegExp(`^${stale}: source lock root pin`) });
+      assert.throws(() => contracts.readActiveCohort(), { code: 'ERR_ASSERTION', message: new RegExp(`^${stale}: source lock root pin`) });
+    } else assert.deepEqual(contracts.readActiveCohort(), derive(manifest, lock));
   } finally { process.chdir(previous); }
 });

@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import { deriveCohort, readActiveCohort } from './contract.mjs';
 import * as proof from './published-proof.mjs';
 
@@ -25,7 +26,15 @@ function fixture() {
 
 test('the default published agent is derived from the current manifest and committed lock', () => {
   assert.equal(typeof proof.readPublishedAgent, 'function');
-  assert.deepEqual(proof.readPublishedAgent(), readActiveCohort().packages.agentfootprint);
+  const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url)));
+  const lock = JSON.parse(readFileSync(new URL('../../package-lock.json', import.meta.url)));
+  const stale = Object.keys(manifest.devDependencies).find(name =>
+    ['agentfootprint', 'footprintjs', 'foottrace'].includes(name) &&
+    manifest.devDependencies[name] !== lock.packages[''].devDependencies[name]);
+  if (stale) {
+    assert.throws(() => proof.readPublishedAgent(), { code: 'ERR_ASSERTION', message: new RegExp(`^${stale}: source lock root pin`) });
+    assert.throws(() => readActiveCohort(), { code: 'ERR_ASSERTION', message: new RegExp(`^${stale}: source lock root pin`) });
+  } else assert.deepEqual(proof.readPublishedAgent(), readActiveCohort().packages.agentfootprint);
 });
 test('registry metadata, actual bytes and locked integrity join without an offline digest', () => {
   const { expected, metadata, receipt } = fixture();

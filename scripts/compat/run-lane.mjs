@@ -10,12 +10,14 @@ import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertPublishedReceipt, assertRegistryLock, readPublishedAgent } from './published-proof.mjs';
 import { assertWhyIdentity } from './why-identity.mjs';
 import { installBrowser } from './browser-install.mjs';
+import { inspectInputs, verifyNativeLock, verifyNativeInstalled } from './source-inputs.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const flags = parseFlags(process.argv.slice(2),
-  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser']);
-const cohort = readActiveCohort();
-const agentIdentity = readPublishedAgent(cohort);
+  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser', 'source-inputs']);
+const native = flags['source-inputs'] ? inspectInputs(resolve(flags['source-inputs'])) : null;
+const cohort = native ? native.cohort : readActiveCohort();
+const agentIdentity = native ? cohort.packages.agentfootprint : readPublishedAgent(cohort);
 const lane = laneContract(flags, cohort);
 assert.equal(process.versions.node.split('.')[0], lane.node, 'run this lane with its declared Node major');
 assert.ok(flags.artifacts && flags.evidence, '--artifacts and --evidence are required');
@@ -36,14 +38,21 @@ function install(directory, dependencies, label) {
   mkdirSync(resolution);
   mkdirSync(directory); // A different fresh copy replays the generated lock.
   writeJson(join(resolution, 'package.json'), { name: `lens-${label}`, version: '1.0.0', private: true, dependencies });
-  command('npm', ['install', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
+  if (native) inspectInputs(resolve(flags['source-inputs']));
+  command('npm', ['install', '--package-lock-only', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
     { cwd: resolution, log: join(evidence, `${label}-resolve.log`) });
+  if (label === 'consumer') {
+    if (native) verifyNativeLock(resolution, JSON.parse(readFileSync(join(resolution, 'package.json'), 'utf8')), native);
+    else assertRegistryLock(JSON.parse(readFileSync(join(resolution, 'package-lock.json'), 'utf8')), agentIdentity);
+  }
+  if (native) inspectInputs(resolve(flags['source-inputs']));
   for (const name of ['package.json', 'package-lock.json']) copyFileSync(join(resolution, name), join(directory, name));
   command('npm', ['ci', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
     { cwd: directory, log: join(evidence, `${label}-ci.log`) });
   command('npm', ['ls', '--all', '--json'], { cwd: directory, log: join(evidence, `${label}-tree.json`) });
   if (label === 'consumer') {
-    assertRegistryLock(JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8')), agentIdentity);
+    if (native) verifyNativeLock(directory, JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')), native);
+    else assertRegistryLock(JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8')), agentIdentity);
   }
 }
 function checkTypes(consumer, stem, toolConsumer = consumer) {
@@ -79,7 +88,15 @@ try {
   const agent = inspectArchive(join(artifacts, contract.agent.path), evidence,
     { ...agentIdentity, expectedSha: contract.agent.sha256 });
   assert.deepEqual(agent.files, contract.agent.files);
-  const agentSource = assertPublishedReceipt(contract.agentSource, readFileSync(agent.path), agentIdentity);
+  if (native) {
+    assert.equal(contract.agentSource.kind, cohort.kind);
+    assert.equal(contract.agentSource.qualification, 'NATIVE_SOURCE_READY');
+    assert.deepEqual(contract.agentSource.source, native.receipt.candidate.source);
+    assert.equal(contract.agentSource.archiveSha256, agent.sha256);
+    assert.equal(contract.agentSource.independentReviewSha256, native.receipt.independentReviewSha256);
+  }
+  const agentSource = native ? contract.agentSource
+    : assertPublishedReceipt(contract.agentSource, readFileSync(agent.path), agentIdentity);
   report.packages.agent = { sha256: agent.sha256, source: agentSource };
 
   let flow;
@@ -99,6 +116,7 @@ try {
   const consumer = join(evidence, 'consumer');
   await step('strict fresh peer install', () => install(consumer, {
     ...lane.peers, ...lane.types, ...tooling,
+    ...(native ? Object.fromEntries(Object.keys(cohort.pins).map(name => [name, `file:${native.archives[name].path}`])) : {}),
     'agentfootprint-lens': `file:${why.path}`, 'footprint-explainable-ui': `file:${flow.path}`,
   }, 'consumer'));
   const whyInstalled = join(consumer, 'node_modules/agentfootprint-lens');
@@ -107,6 +125,10 @@ try {
     assertInstalled(whyInstalled, why.files, 'Why');
     assertInstalled(join(consumer, 'node_modules/agentfootprint'), agent.files, 'AgentFootprint');
     report.recordOwner = assertSingleFoottrace(join(consumer, 'node_modules'), cohort.pins.foottrace);
+    if (native) {
+      inspectInputs(resolve(flags['source-inputs']));
+      report.nativeOwners = verifyNativeInstalled(consumer, native);
+    }
     assertInstalled(flowInstalled, flow.files, 'Flow');
     assert.equal(sha256(readFileSync(why.path)), why.sha256, 'Why archive changed during checks');
     assert.equal(sha256(readFileSync(agent.path)), agent.sha256, 'AgentFootprint archive changed during checks');
@@ -116,7 +138,9 @@ try {
   await step('all five ESM/CJS doors, canonical owner, native recording, replay and SSR', () => {
     copyFileSync(join(root, 'scripts/check-packed-peers.mjs'), join(consumer, 'check-packed-peers.mjs'));
     copyFileSync(join(root, 'scripts/check-native-recording.mjs'), join(consumer, 'check-native-recording.mjs'));
-    writeJson(join(consumer, 'expected-cohort.json'), cohort);
+    const expectedCohort = native ? verifyNativeLock(consumer,
+      JSON.parse(readFileSync(join(consumer, 'package.json'), 'utf8')), native) : cohort;
+    writeJson(join(consumer, 'expected-cohort.json'), expectedCohort);
     command(process.execPath, ['check-packed-peers.mjs'], { cwd: consumer, log: join(evidence, 'runtime.log') });
     command(process.execPath, ['check-native-recording.mjs'], { cwd: consumer, log: join(evidence, 'native-recording.log') });
   });
@@ -140,6 +164,7 @@ try {
       const packages = installedPackageNames(join(recordOnly, 'node_modules'));
       assertRecordIsolation(packages, lane.react);
       report.recordOnly = { packages };
+      if (native) verifyNativeInstalled(recordOnly, native, { recordOnly: true });
       assertInstalled(join(recordOnly, 'node_modules/footprint-explainable-ui'), flow.files, 'record-only Flow');
     });
     await step('record-only ESM/CJS public viewer and literal saved-record expectations', () => {
@@ -188,6 +213,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
       ...lane.types, vite: tooling.vite, playwright: tooling.playwright,
     }, 'record-browser'));
     assertInstalled(join(recordConsumer, 'node_modules/footprint-explainable-ui'), flow.files, 'record browser Flow');
+    if (native) verifyNativeInstalled(recordConsumer, native, { recordOnly: true });
   }
   if (lane.kind === 'native' && flags.browser !== 'no') {
     if (flags['install-browser'] === 'yes') await step('install the declared browser for this CI lane', () => {
@@ -206,9 +232,11 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
     verifyBytes();
     if (recordConsumer) assertInstalled(join(recordConsumer, 'node_modules/footprint-explainable-ui'), flow.files, 'record browser Flow');
     if (recordOnly) {
+      if (native) verifyNativeInstalled(recordOnly, native, { recordOnly: true });
       assertInstalled(join(recordOnly, 'node_modules/footprint-explainable-ui'), flow.files, 'record-only Flow');
       assertRecordIsolation(installedPackageNames(join(recordOnly, 'node_modules')), lane.react);
     }
+    if (recordConsumer && native) verifyNativeInstalled(recordConsumer, native, { recordOnly: true });
   });
   report.status = flags.browser === 'no' && lane.kind === 'native' ? 'diagnostic-without-browser' : 'passed';
 } catch (error) {

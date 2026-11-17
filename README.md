@@ -43,10 +43,11 @@ adoption; the source package version stays unchanged until the normal release.
 Node.js 22 or newer and React 18 or 19 remain required. Older saved recordings
 retain their existing readers, fixtures and goldens.
 
-The engine 13 and AF 15 audit archives are not published registry inputs.
-Paired validation needs reviewed source-bound materialization, including AF's
-native version staging, and a strict temporary lock derived before the first
-install. The real committed lock remains the prior AF 14.4.0 / engine 12.0.0 /
+The explicit source-mode lane pairs the original AF 15 candidate archive with
+the real published engine 13.0.0 and Foottrace 2.0.0 archives. It checks source,
+artifact and byte identities before materialization, then generates and replays
+a genuine strict temporary lock. Its three temporary development locators never
+enter the packed Lens manifest. The real committed lock remains the prior AF 14.4.0 / engine 12.0.0 /
 Foottrace 1.11.1 baseline; it does not satisfy these draft declarations. No
 registry URL, integrity or committed local-file lock is invented.
 

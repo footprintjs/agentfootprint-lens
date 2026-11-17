@@ -59,3 +59,19 @@ syntax only: a valid pin does not prove availability, lock identity, archive
 bytes or compatibility. `deriveCohort` still requires the matching root pin,
 locked version, canonical registry URL, integrity and an unlinked package.
 The existing old lock can therefore continue to refuse a draft cohort.
+
+## Unpublished major source proof
+
+The preparation branch's committed root lock is stale and deliberately remains
+unaccepted by the ordinary registry guards. `source-inputs.mjs` is a distinct,
+closed native entry for the reviewed AF15 original plus published engine13 and
+Foottrace2, including the actual contextfootprint owner. Its adjacent README
+names admission, genuine temporary locks, physical graph and archive checks.
+No native result claims a repaired portable lock or AF registry publication.
+
+Both Node source gates run against exact disposable source copies; the original
+manifest is restored before one Node22 Lens pack. Node24 compares its build to
+that same archive. All twelve packed renderer/React/Node lanes and the separate
+published commentary control remain. Native and registry evidence cannot be
+substituted for one another. The control bootstraps directly at14.7.2/12.3.0/1.11.1;
+it does not first install the unavailable target.

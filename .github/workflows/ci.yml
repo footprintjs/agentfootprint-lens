@@ -10,10 +10,12 @@ permissions:
   contents: read
 
 jobs:
-  # Keep the required source-check name; every source gate uses the committed lock.
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -30,48 +32,48 @@ jobs:
       - name: Check authored cohort development pins
         run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
-      - run: npm ci --strict-peer-deps
-      - name: Verify registry bytes, committed identity and installed files
-        run: node scripts/compat/published-proof.mjs --out published-evidence-22 --lock package-lock.json
-      - run: npm run test:compat-helpers
-      - run: npm run test:contract:foottrace
-      - run: npm run typecheck
-      - run: npm run build
-      - run: npm test
-      - run: npm run fixtures:time:check
-      - run: npx publint
-      - run: npx @arethetypeswrong/cli --pack
-      - name: Pack one Lens artifact and the exact reviewed renderer candidate
+      - name: Exercise every ordinary registry helper and the explicit native refusals
+        run: node --test scripts/compat/*.test.mjs scripts/compat/source-inputs/*.test.mjs
+      - name: Exercise the bounded hostile archive controls without installing packages
+        run: python3 -B -m unittest discover -s scripts/compat/source-inputs/archive_data -t scripts/compat/source-inputs -p '*_test.py' -v
+      - name: Read the fixed native source input with this workflow's existing token
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/compat/source-inputs.mjs fetch --out "$RUNNER_TEMP/native-inputs"
+      - name: Materialize the exact source with admitted originals and a genuine strict lock
         run: |
-          mkdir -p compat-artifacts
+          node scripts/compat/source-inputs.mjs bootstrap --mode target --source "$GITHUB_WORKSPACE" --inputs "$RUNNER_TEMP/native-inputs" --target "$RUNNER_TEMP/native-target" --evidence "$RUNNER_TEMP/native-evidence"
+      - name: Preserve contract, types, build, whole-suite, time-fixture and publint gates
+        run: node scripts/compat/source-inputs.mjs gates --evidence "$RUNNER_TEMP/native-evidence"
+      - name: Restore the authored manifest, pack once and check those exact declarations
+        run: node scripts/compat/source-inputs.mjs pack --evidence "$RUNNER_TEMP/native-evidence" --out "$GITHUB_WORKSPACE/compat-artifacts"
+      - name: Bind the single Lens archive and exact renderer to the original native inputs
+        working-directory: ${{ runner.temp }}/native-target
+        run: |
           why_archive="$(node scripts/compat/why-identity.mjs)"
-          agent_archive="$(node scripts/compat/published-proof.mjs --archive-name)"
-          npm pack --ignore-scripts --pack-destination compat-artifacts
           node scripts/compat/prepare-artifacts.mjs \
-            --why-tar "compat-artifacts/$why_archive" \
-            --flow-source flow-candidate --out compat-artifacts \
-            --agent-tar "published-evidence-22/$agent_archive" \
-            --agent-source published-evidence-22/published-agent.json
+            --why-tar "$GITHUB_WORKSPACE/compat-artifacts/$why_archive" \
+            --flow-source "$GITHUB_WORKSPACE/flow-candidate" --out "$GITHUB_WORKSPACE/compat-artifacts" \
+            --source-inputs "$RUNNER_TEMP/native-inputs" --bootstrap-evidence "$RUNNER_TEMP/native-evidence"
       - uses: actions/upload-artifact@v4
         with:
           name: compatibility-archives
           path: |
             compat-artifacts/*.tgz
-            compat-artifacts/contract.json
-            compat-artifacts/agent-source.json
+            compat-artifacts/*.json
             compat-artifacts/*.log
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: published-source-node22
+          name: native-source-node22
           path: |
-            published-evidence-22/*.tgz
-            published-evidence-22/*.json
-            published-evidence-22/*.log
-          if-no-files-found: error
+            ${{ runner.temp }}/native-evidence/*.json
+            ${{ runner.temp }}/native-evidence/*.log
+          if-no-files-found: warn
 
   test-24:
+    needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -84,25 +86,30 @@ jobs:
       - name: Check authored cohort development pins
         run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
-      - run: npm ci --strict-peer-deps
-      - name: Verify registry bytes, committed identity and installed files
-        run: node scripts/compat/published-proof.mjs --out published-evidence-24 --lock package-lock.json
-      - run: npm run test:compat-helpers
-      - run: npm run test:contract:foottrace
-      - run: npm run typecheck
-      - run: npm run build
-      - run: npm test
-      - run: npm run fixtures:time:check
-      - run: npx publint
-      - run: npx @arethetypeswrong/cli --pack
+      - name: Exercise every ordinary registry helper and the explicit native refusals
+        run: node --test scripts/compat/*.test.mjs scripts/compat/source-inputs/*.test.mjs
+      - name: Exercise the bounded hostile archive controls without installing packages
+        run: python3 -B -m unittest discover -s scripts/compat/source-inputs/archive_data -t scripts/compat/source-inputs -p '*_test.py' -v
+      - uses: actions/download-artifact@v4
+        with:
+          name: compatibility-archives
+          path: compat-artifacts
+      - name: Materialize the exact source with admitted originals and a genuine strict lock
+        run: |
+          node scripts/compat/source-inputs.mjs bootstrap --mode target --source "$GITHUB_WORKSPACE" --inputs "$GITHUB_WORKSPACE/compat-artifacts" --target "$RUNNER_TEMP/native-target" --evidence "$RUNNER_TEMP/native-evidence"
+      - name: Preserve contract, types, build, whole-suite, time-fixture and publint gates
+        run: node scripts/compat/source-inputs.mjs gates --evidence "$RUNNER_TEMP/native-evidence"
+      - name: Bind Node24's tested build to the same Node22 original and check its declarations
+        run: |
+          node scripts/compat/source-inputs.mjs pack --evidence "$RUNNER_TEMP/native-evidence" --out "$RUNNER_TEMP/native-evidence" --existing "$GITHUB_WORKSPACE/compat-artifacts"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: published-source-node24
+          name: native-source-node24
           path: |
-            published-evidence-24/*.json
-            published-evidence-24/*.log
-          if-no-files-found: error
+            ${{ runner.temp }}/native-evidence/*.json
+            ${{ runner.temp }}/native-evidence/*.log
+          if-no-files-found: warn
 
   published-commentary-control:
     runs-on: ubuntu-24.04
@@ -117,38 +124,19 @@ jobs:
       - name: Check authored cohort development pins
         run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
-      - run: npm ci --strict-peer-deps
-      - name: Install the exact published control without changing source pins
-        run: npm install --no-save --ignore-scripts --strict-peer-deps agentfootprint@14.7.2 footprintjs@12.3.0 foottrace@1.11.1
-      - name: Verify the actual cohort and single physical record owner
+      - name: Bootstrap the separate published CONTROL directly, never through target AF15
         run: |
-          node --input-type=module <<'JS'
-          import assert from 'node:assert/strict';
-          import { readFileSync } from 'node:fs';
-          import { resolve } from 'node:path';
-          import { selectCommentaryKey } from 'agentfootprint';
-          import { assertSingleFoottrace } from './scripts/compat/contract.mjs';
-          const control = { agentfootprint: '14.7.2', footprintjs: '12.3.0', foottrace: '1.11.1' };
-          const lock = JSON.parse(readFileSync('package-lock.json', 'utf8'));
-          const declared = lock.packages[''];
-          for (const name of Object.keys({ ...declared.dependencies, ...declared.devDependencies })) {
-            const version = control[name] ?? lock.packages[`node_modules/${name}`].version;
-            const actual = JSON.parse(readFileSync(resolve('node_modules', name, 'package.json'), 'utf8'));
-            assert.equal(actual.version, version, name);
-            console.log(`${name}@${actual.version}`);
-          }
-          assertSingleFoottrace(resolve('node_modules'), '1.11.1');
-          for (const [type, key] of [
-            ['agentfootprint.cost.tick', null],
-            ['agentfootprint.agent.run_configured', 'event.agentfootprint.agent.run_configured'],
-            ['agentfootprint.integrity.disposition', 'event.agentfootprint.integrity.disposition'],
-          ]) assert.equal(selectCommentaryKey({ type, payload: {} }), key, type);
-          JS
-          git diff --exit-code -- package.json package-lock.json
-      - name: Build against the actual published control
-        run: npm run build
-      - name: Check the complete published consumer control, including historical layout goldens
-        run: npm test
+          node scripts/compat/source-inputs.mjs bootstrap --mode CONTROL --source "$GITHUB_WORKSPACE" --target "$RUNNER_TEMP/published-control" --evidence "$RUNNER_TEMP/control-evidence"
+      - name: Preserve commentary assertions, build and the complete historical layout suite
+        run: node scripts/compat/source-inputs.mjs gates --evidence "$RUNNER_TEMP/control-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-CONTROL-only
+          path: |
+            ${{ runner.temp }}/control-evidence/*.json
+            ${{ runner.temp }}/control-evidence/*.log
+          if-no-files-found: warn
 
   # Retire historical installed runtime cohorts. Keep historical record DATA
   # fixtures in the whole suite, plus public renderer floor/current/candidate.
@@ -183,13 +171,12 @@ jobs:
         with:
           name: compatibility-archives
           path: compat-artifacts
-      - run: npm ci --strict-peer-deps
       - name: Strict packed public runtime, declarations, native recording and browser replay
         run: |
           node scripts/compat/run-lane.mjs --kind native --flow "${{ matrix.flow }}" \
             --react "${{ matrix.react }}" --node "${{ matrix.node }}" \
             --artifacts compat-artifacts --evidence "$RUNNER_TEMP/compat-evidence" \
-            --flow-source flow-candidate --install-browser yes
+            --flow-source flow-candidate --install-browser yes --source-inputs compat-artifacts
       - uses: actions/upload-artifact@v4
         if: always()
         with:

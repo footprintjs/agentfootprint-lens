@@ -1,0 +1,250 @@
+{
+  "kind": "lens.native-source-input.v1",
+  "agent": {
+    "repository": "footprintjs/agentfootprint",
+    "repositoryId": 1183666171,
+    "source": {
+      "head": "ba51c8894945b89c573b6d2d343072eb252fe0bd",
+      "tree": "d12e5a3d2ea8d0ae1b144daeb49bcd5ac5aa4e69",
+      "manifestSha256": "1c2de798e9ee273f0e12d195712de7f219306410fcdf61fab42ed0fd09304ecc",
+      "lockSha256": "20ea40eb006f1c3a36aa1001c26b1b995c557f1ba6f341ccc59b7a5847fd8e10"
+    },
+    "tested": {
+      "head": "16bfe4133fb59c54a1ed11e84cdcb145215fa63e",
+      "tree": "d12e5a3d2ea8d0ae1b144daeb49bcd5ac5aa4e69"
+    },
+    "run": {
+      "id": 44176761778,
+      "run_attempt": 1,
+      "workflow_id": 247073236,
+      "name": "CI",
+      "event": "pull_request",
+      "head_branch": "codex/af-next-major-cohort-preparation-20261116",
+      "status": "completed",
+      "conclusion": "failure"
+    },
+    "sourceJob": {
+      "id": 134370072364,
+      "name": "test-package (24)",
+      "status": "completed",
+      "conclusion": "success",
+      "actualSourceArtifactIdPresentInCanonicalLog": true
+    },
+    "sourceArtifact": {
+      "id": 14370846986,
+      "name": "agentfootprint-source-ba51c8894945b89c573b6d2d343072eb252fe0bd",
+      "size_in_bytes": 10463812,
+      "digest": "sha256:014f27b3a9e5a0da6d41caa8d7f5dd48acea0aecfff4d2e59e0d8f906a5cfe63",
+      "expired": false
+    },
+    "archive": {
+      "filename": "agentfootprint-15.0.0-rc.0.tgz",
+      "package": "agentfootprint",
+      "version": "15.0.0-rc.0",
+      "sha256": "52b4678334bb9cb5c92cd935c2bca57993d63d7d58858ead70a40073a268d448",
+      "shasum": "91a719c3a840eb6818c06cf4df7acb62fc2aed26",
+      "integrity": "sha512-m9Tpm3qhJC2vzc545RaApy6yUr4JWjc40ltvT/ZFPlSHe5tY+nY3Q4QcqD1tyKQ/5+NhBp9qQhqWLZMFXVlixQ==",
+      "bytes": 9887223,
+      "memberCount": 11434,
+      "memberBytes": 52835280,
+      "expandedTarBytes": 61640192,
+      "memberCensusSha256": "2bdf015ae217d86fed2d542e20046c2e96db870b0ccc42371f6065d4c31e0dd5"
+    },
+    "nativeEvidence": {
+      "nodes": [
+        "v22.23.4",
+        "v24.22.2"
+      ],
+      "casesEach": [
+        "source-online",
+        "source-offline",
+        "consumer-online",
+        "consumer-offline"
+      ],
+      "artifacts": [
+        {
+          "id": 14370357755,
+          "name": "agentfootprint-native-context-22-ba51c8894945b89c573b6d2d343072eb252fe0bd",
+          "size_in_bytes": 5688106,
+          "digest": "sha256:916fea418f0e5aafe19e7ce287ec50203412215adec77dfe910efa706971339b",
+          "expired": false
+        },
+        {
+          "id": 14370647602,
+          "name": "agentfootprint-native-context-24-ba51c8894945b89c573b6d2d343072eb252fe0bd",
+          "size_in_bytes": 5688084,
+          "digest": "sha256:8aebfc57be9491e4f52597447ea041fc51f89c44cf86158854853ea62c097c73",
+          "expired": false
+        }
+      ],
+      "sameOriginalArchiveAcrossEveryMode": true,
+      "allSourceMembers": 11434,
+      "allDistJoinsEach": 11418,
+      "allProofReferenceJoinsEach": 252,
+      "allProbeBodyJoinsEach": 64,
+      "compiler": "5.4.5/bin/tsc"
+    },
+    "review": {
+      "path": "reviews/second-read/agentfootprint-next-major-native-ba51c889.md",
+      "bytes": 2118,
+      "sha256": "09b3d9002341acfce54c0d64ac351b38636aeb658b17ee756517b019ce7b1c46",
+      "CFullRead": true,
+      "independentSourceAndCurrentNativeDataClear": true
+    }
+  },
+  "jobs": [
+    {
+      "id": 134370071686,
+      "name": "test-shard (24, 1)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370071819,
+      "name": "test-shard (24, 2)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370071936,
+      "name": "test-package (22)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370071948,
+      "name": "test-shard (22, 1)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370071993,
+      "name": "test-shard (22, 2)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072087,
+      "name": "test-examples",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072116,
+      "name": "changes",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072146,
+      "name": "file-size / file-size",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072156,
+      "name": "coverage-shard (4)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072201,
+      "name": "test-shard (22, 4)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072208,
+      "name": "test-shard (24, 3)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072228,
+      "name": "coverage-shard (3)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072257,
+      "name": "test-shard (22, 3)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072271,
+      "name": "lint",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072276,
+      "name": "docs-truth",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072307,
+      "name": "test-shard (24, 4)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072312,
+      "name": "hold / hold",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072339,
+      "name": "coverage-shard (2)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072344,
+      "name": "coverage-shard (1)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072364,
+      "name": "test-package (24)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072385,
+      "name": "generated",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072392,
+      "name": "docs-links",
+      "conclusion": "success"
+    },
+    {
+      "id": 134370072511,
+      "name": "docs",
+      "conclusion": "failure"
+    },
+    {
+      "id": 134370072612,
+      "name": "tested-tree",
+      "conclusion": "success"
+    },
+    {
+      "id": 134373677114,
+      "name": "test (22)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134373677165,
+      "name": "test (24)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134374741989,
+      "name": "coverage",
+      "conclusion": "success"
+    }
+  ],
+  "deferredJob": 134370072511,
+  "published": {
+    "footprintjs": {
+      "version": "13.0.0",
+      "integrity": "sha512-TfyJNi+2Y/3b1r9h8tGx4/22QTgUhFDqbCnkZXAIWNJswvyotCKAJ26nXAfmkM7Wx1/Sw17co9PTV3x8jDos7Q=="
+    },
+    "foottrace": {
+      "version": "2.0.0",
+      "integrity": "sha512-zQ/mnaLnpyLG9NzW7m6dNj4nv8sRnQCAumn5l+lp+LsmzOVbJIUEsPaTGpDKZ+PXLV7zaSJR6noS3hx4YTW8HQ=="
+    }
+  },
+  "closure": {
+    "contextfootprint": {
+      "version": "0.1.1",
+      "sha256": "6a7f2be20707c8d4ab0c67845bed02a583f215fa37050ca83e49fd9216740827",
+      "integrity": "sha512-svx/T10drbS9/PHdYL9vFsLBjkyTi/80TS83xvC/jc58ILXYGOTuOxAajDQYUDK7wGWsuN824YXE+jJ2IQe5Jg=="
+    }
+  }
+}

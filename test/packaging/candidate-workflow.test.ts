@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { COHORT, cohortMismatches, committedJson, type Lock, type Manifest } from './committedInputs';
@@ -18,8 +18,8 @@ describe('source-selected native compatibility workflow', () => {
     ]);
   });
 
-  it('derives active package identities from the manifest and lock while retaining renderer/React/Node coverage', () => {
-    expect(cohortMismatches(manifest, lock)).toEqual([]);
+  it('keeps stale lock refusal explicit while retaining renderer/React/Node coverage', () => {
+    expect(cohortMismatches(manifest, lock)).not.toEqual([]); // Preparation lock is explicitly unaccepted.
     expect(workflow).toContain('flow: ["0.34.0", "0.38.0", "candidate"]');
     expect(workflow).toContain('react: ["18", "19"]');
     expect(workflow).toContain('node: [22, 24]');
@@ -27,47 +27,50 @@ describe('source-selected native compatibility workflow', () => {
     expect(workflow).not.toMatch(/agentfootprint-(?:11|12|13):|extracted-peers:|--kind (?:floor|modern)/);
   });
 
-  it('uses one registry-selected archive cohort and no optional offline staging path', () => {
-    expect(workflow).toContain('node scripts/compat/published-proof.mjs');
-    expect(workflow).toContain('agent_archive="$(node scripts/compat/published-proof.mjs --archive-name)"');
-    expect(workflow).toContain('--agent-tar "published-evidence-22/$agent_archive"');
-    expect(workflow).not.toMatch(/agent-profile|repository: footprintjs\/agentfootprint|stage-proof|source-install|SOURCE_MANIFEST|jq --arg version/);
+  it('uses explicit reviewed native inputs while keeping ordinary registry proof closed', () => {
+    expect(workflow).toContain('source-inputs.mjs fetch');
+    expect(workflow).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(workflow).toContain('--mode target');
     expect(workflow).not.toMatch(/npm (?:publish|version)|workflow_dispatch|--legacy-peer-deps|--force/);
-    for (const name of ['stage-proof.mjs', 'stage-proof.test.mjs', 'source-install.mjs']) {
-      expect(existsSync(resolve('scripts/compat', name))).toBe(false);
-    }
+    const registry = read('scripts/compat/contract.mjs');
+    expect(registry).toContain('canonical registry archive URL required');
+    expect(registry).toContain('source lock root pin');
+    expect(registry).not.toContain('source-inputs');
+    const native = read('scripts/compat/source-inputs/materialize.mjs');
+    expect(native).toContain("'--package-lock-only', '--strict-peer-deps', '--ignore-scripts'");
+    expect(native).toContain("['ci', '--strict-peer-deps'");
+    expect(native).toContain('committedLockAccepted: false');
   });
 
-  it('bootstraps every lane from the strict lock without a local archive dev input', () => {
+  it('does not turn a stale portable lock into an accepted registry input', () => {
     for (const name of COHORT) {
       const entry = lock.packages?.[`node_modules/${name}`];
       expect(entry?.resolved).toMatch(/^https:\/\//);
       expect(entry?.integrity).toMatch(/^sha512-/);
     }
     expect(JSON.stringify(lock)).not.toContain('file:');
-    expect(workflow.match(/run: npm ci --strict-peer-deps/g)).toHaveLength(4);
-    expect(workflow).not.toMatch(/npm install --strict-peer-deps|bootstrap-lock/);
-    expect(workflow.match(/run: npm test/g)).toHaveLength(3);
-    expect(workflow.match(/run: npm run typecheck/g)).toHaveLength(2);
+    expect(workflow).not.toContain('run: npm ci --strict-peer-deps');
+    expect(workflow).toContain('source-inputs.mjs gates');
+    expect(read('scripts/compat/source-inputs/gates.mjs')).toContain("['contract', ['run', 'test:contract:foottrace']]");
+    expect(read('scripts/compat/source-inputs/gates.mjs')).toContain("['unit', ['test']]");
   });
 
-  it('keeps unrelated lock pins fixed in the explicit published commentary control', () => {
-    expect(workflow).toContain('published-commentary-control:');
-    expect(workflow).toContain('agentfootprint@14.7.2 footprintjs@12.3.0 foottrace@1.11.1');
-    expect(workflow).toContain('control[name] ?? lock.packages[`node_modules/${name}`].version');
-    expect(workflow).toContain("assertSingleFoottrace(resolve('node_modules'), '1.11.1')");
-    expect(workflow).toContain('git diff --exit-code -- package.json package-lock.json');
+  it('bootstraps the published commentary CONTROL independently of unavailable target AF15', () => {
     const published = workflow.split('  published-commentary-control:')[1]!.split('  peer-matrix:')[0]!;
-    expect(published).toContain('run: npm run build');
-    expect(published).toContain('run: npm test');
-    expect(published).not.toMatch(/upload-artifact|--agent-tar|--kind native/);
+    expect(published).toContain('--mode CONTROL');
+    expect(published).toContain('source-inputs.mjs gates');
+    expect(published).not.toMatch(/source-inputs.mjs fetch|--inputs |--kind native|source-inputs.mjs pack/);
+    const control = read('scripts/compat/commentary-control.mjs');
+    expect(control).toContain("agentfootprint: '14.7.2', footprintjs: '12.3.0', foottrace: '1.11.1'");
+    expect(control).toContain("assertSingleFoottrace(resolve('node_modules'), '1.11.1')");
+    expect(read('scripts/compat/source-inputs/gates.mjs')).toContain("['unit', ['test']]");
     expect(workflow).not.toMatch(/--package-lock=false|LENS_COMMENTARY_AGENT_VERSION/);
   });
 
   it('uses the same selected cohort in the archive, isolated consumer and native probe', () => {
     const runner = read('scripts/compat/run-lane.mjs');
     const probe = read('scripts/check-native-recording.mjs');
-    expect(workflow).toContain('--agent-source published-evidence-22/published-agent.json');
+    expect(workflow).toContain('--source-inputs compat-artifacts');
     expect(workflow).toContain('--install-browser yes');
     expect(runner).toContain('assert.deepEqual(contract.cohort, cohort');
     expect(runner).toContain('assertPublishedReceipt(contract.agentSource, readFileSync(agent.path), agentIdentity)');
