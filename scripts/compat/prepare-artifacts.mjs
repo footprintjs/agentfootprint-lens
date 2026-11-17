@@ -35,7 +35,8 @@ assert.equal(basename(flags['why-tar']), whyIdentity.filename, 'Why input archiv
 const whyFile = join(out, whyIdentity.filename);
 if (resolve(flags['why-tar']) !== whyFile) copyFileSync(flags['why-tar'], whyFile);
 const why = inspectArchive(whyFile, out, whyIdentity);
-assert.deepEqual(Object.keys(why.manifest.exports).sort(), ['.', './context', './core', './skillgraph', './why']);
+assert.deepEqual(Object.keys(why.manifest.exports).sort(),
+  ['.', './context', './core', './recording', './recording/react', './skillgraph', './why']);
 assert.equal(why.manifest.peerDependencies['footprint-explainable-ui'], '>=0.34.0 <1.0.0 || ^1.0.0');
 assert.deepEqual(why.files, publishedSourceFiles(process.cwd()),
   'Why archive must contain exactly this checkout’s package metadata, built dist, README and LICENSE');
