@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { verifyNativeLock } from '../source-inputs.mjs';
+import * as entry from '../source-inputs.mjs';
 import { cohortIdentity, names, pins } from './admission.mjs';
 import { assertPublishedReceipt } from '../published-proof.mjs';
 
@@ -49,4 +51,29 @@ for (const [label, change] of [
 ]) test(`${label} cannot qualify a native temporary lock`, t => {
   const f = fixture(t); change(f); f.write();
   assert.throws(() => verifyNativeLock(f.root, f.manifest, f.input), { code: 'ERR_ASSERTION' });
+});
+
+test('only the packed-consumer role admits the exact Lens and renderer archive locators', t => {
+  assert.equal(typeof entry.verifyPackedNativeLock, 'function');
+  const f = fixture(t);
+  const manifest = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url)));
+  const packed = {};
+  for (const [role, pkg] of [['why', manifest], ['flow', { name: 'footprint-explainable-ui', version: '0.38.0' }]]) {
+    const bytes = Buffer.from(`inert pre-inspected ${role} archive locator fixture`);
+    const path = join(f.root, `${pkg.name}-${pkg.version}.tgz`); writeFileSync(path, bytes);
+    packed[role] = { path, manifest: pkg, name: pkg.name, version: pkg.version,
+      sha256: createHash('sha256').update(bytes).digest('hex') };
+    f.manifest.devDependencies[pkg.name] = `file:${path}`;
+    f.lock.packages[`node_modules/${pkg.name}`] = { version: pkg.version, resolved: `file:${path}`,
+      integrity: `sha512-${createHash('sha512').update(bytes).digest('base64')}` };
+  }
+  f.write();
+  assert.throws(() => verifyNativeLock(f.root, f.manifest, f.input), /unknown file lock input/);
+  assert.equal(entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed).pins.foottrace, '2.0.0');
+  f.lock.packages['node_modules/unknown'] = { resolved: `file:${packed.why.path}` };
+  f.write();
+  assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), /unknown file lock input/);
+  delete f.lock.packages['node_modules/unknown']; f.write();
+  writeFileSync(packed.why.path, 'changed bytes');
+  assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), /packed archive digest/);
 });

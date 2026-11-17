@@ -16,5 +16,11 @@ archive reads, existing-token transport, temporary source projection and actual
 installed identity checks. No arbitrary producer, alternate credentials, retry,
 rebuild, alias, peer rewrite or registry/native fallback is supported.
 
+The source lock admits exactly the three projected cohort archives. The distinct
+packed-consumer lock additionally admits only this checkout's original Lens
+archive and the selected original renderer archive, with manifest, version,
+locator, SRI and byte-digest joins. It exposes no caller-supplied file allowlist;
+unknown inputs still refuse in both roles.
+
 Effect-free tests live beside these units. Full installs/builds/runtime/consumer
 gates belong to hosted CI; a green data observation alone cannot activate them.

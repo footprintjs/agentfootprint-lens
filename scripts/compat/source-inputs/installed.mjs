@@ -2,9 +2,10 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { assertInstalled } from '../contract.mjs';
+import { assertInstalled, candidate } from '../contract.mjs';
 import { names, pins, cohortIdentity } from './admission.mjs';
-import { readJson } from './archives.mjs';
+import { readJson, sha, sri } from './archives.mjs';
+import { readWhyIdentity } from '../why-identity.mjs';
 
 export function scanInstalledPackages(root) {
   const found = [], visited = new Set();
@@ -40,20 +41,26 @@ function packageRoot(from, name) {
   }
 }
 
-export function verifyNativeLock(root, manifest, input) {
+function verifyLock(root, manifest, input, packed = {}) {
   assert.deepEqual(input.cohort, cohortIdentity(), 'target cohort role/identity');
   const lock = readJson(join(root, 'package-lock.json'));
   assert.equal(lock.lockfileVersion, 3);
   for (const field of ['dependencies', 'devDependencies', 'peerDependencies'])
     assert.deepEqual(lock.packages[''][field], manifest[field], `generated lock root ${field}`);
   const expectedPaths = Object.fromEntries(names.map(n => [n, realpathSync(input.archives[n].path)]));
-  const entries = Object.entries(lock.packages);
+  const entries = Object.entries(lock.packages).filter(([key]) => key !== '');
   for (const [key, entry] of entries) {
     assert.ok(!entry.link, `unknown linked lock entry ${key}`);
     if (entry.resolved?.startsWith('file:')) {
       const name = names.find(n => key === `node_modules/${n}`);
-      assert.ok(name, `unknown file lock input ${key}`);
-      assert.equal(realpathSync(resolve(root, entry.resolved.slice(5))), expectedPaths[name]);
+      const extra = packed[key];
+      assert.ok(name || extra, `unknown file lock input ${key}`);
+      assert.equal(realpathSync(resolve(root, entry.resolved.slice(5))), name ? expectedPaths[name] : extra.path);
+      if (extra) {
+        assert.equal(entry.version, extra.version); assert.equal(entry.integrity, extra.integrity);
+        const duplicates = entries.filter(([k, e]) => k === key || k.endsWith(`/node_modules/${extra.name}`) || e.name === extra.name);
+        assert.equal(duplicates.length, 1, `one locked packed ${extra.name}`);
+      }
     }
   }
   const packages = {};
@@ -76,6 +83,28 @@ export function verifyNativeLock(root, manifest, input) {
     assert.equal(found[0][1].resolved, `https://registry.npmjs.org/${name}/-/${name}-${expected.version}.tgz`);
   }
   return { ...input.cohort, packages };
+}
+
+export const verifyNativeLock = (root, manifest, input) => verifyLock(root, manifest, input);
+
+export function verifyPackedNativeLock(root, manifest, input, { why, flow }) {
+  const expected = readWhyIdentity();
+  assert.equal(why.name, expected.name); assert.equal(why.version, expected.version);
+  assert.deepEqual(why.manifest, readJson(new URL('../../../package.json', import.meta.url)));
+  assert.equal(flow.name, 'footprint-explainable-ui');
+  assert.ok(['0.34.0', '0.38.0', candidate.version].includes(flow.version));
+  if (flow.version === candidate.version) assert.equal(flow.sha256, candidate.sha256);
+  const packed = {};
+  for (const archive of [why, flow]) {
+    const bytes = readFileSync(archive.path);
+    assert.equal(sha(bytes), archive.sha256, 'packed archive digest');
+    const key = `node_modules/${archive.name}`;
+    packed[key] = { name: archive.name, path: realpathSync(archive.path), version: archive.version, integrity: sri(bytes) };
+    const declared = { ...manifest.dependencies, ...manifest.devDependencies }[archive.name];
+    assert.ok(declared?.startsWith('file:'), 'packed dependency must select its original archive');
+    assert.equal(realpathSync(resolve(root, declared.slice(5))), packed[key].path);
+  }
+  return verifyLock(root, manifest, input, packed);
 }
 
 export function verifyNativeInstalled(root, input, { recordOnly = false } = {}) {

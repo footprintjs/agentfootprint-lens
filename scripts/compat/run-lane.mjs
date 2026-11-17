@@ -10,7 +10,7 @@ import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertPublishedReceipt, assertRegistryLock, readPublishedAgent } from './published-proof.mjs';
 import { assertWhyIdentity } from './why-identity.mjs';
 import { installBrowser } from './browser-install.mjs';
-import { inspectInputs, verifyNativeLock, verifyNativeInstalled } from './source-inputs.mjs';
+import { inspectInputs, verifyPackedNativeLock, verifyNativeInstalled } from './source-inputs.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const flags = parseFlags(process.argv.slice(2),
@@ -33,7 +33,7 @@ writeJson(join(evidence, 'verification.json'), report);
 async function step(name, run) {
   await run(); report.steps.push(name); writeJson(join(evidence, 'verification.json'), report);
 }
-function install(directory, dependencies, label) {
+function install(directory, dependencies, label, packed) {
   const resolution = `${directory}-resolve`;
   mkdirSync(resolution);
   mkdirSync(directory); // A different fresh copy replays the generated lock.
@@ -42,7 +42,7 @@ function install(directory, dependencies, label) {
   command('npm', ['install', '--package-lock-only', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
     { cwd: resolution, log: join(evidence, `${label}-resolve.log`) });
   if (label === 'consumer') {
-    if (native) verifyNativeLock(resolution, JSON.parse(readFileSync(join(resolution, 'package.json'), 'utf8')), native);
+    if (native) verifyPackedNativeLock(resolution, JSON.parse(readFileSync(join(resolution, 'package.json'), 'utf8')), native, packed);
     else assertRegistryLock(JSON.parse(readFileSync(join(resolution, 'package-lock.json'), 'utf8')), agentIdentity);
   }
   if (native) inspectInputs(resolve(flags['source-inputs']));
@@ -51,7 +51,7 @@ function install(directory, dependencies, label) {
     { cwd: directory, log: join(evidence, `${label}-ci.log`) });
   command('npm', ['ls', '--all', '--json'], { cwd: directory, log: join(evidence, `${label}-tree.json`) });
   if (label === 'consumer') {
-    if (native) verifyNativeLock(directory, JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')), native);
+    if (native) verifyPackedNativeLock(directory, JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')), native, packed);
     else assertRegistryLock(JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8')), agentIdentity);
   }
 }
@@ -118,7 +118,7 @@ try {
     ...lane.peers, ...lane.types, ...tooling,
     ...(native ? Object.fromEntries(Object.keys(cohort.pins).map(name => [name, `file:${native.archives[name].path}`])) : {}),
     'agentfootprint-lens': `file:${why.path}`, 'footprint-explainable-ui': `file:${flow.path}`,
-  }, 'consumer'));
+  }, 'consumer', { why, flow }));
   const whyInstalled = join(consumer, 'node_modules/agentfootprint-lens');
   const flowInstalled = join(consumer, 'node_modules/footprint-explainable-ui');
   function verifyBytes() {
@@ -138,8 +138,8 @@ try {
   await step('all five ESM/CJS doors, canonical owner, native recording, replay and SSR', () => {
     copyFileSync(join(root, 'scripts/check-packed-peers.mjs'), join(consumer, 'check-packed-peers.mjs'));
     copyFileSync(join(root, 'scripts/check-native-recording.mjs'), join(consumer, 'check-native-recording.mjs'));
-    const expectedCohort = native ? verifyNativeLock(consumer,
-      JSON.parse(readFileSync(join(consumer, 'package.json'), 'utf8')), native) : cohort;
+    const expectedCohort = native ? verifyPackedNativeLock(consumer,
+      JSON.parse(readFileSync(join(consumer, 'package.json'), 'utf8')), native, { why, flow }) : cohort;
     writeJson(join(consumer, 'expected-cohort.json'), expectedCohort);
     command(process.execPath, ['check-packed-peers.mjs'], { cwd: consumer, log: join(evidence, 'runtime.log') });
     command(process.execPath, ['check-native-recording.mjs'], { cwd: consumer, log: join(evidence, 'native-recording.log') });

@@ -1,7 +1,7 @@
 // Explicit source input entry. Ordinary registry proof keeps its own policy.
 export { validateProvider, validateInputKind } from './source-inputs/admission.mjs';
 export { projectManifest } from './source-inputs/projection.mjs';
-export { scanInstalledPackages, verifyNativeLock, verifyNativeInstalled } from './source-inputs/installed.mjs';
+export { scanInstalledPackages, verifyNativeLock, verifyPackedNativeLock, verifyNativeInstalled } from './source-inputs/installed.mjs';
 export { inspectInputs } from './source-inputs/archives.mjs';
 export { bootstrap, verifyBootstrap, restoreManifest, assertSourceClone } from './source-inputs/materialize.mjs';
 export { verifyRestored } from './source-inputs/gates.mjs';
