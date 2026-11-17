@@ -21,6 +21,12 @@ test('the authored manifest passes the same exact-pin guard before dependency in
   assert.match(output, /lock and compatibility checks remain separate/);
 });
 
+test('source layout oracles retain the original development renderer while public peers keep the matrix range', () => {
+  const input = manifest();
+  assert.equal(input.devDependencies['footprint-explainable-ui'], '0.40.0');
+  assert.equal(input.peerDependencies['footprint-explainable-ui'], '>=0.34.0 <1.0.0 || ^1.0.0');
+});
+
 for (const name of ['agentfootprint', 'footprintjs', 'foottrace']) {
   test(`${name}: a caret cannot become an authored development identity`, () => {
     const input = manifest();

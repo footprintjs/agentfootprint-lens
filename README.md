@@ -43,6 +43,11 @@ adoption; the source package version stays unchanged until the normal release.
 Node.js 22 or newer and React 18 or 19 remain required. Older saved recordings
 retain their existing readers, fixtures and goldens.
 
+Source development uses renderer0.40.0, the original locked layout baseline.
+Public compatibility still exercises the declared renderer floor, current and
+reviewed next-major candidate in the separate packed matrix. A fresh source
+lock must not silently replace that historical layout input with a newer major.
+
 The explicit source-mode lane pairs the original AF 15 candidate archive with
 the real published engine 13.0.0 and Foottrace 2.0.0 archives. It checks source,
 artifact and byte identities before materialization, then generates and replays

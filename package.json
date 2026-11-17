@@ -144,7 +144,7 @@
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
     "agentfootprint": "15.0.0-rc.0",
-    "footprint-explainable-ui": ">=0.34.0 <1.0.0 || ^1.0.0",
+    "footprint-explainable-ui": "0.40.0",
     "footprintjs": "13.0.0-rc.0",
     "foottrace": "2.0.0-rc.0",
     "jsdom": "^29.0.2",
