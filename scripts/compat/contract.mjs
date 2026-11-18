@@ -19,6 +19,16 @@ export const lazyRenderer = Object.freeze({
   integrity: 'sha512-LTCb0DzNQCbJqN2/YCFdWr0H47/elJDONPpWp3PglDNkpqmfeyVv80vKA0vQhlnlVUy3wUR+kCP0VvzCNsDeTQ==',
 });
 
+export function assertRendererVersion(version) {
+  assert.ok(['0.34.0', '0.38.0', candidate.version, lazyRenderer.version].includes(version),
+    `Unknown renderer version: ${version}`);
+}
+
+export function assertLazyRendererIntegrity(packIntegrity, bytesIntegrity) {
+  assert.equal(packIntegrity, lazyRenderer.integrity, 'published renderer pack identity');
+  assert.equal(bytesIntegrity, lazyRenderer.integrity, 'actual renderer bytes must match the reviewed public release');
+}
+
 // The compiler's supported declaration floor is independent of the runtime
 // being exercised. @types/node 26 requires TS >=5.6; using it with TS 5.4
 // creates an unrelated empty-consumer failure, not a Lens compatibility test.

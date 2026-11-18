@@ -5,7 +5,7 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertEvidenceOutsideRepository, assertInstalled, assertRecordIsolation, assertSingleFoottrace, candidate, lazyRenderer, installedPackageNames, readActiveCohort,
+import { assertEvidenceOutsideRepository, assertInstalled, assertLazyRendererIntegrity, assertRecordIsolation, assertSingleFoottrace, candidate, lazyRenderer, installedPackageNames, readActiveCohort,
   laneContract, parseFlags, sha256, tooling } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertPublishedReceipt, assertRegistryLock, readPublishedAgent } from './published-proof.mjs';
@@ -116,9 +116,8 @@ try {
     flow = inspectArchive(join(evidence, packed[0].filename), evidence,
       { name: 'footprint-explainable-ui', version: lane.flow });
     if (lane.flow === lazyRenderer.version) {
-      assert.equal(packed[0].integrity, lazyRenderer.integrity, 'published renderer pack identity');
-      assert.equal(`sha512-${createHash('sha512').update(readFileSync(flow.path)).digest('base64')}`,
-        lazyRenderer.integrity, 'actual renderer bytes must match the reviewed public release');
+      assertLazyRendererIntegrity(packed[0].integrity,
+        `sha512-${createHash('sha512').update(readFileSync(flow.path)).digest('base64')}`);
       report.lazyRenderer = lazyRenderer;
     }
   }

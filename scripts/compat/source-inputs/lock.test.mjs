@@ -53,12 +53,12 @@ for (const [label, change] of [
   assert.throws(() => verifyNativeLock(f.root, f.manifest, f.input), { code: 'ERR_ASSERTION' });
 });
 
-test('only the packed-consumer role admits the exact Lens and renderer archive locators', t => {
+for (const flowVersion of ['0.34.0', '0.38.0', '1.0.1']) test(`packed ${flowVersion} admits only the exact Lens and renderer archive locators`, t => {
   assert.equal(typeof entry.verifyPackedNativeLock, 'function');
   const f = fixture(t);
   const manifest = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url)));
   const packed = {};
-  for (const [role, pkg] of [['why', manifest], ['flow', { name: 'footprint-explainable-ui', version: '0.38.0' }]]) {
+  for (const [role, pkg] of [['why', manifest], ['flow', { name: 'footprint-explainable-ui', version: flowVersion }]]) {
     const bytes = Buffer.from(`inert pre-inspected ${role} archive locator fixture`);
     const path = join(f.root, `${pkg.name}-${pkg.version}.tgz`); writeFileSync(path, bytes);
     packed[role] = { path, manifest: pkg, name: pkg.name, version: pkg.version,
@@ -70,6 +70,16 @@ test('only the packed-consumer role admits the exact Lens and renderer archive l
   f.write();
   assert.throws(() => verifyNativeLock(f.root, f.manifest, f.input), /unknown file lock input/);
   assert.equal(entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed).pins.foottrace, '2.1.0');
+  for (const unknown of ['0.39.0', '1.0.0', '1.1.2', 'latest']) {
+    packed.flow.version = unknown;
+    assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), /Unknown renderer version/);
+  }
+  packed.flow.version = flowVersion;
+  const rendererLock = f.lock.packages['node_modules/footprint-explainable-ui'];
+  const integrity = rendererLock.integrity;
+  rendererLock.integrity = 'sha512-forged'; f.write();
+  assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), { code: 'ERR_ASSERTION' });
+  rendererLock.integrity = integrity; f.write();
   f.lock.packages['node_modules/unknown'] = { resolved: `file:${packed.why.path}` };
   f.write();
   assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), /unknown file lock input/);

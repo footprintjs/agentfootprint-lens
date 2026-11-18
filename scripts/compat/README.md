@@ -18,7 +18,11 @@ original and immutable renderer original to the same workflow run. The
 contract carries the source-derived cohort. `run-lane.mjs` requires that exact
 cohort, installs its admitted originals and gives the native probe an expected-cohort
 sidecar; the probe checks actual versions and consumer lock identities.
-Renderer floor/current/candidate × React 18/19 × Node 22/24 coverage remains.
+Renderer floor/current/candidate/published-lazy × React 18/19 × Node 22/24 coverage remains.
+The packed lock and browser plan share the closed declared renderer versions.
+Only the admitted source candidate requires the separate literal Flow/HCI record
+browser; its original archive digest remains mandatory. The published lazy lane
+retains both the registry pack receipt and actual byte SRI checks.
 
 Consumer fixture locks replay their renderer/React/private Lens-tar graph with
 strict npm ci. They contain a CI-local Lens path and are non-portable evidence,

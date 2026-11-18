@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
-import { assertInstalled, candidate } from '../contract.mjs';
+import { assertInstalled, assertRendererVersion, candidate } from '../contract.mjs';
 import { names, pins, cohortIdentity } from './admission.mjs';
 import { readJson, sha, sri } from './archives.mjs';
 import { readWhyIdentity } from '../why-identity.mjs';
@@ -92,7 +92,7 @@ export function verifyPackedNativeLock(root, manifest, input, { why, flow }) {
   assert.equal(why.name, expected.name); assert.equal(why.version, expected.version);
   assert.deepEqual(why.manifest, readJson(new URL('../../../package.json', import.meta.url)));
   assert.equal(flow.name, 'footprint-explainable-ui');
-  assert.ok(['0.34.0', '0.38.0', candidate.version].includes(flow.version));
+  assertRendererVersion(flow.version);
   if (flow.version === candidate.version) assert.equal(flow.sha256, candidate.sha256);
   const packed = {};
   for (const archive of [why, flow]) {
