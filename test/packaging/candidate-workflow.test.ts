@@ -20,10 +20,8 @@ describe('source-selected native compatibility workflow', () => {
 
   it('keeps stale lock refusal explicit while retaining renderer/React/Node coverage', () => {
     expect(cohortMismatches(manifest, lock)).not.toEqual([]); // Preparation lock is explicitly unaccepted.
-    expect(workflow).toContain('flow: ["0.34.0", "0.38.0", "candidate", "1.0.1"]');
     const flows = JSON.parse(workflow.match(/flow: (\[[^\n]+\])/u)![1]!) as string[];
-    expect(flows).toHaveLength(4);
-    expect(flows.length * 2 * 2).toBe(16); // React18/19 × Node22/24, preserving all12 legacy lanes.
+    expect(flows).toEqual(['0.34.0', '0.38.0', 'candidate', '1.0.1', '2.0.0']);
     expect(workflow).toContain('react: ["18", "19"]');
     expect(workflow).toContain('node: [22, 24]');
     expect(workflow).toContain('--kind native');
