@@ -1,10 +1,10 @@
 # Source-selected compatibility proof
 
-The active cohort has one source: exact development pins in `package.json`
+The ordinary registry cohort has one source: exact development pins in `package.json`
 joined with version, registry URL and SHA512 integrity in the committed
 `package-lock.json`. `deriveCohort` refuses a changed pin without its matching
 lock, non-exact versions, non-HTTPS inputs, malformed integrity and links.
-Every repository gate uses `npm ci --strict-peer-deps` on that lock.
+Every ordinary registry gate uses `npm ci --strict-peer-deps` on that lock.
 
 `published-proof.mjs` keeps three joins: registry SHA512/SHA1 agree with the
 actual downloaded bytes and the committed lock integrity; installed package

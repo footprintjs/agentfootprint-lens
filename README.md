@@ -130,8 +130,9 @@ evidence remain available on failed runs. Browser builds use Vite without
 aliases, externals or stubs.
 
 The previous one-time offline staging lane is removed; its proof remains in
-Git history. New validation always follows the current manifest and committed
-lock. All supported runtime lanes use `--kind native`; `--browser no` remains
+Git history. Ordinary registry validation follows the current manifest and
+committed lock; native preparation uses the separately admitted originals while
+that portable lock remains refused. All runtime lanes use `--kind native`; `--browser no` remains
 diagnostic-only and cannot report a passing lane.
 
 ```tsx
