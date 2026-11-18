@@ -18,11 +18,15 @@ original and immutable renderer original to the same workflow run. The
 contract carries the source-derived cohort. `run-lane.mjs` requires that exact
 cohort, installs its admitted originals and gives the native probe an expected-cohort
 sidecar; the probe checks actual versions and consumer lock identities.
-Renderer floor/current/candidate/published-lazy × React 18/19 × Node 22/24 coverage remains.
+The five renderer selections run with React 18/19 on Node 22/24.
 The packed lock and browser plan share the closed declared renderer versions.
 Only the admitted source candidate requires the separate literal Flow/HCI record
 browser; its original archive digest remains mandatory. The published lazy lane
 retains both the registry pack receipt and actual byte SRI checks.
+The 0.38.0 and 2.0.0 lanes bind the original registry archives by URL, size and
+digest. They compile the same full engine narrative fixture under strict NodeNext
+ESM, NodeNext CommonJS and Bundler. Only the expected narrative-argument
+diagnostic qualifies as a 0.38.0 rejection. The 2.0.0 fixture must compile cleanly.
 
 Consumer fixture locks replay their renderer/React/private Lens-tar graph with
 strict npm ci. They contain a CI-local Lens path and are non-portable evidence,
@@ -43,7 +47,7 @@ requires both provisioning and browser replay; an unknown strategy refuses.
 Neither strategy changes a browser assertion, public import/declaration check,
 source/archive comparison, or same-workflow/run-attempt artifact identity check.
 
-The hosted 16-lane matrix uses the official
+The hosted 20-lane matrix uses the official
 `mcr.microsoft.com/playwright:v1.63.0-noble` container at immutable OCI index
 `sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27`.
 This digest was verified against the
@@ -111,7 +115,7 @@ No native result claims a repaired portable lock or AF registry publication.
 
 Both Node source gates run against exact disposable source copies; the original
 manifest is restored before one Node22 Lens pack. Node24 compares its build to
-that same archive. All sixteen packed renderer/React/Node lanes and the separate
+that same archive. All twenty packed renderer/React/Node lanes and the separate
 published commentary control remain. Native and registry evidence cannot be
 substituted for one another. The control bootstraps directly at14.7.2/12.3.0/1.11.1;
 it does not first install the unavailable target.

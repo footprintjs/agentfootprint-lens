@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { candidate, parseFlags, publishedSourceFiles } from './contract.mjs';
+import { candidate, parseFlags, publishedSourceFiles, rendererPeerRange } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
 import { readWhyIdentity } from './why-identity.mjs';
 import { inspectInputs, verifyRestored } from './source-inputs.mjs';
@@ -36,7 +36,7 @@ if (resolve(flags['why-tar']) !== whyFile) copyFileSync(flags['why-tar'], whyFil
 const why = inspectArchive(whyFile, out, whyIdentity);
 assert.deepEqual(Object.keys(why.manifest.exports).sort(),
   ['.', './context', './core', './recording', './recording/react', './skillgraph', './why']);
-assert.equal(why.manifest.peerDependencies['footprint-explainable-ui'], '>=0.34.0 <1.0.0 || ^1.0.0');
+assert.equal(why.manifest.peerDependencies['footprint-explainable-ui'], rendererPeerRange);
 assert.deepEqual(why.files, publishedSourceFiles(process.cwd()),
   'Why archive must contain exactly this checkout’s package metadata, built dist, README and LICENSE');
 const dirtyTracked = command('git', ['status', '--porcelain', '--untracked-files=no']).trim();

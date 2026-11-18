@@ -9,6 +9,7 @@ import * as entry from '../source-inputs.mjs';
 import { cohortIdentity, names, pins } from './admission.mjs';
 import { assertPublishedReceipt } from '../published-proof.mjs';
 import { candidate } from '../contract.mjs';
+import { narrativeRenderer } from '../narrative-renderers.mjs';
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'lens-native-lock-'));
@@ -82,6 +83,10 @@ for (const flow of matrixFlows) test(`packed matrix role ${flow} requires exact 
     assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), /packed archive digest/);
     return;
   }
+  if (narrativeRenderer(flow)) {
+    assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), /narrative renderer archive size/);
+    return;
+  }
   assert.equal(entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed).pins.foottrace, '2.1.0');
   for (const unknown of ['0.39.0', '1.0.0', '1.1.2', 'latest']) {
     packed.flow.version = unknown;
@@ -93,6 +98,10 @@ for (const flow of matrixFlows) test(`packed matrix role ${flow} requires exact 
   rendererLock.integrity = 'sha512-forged'; f.write();
   assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), { code: 'ERR_ASSERTION' });
   rendererLock.integrity = integrity; f.write();
+  const locator = rendererLock.resolved;
+  rendererLock.resolved = 'https://example.invalid/renderer.tgz'; f.write();
+  assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), /packed lock must select its original archive/);
+  rendererLock.resolved = locator; f.write();
   f.lock.packages['node_modules/unknown'] = { resolved: `file:${packed.why.path}` };
   f.write();
   assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), /unknown file lock input/);

@@ -3,6 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertLazyRendererIntegrity, candidate, lazyRenderer } from './contract.mjs';
 import { requireRecordBrowser } from './browser-plan.mjs';
+import { narrativeRenderer } from './narrative-renderers.mjs';
 
 test('every renderer declared by the actual matrix has an explicit browser capability plan', () => {
   const workflow = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
@@ -11,7 +12,7 @@ test('every renderer declared by the actual matrix has an explicit browser capab
   for (const flow of flows) {
     const sourceCandidate = flow === 'candidate';
     assert.equal(requireRecordBrowser({ version: sourceCandidate ? candidate.version : flow,
-      sha256: sourceCandidate ? candidate.sha256 : undefined,
+      sha256: sourceCandidate ? candidate.sha256 : narrativeRenderer(flow)?.sha256,
       recordConsumer: sourceCandidate ? '/inert/record-host' : undefined }), sourceCandidate);
   }
 });
@@ -24,9 +25,11 @@ test('the admitted source candidate requires its exact archive and separate reco
 });
 
 test('the other matrix renderers retain replay without borrowing the source record host', () => {
-  for (const version of ['0.34.0', '0.38.0', lazyRenderer.version]) {
-    assert.equal(requireRecordBrowser({ version }), false);
-    assert.throws(() => requireRecordBrowser({ version, recordConsumer: '/inert/record-host' }), /source candidate/);
+  for (const version of ['0.34.0', '0.38.0', lazyRenderer.version, '2.0.0']) {
+    const sha256 = narrativeRenderer(version)?.sha256;
+    assert.equal(requireRecordBrowser({ version, sha256 }), false);
+    assert.throws(() => requireRecordBrowser({ version, sha256, recordConsumer: '/inert/record-host' }), /source candidate/);
+    if (sha256) assert.throws(() => requireRecordBrowser({ version, sha256: candidate.sha256 }), /published renderer archive/);
   }
 });
 

@@ -11,6 +11,7 @@ import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertPublishedReceipt, assertRegistryLock, readPublishedAgent } from './published-proof.mjs';
 import { assertWhyIdentity } from './why-identity.mjs';
 import { installBrowser } from './browser-install.mjs';
+import { assertNarrativeRejection, assertNarrativeRendererBytes, narrativeRenderer } from './narrative-renderers.mjs';
 import { inspectInputs, verifyPackedNativeLock, verifyNativeInstalled } from './source-inputs.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -60,16 +61,19 @@ function install(directory, dependencies, label, packed) {
     else assertRegistryLock(JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8')), agentIdentity);
   }
 }
-function checkTypes(consumer, stem, toolConsumer = consumer) {
+function checkTypes(consumer, stem, toolConsumer = consumer, verifyRejection) {
   const tsc = join(toolConsumer, 'node_modules/typescript/bin/tsc');
-  const common = ['--noEmit', '--strict', '--skipLibCheck', 'false', '--target', 'ES2022', '--types', 'react', '--lib', 'ES2022,DOM,DOM.Iterable'];
+  const common = ['--noEmit', '--pretty', 'false', '--strict', '--skipLibCheck', 'false', '--target', 'ES2022', '--types', 'react', '--lib', 'ES2022,DOM,DOM.Iterable'];
   for (const [mode, extension, resolution, module] of [
     ['nodenext-esm', 'mts', 'NodeNext', 'NodeNext'],
     ['nodenext-cjs', 'cts', 'NodeNext', 'NodeNext'],
     ['bundler', 'ts', 'Bundler', 'ESNext'],
   ]) {
-    command(process.execPath, [tsc, ...common, '--module', module, '--moduleResolution', resolution, `${stem}.${extension}`],
-      { cwd: consumer, log: join(evidence, `${dirname(consumer) === evidence ? consumer.split('/').at(-1) : 'types'}-${stem}-${mode}.log`) });
+    const fixture = `${stem}.${extension}`;
+    const output = command(process.execPath, [tsc, ...common, '--module', module, '--moduleResolution', resolution, fixture],
+      { cwd: consumer, expectedStatus: verifyRejection ? 2 : 0,
+        log: join(evidence, `${dirname(consumer) === evidence ? consumer.split('/').at(-1) : 'types'}-${stem}-${mode}.log`) });
+    verifyRejection?.(output, fixture);
   }
 }
 
@@ -104,17 +108,26 @@ try {
     : assertPublishedReceipt(contract.agentSource, readFileSync(agent.path), agentIdentity);
   report.packages.agent = { sha256: agent.sha256, source: agentSource };
 
+  const narrativeIdentity = narrativeRenderer(lane.flow);
   let flow;
   if (lane.flow === 'candidate') {
     flow = inspectArchive(join(artifacts, contract.flow.path), evidence,
       { name: 'footprint-explainable-ui', version: candidate.version, expectedSha: candidate.sha256 });
     assert.deepEqual(flow.files, contract.flow.files);
   } else {
-    const packed = JSON.parse(command('npm', ['pack', `footprint-explainable-ui@${lane.flow}`, '--ignore-scripts',
+    const packed = JSON.parse(command('npm', ['pack', narrativeIdentity?.tarball ?? `footprint-explainable-ui@${lane.flow}`, '--ignore-scripts',
       '--json', '--pack-destination', evidence], { cwd: evidence, log: join(evidence, 'published-flow-pack.log') }));
     assert.equal(packed.length, 1);
-    flow = inspectArchive(join(evidence, packed[0].filename), evidence,
-      { name: 'footprint-explainable-ui', version: lane.flow });
+    const archive = join(evidence, `footprint-explainable-ui-${lane.flow}.tgz`);
+    assert.equal(packed[0].filename, `footprint-explainable-ui-${lane.flow}.tgz`);
+    if (narrativeIdentity) {
+      assert.equal(packed[0].integrity, narrativeIdentity.integrity, 'published renderer pack SRI');
+      assert.equal(packed[0].shasum, narrativeIdentity.shasum, 'published renderer pack SHA1');
+      assertNarrativeRendererBytes(narrativeIdentity, readFileSync(archive));
+      report.narrativeRenderer = narrativeIdentity;
+    }
+    flow = inspectArchive(archive, evidence, { name: 'footprint-explainable-ui', version: lane.flow,
+      expectedSha: narrativeIdentity?.sha256 });
     if (lane.flow === lazyRenderer.version) {
       assertLazyRendererIntegrity(packed[0].integrity,
         `sha512-${createHash('sha512').update(readFileSync(flow.path)).digest('base64')}`);
@@ -159,6 +172,16 @@ try {
       join(consumer, `check-packed-peer-types.${extension}`));
     checkTypes(consumer, 'check-packed-peer-types');
   });
+
+  if (narrativeIdentity) {
+    await step(`strict full engine narrative ${narrativeIdentity.acceptsNarrative ? 'accepted' : 'rejected at the argument'}`, () => {
+      const stem = 'check-narrative-renderer-types';
+      const fixture = readFileSync(join(root, 'scripts', `${stem}.ts`));
+      for (const extension of ['mts', 'cts', 'ts']) writeFileSync(join(consumer, `${stem}.${extension}`), fixture);
+      checkTypes(consumer, stem, consumer, narrativeIdentity.acceptsNarrative ? undefined : assertNarrativeRejection);
+      report.narrativeDeclaration = { fixtureSha256: sha256(fixture), accepted: narrativeIdentity.acceptsNarrative };
+    });
+  }
 
   if (lane.flow === lazyRenderer.version) {
     await step('packed lazy recording codec and native source lifecycle', () => {

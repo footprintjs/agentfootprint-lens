@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { authoredDevPins, lazyRenderer } from './contract.mjs';
+import { authoredDevPins, lazyRenderer, rendererPeerRange } from './contract.mjs';
 
 const root = new URL('../../', import.meta.url);
 const manifest = () => JSON.parse(readFileSync(new URL('package.json', root), 'utf8'));
@@ -24,7 +24,7 @@ test('the authored manifest passes the same exact-pin guard before dependency in
 test('development includes the published native-source API while public peers retain the full matrix range', () => {
   const input = manifest();
   assert.equal(input.devDependencies['footprint-explainable-ui'], lazyRenderer.version);
-  assert.equal(input.peerDependencies['footprint-explainable-ui'], '>=0.34.0 <1.0.0 || ^1.0.0');
+  assert.equal(input.peerDependencies['footprint-explainable-ui'], rendererPeerRange);
 });
 
 test('the authored public contract explicitly accepts engine14 RC and Foottrace2.1', () => {

@@ -3,6 +3,7 @@ import { createRequire } from 'node:module';
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { assertInstalled, assertRendererVersion, candidate } from '../contract.mjs';
+import { assertNarrativeRendererBytes, narrativeRenderer } from '../narrative-renderers.mjs';
 import { names, pins, cohortIdentity } from './admission.mjs';
 import { readJson, sha, sri } from './archives.mjs';
 import { readWhyIdentity } from '../why-identity.mjs';
@@ -49,6 +50,9 @@ function verifyLock(root, manifest, input, packed = {}) {
     assert.deepEqual(lock.packages[''][field], manifest[field], `generated lock root ${field}`);
   const expectedPaths = Object.fromEntries(names.map(n => [n, realpathSync(input.archives[n].path)]));
   const entries = Object.entries(lock.packages).filter(([key]) => key !== '');
+  for (const key of Object.keys(packed)) {
+    assert.ok(lock.packages[key]?.resolved?.startsWith('file:'), `packed lock must select its original archive: ${key}`);
+  }
   for (const [key, entry] of entries) {
     assert.ok(!entry.link, `unknown linked lock entry ${key}`);
     if (entry.resolved?.startsWith('file:')) {
@@ -98,6 +102,10 @@ export function verifyPackedNativeLock(root, manifest, input, { why, flow }) {
   for (const archive of [why, flow]) {
     const bytes = readFileSync(archive.path);
     assert.equal(sha(bytes), archive.sha256, 'packed archive digest');
+    if (archive === flow) {
+      const published = narrativeRenderer(flow.version);
+      if (published) assertNarrativeRendererBytes(published, bytes);
+    }
     const key = `node_modules/${archive.name}`;
     packed[key] = { name: archive.name, path: realpathSync(archive.path), version: archive.version, integrity: sri(bytes) };
     const declared = { ...manifest.dependencies, ...manifest.devDependencies }[archive.name];

@@ -3,6 +3,9 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { narrativeRenderers } from './narrative-renderers.mjs';
+
+export const rendererPeerRange = '>=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0';
 
 export const candidate = Object.freeze({
   repository: 'footprintjs/explainable-ui',
@@ -19,9 +22,11 @@ export const lazyRenderer = Object.freeze({
   integrity: 'sha512-LTCb0DzNQCbJqN2/YCFdWr0H47/elJDONPpWp3PglDNkpqmfeyVv80vKA0vQhlnlVUy3wUR+kCP0VvzCNsDeTQ==',
 });
 
+const rendererFlows = Object.freeze(['0.34.0', 'candidate', lazyRenderer.version, ...Object.keys(narrativeRenderers)]);
+const rendererVersions = rendererFlows.map(flow => flow === 'candidate' ? candidate.version : flow);
+
 export function assertRendererVersion(version) {
-  assert.ok(['0.34.0', '0.38.0', candidate.version, lazyRenderer.version].includes(version),
-    `Unknown renderer version: ${version}`);
+  assert.ok(rendererVersions.includes(version), `Unknown renderer version: ${version}`);
 }
 
 export function assertLazyRendererIntegrity(packIntegrity, bytesIntegrity) {
@@ -83,7 +88,7 @@ export function readActiveCohort(directory = resolve(dirname(fileURLToPath(impor
 
 export function laneContract({ kind, flow, react, node }, cohort = readActiveCohort()) {
   assert.equal(kind, 'native', `unknown lane kind: ${kind}`);
-  assert.ok(['0.34.0', '0.38.0', 'candidate', lazyRenderer.version].includes(flow), `unknown Flow: ${flow}`);
+  assert.ok(rendererFlows.includes(flow), `unknown Flow: ${flow}`);
   assert.ok(['18', '19'].includes(String(react)), `unknown React: ${react}`);
   assert.ok(['22', '24'].includes(String(node)), `unknown Node: ${node}`);
   const react18 = String(react) === '18';

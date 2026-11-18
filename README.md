@@ -63,7 +63,7 @@ regenerate the committed lock normally and rerun the required hosted checks.
 The published AF 14 controls below are separate evidence, never substitutes for
 this new cohort. No production fallback or golden update is part of this draft.
 
-The renderer peer remains `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0`.
+The renderer peer is `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0`.
 Its minimum supplies the renderer APIs used by Lens. Public imports from
 `agentfootprint-lens`, `/core`, `/why`, `/skillgraph`, and `/context` stay the
 same. Flow Lens's separate `/record` door is tested independently.
@@ -105,9 +105,11 @@ package scan must show one Foottrace 1.11.1 owner.
 Both Nodes run the whole Lens suite, including historical saved-record data,
 approval-fixture generation, helpers, typechecking, build and packaging checks.
 One Lens archive feeds renderer 0.34.0, 0.38.0, the exact reviewed 1.1.1
-source candidate and published 1.0.1, each with React 18/19 on Node 22/24. The four
+source candidate, published 1.0.1 and published 2.0.0, each with React 18/19 on Node 22/24. The four
 1.0.1 lanes additionally exercise the packed lazy-source exports, native exact
-child admission and declarations; the twelve preceding lanes remain intact.
+child admission and declarations. A strict declaration fixture passes the full engine
+narrative, including an attempt entry, directly to the 2.0.0 renderer. The same
+fixture must fail at that argument on 0.38.0.
 Every native consumer uses the new qualified original AgentFootprint archive and
 checks its generated strict lock and installed bytes against that original; an old
 engine13 proof does not qualify. Public ESM/CommonJS doors,
