@@ -1,7 +1,20 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { assertLazyRendererIntegrity, candidate, lazyRenderer } from './contract.mjs';
 import { requireRecordBrowser } from './browser-plan.mjs';
+
+test('every renderer declared by the actual matrix has an explicit browser capability plan', () => {
+  const workflow = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  const flows = JSON.parse(workflow.match(/flow:\s*(\[[^\]]+\])/)?.[1] ?? '[]');
+  assert.ok(flows.length > 0);
+  for (const flow of flows) {
+    const sourceCandidate = flow === 'candidate';
+    assert.equal(requireRecordBrowser({ version: sourceCandidate ? candidate.version : flow,
+      sha256: sourceCandidate ? candidate.sha256 : undefined,
+      recordConsumer: sourceCandidate ? '/inert/record-host' : undefined }), sourceCandidate);
+  }
+});
 
 test('the admitted source candidate requires its exact archive and separate record browser', () => {
   const input = { version: candidate.version, sha256: candidate.sha256, recordConsumer: '/inert/record-host' };

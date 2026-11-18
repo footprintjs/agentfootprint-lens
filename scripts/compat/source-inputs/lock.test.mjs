@@ -8,6 +8,7 @@ import { verifyNativeLock } from '../source-inputs.mjs';
 import * as entry from '../source-inputs.mjs';
 import { cohortIdentity, names, pins } from './admission.mjs';
 import { assertPublishedReceipt } from '../published-proof.mjs';
+import { candidate } from '../contract.mjs';
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'lens-native-lock-'));
@@ -53,7 +54,11 @@ for (const [label, change] of [
   assert.throws(() => verifyNativeLock(f.root, f.manifest, f.input), { code: 'ERR_ASSERTION' });
 });
 
-for (const flowVersion of ['0.34.0', '0.38.0', '1.0.1']) test(`packed ${flowVersion} admits only the exact Lens and renderer archive locators`, t => {
+const workflow = readFileSync(new URL('../../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const matrixFlows = JSON.parse(workflow.match(/flow:\s*(\[[^\]]+\])/)?.[1] ?? '[]');
+assert.ok(matrixFlows.length > 0);
+for (const flow of matrixFlows) test(`packed matrix role ${flow} requires exact Lens and renderer archive locators`, t => {
+  const flowVersion = flow === 'candidate' ? candidate.version : flow;
   assert.equal(typeof entry.verifyPackedNativeLock, 'function');
   const f = fixture(t);
   const manifest = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url)));
@@ -69,6 +74,14 @@ for (const flowVersion of ['0.34.0', '0.38.0', '1.0.1']) test(`packed ${flowVers
   }
   f.write();
   assert.throws(() => verifyNativeLock(f.root, f.manifest, f.input), /unknown file lock input/);
+  if (flow === 'candidate') {
+    assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), { code: 'ERR_ASSERTION' });
+    // Correct declared identity alone must not bless the deliberately inert bytes.
+    // A separate bounded probe also exercises this same guard with the actual qualified original.
+    packed.flow.sha256 = candidate.sha256;
+    assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), /packed archive digest/);
+    return;
+  }
   assert.equal(entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed).pins.foottrace, '2.1.0');
   for (const unknown of ['0.39.0', '1.0.0', '1.1.2', 'latest']) {
     packed.flow.version = unknown;
