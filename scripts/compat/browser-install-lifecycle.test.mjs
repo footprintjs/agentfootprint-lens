@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { installBrowser } from './browser-install.mjs';
+import { bundledBrowser } from './browser-bundled.mjs';
 
 function fixture(t) {
   const root = mkdtempSync(join(tmpdir(), 'lens-install-phases-'));
@@ -74,4 +75,46 @@ test('a successful retry waits for the first download to reject after cleanup', 
   assert.equal(await installBrowser(input, download, () => order.push('dependencies finished')), 'installed');
   assert.deepEqual(order, ['dependencies finished', 'first started', 'first cleanup finished', 'retry started']);
   assert.equal(attempts, 2);
+});
+
+function bundledReceipt() {
+  return { schema: 1, strategy: 'bundled', image: bundledBrowser.image,
+    playwrightVersion: bundledBrowser.playwrightVersion, chromiumRevision: bundledBrowser.chromiumRevision,
+    browserVersion: bundledBrowser.chromiumVersion,
+    executablePath: `${bundledBrowser.browserRoot}/chromium-${bundledBrowser.chromiumRevision}/chrome-linux64/chrome`, smoke: 'passed' };
+}
+
+test('explicit bundled provisioning proves one native browser without apt, downloads or retries', async t => {
+  const input = { ...fixture(t), strategy: 'bundled' }, calls = [], expected = bundledReceipt();
+  const result = await installBrowser(input, (command, args, options) => {
+    calls.push({ command, args, options }); return JSON.stringify(expected);
+  }, () => { assert.fail('bundled provisioning must not run system dependencies'); });
+  assert.deepEqual(result, expected); assert.equal(calls.length, 1);
+  assert.equal(calls[0].command, process.execPath);
+  assert.equal(calls[0].args.at(-1), input.consumer);
+  assert.equal(calls[0].options.timeout, 60_000);
+  assert.equal(calls[0].options.log, join(input.evidence, 'browser-bundled.log'));
+});
+
+test('a bundled native proof timeout is terminal without any network or apt fallback', async t => {
+  const input = { ...fixture(t), strategy: 'bundled' }; let proofs = 0;
+  const failure = new assert.AssertionError({ actual: Object.assign(Error('inert timeout'), { code: 'ETIMEDOUT' }),
+    expected: undefined, operator: 'strictEqual' });
+  await assert.rejects(installBrowser(input, () => { proofs++; throw failure; }, () => assert.fail('no apt fallback')), error => error === failure);
+  assert.equal(proofs, 1);
+});
+
+test('an unknown provisioning strategy fails before any owned or privileged process', async t => {
+  const input = { ...fixture(t), strategy: 'guess' };
+  await assert.rejects(installBrowser(input, () => assert.fail('unexpected process'), () => assert.fail('unexpected apt')), /strategy/);
+});
+
+test('a bundled proof cannot report success with a missing or mismatched binary receipt', async t => {
+  const input = { ...fixture(t), strategy: 'bundled' };
+  for (const receipt of [{}, { ...bundledReceipt(), browserVersion: 'wrong' },
+    { ...bundledReceipt(), executablePath: '/different/chrome' }]) {
+    let calls = 0;
+    await assert.rejects(installBrowser(input, () => { calls++; return JSON.stringify(receipt); }, () => assert.fail('no apt fallback')));
+    assert.equal(calls, 1);
+  }
 });

@@ -1,10 +1,11 @@
 // One isolated, retained consumer. Node selection belongs to the caller/CI;
 // this runner checks it, never substitutes a different interpreter on failure.
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertEvidenceOutsideRepository, assertInstalled, assertRecordIsolation, assertSingleFoottrace, candidate, installedPackageNames, readActiveCohort,
+import { assertEvidenceOutsideRepository, assertInstalled, assertRecordIsolation, assertSingleFoottrace, candidate, lazyRenderer, installedPackageNames, readActiveCohort,
   laneContract, parseFlags, sha256, tooling } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertPublishedReceipt, assertRegistryLock, readPublishedAgent } from './published-proof.mjs';
@@ -14,7 +15,11 @@ import { inspectInputs, verifyPackedNativeLock, verifyNativeInstalled } from './
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const flags = parseFlags(process.argv.slice(2),
-  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser', 'source-inputs']);
+  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser', 'source-inputs', 'browser-provisioning']);
+const browserStrategy = flags['browser-provisioning'] ?? 'network';
+assert.ok(['network', 'bundled'].includes(browserStrategy), 'Unknown browser provisioning strategy');
+if (flags['browser-provisioning'] !== undefined) assert.ok(flags['install-browser'] === 'yes' && flags.browser !== 'no',
+  'An explicit browser provisioning strategy requires --install-browser yes and browser replay');
 const native = flags['source-inputs'] ? inspectInputs(resolve(flags['source-inputs'])) : null;
 const cohort = native ? native.cohort : readActiveCohort();
 const agentIdentity = native ? cohort.packages.agentfootprint : readPublishedAgent(cohort);
@@ -27,7 +32,7 @@ assertEvidenceOutsideRepository(root, evidence);
 mkdirSync(dirname(evidence), { recursive: true });
 mkdirSync(evidence); // A repeated run must not overwrite an earlier failure's evidence.
 const report = { schema: 1, lane, node: process.version, npm: command('npm', ['--version']).trim(),
-  status: 'running', steps: [], packages: {} };
+  browserProvisioning: browserStrategy, status: 'running', steps: [], packages: {} };
 writeJson(join(evidence, 'verification.json'), report);
 
 async function step(name, run) {
@@ -64,7 +69,7 @@ function checkTypes(consumer, stem, toolConsumer = consumer) {
     ['bundler', 'ts', 'Bundler', 'ESNext'],
   ]) {
     command(process.execPath, [tsc, ...common, '--module', module, '--moduleResolution', resolution, `${stem}.${extension}`],
-      { cwd: consumer, log: join(evidence, `${dirname(consumer) === evidence ? consumer.split('/').at(-1) : 'types'}-${mode}.log`) });
+      { cwd: consumer, log: join(evidence, `${dirname(consumer) === evidence ? consumer.split('/').at(-1) : 'types'}-${stem}-${mode}.log`) });
   }
 }
 
@@ -110,6 +115,12 @@ try {
     assert.equal(packed.length, 1);
     flow = inspectArchive(join(evidence, packed[0].filename), evidence,
       { name: 'footprint-explainable-ui', version: lane.flow });
+    if (lane.flow === lazyRenderer.version) {
+      assert.equal(packed[0].integrity, lazyRenderer.integrity, 'published renderer pack identity');
+      assert.equal(`sha512-${createHash('sha512').update(readFileSync(flow.path)).digest('base64')}`,
+        lazyRenderer.integrity, 'actual renderer bytes must match the reviewed public release');
+      report.lazyRenderer = lazyRenderer;
+    }
   }
   report.packages.flow = { sha256: flow.sha256, files: flow.files };
   writeJson(join(evidence, 'archive-proof.json'), { ...report.packages, candidate: lane.flow === 'candidate' ? candidate : null });
@@ -149,6 +160,19 @@ try {
       join(consumer, `check-packed-peer-types.${extension}`));
     checkTypes(consumer, 'check-packed-peer-types');
   });
+
+  if (lane.flow === lazyRenderer.version) {
+    await step('packed lazy recording codec and native source lifecycle', () => {
+      copyFileSync(join(root, 'src/core/__fixtures__/recorded-turn.json'), join(consumer, 'lazy-recorded-turn.json'));
+      copyFileSync(join(root, 'scripts/check-lazy-recording.mjs'), join(consumer, 'check-lazy-recording.mjs'));
+      command(process.execPath, ['check-lazy-recording.mjs'], { cwd: consumer, log: join(evidence, 'lazy-recording-runtime.log') });
+    });
+    await step('lazy source public types under all strict declaration resolutions', () => {
+      for (const extension of ['mts', 'cts', 'ts']) copyFileSync(join(root, 'scripts/check-lazy-recording-types.ts'),
+        join(consumer, `check-lazy-recording-types.${extension}`));
+      checkTypes(consumer, 'check-lazy-recording-types');
+    });
+  }
 
   let recordConsumer;
   let recordOnly;
@@ -216,8 +240,13 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
     if (native) verifyNativeInstalled(recordConsumer, native, { recordOnly: true });
   }
   if (lane.kind === 'native' && flags.browser !== 'no') {
-    if (flags['install-browser'] === 'yes') await step('install the declared browser for this CI lane', () => {
-      return installBrowser({ consumer, evidence });
+    let browserEnvironment;
+    if (flags['install-browser'] === 'yes') await step('provision the declared browser for this CI lane', async () => {
+      const receipt = await installBrowser({ consumer, evidence, strategy: browserStrategy });
+      if (browserStrategy === 'bundled') browserEnvironment = {
+        PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: receipt.executablePath,
+        PLAYWRIGHT_CHROMIUM_EXPECTED_VERSION: receipt.browserVersion,
+      };
     });
     await step('actual installed-package browser replay, cursor, theme and candidate records', () => {
       const args = [join(root, 'scripts/check-compat-browser.mjs'), '--consumer', consumer,
@@ -225,7 +254,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
         '--archive-proof', join(evidence, 'archive-proof.json')];
       if (recordConsumer) args.push('--record-consumer', recordConsumer, '--record-fixtures',
         join(resolve(flags['flow-source']), 'pilots/record-lens/fixtures'));
-      command(process.execPath, args, { cwd: consumer, log: join(evidence, 'browser.log'), timeout: 180_000 });
+      command(process.execPath, args, { cwd: consumer, env: browserEnvironment, log: join(evidence, 'browser.log'), timeout: 180_000 });
     });
   }
   await step('all installed bytes and archives still equal after every probe', () => {

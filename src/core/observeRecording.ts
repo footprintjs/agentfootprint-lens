@@ -451,6 +451,16 @@ export function observeRecording(
   recording: Recording,
   options?: LensRecorderOptions,
 ): ObservedRecording {
+  return observeRecordingWithSnapshot(recording, options);
+}
+
+/** Internal saved-source bridge. The source validates publications and keeps
+ * this runner/recorder stable; only the snapshot getter changes its reading. */
+export function observeRecordingWithSnapshot(
+  recording: Recording,
+  options?: LensRecorderOptions,
+  readSnapshot?: () => RecordedSnapshot | undefined,
+): ObservedRecording {
   const recorder = new LensRecorder('Run', options ?? {});
   // Every empty state, from here on, is a FINISHED run's empty state: "run a
   // sample to see what happened" is nonsense in front of a recording.
@@ -616,7 +626,7 @@ export function observeRecording(
         unsubscribe(): void {},
       }),
     },
-    getLastSnapshot: () => snapshot,
+    getLastSnapshot: readSnapshot ?? (() => snapshot),
     getSpec: () => ({ buildTimeStructure: structure }),
     // A recording generates nothing new, but handing an event in still means
     // what it means live: deliver it to the listeners, in the dispatcher's

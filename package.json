@@ -1,6 +1,6 @@
 {
   "name": "agentfootprint-lens",
-  "version": "0.82.0",
+  "version": "0.83.0",
   "description": "Why Lens: React components for inspecting recorded agentfootprint prompts, tool calls, context and decisions.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -56,6 +56,26 @@
         "types": "./dist/context.d.cts",
         "default": "./dist/context.cjs"
       }
+    },
+    "./recording": {
+      "import": {
+        "types": "./dist/recording.d.ts",
+        "default": "./dist/recording.js"
+      },
+      "require": {
+        "types": "./dist/recording.d.cts",
+        "default": "./dist/recording.cjs"
+      }
+    },
+    "./recording/react": {
+      "import": {
+        "types": "./dist/recording-react.d.ts",
+        "default": "./dist/recording-react.js"
+      },
+      "require": {
+        "types": "./dist/recording-react.d.cts",
+        "default": "./dist/recording-react.cjs"
+      }
     }
   },
   "typesVersions": {
@@ -71,6 +91,12 @@
       ],
       "context": [
         "./dist/context.d.ts"
+      ],
+      "recording": [
+        "./dist/recording.d.ts"
+      ],
+      "recording/react": [
+        "./dist/recording-react.d.ts"
       ]
     }
   },
@@ -144,7 +170,7 @@
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
     "agentfootprint": "15.0.0-rc.0",
-    "footprint-explainable-ui": "0.40.0",
+    "footprint-explainable-ui": "1.0.1",
     "footprintjs": "14.0.0-rc.0",
     "foottrace": "2.1.0",
     "jsdom": "^29.0.2",

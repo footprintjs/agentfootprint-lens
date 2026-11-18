@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
@@ -27,6 +27,23 @@ test('the twelve native lanes retain renderer and React coverage on both Nodes',
     }
   }
   assert.equal(new Set(ids).size, 12);
+});
+
+test('four published lazy-source lanes extend the existing matrix and run the packed feature probes', () => {
+  const ids = [];
+  for (const react of ['18', '19']) for (const node of ['22', '24']) {
+    const lane = laneContract({ kind: 'native', flow: '1.0.1', react, node });
+    ids.push(lane.id);
+    assert.equal(lane.flow, '1.0.1');
+    assert.equal(lane.peers.react, react === '18' ? '18.3.1' : '19.0.0');
+  }
+  assert.equal(new Set(ids).size, 4);
+  const workflow = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
+  assert.deepEqual(JSON.parse(workflow.match(/flow:\s*(\[[^\]]+\])/)?.[1] ?? '[]'),
+    ['0.34.0', '0.38.0', 'candidate', '1.0.1']);
+  const runner = readFileSync(new URL('./run-lane.mjs', import.meta.url), 'utf8');
+  assert.ok(runner.includes('check-lazy-recording.mjs'));
+  assert.ok(runner.includes('check-lazy-recording-types'));
 });
 
 test('lane peers use the supplied cohort instead of a built-in release identity', () => {

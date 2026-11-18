@@ -143,11 +143,18 @@ jobs:
   peer-matrix:
     needs: test
     runs-on: ubuntu-24.04
+    # Official image supplies browsers + native libraries once; every lane still
+    # proves its exact installed driver/binary and performs the full replay.
+    container:
+      image: mcr.microsoft.com/playwright:v1.63.0-noble@sha256:eff16c30e6f3f4af0a03fa4b706120d5e9b0891c344a27d64559aff5900a4a27
+      options: --ipc=host
+    env:
+      PLAYWRIGHT_BROWSERS_PATH: /ms-playwright
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        flow: ["0.34.0", "0.38.0", "candidate"]
+        flow: ["0.34.0", "0.38.0", "candidate", "1.0.1"]
         react: ["18", "19"]
         node: [22, 24]
     steps:
@@ -176,7 +183,7 @@ jobs:
           node scripts/compat/run-lane.mjs --kind native --flow "${{ matrix.flow }}" \
             --react "${{ matrix.react }}" --node "${{ matrix.node }}" \
             --artifacts compat-artifacts --evidence "$RUNNER_TEMP/compat-evidence" \
-            --flow-source flow-candidate --install-browser yes --source-inputs compat-artifacts
+            --flow-source flow-candidate --install-browser yes --source-inputs compat-artifacts --browser-provisioning bundled
       - uses: actions/upload-artifact@v4
         if: always()
         with:

@@ -48,6 +48,8 @@ export interface LensFlowProps {
    * node renderers. Node ids ARE the run's `runtimeStageId`s so the overlay lights
    * the executed path as the cursor scrubs.
    */
+  /** Controlled native chart scope; source data and cursor use this same invocation. */
+  readonly currentSubflowId?: string | null;
   readonly chart: {
     readonly graph: TraceGraph;
     /**
@@ -135,6 +137,7 @@ export interface LensFlowProps {
 
 export const LensFlow: React.FC<LensFlowProps> = ({
   chart,
+  currentSubflowId,
   nodeTypes,
   selectedRuntimeStageId,
   selectedCursorKind,
@@ -201,6 +204,7 @@ export const LensFlow: React.FC<LensFlowProps> = ({
     <ChartGroupContext.Provider value={group}>
       <TracedFlow
         graph={chart.graph}
+        {...(currentSubflowId !== undefined && {currentSubflowId})}
         {...(chart.layout && { layout: chart.layout })}
         {...(traceRuntimeOverlay && { overlay: traceRuntimeOverlay })}
         {...(scrubIndex !== undefined && { scrubIndex })}

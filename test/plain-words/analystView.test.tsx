@@ -21,6 +21,58 @@ import { load } from '../served/helpers.js';
 import { loadReply } from './helpers.js';
 import { legacyAnalystNarration } from './legacyAnalystNarration/index.js';
 
+// EUI 1.0.1 extends its public coolLight preset with native control,
+// contrast, geometry and motion tokens. Retain them in the rendered app;
+// isolate those exact additions from the immutable 0.67 layout oracle.
+const nativeControlTokens = {
+  "--fp-on-primary": "#fff",
+  "--fp-on-success": "#fff",
+  "--fp-on-error": "#fff",
+  "--fp-on-warning": "#1a1a1a",
+  "--fp-on-tracing": "#fff",
+  "--fp-on-node-cursor": "#1a1a1a",
+  "--fp-on-node-visited": "#fff",
+  "--fp-on-node-main": "#fff",
+  "--fp-radius-control": "6px",
+  "--fp-radius-panel": "8px",
+  "--fp-radius-badge": "12px",
+  "--fp-font-size-body": "12px",
+  "--fp-font-size-label": "11px",
+  "--fp-font-size-small": "10px",
+  "--fp-font-size-title": "14px",
+  "--fp-line-height": "1.5",
+  "--fp-font-weight-normal": "400",
+  "--fp-font-weight-medium": "500",
+  "--fp-font-weight-strong": "700",
+  "--fp-space-xs": "4px",
+  "--fp-space-sm": "8px",
+  "--fp-space-md": "12px",
+  "--fp-space-lg": "16px",
+  "--fp-space-xl": "24px",
+  "--fp-border-width": "1px",
+  "--fp-focus-width": "2px",
+  "--fp-shadow-panel": "0 2px 8px rgba(0,0,0,0.15)",
+  "--fp-shadow-popover": "0 6px 24px rgba(0,0,0,0.2)",
+  "--fp-shadow-focus": "none",
+  "--fp-node-border-color": "initial",
+  "--fp-node-border-width": "initial",
+  "--fp-node-border-style": "initial",
+  "--fp-node-radius": "initial",
+  "--fp-node-shadow": "initial",
+  "--fp-node-shape-shadow": "initial",
+  "--fp-node-badge-shadow": "initial",
+  "--fp-node-pulse-opacity": "initial",
+  "--fp-node-group-status-display": "none",
+  "--fp-motion-duration": "240ms",
+  "--fp-motion-fast-duration": "120ms",
+  "--fp-motion-easing": "ease",
+  "--fp-control-height": "28px",
+  "--fp-control-padding-x": "8px",
+  "--fp-control-gap": "6px",
+  "--fp-icon-size": "14px"
+} as const;
+const nativeControls = new RegExp(`(?:${Object.keys(nativeControlTokens).join('|')}): [^;]+;\\s?`, 'g');
+
 describe('<Lens view="analyst"> without an account', () => {
   it('renders byte-identical to 0.67.1 (snapshot written before the upgrade)', () => {
     const f = load('flat-dynamic-tools');
@@ -32,12 +84,17 @@ describe('<Lens view="analyst"> without an account', () => {
     // 0.68.0 adds `--fp-tone-{ok,warn,bad,unknown}` to BOTH mode palettes (the
     // In plain words pane's tones), and `<Lens theme>` stamps the whole
     // palette at its root — so the root's style gains exactly those four
-    // declarations. Strip them and the rest is 0.67.1's bytes.
+    // declarations. EUI 1.0.1 additionally supplies the exact native control
+    // tokens asserted below. Keep all additions in production, remove only
+    // that closed list here, and require the historical layout bytes.
     const f = load('flat-dynamic-tools');
     const { container } = render(<Lens recorder={f.recorder} view="analyst" theme={{ mode: 'light' }} humanizer={legacyAnalystNarration} />);
     const tones = /--fp-tone-(?:ok|warn|bad|unknown): [^;]+;\s?/g;
     expect(container.innerHTML.match(tones)).toHaveLength(4);
-    expect(container.innerHTML.replace(tones, '')).toMatchSnapshot();
+    const themedRoot = container.firstElementChild as HTMLElement;
+    for (const [name,value] of Object.entries(nativeControlTokens)) expect(themedRoot.style.getPropertyValue(name)).toBe(value);
+    expect(container.innerHTML.match(nativeControls)).toHaveLength(Object.keys(nativeControlTokens).length);
+    expect(container.innerHTML.replace(tones, '').replace(nativeControls, '')).toMatchSnapshot();
   });
 });
 
