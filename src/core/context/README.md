@@ -48,6 +48,27 @@ ctx.why;     // [{ seq, name: 'agentfootprint.agent.iteration_end', runtimeStage
 `<ContextView>` (`src/react/components/ContextView.tsx`) renders this — standalone
 over the library's milestone axis, or handed the ONE cursor.
 
+### Using Context with your own renderer
+
+`projectContext` is the plain TypeScript reader behind `<ContextView>`. Pass
+the same cursor reading the rest of your application uses. Its fold anchor
+keeps the opening stop at the initial state, including when replaying a resumed run.
+
+```ts
+import { projectContext } from 'agentfootprint-lens/core';
+
+const at = shared.forAxis('group').at;
+const context = projectContext(snapshot, at, { events: recorder.getEntries() });
+const writesHere = context.keys.filter(key => key.wroteAt === context.cursor.commitIdx);
+```
+
+Pass an optional `previous` fold cursor to see which keys entered, changed or
+left. The same result supplies the served receipt and its verification when
+recorded, and the findings ledger when present. For a live React view, pass
+`runner` and its observing `recorder` to `<ContextView>`. It batches recorder
+notifications before reading the snapshot. A consumer can still supply an
+explicit event list for replay.
+
 ## 0.54.0 — the served row is rendered, not just badged
 
 `<ContextView>` mounts `<ServedTab runner cursor>` (the Why Lens's own Served

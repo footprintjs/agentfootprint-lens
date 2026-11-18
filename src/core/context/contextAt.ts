@@ -29,6 +29,9 @@ import { pathSegments } from 'foottrace/paths';
 import { stateAt } from 'foottrace';
 import type { FoldSource, FoldedState } from 'foottrace';
 
+import { foldCursorOf } from '../cursor/foldAt.js';
+import { foldFactsFrom } from '../served/foldFactsAt.js';
+import type { ServedGraphInput } from '../served/servedGraphAt.js';
 import type { EventLogEntry } from '../types.js';
 import { servedRowAt, servedRowForEpoch } from '../served/servedRowAt.js';
 import { sincePrevious, type SincePrevious } from '../served/sincePrevious.js';
@@ -201,8 +204,13 @@ export function contextAt(
   cursor: ServedCursor,
   options: ContextAtOptions = {},
 ): ContextAt {
+  return contextFromFold(recording, cursor, options, foldAt(recording, cursor.commitIdx));
+}
+
+function contextFromFold(
+  recording: unknown, cursor: ServedCursor, options: ContextAtOptions, folded: ReturnType<typeof foldAt>,
+): ContextAt {
   const log = logOf(recording);
-  const folded = foldAt(recording, cursor.commitIdx);
   if ('error' in folded) {
     return Object.freeze({
       cursor,
@@ -215,7 +223,8 @@ export function contextAt(
     });
   }
   const writers = writersUpTo(log, cursor.commitIdx);
-  const previous = options.previous !== undefined ? foldAt(recording, options.previous.commitIdx) : undefined;
+  const previous = options.previous === undefined ? undefined
+    : options.previous.commitIdx === cursor.commitIdx ? folded : foldAt(recording, options.previous.commitIdx);
   const previousState = previous !== undefined && !('error' in previous) ? previous.state : undefined;
 
   const keys: ContextKey[] = [];
@@ -275,5 +284,44 @@ export function contextAt(
     ...(served !== undefined ? { served } : {}),
     ...(servedError !== undefined ? { servedError } : {}),
     why: whyFor(options.events, stages),
+  });
+}
+
+/** All Context bands read one stop. Absent keys and missing receipts stay absent. */
+export interface ContextProjection extends ContextAt {
+  readonly served?: ServedGraphInput;
+  readonly ledger?: {
+    readonly rows: readonly unknown[];
+    readonly since?: ContextKey['since'];
+    readonly toolResults?: readonly unknown[];
+    readonly coverage?: readonly unknown[];
+  };
+}
+
+/** Project a cursor reading into the Context view, honoring its historical fold anchor. */
+export function projectContext(
+  snapshot: unknown,
+  at: Parameters<typeof foldCursorOf>[0],
+  options: ContextAtOptions = {},
+): ContextProjection {
+  const cursor = foldCursorOf(at);
+  const folded = foldAt(snapshot, cursor.commitIdx);
+  const { served, ...context } = contextFromFold(snapshot, cursor, options, folded);
+  const ledger = context.keys.find(key => key.path === 'findingsLedger');
+  const toolResults = context.keys.find(key => key.path === 'toolResults')?.value;
+  const coverage = context.keys.find(key => key.path === 'coverageDeclared')?.value;
+  return Object.freeze({
+    ...context,
+    ...(served !== undefined && !('error' in folded) && {
+      served: Object.freeze({ ...served, fold: foldFactsFrom(folded) }),
+    }),
+    ...(ledger !== undefined && Array.isArray(ledger.value) && {
+      ledger: Object.freeze({
+        rows: ledger.value,
+        ...(ledger.since !== undefined && { since: ledger.since }),
+        ...(Array.isArray(toolResults) && { toolResults }),
+        ...(Array.isArray(coverage) && { coverage }),
+      }),
+    }),
   });
 }

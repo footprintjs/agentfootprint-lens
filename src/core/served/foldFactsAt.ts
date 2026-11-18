@@ -106,6 +106,11 @@ export function foldFactsAt(recording: unknown, cursor: ServedCursor): FoldFacts
       foldError: e instanceof Error ? e.message : String(e),
     });
   }
+  return foldFactsFrom(folded);
+}
+
+/** Read the Served facts from a fold the enclosing view already holds. */
+export function foldFactsFrom(folded: FoldedState): FoldFacts {
   const state = folded.state;
   const present: FoldFactKey[] = [];
   const out: Record<string, unknown> = {};

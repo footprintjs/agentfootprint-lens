@@ -20,6 +20,7 @@
  */
 
 export * from "./types.js";
+export { createLensRenderStore, type LensRenderStoreOptions } from "./stores/lensRenderStore.js";
 export { readTrustBoundaries } from './trustBoundaries/index.js';
 export type { TrustBoundariesRead, TrustBoundaryCapture, TrustBoundaryCounters, TrustBoundaryFact, TrustSourcePosition } from './trustBoundaries/index.js';
 export { readSourcePosition, resolveSourcePrefix } from './cursor/sourcePrefix.js';
@@ -291,6 +292,8 @@ export * from "./hitl/index.js";
 // See src/core/context/README.md.
 export {
   contextAt,
+  projectContext,
+  type ContextProjection,
   type ContextAt,
   type ContextAtOptions,
   type ContextKey,
