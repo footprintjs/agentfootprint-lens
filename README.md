@@ -43,7 +43,7 @@ adoption; the source package version stays unchanged until the normal release.
 Node.js 22 or newer and React 18 or 19 remain required. Older saved recordings
 retain their existing readers, fixtures and goldens.
 
-Source development uses renderer0.40.0, the original locked layout baseline.
+Source development uses renderer1.0.1 for the inherited optional native-source API.
 Public compatibility still exercises the declared renderer floor, current and
 reviewed next-major candidate in the separate packed matrix. A fresh source
 lock must not silently replace that historical layout input with a newer major.

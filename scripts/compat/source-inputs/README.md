@@ -32,4 +32,5 @@ only its thirteen-member dependency-security format; it does not invent an
 AF candidate protocol or committed UI lock. The generated audit lock stays
 inert. The source-mode projection still changes only three development locators;
 the renderer original is consumed only by the separate packed matrix. Source
-development keeps renderer0.40.0 and its historical layout oracle.
+development uses renderer1.0.1 for the inherited optional native-source API; the
+original historical replay fixtures remain unchanged.

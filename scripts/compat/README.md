@@ -107,7 +107,7 @@ No native result claims a repaired portable lock or AF registry publication.
 
 Both Node source gates run against exact disposable source copies; the original
 manifest is restored before one Node22 Lens pack. Node24 compares its build to
-that same archive. All twelve packed renderer/React/Node lanes and the separate
+that same archive. All sixteen packed renderer/React/Node lanes and the separate
 published commentary control remain. Native and registry evidence cannot be
 substituted for one another. The control bootstraps directly at14.7.2/12.3.0/1.11.1;
 it does not first install the unavailable target.

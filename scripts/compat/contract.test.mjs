@@ -30,9 +30,10 @@ test('the twelve native lanes retain renderer and React coverage on both Nodes',
 });
 
 test('four published lazy-source lanes extend the existing matrix and run the packed feature probes', () => {
+  const cohort = { pins: { agentfootprint: '90.1.2-fixture.3', footprintjs: '91.2.3', foottrace: '92.3.4' } };
   const ids = [];
   for (const react of ['18', '19']) for (const node of ['22', '24']) {
-    const lane = laneContract({ kind: 'native', flow: '1.0.1', react, node });
+    const lane = laneContract({ kind: 'native', flow: '1.0.1', react, node }, cohort);
     ids.push(lane.id);
     assert.equal(lane.flow, '1.0.1');
     assert.equal(lane.peers.react, react === '18' ? '18.3.1' : '19.0.0');
