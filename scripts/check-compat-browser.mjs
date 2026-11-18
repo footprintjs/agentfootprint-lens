@@ -112,6 +112,8 @@ async function runBrowser(consumerPath, kind) {
   const versions = { react: installed('react/package.json').version, reactDOM: installed('react-dom/package.json').version };
   try {
     browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined });
+    if (process.env.PLAYWRIGHT_CHROMIUM_EXPECTED_VERSION) assert.equal(browser.version(), process.env.PLAYWRIGHT_CHROMIUM_EXPECTED_VERSION,
+      'Full replay must use the admitted native Chromium version');
     const context = await browser.newContext({ viewport: { width: 1680, height: 1100 }, serviceWorkers: 'block' });
     await context.routeWebSocket('**/*', socket => {
       remote.push(socket.url());
