@@ -109,7 +109,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flow: ["0.34.0", "0.38.0", "candidate"]
+        flow: ["0.34.0", "0.38.0", "candidate", "1.0.1"]
         react: ["18", "19"]
         node: [22, 24]
     steps:

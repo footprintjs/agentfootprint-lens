@@ -56,6 +56,7 @@ import { ALL_EVENT_TYPES, type AgentfootprintEvent, type Unsubscribe } from 'age
 import { LiveStateRecorder, BoundaryRecorder, type StepGraph } from 'agentfootprint/observe';
 import {
   createTraceRuntimeOverlay,
+  overlayFromSnapshot,
   type TraceRuntimeOverlayHandle,
 } from 'footprint-explainable-ui/flowchart';
 import { ChangeNotifier } from './ChangeNotifier.js';
@@ -409,6 +410,18 @@ export class LensRecorder {
   /** Is this recorder showing a finished recording rather than a live run? */
   isReplay(): boolean {
     return this.replaying;
+  }
+
+  /** Refresh an admitted saved snapshot without replaying any domain event.
+   * The source keeps the observed runner and this recorder's identity stable,
+   * so every shared cursor continues to address the same recorded run. */
+  refreshReplaySnapshot(): void {
+    if (!this.replaying || this.currentRunner === undefined) {
+      throw new Error('Only an observed saved recording can refresh its snapshot.');
+    }
+    const snapshot = this.currentRunner.getLastSnapshot();
+    if (snapshot !== undefined) this.runtime.seed(overlayFromSnapshot(snapshot));
+    this.bumpVersion();
   }
 
   /**

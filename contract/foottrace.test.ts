@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  flattenCausalDAG, formatSlice, keysReadFromExecutionTree, parseRuntimeStageId,
+  buildRuntimeStageId, isExecutionKey, flattenCausalDAG, formatSlice, keysReadFromExecutionTree, parseRuntimeStageId,
   sliceForKey, splitStageId, stateAt, tagStops, timeTravel,
 } from 'foottrace';
 import { pathSegments } from 'foottrace/paths';
@@ -31,6 +31,24 @@ const contracts = [
     expect(splitStageId('outer/inner/derive')).toEqual({
       localStageId: 'derive', subflowPath: 'outer/inner',
     });
+  } },
+  { names: ['foottrace#buildRuntimeStageId', 'foottrace#isExecutionKey'], prove() {
+    const nested = buildRuntimeStageId('gather', 7, 'outer/inner');
+    expect(nested).toBe('outer/inner/gather#7');
+    expect(isExecutionKey(nested)).toBe(true);
+    const parsed = parseRuntimeStageId(nested);
+    expect(buildRuntimeStageId(parsed.stageId, parsed.executionIndex, parsed.subflowPath)).toBe(nested);
+    expect(buildRuntimeStageId('root', 0)).toBe('root#0');
+    expect(isExecutionKey('outer/inner/gather')).toBe(false);
+    // Detection intentionally means delimiter presence, not complete validity.
+    // The consumer additionally requires a finite index and an exact round trip.
+    expect(isExecutionKey('gather#oops')).toBe(true);
+    expect(Number.isNaN(parseRuntimeStageId('gather#oops').executionIndex)).toBe(true);
+    const noncanonical = parseRuntimeStageId('outer/gather#007');
+    expect(buildRuntimeStageId(noncanonical.stageId, noncanonical.executionIndex, noncanonical.subflowPath))
+      .toBe('outer/gather#7');
+    expect(buildRuntimeStageId(noncanonical.stageId, noncanonical.executionIndex, noncanonical.subflowPath))
+      .not.toBe('outer/gather#007');
   } },
   { names: ['foottrace/paths#pathSegments'], prove() {
     expect(pathSegments('context\u001fanswer')).toEqual(['context', 'answer']);

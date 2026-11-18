@@ -7,6 +7,8 @@ import {
 import type { SharedCursor } from './useSharedCursor.js';
 import type { SourcePrefixResolution, SourcePrefixState } from '../core/cursor/sourcePrefix.js';
 import { T } from './theme/index.js';
+import type { LensRecordingSource } from './recordingSource/types.js';
+import { useSourcePrefixNavigation } from './recordingSource/useSourcePrefixNavigation.js';
 
 /** Presentation copy belongs here, not in the headless coordinate resolver. */
 export function sourcePrefixMessage(
@@ -51,6 +53,8 @@ export interface TrustBoundaryViewProps {
   readonly snapshot: unknown;
   /** The host's one cursor. Omit for a read-only view. */
   readonly shared?: SharedCursor;
+  /** Optional native source; source-prefix actions load the exact cold child first. */
+  readonly recordingSource?: LensRecordingSource;
 }
 
 function describe(fact: TrustBoundaryFact): { title: string; detail: string } {
@@ -110,11 +114,14 @@ function describe(fact: TrustBoundaryFact): { title: string; detail: string } {
 function Capture({
   capture,
   shared,
+  select,
 }: {
+  readonly select: (position: unknown) => SourcePrefixResolution | undefined | Promise<SourcePrefixResolution | undefined>;
   readonly capture: TrustBoundaryCapture;
   readonly shared?: SharedCursor;
 }): React.ReactElement {
   const [page, setPage] = useState(0);
+  const [loading, setLoading] = useState<number>();
   const [notice, setNotice] = useState<{ seq: number; text: string }>();
   const count = capture.counters;
   const lastPage = Math.max(0, Math.ceil(capture.facts.length / 20) - 1);
@@ -197,15 +204,20 @@ function Capture({
                   opacity: !canNavigate || !fact.sourcePosition ? 0.55 : 1,
                 }}
                 type="button"
-                disabled={!canNavigate || !fact.sourcePosition}
-                onClick={() => {
+                disabled={!canNavigate || !fact.sourcePosition || loading !== undefined}
+                onClick={async () => {
                   if (typeof shared?.selectSourcePrefix !== 'function' || !fact.sourcePosition)
                     return;
-                  const result = shared.selectSourcePrefix(fact.sourcePosition);
+                  const selected = select(fact.sourcePosition);
+                  let result: SourcePrefixResolution | undefined;
+                  if (selected instanceof Promise) { setLoading(fact.seq); result = await selected; setLoading(undefined); }
+                  else result = selected;
                   setNotice({
                     seq: fact.seq,
                     text:
-                      result.status === 'unavailable'
+                      result === undefined
+                        ? 'The recorded source could not be selected.'
+                        : result.status === 'unavailable'
                         ? `Unplaced: ${sourcePrefixMessage(result)}`
                         : result.state.status === 'unavailable'
                         ? `Source location selected. ${sourcePrefixMessage(result.state)}`
@@ -213,7 +225,7 @@ function Capture({
                   });
                 }}
               >
-                Inspect source prefix
+                {loading === fact.seq ? 'Loading recorded source…' : 'Inspect source prefix'}
               </button>
               {!canNavigate && fact.sourcePosition && (
                 <span> Source-prefix navigation is unavailable for this cursor.</span>
@@ -255,7 +267,11 @@ function Capture({
 export function TrustBoundaryView({
   snapshot,
   shared,
+  recordingSource,
 }: TrustBoundaryViewProps): React.ReactElement {
+  const lazySelect = useSourcePrefixNavigation(recordingSource, shared);
+  const select = (position: unknown) => recordingSource === undefined
+    ? shared?.selectSourcePrefix?.(position) : lazySelect(position);
   const read = useMemo(() => readTrustBoundaries(snapshot), [snapshot]);
   return (
     <section
@@ -281,7 +297,7 @@ export function TrustBoundaryView({
         </p>
         {read.status === 'available' ? (
           read.captures.map((capture) => (
-            <Capture key={`${capture.id}:${capture.captureId}`} capture={capture} shared={shared} />
+            <Capture key={`${capture.id}:${capture.captureId}`} capture={capture} shared={shared} select={select} />
           ))
         ) : (
           <p role="status">{read.message}</p>

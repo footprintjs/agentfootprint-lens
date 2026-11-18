@@ -13,7 +13,7 @@ those imports. An added or removed import fails until its consumer contract is
 updated; namespace, re-export, `require`, dynamic, and inline import-type forms
 cannot silently escape that check.
 
-The current consumer uses root readers, cursor movement and strategies, ID parsing,
+The current consumer uses root readers, cursor movement and strategies, ID construction/detection/parsing (including noncanonical IDs),
 backward slices and their display projections, plus `/paths`. It does not exercise
 unimported producer or saved-store adapters. Saved JSON is passed through the
 imported `stateAt` reader. Both public ESM and CommonJS module doors are resolved;
