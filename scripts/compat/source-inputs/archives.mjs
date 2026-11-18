@@ -5,6 +5,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { pins, names, versions, cohortIdentity, validateInputKind, validateProvider, validateArtifact } from './admission.mjs';
+import { inspectRenderer } from './renderer.mjs';
 
 export const readJson = file => JSON.parse(readFileSync(file, 'utf8'));
 export const sri = data => `sha512-${createHash('sha512').update(data).digest('base64')}`;
@@ -60,6 +61,7 @@ export function inspectInputs(directory) {
     }
     const data = archiveData(['tar', path, name, identity.version]);
     if (pins.closure[name]) assert.equal(data.sha256, pins.closure[name].sha256);
+    if (pins.published[name]?.sha256) assert.equal(data.sha256, pins.published[name].sha256);
     assert.deepEqual(data, receipt.archives[name], `${name}: admitted inventory changed`);
     archives[name] = { ...data, path };
   }
@@ -70,5 +72,6 @@ export function inspectInputs(directory) {
   assert.equal(sha(Buffer.from(JSON.stringify(canonical))), pins.agent.archive.memberCensusSha256);
   assert.deepEqual(canonical, archives.agentfootprint.members, 'original complete ordered member census');
   assert.equal(receipt.candidate.archive.sha256, archives.agentfootprint.sha256);
-  return { cohort, archives, receipt };
+  const renderer = inspectRenderer(directory, receipt.renderer, archiveData);
+  return { cohort, archives, receipt, renderer };
 }

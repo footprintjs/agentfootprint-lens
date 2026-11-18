@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 export const candidate = Object.freeze({
   repository: 'footprintjs/explainable-ui',
-  commit: 'e3681ab46e01a2a03adf97a27d58df987fef4db8',
-  tree: '1edfffcb88751fcea32992d2200e171fc9686499',
-  version: '1.0.0',
-  sha256: 'd5bcc09551a77cab1c8ec98a0a521b129b0db37597094e86a90a5a4170603a83',
+  commit: '0af1a2d0d21edb0a86fb447b4c032c1f3d896412',
+  tree: '6442e29e58366a509e574c0b9ea67cc646726301',
+  version: '1.1.1',
+  sha256: '6871c2c24d992133173e5328d64c2f4a38dd93cf994bcd828195ee5971cbfea5',
 });
 
 // The compiler's supported declaration floor is independent of the runtime

@@ -35,9 +35,9 @@ npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ### Migration: next major dependency cohort (draft)
 
 This draft requires the joint peer ranges `agentfootprint ^15.0.0-rc.0`,
-`footprintjs ^13.0.0-rc.0` and `foottrace ^2.0.0-rc.0`. Development identities
-are exact: `agentfootprint 15.0.0-rc.0`, `footprintjs 13.0.0-rc.0` and
-`foottrace 2.0.0-rc.0`. The earlier AF 14, engine 11/12 and Foottrace 1 lines
+`footprintjs ^14.0.0-rc.0` and `foottrace ^2.1.0`. Development identities
+are exact: `agentfootprint 15.0.0-rc.0`, `footprintjs 14.0.0-rc.0` and
+`foottrace 2.1.0`. The earlier AF 14, engine 11/12/13 and Foottrace 1/2.0 lines
 are no longer in the declared runtime ranges. This is intended next-major
 adoption; the source package version stays unchanged until the normal release.
 Node.js 22 or newer and React 18 or 19 remain required. Older saved recordings
@@ -49,7 +49,7 @@ reviewed next-major candidate in the separate packed matrix. A fresh source
 lock must not silently replace that historical layout input with a newer major.
 
 The explicit source-mode lane pairs the original AF 15 candidate archive with
-the real published engine 13.0.0 and Foottrace 2.0.0 archives. It checks source,
+the real published engine 14.0.0-rc.0 and Foottrace 2.1.0 archives. It checks source,
 artifact and byte identities before materialization, then generates and replays
 a genuine strict temporary lock. Its three temporary development locators never
 enter the packed Lens manifest. The real committed lock remains the prior AF 14.4.0 / engine 12.0.0 /
@@ -104,23 +104,27 @@ package scan must show one Foottrace 1.11.1 owner.
 
 Both Nodes run the whole Lens suite, including historical saved-record data,
 approval-fixture generation, helpers, typechecking, build and packaging checks.
-One Lens archive feeds renderer 0.34.0, 0.38.0 and the exact reviewed 1.0.0
-candidate, each with React 18/19 on Node 22/24. Every consumer installs the
-registry AgentFootprint candidate normally and checks its locked integrity and
-installed bytes against the same proven archive. Public ESM/CommonJS doors,
+One Lens archive feeds renderer 0.34.0, 0.38.0 and the exact reviewed 1.1.1
+source candidate, each with React 18/19 on Node 22/24. Every native consumer uses the
+new qualified original AgentFootprint archive and checks its generated strict lock
+and installed bytes against that original; an old engine13 proof does not qualify. Public ESM/CommonJS doors,
 strict NodeNext/Bundler declarations, mock-agent recording/replay and Chromium
 rendering remain covered. Candidate `/record` isolation and browser checks
 remain separate.
 
-Each matrix job first installs the repository's committed source lock. Consumer
-evidence lives outside that checkout to avoid inheriting its dependencies. Its
+Each matrix job consumes the same Lens archive and the exact admitted native
+inputs. Consumer evidence lives outside the source checkout to avoid inheriting
+its dependencies. Its
 isolated consumer fixture then performs a normal strict resolution and a fresh
 `npm ci` replay for that renderer/React combination and the newly built Lens
 tarball. Those generated fixture locks contain a CI-local Lens archive path:
 they are non-portable evidence, not the repository's committed source lock.
 
-The renderer candidate's tracked build is pinned by commit and digest in
-`scripts/compat/contract.mjs`; npm 11.21.0 packs it without rebuilding.
+The renderer candidate is the original UI64 producer archive, pinned by source,
+run, provider ZIP and tarball digest. Its dependency-security ZIP has thirteen
+members; its generated audit lock is not a committed source lock. The consumer
+never rebuilds or repacks the UI source. Version1.1.1 here identifies these
+unpublished original bytes, not the registry1.1.1 package.
 Archives, source-lock digests, consumer locks, logs, dependency trees and browser
 evidence remain available on failed runs. Browser builds use Vite without
 aliases, externals or stubs.

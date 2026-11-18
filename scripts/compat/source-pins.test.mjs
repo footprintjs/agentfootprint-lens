@@ -27,6 +27,14 @@ test('source layout oracles retain the original development renderer while publi
   assert.equal(input.peerDependencies['footprint-explainable-ui'], '>=0.34.0 <1.0.0 || ^1.0.0');
 });
 
+test('the authored public contract explicitly accepts engine14 RC and Foottrace2.1', () => {
+  const input = manifest();
+  assert.equal(input.peerDependencies.footprintjs, '^14.0.0-rc.0');
+  assert.equal(input.peerDependencies.foottrace, '^2.1.0');
+  assert.equal(input.devDependencies.footprintjs, '14.0.0-rc.0');
+  assert.equal(input.devDependencies.foottrace, '2.1.0');
+});
+
 for (const name of ['agentfootprint', 'footprintjs', 'foottrace']) {
   test(`${name}: a caret cannot become an authored development identity`, () => {
     const input = manifest();

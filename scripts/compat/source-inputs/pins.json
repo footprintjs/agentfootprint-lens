@@ -1,5 +1,5 @@
 {
-  "kind": "lens.native-source-input.v1",
+  "kind": "lens.native-source-input.v2",
   "agent": {
     "repository": "footprintjs/agentfootprint",
     "repositoryId": 1183666171,
@@ -232,12 +232,14 @@
   "deferredJob": 134370072511,
   "published": {
     "footprintjs": {
-      "version": "13.0.0",
-      "integrity": "sha512-TfyJNi+2Y/3b1r9h8tGx4/22QTgUhFDqbCnkZXAIWNJswvyotCKAJ26nXAfmkM7Wx1/Sw17co9PTV3x8jDos7Q=="
+      "version": "14.0.0-rc.0",
+      "integrity": "sha512-oBaE4kZFgLso4DzntWDgTJ03WVdcjMxBmyMa0mqt6XzcIEkBMuOe2P9TKTJSL4L5ZyxjHPutUbPRpYu+APcfDA==",
+      "sha256": "c9f73ddada14a36c277cbceab6b8b8946710e63493ace1da59e457c36f4e7128"
     },
     "foottrace": {
-      "version": "2.0.0",
-      "integrity": "sha512-zQ/mnaLnpyLG9NzW7m6dNj4nv8sRnQCAumn5l+lp+LsmzOVbJIUEsPaTGpDKZ+PXLV7zaSJR6noS3hx4YTW8HQ=="
+      "version": "2.1.0",
+      "integrity": "sha512-FaFqEPRvawnfy1AA9mNQ8DqKBlAXNAcM9tLnz7ZDTyYHebQRCawIHI6z4hFl0GOaMokWbIwp8E2jp0naUXNfgQ==",
+      "sha256": "300022ebdc7a401871a90d8da3db2739632b4e70012b1ac4e55fabc5fe2dbc68"
     }
   },
   "closure": {

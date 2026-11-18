@@ -1,0 +1,68 @@
+{
+  "repository": "footprintjs/explainable-ui",
+  "repositoryId": 1177335013,
+  "source": {
+    "head": "0af1a2d0d21edb0a86fb447b4c032c1f3d896412",
+    "tree": "6442e29e58366a509e574c0b9ea67cc646726301",
+    "manifestSha256": "932a2cb9ecf285dd16e7a7cc90d686d6b387ea51ac1025f02ca8e61290f5dcbb"
+  },
+  "tested": {
+    "head": "7359bf83d7e751a5983382267936ac029e77bd93",
+    "tree": "6442e29e58366a509e574c0b9ea67cc646726301",
+    "parents": [
+      "4f006621a65fc00697dcf3dcde7b32de5f57586c",
+      "0af1a2d0d21edb0a86fb447b4c032c1f3d896412"
+    ]
+  },
+  "run": {
+    "id": 44204836529,
+    "run_attempt": 1,
+    "workflow_id": 245476636,
+    "event": "pull_request",
+    "head_sha": "0af1a2d0d21edb0a86fb447b4c032c1f3d896412",
+    "head_branch": "codex/public-foottrace2-reader",
+    "status": "completed",
+    "conclusion": "success"
+  },
+  "sourceJob": {
+    "id": 134468009094,
+    "name": "test (22)"
+  },
+  "jobs": [
+    {
+      "id": 134468009094,
+      "name": "test (22)"
+    },
+    {
+      "id": 134468009384,
+      "name": "test (20)"
+    },
+    {
+      "id": 134470530457,
+      "name": "Graph consumer on Node 18"
+    },
+    {
+      "id": 134470530999,
+      "name": "Graph consumer on Node 20"
+    }
+  ],
+  "sourceArtifact": {
+    "id": 14382813234,
+    "name": "dependency-security-node-22",
+    "size_in_bytes": 2636323,
+    "digest": "sha256:95c15a1705d8784a9a6bfec91079c6ed97dfda5606df055c1729a91176a9ca99",
+    "expired": false
+  },
+  "reviewSha256": "ead2f47ede852993d85d63b556741d5bf4592a2cc96e9e38a4b128b376dc2db8",
+  "archive": {
+    "filename": "footprint-explainable-ui-1.1.1.tgz",
+    "package": "footprint-explainable-ui",
+    "version": "1.1.1",
+    "bytes": 2572357,
+    "sha256": "6871c2c24d992133173e5328d64c2f4a38dd93cf994bcd828195ee5971cbfea5",
+    "shasum": "0b0885f29ba0ba0f60b75978e5544da153ac9424",
+    "integrity": "sha512-cekKo9gjDwoLi/1pcMHDEr4LC/z7NffVaWO14CK9wlsKi/F6zpXX/T6yIH6RqvZQNK82o+BMU4k2R9/SDNthkw==",
+    "memberCount": 20,
+    "memberBytes": 10640174
+  }
+}

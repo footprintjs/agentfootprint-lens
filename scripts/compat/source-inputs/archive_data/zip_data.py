@@ -27,13 +27,13 @@ def read_regular(path, limit):
         raise DataRefused('input-file') from None
 
 
-def read_zip(raw, expected_sha256):
+def read_zip(raw, expected_sha256, limits=LIMITS, empty=()):
     require(digest(raw) == expected_sha256, 'outer-digest')
     try:
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:
             infos = archive.infolist()
-            require(len(infos) == 4, 'zip-inventory')
-            require({f.filename for f in infos} == set(LIMITS), 'zip-inventory')
+            require(len(infos) == len(limits), 'zip-inventory')
+            require({f.filename for f in infos} == set(limits), 'zip-inventory')
             require(sum(f.file_size for f in infos) <= MAX_ZIP, 'zip-size')
             result = {}
             for member in infos:
@@ -43,7 +43,8 @@ def read_zip(raw, expected_sha256):
                         'zip-member-type')
                 require(not member.flag_bits & 1 and member.compress_type in
                         {zipfile.ZIP_STORED, zipfile.ZIP_DEFLATED}, 'zip-member-format')
-                require(0 < member.file_size <= LIMITS[member.filename], 'zip-size')
+                require((0 if member.filename in empty else 1) <= member.file_size
+                        <= limits[member.filename], 'zip-size')
                 data = archive.read(member)
                 require(len(data) == member.file_size, 'zip-size')
                 result[member.filename] = data

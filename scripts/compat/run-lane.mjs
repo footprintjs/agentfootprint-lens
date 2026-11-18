@@ -79,7 +79,7 @@ try {
     assert.equal(contract.source.workflowAttempt, process.env.GITHUB_RUN_ATTEMPT);
     assert.equal(contract.source.whyCommit, process.env.GITHUB_SHA, 'Why archive source does not match this checked commit');
   }
-  assert.equal(contract.flow.path, 'footprint-explainable-ui-1.0.0.tgz');
+  assert.equal(contract.flow.path, `footprint-explainable-ui-${candidate.version}.tgz`);
   const why = inspectArchive(join(artifacts, whyIdentity.filename), evidence,
     { ...whyIdentity, expectedSha: contract.why.sha256 });
   assert.deepEqual(why.files, contract.why.files);
@@ -102,7 +102,7 @@ try {
   let flow;
   if (lane.flow === 'candidate') {
     flow = inspectArchive(join(artifacts, contract.flow.path), evidence,
-      { name: 'footprint-explainable-ui', version: '1.0.0', expectedSha: candidate.sha256 });
+      { name: 'footprint-explainable-ui', version: candidate.version, expectedSha: candidate.sha256 });
     assert.deepEqual(flow.files, contract.flow.files);
   } else {
     const packed = JSON.parse(command('npm', ['pack', `footprint-explainable-ui@${lane.flow}`, '--ignore-scripts',
@@ -180,7 +180,7 @@ try {
       const runtimeFile = 'pilots/record-lens/runtime-fixtures.cjs';
       assert.equal(readFileSync(join(flags['flow-source'], runtimeFile), 'utf8'),
         command('git', ['show', `${candidate.commit}:${runtimeFile}`], { cwd: flags['flow-source'] }),
-        'reuse the exact reviewed M6 saved-record expectations, not an edited substitute');
+        'reuse the exact reviewed renderer saved-record expectations, not an edited substitute');
       copyFileSync(join(flags['flow-source'], runtimeFile), join(recordOnly, 'runtime-fixtures.cjs'));
       const source = `import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';

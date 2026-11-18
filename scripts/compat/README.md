@@ -13,10 +13,10 @@ SHA256 and archive size are measured receipt data, never another fixed identity.
 The old one-time RC/offline comparison lives in Git history and the repository
 README; the duplicate descriptor, staging path and its tests are removed.
 
-`prepare-artifacts.mjs` binds one Lens archive, the selected published agent
-archive and the immutable renderer candidate to the same workflow run. The
+`prepare-artifacts.mjs` binds one Lens archive, the qualified native agent
+original and immutable renderer original to the same workflow run. The
 contract carries the source-derived cohort. `run-lane.mjs` requires that exact
-cohort, installs its registry pins and gives the native probe an expected-cohort
+cohort, installs its admitted originals and gives the native probe an expected-cohort
 sidecar; the probe checks actual versions and consumer lock identities.
 Renderer floor/current/candidate × React 18/19 × Node 22/24 coverage remains.
 
@@ -64,8 +64,8 @@ The existing old lock can therefore continue to refuse a draft cohort.
 
 The preparation branch's committed root lock is stale and deliberately remains
 unaccepted by the ordinary registry guards. `source-inputs.mjs` is a distinct,
-closed native entry for the reviewed AF15 original plus published engine13 and
-Foottrace2, including the actual contextfootprint owner. Its adjacent README
+closed native entry for the reviewed AF15 original plus published engine14.0.0-rc.0 and
+Foottrace2.1.0, including the actual contextfootprint owner. Its adjacent README
 names admission, genuine temporary locks, physical graph and archive checks.
 No native result claims a repaired portable lock or AF registry publication.
 
@@ -75,3 +75,16 @@ that same archive. All twelve packed renderer/React/Node lanes and the separate
 published commentary control remain. Native and registry evidence cannot be
 substituted for one another. The control bootstraps directly at14.7.2/12.3.0/1.11.1;
 it does not first install the unavailable target.
+
+## Original renderer producer
+
+The native input receipt also carries the separately reviewed UI64 original.
+Its fixed source/run/tested parents and all four required jobs must match.
+The bounded data reader understands only that thirteen-member dependency-security
+ZIP, verifies its original package and source manifest plus packed member table,
+and retains its twenty-member TGZ without executing it. No upstream build or
+repack occurs. The source checkout supplies only the unchanged literal saved
+Flow/HCI fixtures. Candidate version1.1.1 is not registry provenance; the exact
+SHA256/SRI owns this unpublished image. Production audit is clean; the producer
+full development audit has nine unresolved HIGH findings. Its browser demo is
+not exact final-head or packed-browser proof; the real consumer gates remain.

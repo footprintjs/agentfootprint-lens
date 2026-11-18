@@ -45,7 +45,7 @@ test('wrong source, attempt, job, artifact or unknown/failed required gate refus
 
 test('native receipt and published control cannot substitute for target source admission', () => {
   assert.equal(typeof input.validateInputKind, 'function');
-  for (const kind of ['registry', 'CONTROL', 'DATA_ONLY', undefined])
+  for (const kind of ['registry', 'CONTROL', 'DATA_ONLY', 'lens.native-source-input.v1', undefined])
     assert.throws(() => input.validateInputKind({ kind }), { code: 'ERR_ASSERTION' });
-  assert.equal(input.validateInputKind({ kind: 'lens.native-source-input.v1' }), undefined);
+  assert.equal(input.validateInputKind({ kind: 'lens.native-source-input.v2' }), undefined);
 });

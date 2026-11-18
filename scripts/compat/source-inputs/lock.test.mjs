@@ -32,7 +32,7 @@ function fixture(t) {
 test('the temporary strict lock must join the actual original locators and all native owners', t => {
   const f = fixture(t);
   const result = verifyNativeLock(f.root, f.manifest, f.input);
-  assert.equal(result.pins.foottrace, '2.0.0');
+  assert.equal(result.pins.foottrace, '2.1.0');
   assert.equal(result.packages.agentfootprint.tarball, f.manifest.devDependencies.agentfootprint);
   assert.throws(() => assertPublishedReceipt({ kind: result.kind }, Buffer.from('inert'),
     result.packages.agentfootprint), { code: 'ERR_ASSERTION' });
@@ -69,7 +69,7 @@ test('only the packed-consumer role admits the exact Lens and renderer archive l
   }
   f.write();
   assert.throws(() => verifyNativeLock(f.root, f.manifest, f.input), /unknown file lock input/);
-  assert.equal(entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed).pins.foottrace, '2.0.0');
+  assert.equal(entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed).pins.foottrace, '2.1.0');
   f.lock.packages['node_modules/unknown'] = { resolved: `file:${packed.why.path}` };
   f.write();
   assert.throws(() => entry.verifyPackedNativeLock(f.root, f.manifest, f.input, packed), /unknown file lock input/);
