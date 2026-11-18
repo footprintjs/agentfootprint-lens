@@ -5,6 +5,11 @@ const DISPLAY_LIMIT = 160;
 const PREFIX_LENGTH = 157;
 const SCAN_LIMIT = 256;
 
+/** Even one-character entries take two characters each with separators. */
+export function arrayExceedsPreview(length: number): boolean {
+  return length * 2 + 1 > DISPLAY_LIMIT;
+}
+
 const escapes: Readonly<Record<string, string>> = {
   '"': '\\"', '\\': '\\\\', '\b': '\\b', '\f': '\\f', '\n': '\\n', '\r': '\\r', '\t': '\\t',
 };

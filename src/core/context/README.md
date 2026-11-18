@@ -69,6 +69,28 @@ recorded, and the findings ledger when present. For a live React view, pass
 notifications before reading the snapshot. A consumer can still supply an
 explicit event list for replay.
 
+### Recorded value shapes
+
+`contextValueShapesAt(snapshot, commitIdx)` reads type and array-length metadata without
+loading `initialState`, commit payloads or events. It uses the same commit index as
+the rest of Context. Use `-1` for initial state. Pass the snapshot for the run and
+log you are viewing.
+
+```ts
+import { contextValueShapesAt, foldCursorOf } from 'agentfootprint-lens/core';
+
+const at = foldCursorOf(shared.forAxis('group').at);
+const shapes = contextValueShapesAt(snapshot, at.commitIdx);
+const rows = shapes?.get(['inventory', 'rows']);
+if (rows?.type === 'array') showRowCount(rows.arrayLength);
+```
+
+Use an array of path segments so that a key containing a dot remains one key.
+The reader returns `undefined` for missing or unsupported metadata. A path without
+a recorded shape also returns `undefined`. Older recordings retain their value
+previews, expansion and JSON view. Arrays with recorded lengths that exceed the
+preview budget show their count and can be expanded to inspect the full value.
+
 ## 0.54.0 — the served row is rendered, not just badged
 
 `<ContextView>` mounts `<ServedTab runner cursor>` (the Why Lens's own Served

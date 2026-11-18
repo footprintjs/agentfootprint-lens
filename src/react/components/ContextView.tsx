@@ -30,7 +30,8 @@
 import React, { useMemo, useState } from 'react';
 
 import type { ContextAt, ContextKey, ContextProjection } from '../../core/context/contextAt.js';
-import { previewRecordedValue } from '../../core/context/previewRecordedValue.js';
+import type { ContextValueShape } from '../../core/context/contextValueShapes.js';
+import { arrayExceedsPreview, previewRecordedValue } from '../../core/context/previewRecordedValue.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
 import type { ServedCursor } from '../../core/served/types.js';
@@ -53,6 +54,8 @@ export const LABELS = Object.freeze({
   left: 'left',
   unattributed: 'unattributed',
   rows: 'rows',
+  item: 'item',
+  items: 'items',
   served: 'served',
   why: 'why',
   epoch: 'epoch',
@@ -247,20 +250,36 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
         )}
       </td>
       <td style={{ ...cell, ...mono }}>
+        {k.shape && <ShapeLabel shape={k.shape} />}
+        {k.nestedArrays?.slice(0, 2).map(shape => <ShapeLabel key={JSON.stringify(shape.path)} shape={shape} />)}
+        {k.nestedArrays && k.nestedArrays.length > 2 && <span style={dim}>+{k.nestedArrays.length - 2}…</span>}
         <ValueCell row={k} />
       </td>
     </tr>
   );
 }
 
+function ShapeLabel({ shape }: { readonly shape: ContextValueShape }): React.ReactElement {
+  const nested = shape.path.length > 1;
+  return <div data-testid={nested ? 'context-array-shape' : 'context-value-shape'} style={dim}>
+    {nested && <>{shape.path.slice(1).join(' › ')} · </>}
+    {shape.type}
+    {shape.arrayLength !== undefined && <> · {shape.arrayLength} {shape.arrayLength === 1 ? LABELS.item : LABELS.items}</>}
+  </div>;
+}
+
 /** A value, shortened past 160 characters — and opened in place on a click,
  *  so a system prompt or a tool schema is readable where it sits. */
 function ValueCell({ row }: { readonly row: ContextKey }): React.ReactElement {
   const [open, setOpen] = useState(false);
-  const preview = useMemo(() => previewRecordedValue(row.value), [row]);
-  const full = useMemo(() => open && preview.truncated ? JSON.stringify(row.value) : undefined,
-    [open, preview, row]);
-  if (!preview.truncated) return <span>{preview.text}</span>;
+  const preview = useMemo(() => {
+    const large = arrayExceedsPreview(row.shape?.arrayLength ?? 0) ||
+      row.nestedArrays?.some(shape => arrayExceedsPreview(shape.arrayLength ?? 0));
+    return large ? undefined : previewRecordedValue(row.value);
+  }, [row]);
+  const expandable = !preview || preview.truncated;
+  const full = useMemo(() => open && expandable ? JSON.stringify(row.value) : undefined, [open, expandable, row]);
+  if (!expandable) return <span>{preview.text}</span>;
   return (
     <span data-testid="context-value" data-open={open}>
       {open ? (
@@ -268,7 +287,7 @@ function ValueCell({ row }: { readonly row: ContextKey }): React.ReactElement {
           {full}
         </pre>
       ) : (
-        <span>{preview.text}</span>
+        <span>{preview?.text}</span>
       )}{' '}
       <button type="button" style={btn} onClick={() => setOpen(!open)} data-testid="context-value-toggle">
         {open ? LABELS.less : LABELS.more}

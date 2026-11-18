@@ -28,6 +28,7 @@
 import { pathSegments } from 'foottrace/paths';
 import { isCommitBundle, stateAt } from 'foottrace';
 import { sameRecordedValue } from './sameRecordedValue.js';
+import { contextValueShapesAt, matchesFold, type ContextValueShape } from './contextValueShapes.js';
 import type { FoldSource, FoldedState } from 'foottrace';
 
 import { foldCursorOf } from '../cursor/foldAt.js';
@@ -50,6 +51,10 @@ function readableRow(row: TraceRow | null): row is TraceRow {
 export interface ContextKey {
   readonly path: string;
   readonly value: unknown;
+  /** Shape recorded for this key at the folded commit. */
+  readonly shape?: ContextValueShape;
+  /** Specifically recorded nested array paths, each with its own length. */
+  readonly nestedArrays?: readonly ContextValueShape[];
   /** The stage that LAST wrote the key, from its trace row; absent = unattributed. */
   readonly wroteBy?: string;
   /** The commit index of that last write. */
@@ -241,9 +246,20 @@ function contextFromFold(
   const previousState = prior?.state;
   const written = prior && writtenBetween(log, folded, prior);
 
+  const shapes = folded.skipped?.length ? undefined : contextValueShapesAt(recording, folded.throughCommitIdx);
+  const nestedArrays = new Map<string, ContextValueShape[]>();
+  for (const shape of shapes?.values() ?? []) {
+    if (shape.path.length < 2 || shape.type !== 'array' || !matchesFold(folded.state, shape)) continue;
+    const key = shape.path[0];
+    const nested = nestedArrays.get(key);
+    if (nested) nested.push(shape);
+    else nestedArrays.set(key, [shape]);
+  }
   const keys: ContextKey[] = [];
   for (const [path, value] of Object.entries(folded.state)) {
     const w = writers.get(path);
+    const shape = shapes?.get([path]);
+    const nested = nestedArrays.get(path);
     const since: ContextKey['since'] | undefined =
       previousState === undefined
         ? undefined
@@ -256,6 +272,8 @@ function contextFromFold(
       Object.freeze({
         path,
         value,
+        ...(shape && matchesFold(folded.state, shape) && { shape }),
+        ...(nested && { nestedArrays: Object.freeze(nested) }),
         ...(w !== undefined
           ? {
               wroteBy: w.wroteBy,
