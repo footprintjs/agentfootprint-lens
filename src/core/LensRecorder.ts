@@ -59,6 +59,7 @@ import {
   overlayFromSnapshot,
   type TraceRuntimeOverlayHandle,
 } from 'footprint-explainable-ui/flowchart';
+import { commitsOfSnapshot } from './utils/snapshotOfRunner.js';
 import { ChangeNotifier } from './ChangeNotifier.js';
 import { LensSnapshotRecorder } from './LensSnapshotRecorder.js';
 import type {
@@ -503,24 +504,7 @@ export class LensRecorder {
      *  scope keys (e.g. `systemPromptInjections`). */
     readonly overwriteKeys?: readonly string[];
   }> {
-    const runner = this.currentRunner;
-    if (!runner) return [];
-    const snap = (runner as {
-      getLastSnapshot?: () => {
-        commitLog?: ReadonlyArray<{
-          runtimeStageId?: string;
-          stageId?: string;
-          overwrite?: Record<string, unknown>;
-          updates?: Record<string, unknown>;
-        }>;
-      };
-    }).getLastSnapshot?.();
-    const log = snap?.commitLog ?? [];
-    return log.map((c) => ({
-      runtimeStageId: c.runtimeStageId,
-      stageId: c.stageId,
-      overwriteKeys: [...Object.keys(c.overwrite ?? {}), ...Object.keys(c.updates ?? {})],
-    }));
+    return commitsOfSnapshot(this.currentRunner?.getLastSnapshot?.());
   }
 
   /**

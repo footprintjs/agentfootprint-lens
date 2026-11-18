@@ -2,7 +2,7 @@ import { useMemo, useState, useSyncExternalStore } from 'react';
 import { projectContext } from '../../core/context/contextAt.js';
 import { foldCommitIdxOf } from '../../core/cursor/foldAt.js';
 import { lensCursorFrom, type LensCursor } from '../../core/cursor/lensCursor.js';
-import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
+import { groupedAxisForSnapshot } from '../../core/group/scrubAxisFor.js';
 import { createLensRenderStore } from '../../core/stores/lensRenderStore.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
 import type { ServedCursor } from '../../core/served/types.js';
@@ -29,23 +29,39 @@ const noRecorder = {
   getSnapshot: () => undefined,
 };
 
+function runIdOf(snapshot: unknown): string | undefined {
+  const id = (snapshot as { runId?: unknown } | null)?.runId;
+  return typeof id === 'string' && id.length > 0 ? id : undefined;
+}
+
 export function useContextProjection({ runner, recorder, shared, cursor: supplied, previous, events }: Options) {
   const ownAxis = supplied === undefined;
   const readEvents = events === undefined;
+  // Independent runners advance on the host's render. A directly observed
+  // runner is instead sampled by its store once per publication.
+  const observed = recorder?.observedRunner();
+  const tracksRunner = observed !== undefined && observed === runner;
+  const independent = tracksRunner ? undefined : snapshotOfRunner(runner);
+  const independentRunId = runIdOf(independent);
   const store = useMemo(() => recorder ? createLensRenderStore(recorder, current => {
-    const observesRunner = current.observedRunner() === runner;
+    const source = current.observedRunner();
+    if (!source) return undefined;
+    const snapshot = snapshotOfRunner(source);
+    const observesRunner = source === runner;
+    // A host may supply the replay's raw snapshot or an independently read
+    // snapshot of the same named run. Stage names alone cannot establish this.
+    const sameSnapshot = snapshot != null && snapshot === runner;
+    if (!observesRunner && !sameSnapshot &&
+        (independentRunId === undefined || independentRunId !== runIdOf(snapshot))) return undefined;
     return {
       observesRunner,
-      snapshot: observesRunner ? snapshotOfRunner(runner) : undefined,
-      positions: ownAxis ? scrubAxisFor(current, 'group') : undefined,
+      snapshot,
+      positions: ownAxis ? groupedAxisForSnapshot(current, snapshot) : undefined,
       events: readEvents ? current.getEntries() : undefined,
     };
-  }) : noRecorder, [recorder, runner, ownAxis, readEvents]);
+  }) : noRecorder, [recorder, runner, independentRunId, ownAxis, readEvents]);
   const published = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
-
-  // An independent runner can advance without notifying this recorder. Keep
-  // reading it when its host renders. A plain replay snapshot passes through.
-  const sampled = published?.observesRunner ? published.snapshot : snapshotOfRunner(runner);
+  const sampled = published?.observesRunner ? published.snapshot : independent;
   const logKey = published?.observesRunner ? undefined : snapshotLogKey(sampled);
   // A live getter can return a fresh wrapper even when no commits have landed.
   // Recorder publications also invalidate same-length recording replacements.

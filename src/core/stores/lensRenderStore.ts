@@ -18,10 +18,21 @@ export function createLensRenderStore<T>(
   { schedule = scheduleOverlayFlush }: LensRenderStoreOptions = {},
 ): ExternalStore<T> {
   const changes = new ChangeNotifier();
-  let cached: { revision: number; value: T } | undefined;
-  let publishedRevision: number | undefined;
+  let cached: { revision: number; value: T } | { revision: number; error: unknown } | undefined;
   let detach: (() => void) | undefined;
   let pending: { cancel?: () => void } | undefined;
+
+  function capture(revision: number) {
+    if (cached?.revision !== revision) {
+      try {
+        cached = { revision, value: select(recorder) };
+      } catch (error) {
+        // Surface a failed selection to the reader, including React's boundary.
+        cached = { revision, error };
+      }
+    }
+    return cached;
+  }
 
   function queueFlush() {
     if (pending) return;
@@ -31,9 +42,8 @@ export function createLensRenderStore<T>(
       if (pending !== ticket) return;
       pending = undefined;
       const revision = recorder.getVersion();
-      if (publishedRevision === revision) return;
-      publishedRevision = revision;
-      if (cached?.revision !== revision) cached = undefined;
+      if (cached?.revision === revision) return;
+      capture(revision);
       changes.notify();
     });
     if (pending === ticket && typeof cancel === 'function') ticket.cancel = cancel;
@@ -41,21 +51,21 @@ export function createLensRenderStore<T>(
 
   return {
     getSnapshot() {
-      const revision = recorder.getVersion();
-      if (!cached || (!detach && cached.revision !== revision)) {
-        cached = { revision, value: select(recorder) };
-      }
-      return cached.value;
+      const selected = detach && cached ? cached : capture(recorder.getVersion());
+      if ('error' in selected) throw selected.error;
+      return selected.value;
     },
     subscribe(listener) {
-      const off = changes.subscribe(listener);
+      let active = true;
+      const off = changes.subscribe(() => listener());
       if (!detach) {
         detach = recorder.subscribe(queueFlush);
         // React reads again after subscribing; include events since its render.
-        publishedRevision = recorder.getVersion();
-        if (cached?.revision !== publishedRevision) cached = undefined;
+        capture(recorder.getVersion());
       }
       return () => {
+        if (!active) return;
+        active = false;
         off();
         if (changes.listenerCount === 0) {
           detach?.();

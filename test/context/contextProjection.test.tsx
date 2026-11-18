@@ -3,6 +3,7 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest';
 import { stateAt } from 'foottrace';
 import { projectContext } from '../../src/context/index.js';
+import { LensRecorder } from '../../src/core/LensRecorder.js';
 import { contextAt } from '../../src/core/context/contextAt.js';
 import { lensCursorFrom } from '../../src/core/cursor/lensCursor.js';
 import { foldCursorOf } from '../../src/core/cursor/foldAt.js';
@@ -112,6 +113,59 @@ describe('Context projection', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  it('does not mix events or grouped positions from another run with the same stage addresses', () => {
+    const fixture = load('flat-dynamic-tools');
+    const snapshot = { ...fixture.recording.snapshot, runId: 'different-run' };
+    const stop = stopsOf(fixture, 'llm-turn')[0]!;
+    const cursor = lensCursorFrom(fixture.positions, fixture.positions.indexOf(stop), () => {});
+    const explicit = fixture.recorder.getEntries();
+    const entries = vi.spyOn(fixture.recorder, 'getEntries');
+    const view = render(<ContextView runner={snapshot} cursor={cursor} recorder={fixture.recorder} />);
+    expect(screen.queryByTestId('context-why')).toBeNull();
+    expect(entries).not.toHaveBeenCalled();
+    view.rerender(<ContextView runner={snapshot} cursor={cursor} recorder={fixture.recorder} events={explicit} />);
+    expect(screen.getByTestId('context-why')).toBeTruthy();
+    view.rerender(<ContextView runner={snapshot} />);
+    const ownHeader = screen.getByTestId('context-view').firstElementChild!.textContent;
+    view.rerender(<ContextView runner={snapshot} recorder={fixture.recorder} />);
+    expect(screen.getByTestId('context-view').firstElementChild!.textContent).toBe(ownHeader);
+    view.rerender(<ContextView runner={fixture.snapshot} recorder={fixture.recorder} />);
+    expect(screen.getByTestId('context-view').firstElementChild!.textContent).not.toBe(ownHeader);
+  });
+
+  it('admits the observed replay snapshot and same-run copies but omits untracked or unidentified evidence', () => {
+    const fixture = load('flat-dynamic-tools');
+    const stop = stopsOf(fixture, 'llm-turn')[0]!;
+    const cursor = lensCursorFrom(fixture.positions, fixture.positions.indexOf(stop), () => {});
+    const pane = (snapshot: unknown, recorder: LensRecorder) =>
+      <ContextView runner={snapshot} cursor={cursor} recorder={recorder} />;
+    const view = render(pane(fixture.snapshot, fixture.recorder));
+    expect(screen.getByTestId('context-why')).toBeTruthy();
+    view.rerender(pane({ ...fixture.recording.snapshot }, fixture.recorder));
+    expect(screen.getByTestId('context-why')).toBeTruthy();
+    view.rerender(pane({ ...fixture.recording.snapshot, runId: '' }, fixture.recorder));
+    expect(screen.queryByTestId('context-why')).toBeNull();
+    const untracked = new LensRecorder();
+    const entries = vi.spyOn(untracked, 'getEntries').mockReturnValue(fixture.recorder.getEntries());
+    view.rerender(pane(fixture.snapshot, untracked));
+    expect(screen.queryByTestId('context-why')).toBeNull();
+    expect(entries).not.toHaveBeenCalled();
+  });
+
+  it('reads the observed snapshot once per grouped-axis publication and refreshes without a host render', async () => {
+    const fixture = load('flat-dynamic-tools');
+    const observed = fixture.recorder.observedRunner()!;
+    const getter = vi.spyOn(observed, 'getLastSnapshot');
+    render(<ContextView runner={observed} recorder={fixture.recorder} />);
+    expect(getter).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('context-transport')).toBeTruthy();
+    const base = getter.mock.results[0]!.value!;
+    getter.mockReturnValue({ ...base, initialState: { ...base.initialState, publishedKey: 2 } });
+    act(() => fixture.recorder.addNote('Snapshot updated'));
+    await waitFor(() => expect(screen.getByText('publishedKey')).toBeTruthy());
+    expect(getter).toHaveBeenCalledTimes(2);
   });
 
   it('updates the comparison when only the host’s previous stop changes', () => {

@@ -24,16 +24,64 @@ describe('a rendering projection of the recorder', () => {
     off(); offSecond();
   });
 
-  it('notifies a subscriber even when another reader first selects between ingestion and the flush', () => {
+  it('pins the selected value at subscribe and at each flush even when listeners do not read', () => {
     const recorder = new LensRecorder();
     let flush!: () => void;
     const store = createLensRenderStore(recorder, r => r.getVersion(), { schedule: callback => { flush = callback; } });
     const listener = vi.fn();
     const off = store.subscribe(listener);
     recorder.clear();
-    expect(store.getSnapshot()).toBe(1);
+    expect(store.getSnapshot()).toBe(0);
     flush();
     expect(listener).toHaveBeenCalledOnce();
+    recorder.clear();
+    expect(store.getSnapshot()).toBe(1);
+    flush();
+    expect(store.getSnapshot()).toBe(2);
+    off();
+  });
+
+  it('owns separate subscriptions for the same callback and does no selection after the last leaves', () => {
+    const recorder = new LensRecorder();
+    const select = vi.fn((r: LensRecorder) => r.getVersion());
+    let flush!: () => void;
+    const store = createLensRenderStore(recorder, select, { schedule: callback => { flush = callback; } });
+    const listener = vi.fn();
+    const first = store.subscribe(listener);
+    const second = store.subscribe(listener);
+    recorder.clear();
+    flush();
+    expect(listener).toHaveBeenCalledTimes(2);
+    first();
+    second();
+    const third = store.subscribe(listener);
+    first();
+    recorder.clear();
+    flush();
+    expect(listener).toHaveBeenCalledTimes(3);
+    recorder.clear();
+    third();
+    flush();
+    recorder.clear();
+    expect(select).toHaveBeenCalledTimes(3);
+    expect(store.getSnapshot()).toBe(4);
+  });
+
+  it('publishes selector failures to readers and recovers on the next publication', () => {
+    const recorder = new LensRecorder();
+    let flush!: () => void;
+    const store = createLensRenderStore(recorder, r => {
+      if (r.getVersion() === 1) throw new Error('unreadable snapshot');
+      return r.getVersion();
+    }, { schedule: cb => { flush = cb; } });
+    const off = store.subscribe(() => {});
+    recorder.clear();
+    flush();
+    expect(() => store.getSnapshot()).toThrow('unreadable snapshot');
+    recorder.clear();
+    expect(() => store.getSnapshot()).toThrow('unreadable snapshot');
+    flush();
+    expect(store.getSnapshot()).toBe(2);
     off();
   });
 
