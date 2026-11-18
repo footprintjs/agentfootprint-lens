@@ -14,7 +14,11 @@ import { installBrowser } from './browser-install.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const flags = parseFlags(process.argv.slice(2),
-  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser']);
+  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser', 'browser-provisioning']);
+const browserStrategy = flags['browser-provisioning'] ?? 'network';
+assert.ok(['network', 'bundled'].includes(browserStrategy), 'Unknown browser provisioning strategy');
+if (flags['browser-provisioning'] !== undefined) assert.ok(flags['install-browser'] === 'yes' && flags.browser !== 'no',
+  'An explicit browser provisioning strategy requires --install-browser yes and browser replay');
 const cohort = readActiveCohort();
 const agentIdentity = readPublishedAgent(cohort);
 const lane = laneContract(flags, cohort);
@@ -26,7 +30,7 @@ assertEvidenceOutsideRepository(root, evidence);
 mkdirSync(dirname(evidence), { recursive: true });
 mkdirSync(evidence); // A repeated run must not overwrite an earlier failure's evidence.
 const report = { schema: 1, lane, node: process.version, npm: command('npm', ['--version']).trim(),
-  status: 'running', steps: [], packages: {} };
+  browserProvisioning: browserStrategy, status: 'running', steps: [], packages: {} };
 writeJson(join(evidence, 'verification.json'), report);
 
 async function step(name, run) {
@@ -210,8 +214,13 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
     assertInstalled(join(recordConsumer, 'node_modules/footprint-explainable-ui'), flow.files, 'record browser Flow');
   }
   if (lane.kind === 'native' && flags.browser !== 'no') {
-    if (flags['install-browser'] === 'yes') await step('install the declared browser for this CI lane', () => {
-      return installBrowser({ consumer, evidence });
+    let browserEnvironment;
+    if (flags['install-browser'] === 'yes') await step('provision the declared browser for this CI lane', async () => {
+      const receipt = await installBrowser({ consumer, evidence, strategy: browserStrategy });
+      if (browserStrategy === 'bundled') browserEnvironment = {
+        PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH: receipt.executablePath,
+        PLAYWRIGHT_CHROMIUM_EXPECTED_VERSION: receipt.browserVersion,
+      };
     });
     await step('actual installed-package browser replay, cursor, theme and candidate records', () => {
       const args = [join(root, 'scripts/check-compat-browser.mjs'), '--consumer', consumer,
@@ -219,7 +228,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
         '--archive-proof', join(evidence, 'archive-proof.json')];
       if (recordConsumer) args.push('--record-consumer', recordConsumer, '--record-fixtures',
         join(resolve(flags['flow-source']), 'pilots/record-lens/fixtures'));
-      command(process.execPath, args, { cwd: consumer, log: join(evidence, 'browser.log'), timeout: 180_000 });
+      command(process.execPath, args, { cwd: consumer, env: browserEnvironment, log: join(evidence, 'browser.log'), timeout: 180_000 });
     });
   }
   await step('all installed bytes and archives still equal after every probe', () => {
