@@ -26,7 +26,8 @@
  * Pure; frozen returns; no React. Consumers with their own UI read this.
  */
 import { pathSegments } from 'foottrace/paths';
-import { stateAt } from 'foottrace';
+import { isCommitBundle, stateAt } from 'foottrace';
+import { sameRecordedValue } from './sameRecordedValue.js';
 import type { FoldSource, FoldedState } from 'foottrace';
 
 import { foldCursorOf } from '../cursor/foldAt.js';
@@ -38,15 +39,11 @@ import { sincePrevious, type SincePrevious } from '../served/sincePrevious.js';
 import { verify, type ServedVerification } from '../served/verify.js';
 import type { ServedCursor, ServedRow } from '../served/types.js';
 
-/** The slice of a footprintjs commit bundle this file reads — narrowed per row, never trusted whole. */
-interface TraceRow {
-  readonly path: string;
-  readonly verb: string;
-}
-interface CommitBundle {
-  readonly idx?: number;
-  readonly runtimeStageId: string;
-  readonly trace?: readonly TraceRow[];
+interface TraceRow { readonly path: string; readonly verb: string }
+interface CommitBundle { readonly runtimeStageId: string; readonly trace?: readonly TraceRow[] }
+
+function readableRow(row: TraceRow | null): row is TraceRow {
+  return typeof row?.path === 'string' && typeof row.verb === 'string';
 }
 
 /** One top-level key of the context object at the stop. */
@@ -121,7 +118,7 @@ interface WriterFacts {
 
 function logOf(snapshot: unknown): readonly CommitBundle[] {
   const s = snapshot as { commitLog?: unknown } | null | undefined;
-  return Array.isArray(s?.commitLog) ? (s.commitLog as CommitBundle[]) : [];
+  return Array.isArray(s?.commitLog) ? s.commitLog : [];
 }
 
 /** Per top-level key, the first and last trace rows up to `commitIdx` (inclusive). */
@@ -130,9 +127,9 @@ function writersUpTo(log: readonly CommitBundle[], commitIdx: number): ReadonlyM
   const last = Math.min(commitIdx, log.length - 1);
   for (let i = 0; i <= last; i++) {
     const bundle = log[i];
-    if (bundle === undefined || typeof bundle.runtimeStageId !== 'string' || !Array.isArray(bundle.trace))
-      continue;
+    if (!bundle || typeof bundle.runtimeStageId !== 'string' || !Array.isArray(bundle.trace)) continue;
     for (const row of bundle.trace) {
+      if (!readableRow(row)) continue;
       const key = firstSegment(row.path);
       const prior = out.get(key);
       out.set(key, {
@@ -156,7 +153,22 @@ function foldAt(snapshot: unknown, commitIdx: number): FoldedState | { readonly 
   }
 }
 
-const same = (a: unknown, b: unknown): boolean => JSON.stringify(a) === JSON.stringify(b);
+/** Native stateAt replays only the paths of admitted trace rows, including
+ * deletes and nested writes. A set is a candidate, not proof of a change. */
+function writtenBetween(log: readonly unknown[], a: FoldedState, b: FoldedState): ReadonlySet<string> | undefined {
+  if (a.skipped?.length || b.skipped?.length || a.basis !== b.basis) return undefined;
+  const start = Math.min(a.throughCommitIdx, b.throughCommitIdx);
+  const end = Math.max(a.throughCommitIdx, b.throughCommitIdx);
+  // A history-only source can fold successfully without a root commitLog.
+  if (end >= log.length) return undefined;
+  const written = new Set<string>();
+  for (let i = start + 1; i <= end; i++) {
+    const bundle = log[i];
+    if (!isCommitBundle(bundle)) return undefined;
+    for (const row of bundle.trace) written.add(firstSegment(row.path));
+  }
+  return written;
+}
 
 function servedFor(
   snapshot: unknown,
@@ -225,7 +237,9 @@ function contextFromFold(
   const writers = writersUpTo(log, cursor.commitIdx);
   const previous = options.previous === undefined ? undefined
     : options.previous.commitIdx === cursor.commitIdx ? folded : foldAt(recording, options.previous.commitIdx);
-  const previousState = previous !== undefined && !('error' in previous) ? previous.state : undefined;
+  const prior = previous !== undefined && !('error' in previous) ? previous : undefined;
+  const previousState = prior?.state;
+  const written = prior && writtenBetween(log, folded, prior);
 
   const keys: ContextKey[] = [];
   for (const [path, value] of Object.entries(folded.state)) {
@@ -233,9 +247,9 @@ function contextFromFold(
     const since: ContextKey['since'] | undefined =
       previousState === undefined
         ? undefined
-        : !(path in previousState)
+        : !Object.prototype.hasOwnProperty.call(previousState, path)
           ? 'entered'
-          : same(previousState[path], value)
+          : (written !== undefined && !written.has(path)) || sameRecordedValue(previousState[path], value)
             ? 'unchanged'
             : 'changed';
     keys.push(
@@ -255,15 +269,15 @@ function contextFromFold(
     );
   }
   const left =
-    previousState === undefined ? [] : Object.keys(previousState).filter((k) => !(k in folded.state));
+    previousState === undefined ? [] : Object.keys(previousState).filter((k) => !Object.prototype.hasOwnProperty.call(folded.state, k));
 
   const bundle = log[cursor.commitIdx];
   const rows = Array.isArray(bundle?.trace)
-    ? bundle.trace.map((r: TraceRow) => Object.freeze({ path: r.path, verb: r.verb }))
+    ? bundle.trace.filter(readableRow).map((r) => Object.freeze({ path: r.path, verb: r.verb }))
     : [];
 
   const stages = new Set<string>();
-  if (bundle !== undefined && typeof bundle.runtimeStageId === 'string') stages.add(bundle.runtimeStageId);
+  if (bundle && typeof bundle.runtimeStageId === 'string') stages.add(bundle.runtimeStageId);
   for (const k of keys)
     if (k.since !== undefined && k.since !== 'unchanged' && k.wroteBy !== undefined) stages.add(k.wroteBy);
 

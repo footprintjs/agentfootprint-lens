@@ -27,9 +27,10 @@
  * every string this view owns — names for things on the screen, never a
  * sentence about the run (test/served/no-own-claims.test.ts walks this file).
  */
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import type { ContextAt, ContextKey, ContextProjection } from '../../core/context/contextAt.js';
+import { previewRecordedValue } from '../../core/context/previewRecordedValue.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
 import type { ServedCursor } from '../../core/served/types.js';
@@ -246,7 +247,7 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
         )}
       </td>
       <td style={{ ...cell, ...mono }}>
-        <ValueCell value={k.value} />
+        <ValueCell row={k} />
       </td>
     </tr>
   );
@@ -254,19 +255,20 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
 
 /** A value, shortened past 160 characters — and opened in place on a click,
  *  so a system prompt or a tool schema is readable where it sits. */
-function ValueCell({ value }: { readonly value: unknown }): React.ReactElement {
+function ValueCell({ row }: { readonly row: ContextKey }): React.ReactElement {
   const [open, setOpen] = useState(false);
-  const text = JSON.stringify(value) ?? '';
-  const long = text.length > 160;
-  if (!long) return <span>{text}</span>;
+  const preview = useMemo(() => previewRecordedValue(row.value), [row]);
+  const full = useMemo(() => open && preview.truncated ? JSON.stringify(row.value) : undefined,
+    [open, preview, row]);
+  if (!preview.truncated) return <span>{preview.text}</span>;
   return (
     <span data-testid="context-value" data-open={open}>
       {open ? (
         <pre style={{ ...mono, ...pre }} data-testid="context-value-full">
-          {text}
+          {full}
         </pre>
       ) : (
-        <span>{`${text.slice(0, 157)}…`}</span>
+        <span>{preview.text}</span>
       )}{' '}
       <button type="button" style={btn} onClick={() => setOpen(!open)} data-testid="context-value-toggle">
         {open ? LABELS.less : LABELS.more}
@@ -276,11 +278,14 @@ function ValueCell({ value }: { readonly value: unknown }): React.ReactElement {
 }
 
 function JsonPane({ context }: { readonly context: ContextAt }): React.ReactElement {
-  const object: Record<string, unknown> = {};
-  for (const k of context.keys) object[k.path] = k.value;
+  const full = useMemo(() => {
+    const object: Record<string, unknown> = Object.create(null);
+    for (const k of context.keys) object[k.path] = k.value;
+    return JSON.stringify(object, null, 2);
+  }, [context]);
   return (
     <pre style={{ ...mono, ...pre }} data-testid="context-json">
-      {JSON.stringify(object, null, 2)}
+      {full}
     </pre>
   );
 }

@@ -222,6 +222,9 @@ function literalsOf(file: string): Literal[] {
   const walk = (node: ts.Node): void => {
     // Import/export specifiers are module paths, not prose.
     if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) return;
+    // A built-in type tag used as a switch case selects how a value is read.
+    if (ts.isStringLiteral(node) && ts.isCaseClause(node.parent) &&
+        node.parent.expression === node && /^\[object (Date|Number|String|Boolean)\]$/.test(node.text)) return;
     if (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node))
       push(node, node.text);
     else if (
