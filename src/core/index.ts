@@ -299,6 +299,7 @@ export {
   type ContextKey,
   type ContextServed,
 } from "./context/contextAt.js";
+export { foldFindings, type FindingsFold } from "./context/findings.js";
 
 // The Served tab's data (0.47.0): the ONE cursor resolved to its epoch, the
 // rebuilt request checked against the receipt with the library's own hashes,
