@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Custom story players can use `storyMarks` from `agentfootprint-lens/core`
+  to show the same recorded chips at a replay stop without loading React.
 - Custom views can draw the Ontology chart or list from the selected stop using
   `ontologyAt` and `layoutOntology` from `agentfootprint-lens/core`.
 - Custom views can draw the same Proof Map as the built-in view using
