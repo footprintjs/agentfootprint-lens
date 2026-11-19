@@ -61,11 +61,12 @@ export function contextValueShapesAt(snapshot: unknown, commitIdx: number): Cont
   if (wire?.version !== 1 || !Array.isArray(wire.changes) || !Number.isSafeInteger(commitIdx)) return undefined;
   const shapes = new Map<string, ContextValueShape>();
   if (!apply(wire.initial, shapes)) return undefined;
+  const frames = commitIdx < 0 ? [] : wire.changes;
   let last = -1;
-  for (let i = 0; last < commitIdx && i < wire.changes.length; i++) {
-    const frame = wire.changes[i];
+  for (const frame of frames) {
     if (!Array.isArray(frame)) return undefined;
     const index = frame[0];
+    // A second frame at the cursor would make its facts ambiguous.
     if (!Number.isSafeInteger(index) || index <= last) return undefined;
     if (index > commitIdx) break;
     if (frame.length !== 2 || !apply(frame[1], shapes)) return undefined;

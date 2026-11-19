@@ -51,7 +51,24 @@ describe('recorded state shapes', () => {
       expect(contextValueShapesAt(record, 1)).toBeUndefined();
     }
     expect(contextValueShapesAt({ contextShapes: { version: 2, initial, changes } }, 0)).toBeUndefined();
-    expect(contextValueShapesAt({ contextShapes: { version: 1, initial, changes: [[0, []], [0, []]] } }, 1)).toBeUndefined();
+  });
+
+  it('rejects conflicting frames at the selected commit and at later stops', () => {
+    const record = { contextShapes: { version: 1, initial, changes: [
+      [0, [[rows, 'array', 3]]], [0, [[rows, 'array', 7]]],
+    ] } };
+    expect(contextValueShapesAt(record, 0)).toBeUndefined();
+    expect(contextValueShapesAt(record, 1)).toBeUndefined();
+  });
+
+  it('leaves future payloads unread and reads no change frames at the initial stop', () => {
+    const future = [1];
+    Object.defineProperty(future, 1, { get() { throw Error('future payload touched'); } });
+    const frames = [changes[0], future];
+    const record = { contextShapes: { version: 1, initial, changes: frames } };
+    expect(contextValueShapesAt(record, 0)?.get(rows)?.arrayLength).toBe(100);
+    Object.defineProperty(frames, 0, { get() { throw Error('change frame touched'); } });
+    expect(contextValueShapesAt(record, -1)?.get(rows)?.arrayLength).toBe(90);
   });
 
   it('shows empty and singleton arrays with their recorded counts', () => {
