@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Open large saved runs in Context and Flow replay without copying the validated root a second time and counting it against the loader limit.
+- Keep the Served Graph view selected when replay crosses the first model call or rewinds before it.
 
 ## [0.84.0] - 2026-11-19
 
