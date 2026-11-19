@@ -79,7 +79,12 @@ function fact(value: unknown): TrustBoundaryFact {
         'after-tool',
         'output',
       ]);
-      out.outcome = choice(own(row, 'outcome'), ['allow', 'deny', 'ask']);
+      out.outcome = choice(own(row, 'outcome'), ['allow', 'deny', 'ask', 'refused']);
+      const personApproved = own(row, 'personApproved');
+      if (personApproved !== undefined) {
+        if (typeof personApproved !== 'boolean') throw BAD;
+        out.personApproved = personApproved;
+      }
       const changed = own(row, 'changed');
       if (typeof changed !== 'boolean') throw BAD;
       out.changed = changed;
@@ -123,6 +128,10 @@ function fact(value: unknown): TrustBoundaryFact {
       break;
     default:
       throw BAD;
+  }
+  if (eventType === 'agentfootprint.middleware.decision' || eventType === 'agentfootprint.permission.check') {
+    const phase = own(row, 'phase');
+    if (phase !== undefined) out.phase = choice(phase, ['resume']);
   }
   if (new TextEncoder().encode(JSON.stringify(out)).length > 8192) throw BAD;
   return Object.freeze(out) as unknown as TrustBoundaryFact;

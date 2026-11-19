@@ -2,11 +2,27 @@
 import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { makeTeachingHumanizer } from '../../src/core/humanizer.js';
+import { defaultHumanizer, makeTeachingHumanizer } from '../../src/core/humanizer.js';
+import { observeRecording } from '../../src/core/observeRecording.js';
 import { Lens } from '../../src/react/index.js';
 import { load } from '../served/helpers.js';
 
 describe('<Lens view="analyst"> real default narration wiring', () => {
+  it('shows the recorded proposal and hidden names in both analyst voices', () => {
+    const { recording } = load('flat-dynamic-tools');
+    const events = recording.events!.map(event => event.type === 'agentfootprint.stream.tool_start'
+      ? { ...event, payload: { ...event.payload, args: { credential: 'PRIVATE-VALUE' },
+        shownArgs: { region: 'west' }, hiddenArgs: ['credential'] } }
+      : event);
+    const { recorder } = observeRecording({ ...recording, events });
+    const { container, rerender } = render(<Lens recorder={recorder} view="analyst" />);
+    for (const voice of [undefined, defaultHumanizer]) {
+      if (voice) rerender(<Lens recorder={recorder} view="analyst" humanizer={voice} />);
+      expect(container.textContent).toContain('Shown arguments: {"region":"west"}. Hidden arguments: credential.');
+      expect(container.textContent).not.toContain('PRIVATE-VALUE');
+    }
+  });
+
   it('renders installed teaching-humanizer lines for configuration, integrity, LLM and tool events', () => {
     const fixture = load('flat-dynamic-tools');
     const humanize = makeTeachingHumanizer({

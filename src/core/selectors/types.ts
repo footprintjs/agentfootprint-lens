@@ -100,8 +100,10 @@ export interface FocusDetail {
   readonly llmReasoning?: string;
   /** Decision the LLM made — route picked, tool selected, or 'final'. */
   readonly llmDecision?: { readonly route: string; readonly rationale?: string };
-  /** Tool call args — for `llm->tool` steps. */
+  /** Display proposal for `llm->tool` steps, or the args on an unprotected recording. */
   readonly toolArgs?: Record<string, unknown>;
+  /** Argument names withheld by the recorded proposal. */
+  readonly hiddenArgs?: readonly string[];
   /** Tool result — for `llm->tool` steps (after tool_end fires). */
   readonly toolResult?: string;
   /** Token usage — for LLM steps. */

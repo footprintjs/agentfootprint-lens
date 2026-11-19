@@ -3,13 +3,16 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { narrativeRenderers } from './narrative-renderers.mjs';
+
+export const rendererPeerRange = '>=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0';
 
 export const candidate = Object.freeze({
   repository: 'footprintjs/explainable-ui',
-  commit: 'e3681ab46e01a2a03adf97a27d58df987fef4db8',
-  tree: '1edfffcb88751fcea32992d2200e171fc9686499',
-  version: '1.0.0',
-  sha256: 'd5bcc09551a77cab1c8ec98a0a521b129b0db37597094e86a90a5a4170603a83',
+  commit: '0af1a2d0d21edb0a86fb447b4c032c1f3d896412',
+  tree: '6442e29e58366a509e574c0b9ea67cc646726301',
+  version: '1.1.1',
+  sha256: '6871c2c24d992133173e5328d64c2f4a38dd93cf994bcd828195ee5971cbfea5',
 });
 
 /** Reviewed public source API; separate from the immutable historical candidate. */
@@ -18,6 +21,18 @@ export const lazyRenderer = Object.freeze({
   tarball: 'https://registry.npmjs.org/footprint-explainable-ui/-/footprint-explainable-ui-1.0.1.tgz',
   integrity: 'sha512-LTCb0DzNQCbJqN2/YCFdWr0H47/elJDONPpWp3PglDNkpqmfeyVv80vKA0vQhlnlVUy3wUR+kCP0VvzCNsDeTQ==',
 });
+
+const rendererFlows = Object.freeze(['0.34.0', 'candidate', lazyRenderer.version, ...Object.keys(narrativeRenderers)]);
+const rendererVersions = rendererFlows.map(flow => flow === 'candidate' ? candidate.version : flow);
+
+export function assertRendererVersion(version) {
+  assert.ok(rendererVersions.includes(version), `Unknown renderer version: ${version}`);
+}
+
+export function assertLazyRendererIntegrity(packIntegrity, bytesIntegrity) {
+  assert.equal(packIntegrity, lazyRenderer.integrity, 'published renderer pack identity');
+  assert.equal(bytesIntegrity, lazyRenderer.integrity, 'actual renderer bytes must match the reviewed public release');
+}
 
 // The compiler's supported declaration floor is independent of the runtime
 // being exercised. @types/node 26 requires TS >=5.6; using it with TS 5.4
@@ -29,16 +44,26 @@ export const tooling = Object.freeze({
 
 const cohortNames = Object.freeze(['agentfootprint', 'footprintjs', 'foottrace']);
 
+function exactDevPin(manifest, name) {
+  const version = manifest?.devDependencies?.[name];
+  const parsed = typeof version === 'string' && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(version);
+  assert.ok(parsed && parsed[0] === version && (!parsed[4] || parsed[4].split('.').every((id) =>
+    !/^\d+$/.test(id) || id === '0' || !id.startsWith('0'))), `${name}: exact dev pin required`);
+  return version;
+}
+
+/** Syntax only: no lock, archive identity, availability or compatibility claim. */
+export function authoredDevPins(manifest) {
+  return Object.freeze(Object.fromEntries(cohortNames.map((name) => [name, exactDevPin(manifest, name)])));
+}
+
 export function deriveCohort(manifest, lock) {
   assert.equal(lock?.lockfileVersion, 3, 'source lock format');
   assert.ok(lock.packages?.[''], 'source lock root is required');
   const pins = {};
   const packages = {};
   for (const name of cohortNames) {
-    const version = manifest?.devDependencies?.[name];
-    const parsed = typeof version === 'string' && /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/.exec(version);
-    assert.ok(parsed && parsed[0] === version && (!parsed[4] || parsed[4].split('.').every((id) =>
-      !/^\d+$/.test(id) || id === '0' || !id.startsWith('0'))), `${name}: exact dev pin required`);
+    const version = exactDevPin(manifest, name);
     assert.equal(lock.packages[''].devDependencies?.[name], version, `${name}: source lock root pin`);
     const entry = lock.packages[`node_modules/${name}`];
     assert.ok(entry, `${name}: locked package entry required`);
@@ -63,7 +88,7 @@ export function readActiveCohort(directory = resolve(dirname(fileURLToPath(impor
 
 export function laneContract({ kind, flow, react, node }, cohort = readActiveCohort()) {
   assert.equal(kind, 'native', `unknown lane kind: ${kind}`);
-  assert.ok(['0.34.0', '0.38.0', 'candidate', lazyRenderer.version].includes(flow), `unknown Flow: ${flow}`);
+  assert.ok(rendererFlows.includes(flow), `unknown Flow: ${flow}`);
   assert.ok(['18', '19'].includes(String(react)), `unknown React: ${react}`);
   assert.ok(['22', '24'].includes(String(node)), `unknown Node: ${node}`);
   const react18 = String(react) === '18';

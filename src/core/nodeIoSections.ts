@@ -1,4 +1,4 @@
-import type { StepNode } from 'agentfootprint/observe';
+import type { DisplayStep } from './toolStepDisplay.js';
 import { STORED_TOOL_RESULT_LABEL } from './toolResultLabels.js';
 
 /**
@@ -12,7 +12,7 @@ import { STORED_TOOL_RESULT_LABEL } from './toolResultLabels.js';
  * Sections with no payload are omitted (adaptive — don't show empty rows).
  */
 export function ioSectionsFor(
-  node: StepNode,
+  node: DisplayStep,
 ): Array<{ label: string; payload: unknown }> {
   const out: Array<{ label: string; payload: unknown }> = [];
   switch (node.kind) {
@@ -23,6 +23,7 @@ export function ioSectionsFor(
       if (node.toolArgs !== undefined) {
         out.push({ label: 'Tool input (args)', payload: node.toolArgs });
       }
+      if (node.hiddenArgs?.length) out.push({ label: 'Hidden arguments', payload: node.hiddenArgs });
       break;
     }
     case 'tool->llm': {

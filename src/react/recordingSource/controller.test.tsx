@@ -25,6 +25,25 @@ function child(full: unknown, request: RecordedInvocation) {
 }
 
 describe('creator-owned lazy recording source', () => {
+  it('reports the lazy-source error when a recording has no snapshot', () => {
+    const { root } = input();
+    const { snapshot, ...recording } = root.recording;
+    const loadSubflow = vi.fn();
+    for (const record of [recording, { ...recording, snapshot: null }]) {
+      expect(() => createLensRecordingSource({ root: { ...root, recording: record }, loadSubflow }))
+        .toThrow(expect.objectContaining({ name: 'Error', message: 'The recording cannot be opened as a lazy source.' }));
+    }
+    expect(loadSubflow).not.toHaveBeenCalled();
+  });
+
+  it('keeps malformed descriptors on the descriptor error path', () => {
+    const { root } = input();
+    const loadSubflow = vi.fn();
+    expect(() => createLensRecordingSource({ root: { ...root, invocations: null }, loadSubflow }))
+      .toThrow(expect.objectContaining({ name: 'Error', message: 'The lazy recording descriptor could not be read.' }));
+    expect(loadSubflow).not.toHaveBeenCalled();
+  });
+
   it('observes only the root once and makes no speculative child read', () => {
     const { root } = input(); const loadSubflow = vi.fn();
     const source = createLensRecordingSource({ root, loadSubflow });
@@ -35,6 +54,26 @@ describe('creator-owned lazy recording source', () => {
       expect(source.getSnapshot().loads).toEqual([]);
       expect(source.getGraph([]).nodes.length).toBeGreaterThan(0);
       expect(source.getSnapshot()).toBe(source.getSnapshot());
+    } finally { source.dispose(); }
+  });
+
+  it('keeps a large recorder payload in replay when a child is admitted', async () => {
+    const full = fixture();
+    full.snapshot.recorders.push({ name: 'samples', data: Array.from({ length: 40_000 }, (_, i) => i) });
+    const projected = projectRecordingSource(full);
+    if (projected.status !== 'ready') throw Error('Native fixture cannot be projected');
+    const root = projected.value;
+    const loadSubflow = vi.fn((request: RecordedInvocation) => child(full, request));
+    const source = createLensRecordingSource({ root, loadSubflow });
+    try {
+      const recorders = source.getSnapshot().recording.snapshot!.recorders!;
+      const samples = recorders.find(entry => entry.name === 'samples')!.data;
+      expect(samples).toHaveLength(40_000);
+      expect(Object.isFrozen(samples)).toBe(true);
+      expect(loadSubflow).not.toHaveBeenCalled();
+      await source.load(root.invocations.find(value => value.invocationPath.length === 1)!);
+      expect(source.getSnapshot().recording.snapshot!.recorders).toBe(recorders);
+      expect(loadSubflow).toHaveBeenCalledTimes(1);
     } finally { source.dispose(); }
   });
 

@@ -103,6 +103,24 @@ describe('LensRecorder — LLMCall run', () => {
 // ─── Agent with tools ───────────────────────────────────────────
 
 describe('LensRecorder — Agent with tool call', () => {
+  it('starts a fresh native graph while staying subscribed across runs with the same call ID', async () => {
+    const agent = Agent.create({ provider: scriptedToolProvider(), model: 'mock' })
+      .system('')
+      .tool({ schema: { name: 'noop', description: '', inputSchema: { type: 'object' } }, execute: () => 'ok' })
+      .build();
+    const recorder = lensRecorder();
+    const off = recorder.observe(agent);
+    try {
+      await agent.run({ message: 'first' });
+      const toolSteps = () => recorder.getStepGraph().nodes.filter(n => n.kind === 'llm->tool');
+      expect(toolSteps()).toHaveLength(1);
+      recorder.clear();
+      expect(recorder.getStepGraph().nodes).toEqual([]);
+      await agent.run({ message: 'second' });
+      expect(toolSteps()).toHaveLength(1);
+      expect(toolSteps()[0]?.id).toMatch(/-t1$/);
+    } finally { off(); }
+  });
   it('tree has turn → iteration → llm-call → tool-call → iteration → llm-call', async () => {
     const agent = Agent.create({
       provider: scriptedToolProvider(),

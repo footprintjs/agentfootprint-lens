@@ -74,6 +74,7 @@
 import React, { useMemo, useState } from 'react';
 
 import { contextAt, type ContextAt } from '../../core/context/contextAt.js';
+import { placedRefsByCall, resultShapeOf, type PlacedShape, type ResultShape } from '../../core/context/reasoningResult.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import { lensCursorFrom } from '../../core/cursor/lensCursor.js';
 import { foldCursorOf } from '../../core/cursor/foldAt.js';
@@ -90,6 +91,8 @@ import { MILESTONE_AXIS } from './ContextView.js';
 import { CoverageRows } from './CoverageBand.js';
 import { foldFindings, type AssertionShape, type FindingsFold, type StandingShape } from './FindingsBand.js';
 import { collapsedTicketOf } from '../../core/served/collapsedTicket.js';
+
+export type { PlacedShape, ResultShape } from '../../core/context/reasoningResult.js';
 
 /** Every string this lens owns — names for fields and chips, never a sentence. */
 export const LABELS = Object.freeze({
@@ -174,40 +177,6 @@ function basisOf(row: unknown): BasisShape | undefined {
   };
 }
 
-/** A placement ticket (`PlacedToolResult`): the ref and the stored size, read by shape. */
-export interface PlacedShape {
-  readonly ref: string;
-  readonly bytes?: number;
-  readonly kind?: string;
-}
-
-function placedTicketOf(value: unknown): PlacedShape | undefined {
-  let v: unknown = value;
-  if (typeof v === 'string' && v.startsWith('{')) {
-    try {
-      v = JSON.parse(v);
-    } catch {
-      return undefined;
-    }
-  }
-  if (!isRecord(v) || v.placed !== true || typeof v.ref !== 'string') return undefined;
-  return {
-    ref: v.ref,
-    ...(typeof v.bytes === 'number' ? { bytes: v.bytes } : {}),
-    ...(typeof v.kind === 'string' ? { kind: v.kind } : {}),
-  };
-}
-
-/** The result as the lens can size it: a ticket, or the chars the record holds. */
-export type ResultShape = { readonly placed: PlacedShape } | { readonly chars: number };
-
-function resultShapeOf(value: unknown): ResultShape {
-  const placed = placedTicketOf(value);
-  if (placed !== undefined) return { placed };
-  const text = typeof value === 'string' ? value : (JSON.stringify(value) ?? '');
-  return { chars: text.length };
-}
-
 /** The tool results on the record by id: `history`'s `role: 'tool'` messages, then the batch. */
 function resultsById(history: readonly unknown[] | undefined, toolResults: readonly unknown[] | undefined): ReadonlyMap<string, unknown> {
   const out = new Map<string, unknown>();
@@ -282,6 +251,8 @@ export interface ReasoningInput {
   readonly toolResults?: readonly unknown[];
   /** The state's `history` at the same stop — the tool messages hold every result. */
   readonly history?: readonly unknown[];
+  /** The producer's { toolCallId, ref } pairs at this stop. Older recordings omit this receipt. */
+  readonly placedTickets?: unknown;
   /** The served wire at the stop's epoch (`messages.asSent`), for the collapsed tickets. */
   readonly asSent?: readonly unknown[];
   readonly findingsServe?: unknown;
@@ -305,6 +276,11 @@ export interface ReasoningInput {
 export function foldReasoning(input: ReasoningInput): ReasoningFold {
   const findings = foldFindings(input.rows, input.toolResults);
   const results = resultsById(input.history, input.toolResults);
+  const bases = input.rows.flatMap(row => {
+    const before = basisOf(row);
+    return before === undefined ? [] : [before];
+  });
+  const placedRefs = placedRefsByCall(input.placedTickets, bases, input.history, input.toolResults);
   const collapsed = collapsedById(input.asSent);
   const witnessed = new Map<string, string[]>();
   for (const c of findings.conflicts) {
@@ -316,9 +292,8 @@ export function foldReasoning(input: ReasoningInput): ReasoningFold {
   }
   const seen = new Set<string>();
   const cards: ReasoningCard[] = [];
-  for (const row of input.rows) {
-    const before = basisOf(row);
-    if (before === undefined || seen.has(before.toolCallId)) continue;
+  for (const before of bases) {
+    if (seen.has(before.toolCallId)) continue;
     seen.add(before.toolCallId);
     const id = before.toolCallId;
     const after = findings.standings.get(id);
@@ -327,7 +302,7 @@ export function foldReasoning(input: ReasoningInput): ReasoningFold {
       Object.freeze({
         toolCallId: id,
         before,
-        ...(results.has(id) ? { result: resultShapeOf(results.get(id)) } : {}),
+        ...(results.has(id) ? { result: resultShapeOf(results.get(id), placedRefs.get(id)) } : {}),
         ...(onWire !== undefined ? { collapsed: onWire.standing } : {}),
         ...(after !== undefined ? { after } : {}),
         conflicts: Object.freeze(witnessed.get(id) ?? []),
@@ -402,8 +377,10 @@ export interface ResultBeat {
   readonly toolName?: string;
   /** The content as the record holds it (a string, or the batch's value). */
   readonly content: unknown;
-  /** The placement ticket, when the content is one. */
+  /** The placement ticket, when the producer recorded a matching receipt. */
   readonly placed?: PlacedShape;
+  /** Recorded text following that ticket in the tool message. */
+  readonly followingText?: string;
   /** The ticket the wire at the stop's epoch carried in place of this result. */
   readonly collapsed?: CollapsedShape;
   /** The standing a later call (or the answer) declared for it — the cards' AFTER. */
@@ -471,14 +448,14 @@ function callBeatOf(card: ReasoningCard, emitted: ReadonlyMap<string, EmittedCal
 }
 
 function resultBeatOf(card: ReasoningCard, content: unknown, collapsed: CollapsedShape | undefined, toolName: string | undefined): ResultBeat {
-  const placed = placedTicketOf(content);
+  const placement = card.result && 'placed' in card.result ? card.result : undefined;
   return Object.freeze({
     kind: 'result',
     side: 'tool',
     toolCallId: card.toolCallId,
     ...(toolName !== undefined ? { toolName } : {}),
     content,
-    ...(placed !== undefined ? { placed } : {}),
+    ...placement,
     ...(collapsed !== undefined ? { collapsed } : {}),
     ...(card.after !== undefined ? { after: card.after } : {}),
   });
@@ -622,6 +599,7 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
       rows,
       ...(toolResults !== undefined ? { toolResults } : {}),
       ...(history !== undefined ? { history } : {}),
+      placedTickets: keyValue(context, 'placedTickets'),
       ...(Array.isArray(wire) ? { asSent: wire } : {}),
       ...(Array.isArray(pieces) ? { pieces } : {}),
       findingsServe: keyValue(context, 'findingsServe'),
@@ -1056,6 +1034,7 @@ function ResultBody({ beat }: { readonly beat: ResultBeat }): React.ReactElement
         )}
       </div>
       {beat.placed !== undefined ? <ResultLine result={{ placed: beat.placed }} /> : <Clipped text={prettyContent(beat.content)} testId="reasoning-beat-content" />}
+      {beat.followingText !== undefined && <Clipped text={beat.followingText} testId="reasoning-beat-content" />}
       {beat.collapsed !== undefined && (
         <div data-testid="reasoning-beat-ticket">
           <span style={dim}>{LABELS.ticket}</span>

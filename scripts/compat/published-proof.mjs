@@ -35,9 +35,9 @@ export function assertPublishedReceipt(receipt, bytes, expected = readPublishedA
 export function assertRegistryLock(lock, expected = readPublishedAgent()) {
   assert.equal(lock.lockfileVersion, 3, 'consumer lock format');
   const root = lock.packages[''];
-  assert.equal(root.devDependencies?.agentfootprint ?? root.dependencies?.agentfootprint,
+  assert.equal(root.devDependencies?.[expected.name] ?? root.dependencies?.[expected.name],
     expected.version, 'root must select the source-pinned package');
-  const entry = lock.packages['node_modules/agentfootprint'];
+  const entry = lock.packages[`node_modules/${expected.name}`];
   assert.ok(entry, 'lock must contain the source-pinned package');
   assert.equal(entry.version, expected.version, 'locked package version');
   assert.equal(entry.resolved, expected.tarball, 'locked package registry URL');
@@ -59,27 +59,34 @@ function main() {
   mkdirSync(out);
   const lockBytes = readFileSync(flags.lock);
   const lock = JSON.parse(lockBytes);
-  assertRegistryLock(lock, agent);
   assert.ok(!JSON.stringify(lock).includes('file:'), 'source lock must contain no local file inputs');
-  const spec = `${agent.name}@${agent.version}`;
-  const metadata = JSON.parse(command('npm', ['view', spec, 'name', 'version', 'dist', '--json'],
-    { log: join(out, 'registry-metadata.json') }));
-  const packed = JSON.parse(command('npm', ['pack', spec, '--ignore-scripts', '--json', '--pack-destination', out],
-    { log: join(out, 'registry-pack.json') }));
-  assert.equal(packed.length, 1);
-  assert.equal(packed[0].filename, agent.filename);
-  const archive = join(out, agent.filename);
-  const receipt = verifyPublishedArchive(metadata, readFileSync(archive), agent);
-  const inspected = inspectArchive(archive, out, { ...agent, expectedSha: receipt.sha256 });
-  assertInstalled(resolve('node_modules/agentfootprint'), inspected.files, 'installed registry package');
+
+  const published = {};
+  for (const expected of Object.values(cohort.packages)) {
+    const { name, version, filename } = expected;
+    assertRegistryLock(lock, expected);
+    const spec = `${name}@${version}`;
+    const metadata = JSON.parse(command('npm', ['view', spec, 'name', 'version', 'dist', '--json'],
+      { log: join(out, `${name}-registry-metadata.json`) }));
+    const packed = JSON.parse(command('npm', ['pack', spec, '--ignore-scripts', '--json', '--pack-destination', out],
+      { log: join(out, `${name}-registry-pack.json`) }));
+    assert.equal(packed.length, 1);
+    assert.equal(packed[0].filename, filename);
+    const archive = join(out, filename);
+    const receipt = verifyPublishedArchive(metadata, readFileSync(archive), expected);
+    const inspected = inspectArchive(archive, out, { ...expected, expectedSha: receipt.sha256 });
+    assertInstalled(resolve('node_modules', name), inspected.files, `installed ${name}`);
+    published[name] = receipt;
+  }
+
   const recordOwner = assertSingleFoottrace(resolve('node_modules'), cohort.pins.foottrace);
   command('npm', ['ls', 'foottrace'], { log: join(out, 'foottrace.log') });
   command('npm', ['ls', '--all', '--json'], { log: join(out, 'tree.json') });
-  writeJson(join(out, 'published-agent.json'), receipt);
+  writeJson(join(out, 'published-agent.json'), published.agentfootprint);
   writeJson(join(out, 'source-verification.json'), { schema: 1, node: process.version,
     npm: command('npm', ['--version']).trim(), policy: 'lock + installed-registry verification',
-    lockSha256: sha256(lockBytes), cohort, publishedAgent: receipt, recordOwner });
-  console.log(JSON.stringify(receipt));
+    lockSha256: sha256(lockBytes), cohort, publishedAgent: published.agentfootprint, published, recordOwner });
+  console.log(JSON.stringify(published));
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
