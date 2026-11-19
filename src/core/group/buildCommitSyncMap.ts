@@ -74,16 +74,16 @@ export interface CommitSyncEntry {
 export function buildCommitSyncMap(
   recorder: LensRecorder,
 ): readonly CommitSyncEntry[] {
-  // The COMMIT LOG comes from the executor's snapshot (reached through
-  // the currently-observed runner), NOT from LensSnapshotRecorder. See
-  // `LensRecorder.getCommitLog()`. The boundary index — same boundary
-  // recorder — gives us the group-containment info.
-  const commitLog = recorder.getCommitLog();
-  if (commitLog.length === 0) return [];
+  const log = recorder.getCommitLog();
+  if (log.length === 0) return [];
+  return commitSyncMapFrom(log, buildGroups(recorder.boundary.boundaryIndex));
+}
 
-  // Build groups once; cheap (O(group_count²) worst case).
-  const groups = buildGroups(recorder.boundary.boundaryIndex);
-
+/** A reader that already holds the log and the groups can build the same map. */
+export function commitSyncMapFrom(
+  commitLog: ReturnType<LensRecorder['getCommitLog']>,
+  groups: readonly Group[],
+): readonly CommitSyncEntry[] {
   const result: CommitSyncEntry[] = [];
   for (let i = 0; i < commitLog.length; i++) {
     const c = commitLog[i]!;

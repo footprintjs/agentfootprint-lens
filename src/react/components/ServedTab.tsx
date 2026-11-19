@@ -50,6 +50,7 @@ import {
   type FieldCheck,
   type FoldFacts,
   type ServedFieldStatus,
+  type ServedGraphInput,
   type ServedRow,
   type ServedVerification,
   type SincePrevious,
@@ -323,6 +324,18 @@ export function ServedTab(props: ServedTabProps): React.ReactElement {
   );
 }
 
+/** Context has already read the receipt, its checks and the state at this stop. */
+export function ContextServedTab({ snapshot, at, reading, onJumpTo }: {
+  readonly snapshot: unknown;
+  readonly at: { readonly runtimeStageId: string; readonly commitIdx: number };
+  readonly reading: ServedGraphInput;
+  readonly onJumpTo: (runtimeStageId: string) => void;
+}): React.ReactElement {
+  return <ServedTabBoundary resetKey={`${at.runtimeStageId}#${at.commitIdx}`}>
+    <ServedReading snapshot={snapshot} reading={reading} onJumpTo={onJumpTo} />
+  </ServedTabBoundary>;
+}
+
 function ServedTabBody(props: ServedTabProps): React.ReactElement {
   const { runner, onJumpTo } = props;
   const { runtimeStageId: cursorRuntimeStageId, commitIdx } = cursorAnchor(props);
@@ -344,19 +357,24 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
       row.previousEpoch !== undefined ? servedRowForEpoch(snapshot, row.previousEpoch) : undefined;
     const since = previous !== undefined ? sincePrevious(row, previous) : undefined;
     const fold = foldFactsAt(snapshot, at);
-    // The SECOND VIEW of the same row — no second read, no second cursor.
-    const graph = servedGraphAt({ row, fold, checks, ...(since !== undefined ? { since } : {}) });
-    return { row, checks, since, fold, graph };
+    return { row, checks, since, fold };
   }, [snapshot, cursorRuntimeStageId, commitIdx]);
+  return <ServedReading snapshot={snapshot} reading={derived} onJumpTo={onJumpTo} />;
+}
 
-  // UI state only: two toggles and a set of expanded schema names. No position.
+function ServedReading({ snapshot, reading, onJumpTo }: {
+  readonly snapshot: unknown;
+  readonly reading?: ServedGraphInput;
+  readonly onJumpTo?: (runtimeStageId: string) => void;
+}): React.ReactElement {
+  const graph = useMemo(() => reading && servedGraphAt(reading), [reading]);
+  const hasRow = reading !== undefined;
+  const cacheTotals = useMemo(() => hasRow ? cacheTotalsOf(snapshot) : undefined, [snapshot, hasRow]);
   const [viewMode, setViewMode] = useState<ServedViewMode>('list');
   const [showDiff, setShowDiff] = useState(false);
   const [openSchemas, setOpenSchemas] = useState<ReadonlySet<string>>(() => new Set());
-  const hasCall = derived !== undefined;
-  const cacheTotals = useMemo(() => hasCall ? cacheTotalsOf(snapshot) : undefined, [hasCall, snapshot]);
 
-  if (derived === undefined) {
+  if (reading === undefined || graph === undefined) {
     return (
       <div style={panelStyle} data-testid="served-tab" data-served="none">
         <Header row={undefined} onJumpTo={onJumpTo} viewMode={viewMode} onViewMode={setViewMode} />
@@ -367,7 +385,7 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
     );
   }
 
-  const { row, checks, since, fold, graph } = derived;
+  const { row, checks, since, fold } = reading;
   const view = row.view;
   const markers = row.receipt?.cache.markersApplied ?? [];
   // The findings ledger on THIS wire (agentfootprint 9.101.0): the system

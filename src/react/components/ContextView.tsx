@@ -29,22 +29,18 @@
  */
 import React, { useMemo, useState } from 'react';
 
-import { contextAt, type ContextAt, type ContextKey } from '../../core/context/contextAt.js';
+import type { ContextAt, ContextKey, ContextProjection } from '../../core/context/contextAt.js';
+import { previewRecordedValue } from '../../core/context/previewRecordedValue.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
-import { lensCursorFrom } from '../../core/cursor/lensCursor.js';
-import { foldCommitIdxOf, foldCursorOf } from '../../core/cursor/foldAt.js';
-import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
-import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
 import type { ServedCursor } from '../../core/served/types.js';
-import { tagAxisPositions } from '../../core/tags/tagAxis.js';
 import type { EventLogEntry } from '../../core/types.js';
-import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRunner.js';
 import { TimeTravel } from '../TimeTravel.js';
 import type { SharedCursor } from '../useSharedCursor.js';
 import { FindingsBand } from './FindingsBand.js';
 import { TimeBand } from './TimeBand.js';
-import { ServedTab } from './ServedTab.js';
+import { useContextProjection } from '../hooks/useContextProjection.js';
+import { ContextServedTab } from './ServedTab.js';
 
 export const LABELS = Object.freeze({
   view: 'Context',
@@ -59,6 +55,8 @@ export const LABELS = Object.freeze({
   rows: 'rows',
   served: 'served',
   why: 'why',
+  mixedEvents: 'Hiding events from multiple runs.',
+  mixedEventsHelp: 'Clear the recorder or pass run-specific events.',
   epoch: 'epoch',
   system: 'system',
   tools: 'tools',
@@ -73,14 +71,7 @@ export const LABELS = Object.freeze({
   builtFrom: 'built from',
 });
 
-/** The milestone kinds a standalone view walks — the library's own tag vocabulary. */
-export const MILESTONE_AXIS: readonly string[] = Object.freeze([
-  'milestone:iteration',
-  'milestone:slot',
-  'milestone:llm-turn',
-  'milestone:tool-call',
-  'milestone:decision',
-]);
+export { MILESTONE_AXIS } from '../hooks/useContextProjection.js';
 
 export interface ContextViewProps {
   /** The recording or a runner with `getLastSnapshot()` — the same input the Served tab takes. */
@@ -112,76 +103,15 @@ export interface ContextViewProps {
   readonly shared?: SharedCursor;
   /** The recorder whose grouped axis a `shared` view reads — omit to read the milestone axis off the snapshot. */
   readonly recorder?: LensRecorder;
-  /** The recording's event stream, for the `why` band (a replay's `getEntries()`). */
+  /** The recording's event stream for the `why` band. Defaults to the supplied recorder's entries. */
   readonly events?: readonly EventLogEntry[];
   /** Show the fold as JSON instead of the key table. */
   readonly initialMode?: 'keys' | 'json';
 }
 
-function positionsOf(snapshot: unknown): readonly CursorPosition[] {
-  return tagAxisPositions(snapshot, MILESTONE_AXIS, []);
-}
-
-/** The fold's cursor: the stop's address, folded through the last commit it held (`foldAt.ts`). */
-function servedCursorOf(cursor: LensCursor): ServedCursor {
-  return foldCursorOf(cursor.at);
-}
-
-function previousOf(
-  cursor: LensCursor,
-  positions: readonly CursorPosition[] | undefined,
-): ServedCursor | undefined {
-  if (cursor.at.step <= 0) return undefined;
-  const p = positions?.[cursor.at.step - 1];
-  return p !== undefined ? { runtimeStageId: p.runtimeStageId, commitIdx: foldCommitIdxOf(p) } : undefined;
-}
-
 export function ContextView(props: ContextViewProps): React.ReactElement {
-  const { runner, events, shared, recorder } = props;
-  const fresh = snapshotOfRunner(runner);
-  const logKey = snapshotLogKey(fresh);
-  const snapshot = useMemo(() => fresh, [runner, logKey]);
-  // The axis this view reads when it is not handed a per-axis cursor: the
-  // recorder's grouped axis (parity with a Why Lens) when a recorder is
-  // given, else the milestone axis read off the snapshot. Rebuilt when the
-  // snapshot's log moves.
-  const ownPositions = useMemo(
-    () =>
-      props.cursor !== undefined
-        ? undefined
-        : recorder !== undefined
-          ? scrubAxisFor(recorder, 'group')
-          : positionsOf(snapshot),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the recorder's axis moves with the log key
-    [snapshot, props.cursor, recorder, logKey],
-  );
-  const [ownStep, setOwnStep] = useState(0);
-  // ONE cursor: the host's per-axis reading, else the shared address read
-  // over this view's axis, else the view's own — never two.
-  const cursor: LensCursor =
-    props.cursor ??
-    (shared !== undefined
-      ? shared.over(ownPositions ?? [])
-      : lensCursorFrom(
-          ownPositions ?? [],
-          Math.min(ownStep, Math.max(0, (ownPositions?.length ?? 1) - 1)),
-          setOwnStep,
-        ));
-  // A mover belongs here when the cursor is this view's own or the shared
-  // address — a per-axis `cursor` from a slot brings the host's mover — and
-  // only while the cursor STANDS on this axis: an address this axis cannot
-  // hold reads as no position, and a transport lit at stop 0 would claim one.
-  const mover = props.cursor === undefined && cursor.total > 0 && cursor.at.step >= 0;
+  const { context, snapshot, cursor, mover } = useContextProjection(props);
   const [mode, setMode] = useState<'keys' | 'json'>(props.initialMode ?? 'keys');
-
-  const context = useMemo(
-    () =>
-      contextAt(snapshot, servedCursorOf(cursor), {
-        previous: props.previous ?? previousOf(cursor, ownPositions),
-        events,
-      }),
-    [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, cursor.at.foldCommitIdx, cursor.at.step, ownPositions, events],
-  );
 
   return (
     <div
@@ -230,44 +160,18 @@ export function ContextView(props: ContextViewProps): React.ReactElement {
         </div>
       )}
       <Facts context={context} />
-      <ServedLayer context={context} runner={runner} cursor={cursor} />
+      <ServedLayer context={context} snapshot={snapshot} cursor={cursor} />
       <div style={dim} data-testid="context-built-from">
         {LABELS.builtFrom} · {context.keys.length} {LABELS.keys}
       </div>
       {mode === 'json' ? <JsonPane context={context} /> : <KeyTable context={context} />}
-      <FindingsLayer context={context} />
-      <TimeLayer context={context} />
+      {context.ledger && <>
+        <FindingsBand rows={context.ledger.rows} toolResults={context.ledger.toolResults} since={context.ledger.since} />
+        <TimeBand rows={context.ledger.rows} coverage={context.ledger.coverage} />
+      </>}
       <WhyBand context={context} />
     </div>
   );
-}
-
-/** The Findings band, under the record: ONLY when the fold at the stop holds
- *  `findingsLedger` — an armed run, after its first declaration. The rows and
- *  the batch (`toolResults`) are the same keys the table above lists, read
- *  off the one `contextAt` — no second fold, no second cursor. */
-function FindingsLayer({ context }: { readonly context: ContextAt }): React.ReactElement | null {
-  const ledger = context.keys.find((k) => k.path === 'findingsLedger');
-  if (ledger === undefined || !Array.isArray(ledger.value)) return null;
-  const results = context.keys.find((k) => k.path === 'toolResults')?.value;
-  return (
-    <FindingsBand
-      rows={ledger.value}
-      {...(Array.isArray(results) ? { toolResults: results } : {})}
-      {...(ledger.since !== undefined ? { since: ledger.since } : {})}
-    />
-  );
-}
-
-/** The Time band, under the Findings band: the time layer's rows on the same
- *  ledger (agentfootprint 9.129.0) and each call's declared period off
- *  `coverageDeclared` — both keys the table above lists, read off the one
- *  `contextAt`. The band renders nothing when the ledger holds no time row. */
-function TimeLayer({ context }: { readonly context: ContextAt }): React.ReactElement | null {
-  const ledger = context.keys.find((k) => k.path === 'findingsLedger');
-  if (ledger === undefined || !Array.isArray(ledger.value)) return null;
-  const coverage = context.keys.find((k) => k.path === 'coverageDeclared')?.value;
-  return <TimeBand rows={ledger.value} {...(Array.isArray(coverage) ? { coverage } : {})} />;
 }
 
 function Facts({ context }: { readonly context: ContextAt }): React.ReactElement | null {
@@ -345,27 +249,33 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
         )}
       </td>
       <td style={{ ...cell, ...mono }}>
-        <ValueCell value={k.value} />
+        <ValueCell row={k} />
       </td>
     </tr>
   );
 }
 
+/** Represent live bigint values as suffixed decimal strings in the on-demand JSON. */
+function formatContextJson(value: unknown, space?: number) {
+  return JSON.stringify(value, (_key, part: unknown) => typeof part === 'bigint' ? `${part}n` : part, space);
+}
+
 /** A value, shortened past 160 characters — and opened in place on a click,
  *  so a system prompt or a tool schema is readable where it sits. */
-function ValueCell({ value }: { readonly value: unknown }): React.ReactElement {
+function ValueCell({ row }: { readonly row: ContextKey }): React.ReactElement {
   const [open, setOpen] = useState(false);
-  const text = JSON.stringify(value) ?? '';
-  const long = text.length > 160;
-  if (!long) return <span>{text}</span>;
+  const preview = useMemo(() => previewRecordedValue(row.value), [row]);
+  const full = useMemo(() => open && preview.truncated ? formatContextJson(row.value) : undefined,
+    [open, preview, row]);
+  if (!preview.truncated) return <span>{preview.text}</span>;
   return (
     <span data-testid="context-value" data-open={open}>
       {open ? (
         <pre style={{ ...mono, ...pre }} data-testid="context-value-full">
-          {text}
+          {full}
         </pre>
       ) : (
-        <span>{`${text.slice(0, 157)}…`}</span>
+        <span>{preview.text}</span>
       )}{' '}
       <button type="button" style={btn} onClick={() => setOpen(!open)} data-testid="context-value-toggle">
         {open ? LABELS.less : LABELS.more}
@@ -375,11 +285,14 @@ function ValueCell({ value }: { readonly value: unknown }): React.ReactElement {
 }
 
 function JsonPane({ context }: { readonly context: ContextAt }): React.ReactElement {
-  const object: Record<string, unknown> = {};
-  for (const k of context.keys) object[k.path] = k.value;
+  const full = useMemo(() => {
+    const object: Record<string, unknown> = Object.create(null);
+    for (const k of context.keys) object[k.path] = k.value;
+    return formatContextJson(object, 2);
+  }, [context]);
   return (
     <pre style={{ ...mono, ...pre }} data-testid="context-json">
-      {JSON.stringify(object, null, 2)}
+      {full}
     </pre>
   );
 }
@@ -389,11 +302,11 @@ function JsonPane({ context }: { readonly context: ContextAt }): React.ReactElem
  *  call is at or before the stop: nothing is served, nothing is claimed. */
 function ServedLayer({
   context,
-  runner,
+  snapshot,
   cursor,
 }: {
-  readonly context: ContextAt;
-  readonly runner: unknown;
+  readonly context: ContextProjection;
+  readonly snapshot: unknown;
   readonly cursor: LensCursor;
 }): React.ReactElement | null {
   const served = context.served;
@@ -403,9 +316,10 @@ function ServedLayer({
       <span style={dim}>
         {LABELS.served} · {LABELS.epoch} {served.row.view.epoch}
       </span>
-      <ServedTab
-        runner={runner}
-        cursor={cursor}
+      <ContextServedTab
+        reading={served}
+        snapshot={snapshot}
+        at={context.cursor}
         // The tab's own jump (to a call's stop) moves THE cursor — a standalone
         // view's own, a slotted view's host's — and a miss never moves it.
         onJumpTo={(runtimeStageId) => {
@@ -417,7 +331,10 @@ function ServedLayer({
   );
 }
 
-function WhyBand({ context }: { readonly context: ContextAt }): React.ReactElement | null {
+function WhyBand({ context }: { readonly context: ContextProjection }): React.ReactElement | null {
+  if (context.whyWithheld === 'mixed-sources') {
+    return <div style={dim} data-testid="context-why-withheld">{LABELS.mixedEvents} {LABELS.mixedEventsHelp}</div>;
+  }
   if (context.why.length === 0) return null;
   return (
     <div style={band} data-testid="context-why">

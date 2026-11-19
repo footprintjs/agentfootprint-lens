@@ -3,7 +3,7 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
-  buildRuntimeStageId, isExecutionKey, flattenCausalDAG, formatSlice, keysReadFromExecutionTree, parseRuntimeStageId,
+  buildRuntimeStageId, isCommitBundle, isExecutionKey, flattenCausalDAG, formatSlice, keysReadFromExecutionTree, parseRuntimeStageId,
   sliceForKey, splitStageId, stateAt, tagStops, timeTravel,
 } from 'foottrace';
 import { pathSegments } from 'foottrace/paths';
@@ -24,6 +24,11 @@ const source = { initialState: { input: 0 }, commitLog: log };
 
 // Each case proves a behavior used by Lens, rather than enumerating upstream exports.
 const contracts = [
+  { names: ['foottrace#isCommitBundle'], prove() {
+    expect(isCommitBundle(log[0])).toBe(true);
+    expect(isCommitBundle({ ...log[0], trace: [null] })).toBe(false);
+    expect(isCommitBundle({ ...log[0], overwrite: [] })).toBe(false);
+  } },
   { names: ['foottrace#parseRuntimeStageId', 'foottrace#splitStageId'], prove() {
     expect(parseRuntimeStageId('outer/inner/derive#12')).toEqual({
       stageId: 'derive', subflowPath: 'outer/inner', executionIndex: 12,

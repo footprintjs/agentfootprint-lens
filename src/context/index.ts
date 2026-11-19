@@ -142,6 +142,8 @@ export {
 } from '../react/components/storyMarks.js';
 export {
   contextAt,
+  projectContext,
+  type ContextProjection,
   type ContextAt,
   type ContextAtOptions,
   type ContextKey,

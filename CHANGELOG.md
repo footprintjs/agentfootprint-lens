@@ -7,9 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Use `projectContext` and `ContextProjection` from `agentfootprint-lens/core` or
+  `agentfootprint-lens/context` to build a custom view from the same data as Context.
+  `createLensRenderStore` in `/core` batches recorder updates. On `LensRecorder`,
+  `hasSingleObservedSource()` checks source identity and `getObservedEventEvidence()`
+  supplies the event evidence for that source.
+
 ### Changed
 
 - Use Explainable UI 2.2.0 for development and add it to the packed React 18 and 19 compatibility checks.
+- Context reads Why events from its recorder when the host omits `events`.
+  If the recorder mixes runs, Context explains why it withheld the events and
+  the projection reports `whyWithheld: 'mixed-sources'`. Call `recorder.clear()`
+  when starting a fresh run or pass the displayed run's `events` explicitly.
+
+### Fixed
+
+- Events arriving at a held cursor appear in Context. Long values show a
+  bounded preview and open in full on demand, including values containing BigInts.
 
 ## [0.84.2] - 2026-11-19
 

@@ -75,23 +75,24 @@ export interface SplitLensStoresOptions {
   schedule?: (fn: () => void) => void;
 }
 
-function defaultSchedule(fn: () => void): void {
+export function scheduleOverlayFlush(fn: () => void): (() => void) | undefined {
   if (typeof globalThis.requestAnimationFrame === 'function') {
-    globalThis.requestAnimationFrame(() => fn());
-    return;
+    const frame = globalThis.requestAnimationFrame(() => fn());
+    return () => globalThis.cancelAnimationFrame?.(frame);
   }
   if (typeof queueMicrotask === 'function') {
     queueMicrotask(fn);
     return;
   }
-  setTimeout(fn, 0);
+  const timer = setTimeout(fn, 0);
+  return () => clearTimeout(timer);
 }
 
 export function splitLensStores(
   recorder: LensRecorder,
   options: SplitLensStoresOptions = {},
 ): SplitStores {
-  const schedule = options.schedule ?? defaultSchedule;
+  const schedule = options.schedule ?? scheduleOverlayFlush;
 
   // Spec change signal: the count of subflow-entry boundary events
   // observed so far. The Lens v0.1 Spec tree is built via
