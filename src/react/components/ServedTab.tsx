@@ -373,8 +373,6 @@ function ServedReading({ snapshot, reading, onJumpTo }: {
   const [viewMode, setViewMode] = useState<ServedViewMode>('list');
   const [showDiff, setShowDiff] = useState(false);
   const [openSchemas, setOpenSchemas] = useState<ReadonlySet<string>>(() => new Set());
-  const hasCall = derived !== undefined;
-  const cacheTotals = useMemo(() => hasCall ? cacheTotalsOf(snapshot) : undefined, [hasCall, snapshot]);
 
   if (reading === undefined || graph === undefined) {
     return (
