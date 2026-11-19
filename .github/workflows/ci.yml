@@ -32,7 +32,7 @@ jobs:
       - name: Check authored cohort development pins
         run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
-      - name: Exercise every ordinary registry helper and the explicit native refusals
+      - name: Exercise the registry, renderer and published CONTROL helpers
         run: node --test scripts/compat/*.test.mjs scripts/compat/source-inputs/*.test.mjs
       - name: Exercise the bounded hostile archive controls without installing packages
         run: python3 -B -m unittest discover -s scripts/compat/source-inputs/archive_data -t scripts/compat/source-inputs -p '*_test.py' -v
@@ -90,7 +90,7 @@ jobs:
       - name: Check authored cohort development pins
         run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
-      - name: Exercise every ordinary registry helper and the explicit native refusals
+      - name: Exercise the registry, renderer and published CONTROL helpers
         run: node --test scripts/compat/*.test.mjs scripts/compat/source-inputs/*.test.mjs
       - name: Exercise the bounded hostile archive controls without installing packages
         run: python3 -B -m unittest discover -s scripts/compat/source-inputs/archive_data -t scripts/compat/source-inputs -p '*_test.py' -v
