@@ -207,6 +207,22 @@ describe('Context projection', () => {
     view.rerender(pane(b.snapshot));
     expect(screen.queryByTestId('context-why')).toBeNull();
 
+    const c = loadTampered('flat-dynamic-tools', packet => {
+      Object.assign(packet.snapshot, { runId: 'third-run' });
+    });
+    act(() => { a.recorder.observe(c.recorder.observedRunner()!); });
+    view.rerender(pane(c.snapshot));
+    expect(a.recorder.entryCount).toBe(priorCount + 1);
+    expect(a.recorder.getObservedEventEvidence()).toEqual({});
+    expect(screen.queryByTestId('context-why-withheld')).toBeNull();
+    expect(screen.queryByTestId('context-why')).toBeNull();
+
+    act(() => {
+      a.recorder.detach();
+      a.recorder.observe(runnerB);
+    });
+    expect(projected()).toHaveProperty('whyWithheld', 'mixed-sources');
+    view.rerender(pane(b.snapshot));
     act(() => {
       a.recorder.clear();
       replay.emit(entry.event);

@@ -466,7 +466,9 @@ export class LensRecorder {
     readonly whyWithheld?: 'mixed-sources';
   } {
     if (this.hasSingleObservedSource()) return { events: this.getEntries() };
-    if (this.currentRunner && this.mixedSources && this.entryCount > 0) return { whyWithheld: 'mixed-sources' };
+    if (this.currentRunner && this.mixedSources && this.entryCount > 0 && this.recordedSources.has(this.currentRunner)) {
+      return { whyWithheld: 'mixed-sources' };
+    }
     return {};
   }
 
