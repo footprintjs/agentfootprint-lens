@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Coverage shows the first 12 declarations and the first 12 items in each
+  section. Open the remaining entries and page through them in recorded order.
 - The Trust boundaries section reads the recorded facts when you first open it
   and reuses them when you reopen it on the same snapshot.
 - Use Explainable UI 2.2.0 for development and add it to the packed React 18 and 19 compatibility checks.
