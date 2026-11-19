@@ -25,6 +25,25 @@ function child(full: unknown, request: RecordedInvocation) {
 }
 
 describe('creator-owned lazy recording source', () => {
+  it('reports the lazy-source error when a recording has no snapshot', () => {
+    const { root } = input();
+    const { snapshot, ...recording } = root.recording;
+    const loadSubflow = vi.fn();
+    for (const record of [recording, { ...recording, snapshot: null }]) {
+      expect(() => createLensRecordingSource({ root: { ...root, recording: record }, loadSubflow }))
+        .toThrow(expect.objectContaining({ name: 'Error', message: 'The recording cannot be opened as a lazy source.' }));
+    }
+    expect(loadSubflow).not.toHaveBeenCalled();
+  });
+
+  it('keeps malformed descriptors on the descriptor error path', () => {
+    const { root } = input();
+    const loadSubflow = vi.fn();
+    expect(() => createLensRecordingSource({ root: { ...root, invocations: null }, loadSubflow }))
+      .toThrow(expect.objectContaining({ name: 'Error', message: 'The lazy recording descriptor could not be read.' }));
+    expect(loadSubflow).not.toHaveBeenCalled();
+  });
+
   it('observes only the root once and makes no speculative child read', () => {
     const { root } = input(); const loadSubflow = vi.fn();
     const source = createLensRecordingSource({ root, loadSubflow });

@@ -18,7 +18,10 @@ export interface LensRecordingSourceOptions {
 /** A native data source paired with one stable event replay. No cursor lives here. */
 export function createLensRecordingSource(options: LensRecordingSourceOptions): LensRecordingSource {
   const checked = readRecordingSourceRoot(options.root);
-  if (checked.status !== 'ready') throw new Error('The lazy recording descriptor could not be read.');
+  if (checked.status !== 'ready') {
+    if (checked.reason === 'unsupported-recording') throw new Error('The recording cannot be opened as a lazy source.');
+    throw new Error('The lazy recording descriptor could not be read.');
+  }
   // The optional door may be imported beside older supported renderer peers;
   // invoking this feature, rather than importing an ordinary Lens, needs 1.0.1.
   if (typeof native.createRecordingSource !== 'function') throw new Error('Lazy recording sources require footprint-explainable-ui 1.0.1 or newer.');
