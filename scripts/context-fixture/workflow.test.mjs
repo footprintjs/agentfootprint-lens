@@ -2,13 +2,15 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 const source = readFileSync(new URL('../../.github/workflows/context-producer.yml', import.meta.url), 'utf8');
-test('the historical producer proof is isolated from the admitted native compatibility cohort', () => {
+test('the historical producer proof stays separate from the stable registry cohort', () => {
   const registry = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.doesNotMatch(registry, /repository: footprintjs\/(?:agentfootprint|foottrace)(?:\s|$)/);
-  // Native targets consume admitted originals, never these historical source
-  // checkouts. Their temporary strict lock is explicit; CONTROL is independent.
-  assert.match(registry, /source-inputs.mjs fetch/);
-  assert.equal((registry.match(/bootstrap --mode target/g) ?? []).length, 2);
+  // Target jobs install the stable lock, and the renderer is the only
+  // original fetched outside the registry. The AF14 CONTROL is separate.
+  assert.match(registry, /source-inputs\.mjs fetch-renderer\b/);
+  assert.equal((registry.match(/run: npm ci --strict-peer-deps/g) ?? []).length, 2);
+  assert.equal((registry.match(/published-proof\.mjs --out/g) ?? []).length, 2);
+  assert.doesNotMatch(registry, /bootstrap --mode target|--source-inputs compat-artifacts/);
   assert.match(registry, /^  published-commentary-control:/m);
   assert.match(registry, /bootstrap --mode CONTROL/);
   const control = readFileSync(new URL('../compat/commentary-control.mjs', import.meta.url), 'utf8');
@@ -18,8 +20,9 @@ test('the historical producer proof is isolated from the admitted native compati
   assert.match(source, /runs-on: ubuntu-24\.04/);
   assert.match(source, /timeout-minutes: 30/);
   assert.match(source, /contents: read/);
-  assert.match(source, /source-inputs.mjs bootstrap --mode target/);
-  assert.match(source, /working-directory: \$\{\{ runner.temp \}\}\/native-target/);
+  assert.match(source, /run: npm ci --strict-peer-deps/);
+  assert.match(source, /published-proof\.mjs --out .* --lock package-lock\.json/);
+  assert.doesNotMatch(source, /bootstrap --mode target|native-target/);
   assert.doesNotMatch(source, /contents: write|workflow_dispatch|npm (?:publish|version)|--force|--legacy-peer-deps/);
 });
 test('fresh proof uses reviewed immutable source doors and retained output', () => {
