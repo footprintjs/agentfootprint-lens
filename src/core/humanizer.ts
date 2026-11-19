@@ -14,11 +14,10 @@
 
 import type { AgentfootprintEvent } from 'agentfootprint/events';
 import { describeToolArguments, protectedToolArguments } from './toolArgumentDisplay.js';
+import { commentaryDefaults, commentaryKey, readableToolFlags } from './toolCommentary.js';
 import {
-  defaultCommentaryTemplates,
   extractCommentaryVars,
   renderCommentary,
-  selectCommentaryKey,
   type CommentaryTemplates,
 } from 'agentfootprint';
 import {
@@ -142,7 +141,7 @@ export const defaultHumanizer: Humanizer = (event) => {
       return `Model replied in ${event.payload.durationMs}ms (${event.payload.usage.input}+${event.payload.usage.output} tokens, ${event.payload.toolCallCount} tool calls, stop: ${event.payload.stopReason}).`;
     case 'agentfootprint.stream.tool_start': {
       const display = protectedToolArguments(event.payload);
-      const call = selectCommentaryKey(event) === 'stream.tool_start.notDispatched'
+      const call = commentaryKey(event) === 'stream.tool_start.notDispatched'
         ? `Skipped tool "${event.payload.toolName}"`
         : `Calling tool "${event.payload.toolName}"`;
       return display === undefined
@@ -156,14 +155,11 @@ export const defaultHumanizer: Humanizer = (event) => {
     case 'agentfootprint.stream.tool_progress':
       return humanizeToolProgress(event.payload as ToolProgressLike);
     case 'agentfootprint.stream.tool_end': {
-      const key = selectCommentaryKey(event);
+      const key = commentaryKey(event);
       // Teaching skips a settled end because its start already told that story.
       // AgentFootprint's execution reader also requires these saved leaves to be booleans when present.
-      const { error, notExecuted } = event.payload;
       const entered = 'entered' in event.payload ? event.payload.entered : undefined;
-      const settled = key === null && [entered, error, notExecuted].every(
-        field => field === undefined || typeof field === 'boolean',
-      );
+      const settled = key === null && readableToolFlags(event.payload);
       if (settled || key === 'stream.tool_end.notExecuted') return 'The call was not executed.';
       if (key !== 'stream.tool_end' || entered !== true) return 'The record does not say whether the tool ran.';
       return event.payload.error === true
@@ -376,8 +372,8 @@ export function makeTeachingHumanizer(
   // values are present (string), but TS widens to `string | undefined`
   // through `Partial`. The defaults guarantee every key resolves.
   const templates: CommentaryTemplates = options.commentaryTemplates
-    ? ({ ...defaultCommentaryTemplates, ...options.commentaryTemplates } as CommentaryTemplates)
-    : defaultCommentaryTemplates;
+    ? ({ ...commentaryDefaults, ...options.commentaryTemplates } as CommentaryTemplates)
+    : commentaryDefaults;
   const ctx = { appName, getToolDescription };
 
   return (event) => {
@@ -390,7 +386,7 @@ export function makeTeachingHumanizer(
       return humanizeToolProgressTeaching(event.payload as ToolProgressLike);
     }
     // 1. Pick a template key. `null` skips, `undefined` falls through.
-    const key = selectCommentaryKey(event);
+    const key = commentaryKey(event);
     if (key === null) return null;
     if (key === undefined) return defaultHumanizer(event);
 
@@ -401,7 +397,13 @@ export function makeTeachingHumanizer(
     if (template === undefined) return defaultHumanizer(event);
 
     // 3. Build vars from payload + ctx, render, return.
-    const vars = extractCommentaryVars(event, ctx, templates);
+    // The upstream variable extractor assumes any pausedCall is readable,
+    // even when its router rejected that marker. Give an ordinary start only
+    // its public name and ID in that case so its description still renders.
+    const varsEvent = event.type === 'agentfootprint.stream.tool_start' && key === 'stream.tool_start'
+      && event.payload.notDispatched !== undefined
+      ? { ...event, payload: { toolName: event.payload.toolName, toolCallId: event.payload.toolCallId, args: {} } } : event;
+    const vars = extractCommentaryVars(varsEvent, ctx, templates);
     const line = renderCommentary(template, vars);
     if (event.type === 'agentfootprint.stream.tool_start') {
       const display = protectedToolArguments(event.payload);

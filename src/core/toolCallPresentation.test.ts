@@ -48,6 +48,18 @@ describe('analyst fallback for a tool end', () => {
     expect(humanize(event('tool_end', { toolCallId: 'paused-call' }))).toBe('No entry evidence.');
     expect(end({ toolCallId: 'paused-call', entered: true })).toContain('returned');
   });
+  it('uses the recorded refusal before a conflicting entry stamp, and stays neutral for an unreadable marker', () => {
+    expect(end({ entered: true, notExecuted: true })).toBe('The call was not executed.');
+    expect(teachingHumanizer(event('tool_end', { entered: true, notExecuted: true }))).toMatch(/not executed/);
+    expect(teachingHumanizer(event('tool_end', { entered: true, notDispatched: {} })))
+      .toBe('The record does not say whether the tool ran.');
+  });
+  it('uses the ordinary start and its description when the saved settlement is malformed', () => {
+    const humanize = makeTeachingHumanizer({ getToolDescription: () => 'public lookup' });
+    const fields = { toolCallId: 'c1', toolName: 'lookup', args: {}, notDispatched: { pausedCall: null } };
+    expect(defaultHumanizer(event('tool_start', fields))).toMatch(/Calling tool/);
+    expect(humanize(event('tool_start', fields))).toContain('public lookup');
+  });
 });
 
 describe('display arguments in analyst commentary and step detail', () => {
