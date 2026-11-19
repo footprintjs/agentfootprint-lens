@@ -1,3 +1,5 @@
+import type { ContextAt } from './contextAt.js';
+
 // ─── The record, read by shape ─────────────────────────────────────────────
 
 const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
@@ -145,4 +147,11 @@ export function foldOntology(record: OntologyRecordShape): OntologyFold {
     relations: Object.freeze(relations),
     unheld: Object.freeze(terms.filter((t) => t.held.length === 0).map((t) => t.id)),
   });
+}
+
+/** Read the first ontology declaration at this stop. A missing or malformed declaration yields no map. */
+export function ontologyAt(context: ContextAt): OntologyFold | undefined {
+  const value = context.keys.find(key => key.path === 'ontology')?.value;
+  const record = ontologyRecordOf(value);
+  return record === undefined ? undefined : foldOntology(record);
 }

@@ -268,6 +268,7 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // the lens's own from standing beside them.
     expect(walked).toContain("OntologyView.tsx");
     expect(walked).toContain("ontology.ts");
+    expect(walked).toContain("ontologyLayout.ts");
     // 0.65.0: the Coverage band prints the tool authors' own words — a
     // `what`, a `why`, a `lookedFor` — and the walk is what keeps a sentence
     // of the lens's own from standing beside them.

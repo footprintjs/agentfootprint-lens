@@ -570,6 +570,25 @@ layout (`GEOMETRY`, exported as `ONTOLOGY_GEOMETRY`, the constants they share), 
 shape guard — exported with the component from the root barrel and the
 `/context` door. Pinned by `test/context/ontologyView.test.tsx`.
 
+### Reading the Ontology map without React
+
+`ontologyAt(context)` reads the first `ontology` key at the selected stop.
+A missing or malformed declaration yields `undefined`. A valid declaration
+with empty `nodes` and `sources` retains its ID, version and hash.
+
+```ts
+import { ontologyAt, layoutOntology, type ContextAt } from 'agentfootprint-lens/core';
+
+function chartAt(context: ContextAt) {
+  const map = ontologyAt(context);
+  return map && layoutOntology(map);
+}
+```
+
+Hosts with a raw declaration can pass it to `ontologyRecordOf(value)`, then
+pass the accepted record to `foldOntology(record)`. The fold keeps declared
+relations in order. The layout draws an edge only when both endpoints exist.
+
 ## 0.65.0 — the Coverage band, the answer's boundary read in the lens
 
 **Why.** A tool that returns `coverage(result, {...})` or `absent({...})`

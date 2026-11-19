@@ -341,6 +341,25 @@ export {
   type PlacedEdge as ProofPlacedEdge,
 } from "./context/proofMapLayout.js";
 
+export {
+  ontologyAt,
+  ontologyRecordOf,
+  foldOntology,
+  type OntologyFold,
+  type OntologyRecordShape,
+  type TermShape as OntologyTermShape,
+  type SourceShape as OntologySourceShape,
+  type HeldShape as OntologyHeldShape,
+  type RelationShape as OntologyRelationShape,
+} from "./context/ontology.js";
+export {
+  layoutOntology,
+  GEOMETRY as ONTOLOGY_GEOMETRY,
+  type OntologyLayout,
+  type PlacedNode as OntologyPlacedNode,
+  type PlacedEdge as OntologyPlacedEdge,
+} from "./context/ontologyLayout.js";
+
 // The Served tab's data (0.47.0): the ONE cursor resolved to its epoch, the
 // rebuilt request checked against the receipt with the library's own hashes,
 // what changed since the previous epoch, and the agent's own keys at the stop
