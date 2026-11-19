@@ -69,7 +69,8 @@ data and is not rewritten by Lens.
   alongside the decision at resume, including a later refusal by a rule.
 - **Result placement.** The Reasoning Lens displays a placement badge when
   the call ID and result reference match a recorded entry in `placedTickets`
-  at the selected replay stop.
+  at the selected replay stop. If several recorded calls share that ID and
+  the recording cannot identify which one owns the reference, Lens omits the badge.
 
 The release notes document the four gaps in the published 0.84.0 reader.
 [Lens 0.84.0 changelog](https://github.com/footprintjs/agentfootprint-lens/blob/v0.84.0/CHANGELOG.md#0840---2026-11-19).

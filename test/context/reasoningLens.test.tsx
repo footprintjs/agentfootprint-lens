@@ -393,6 +393,53 @@ describe('foldReasoning — the fold the lens reads', () => {
     expect(fold.answer).toBeUndefined();
   });
 
+  describe('placement belongs to an identifiable call occurrence', () => {
+    const ticket = { placed: true, ref: 'art_later', reason: 'stored', bytes: 90 };
+    const content = JSON.stringify(ticket) + '\nrecorded note';
+    const receipt = [{ toolCallId: 'shared', ref: ticket.ref }, { toolCallId: 'shared', ref: 'another' }];
+    const first = basis('shared', { toolName: 'first', iteration: 1 });
+    const later = basis('shared', { toolName: 'later', iteration: 2 });
+    const result = { role: 'tool', toolCallId: 'shared', toolName: 'later', content };
+    const emitted = (name: string) => ({ role: 'assistant', toolCalls: [{ id: 'shared', name }] });
+
+    it.each(['history', 'batch'])('withholds a later %s result’s badge from the earlier card with its reused ID', source => {
+      const exchange = foldExchange({
+        rows: [first, later, basis('other')],
+        placedTickets: [...receipt, { toolCallId: 'other', ref: ticket.ref }],
+        history: source === 'history' ? [emitted('later'), result] : [],
+        toolResults: [
+          ...(source === 'batch' ? [{ toolCallId: 'shared', toolName: 'later', result: content }] : []),
+          { toolCallId: 'other', result: content },
+        ],
+      });
+      expect(exchange.reasoning.cards[0]!.before).toMatchObject({ toolName: 'first', iteration: 1 });
+      expect(exchange.reasoning.cards[0]!.result).toEqual({ chars: content.length });
+      expect(exchange.beats[1]).toMatchObject({ kind: 'result', content });
+      expect(exchange.beats[1]).not.toHaveProperty('placed');
+      expect(exchange.beats[1]).not.toHaveProperty('followingText');
+      expect(exchange.beats[3]).toMatchObject({ placed: { ref: ticket.ref }, followingText: '\nrecorded note' });
+    });
+
+    it.each([
+      ['reused emitted ID', [emitted('later'), emitted('later'), result], []],
+      ['reused tool-message ID', [result, result], []],
+      ['conflicting emitted name', [emitted('first'), result], []],
+      ['conflicting result name', [{ ...result, toolName: 'first' }], []],
+      ['reused batch ID', [], [{ toolCallId: 'shared', result: content }, { toolCallId: 'shared', result: 'other' }]],
+    ] as const)('withholds the badge when the ledger retained only one basis but the record shows a %s', (_case, history, toolResults) => {
+      const exchange = foldExchange({ rows: [later], placedTickets: receipt, history, toolResults });
+      expect(exchange.reasoning.cards[0]!.result).toEqual({ chars: content.length });
+      expect(exchange.beats[1]).not.toHaveProperty('placed');
+    });
+
+    it('keeps a unique call’s badge when its result appears in history and the batch and the receipt has multiple refs', () => {
+      const exchange = foldExchange({ rows: [later], history: [emitted('later'), result],
+        toolResults: [{ toolCallId: 'shared', toolName: 'later', result: ticket }], placedTickets: receipt });
+      expect(exchange.reasoning.cards[0]!.result).toMatchObject({ placed: { ref: ticket.ref } });
+      expect(exchange.beats[1]).toMatchObject({ kind: 'result', placed: { ref: ticket.ref }, followingText: '\nrecorded note' });
+    });
+  });
+
   it.each([
     ['legacy recording', undefined],
     ['empty receipt', []],

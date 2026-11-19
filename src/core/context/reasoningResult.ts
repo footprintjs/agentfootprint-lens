@@ -7,15 +7,62 @@ export interface PlacedShape {
   readonly kind?: string;
 }
 
-/** The dispatch loop may record more than one ref under a reused tool call id. */
-export function placedRefsByCall(receipt: unknown): ReadonlyMap<string, ReadonlySet<string>> {
+type CallIdentity = { readonly toolCallId: string; readonly toolName?: string };
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * A receipt identifies a call ID and a ref, without an iteration or occurrence.
+ * Keep its refs only while the records that name the ID agree about its owner.
+ */
+export function placedRefsByCall(
+  receipt: unknown,
+  bases: readonly CallIdentity[],
+  history: readonly unknown[] | undefined,
+  toolResults: readonly unknown[] | undefined,
+): ReadonlyMap<string, ReadonlySet<string>> {
   const byCall = new Map<string, Set<string>>();
   if (!Array.isArray(receipt)) return byCall;
   for (const entry of receipt) {
-    if (typeof entry !== 'object' || entry === null || typeof entry.toolCallId !== 'string' || typeof entry.ref !== 'string') continue;
+    if (!isRecord(entry) || typeof entry.toolCallId !== 'string' || typeof entry.ref !== 'string') continue;
     const refs = byCall.get(entry.toolCallId);
     if (refs) refs.add(entry.ref);
     else byCall.set(entry.toolCallId, new Set([entry.ref]));
+  }
+  if (!byCall.size) return byCall;
+
+  const names = new Map<string, string>();
+  function observe(seen: Set<string>, id: unknown, name: unknown): void {
+    if (typeof id !== 'string' || !byCall.has(id)) return;
+    if (seen.has(id) || (typeof name === 'string' && names.has(id) && names.get(id) !== name)) {
+      byCall.delete(id);
+      return;
+    }
+    seen.add(id);
+    if (typeof name === 'string') names.set(id, name);
+  }
+
+  // A single call can appear once in each of these sources. Repetition within
+  // one source is ambiguous, even when two calls used the same tool name.
+  const basisIds = new Set<string>();
+  for (const { toolCallId, toolName } of bases) observe(basisIds, toolCallId, toolName);
+  const emissions = new Set<string>();
+  const messages = new Set<string>();
+  for (const message of history ?? []) {
+    if (!isRecord(message)) continue;
+    if (message.role === 'tool') {
+      observe(messages, message.toolCallId, message.toolName);
+    } else if (message.role === 'assistant' && Array.isArray(message.toolCalls)) {
+      for (const call of message.toolCalls) {
+        if (isRecord(call)) observe(emissions, call.id, call.name);
+      }
+    }
+  }
+  const batch = new Set<string>();
+  for (const result of toolResults ?? []) {
+    if (isRecord(result)) observe(batch, result.toolCallId, result.toolName);
   }
   return byCall;
 }

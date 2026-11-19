@@ -276,7 +276,11 @@ export interface ReasoningInput {
 export function foldReasoning(input: ReasoningInput): ReasoningFold {
   const findings = foldFindings(input.rows, input.toolResults);
   const results = resultsById(input.history, input.toolResults);
-  const placedRefs = placedRefsByCall(input.placedTickets);
+  const bases = input.rows.flatMap(row => {
+    const before = basisOf(row);
+    return before === undefined ? [] : [before];
+  });
+  const placedRefs = placedRefsByCall(input.placedTickets, bases, input.history, input.toolResults);
   const collapsed = collapsedById(input.asSent);
   const witnessed = new Map<string, string[]>();
   for (const c of findings.conflicts) {
@@ -288,9 +292,8 @@ export function foldReasoning(input: ReasoningInput): ReasoningFold {
   }
   const seen = new Set<string>();
   const cards: ReasoningCard[] = [];
-  for (const row of input.rows) {
-    const before = basisOf(row);
-    if (before === undefined || seen.has(before.toolCallId)) continue;
+  for (const before of bases) {
+    if (seen.has(before.toolCallId)) continue;
     seen.add(before.toolCallId);
     const id = before.toolCallId;
     const after = findings.standings.get(id);
