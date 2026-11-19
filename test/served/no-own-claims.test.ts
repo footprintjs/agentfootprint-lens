@@ -267,6 +267,7 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // sentences, relation words — and the walk is what keeps a sentence of
     // the lens's own from standing beside them.
     expect(walked).toContain("OntologyView.tsx");
+    expect(walked).toContain("ontology.ts");
     // 0.65.0: the Coverage band prints the tool authors' own words — a
     // `what`, a `why`, a `lookedFor` — and the walk is what keeps a sentence
     // of the lens's own from standing beside them.
@@ -275,6 +276,8 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // and keys off the record — and the walk is what keeps a sentence of the
     // lens's own ("the answer rests on…") from standing beside them.
     expect(walked).toContain("ProofMap.tsx");
+    expect(walked).toContain("proofMap.ts");
+    expect(walked).toContain("proofMapLayout.ts");
     // 0.67.0: the story-marks fold emits the chips the player prints — the
     // model's own words and the record's words — and the walk is what keeps
     // a sentence of the lens's own off the story.

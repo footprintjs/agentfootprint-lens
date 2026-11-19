@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Custom views can draw the same Proof Map as the built-in view using
+  `proofMapAt`, `foldProofMap` and `layoutProofMap` from `agentfootprint-lens/core`.
 - Custom views can read Reasoning cards and the recorded exchange from
   `reasoningAt` in `agentfootprint-lens/core`. The Reasoning lens now prepares
   the exchange when you first open it at a replay stop.

@@ -795,6 +795,28 @@ the constants — exported with the component from the root barrel and the
 Pinned by `test/context/proofMap.test.tsx` on the `proof-map` fixture
 (generated alone on agentfootprint 9.110.0).
 
+### Reading the Proof Map without React
+
+Use `proofMapAt` with the Context reading for the selected stop. It uses the
+first recorded value of each key and returns `undefined` when `findingsLedger`
+is missing or is not an array. If the ledger is an empty array, the map still
+includes any recorded tool results at that stop. Repeated tool call IDs share
+one call node, as in the built-in map. Each pair of recorded conflict witnesses
+gets its own overlay edge when both endpoints are present.
+
+```ts
+import { proofMapAt, layoutProofMap, type ContextAt } from 'agentfootprint-lens/core';
+
+function diagramAt(context: ContextAt) {
+  const proof = proofMapAt(context);
+  return proof && layoutProofMap(proof);
+}
+```
+
+Hosts that already have the ledger rows can pass them and the optional
+recorded history, tool results, ontology and unsupported values directly to
+`foldProofMap(input)` from the same entry point.
+
 ## 0.67.0 — the story's marks, the beats joined to the ledger
 
 **Why.** The Story Lens — the AgentThinkingUI player, `prompt → ask → return

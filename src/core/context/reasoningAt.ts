@@ -2,7 +2,10 @@ import type { ContextAt } from './contextAt.js';
 import { prepareReasoning, type ReasoningFold } from './reasoning.js';
 import { exchangeFor, type ExchangeFold } from './reasoningExchange.js';
 
-/** The cards and exchange share the results and placement receipts from one recorded stop. */
+/**
+ * The cards and exchange share the results and placement receipts from one recorded stop.
+ * The exchange belongs to this reading, so create a new reading when the cursor or recording changes.
+ */
 export interface ReasoningAt {
   readonly coverage?: readonly unknown[];
   readonly reasoning?: ReasoningFold;
