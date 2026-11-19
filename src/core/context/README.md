@@ -115,6 +115,16 @@ the standing the same fold holds for it now — so a retired witness reads
 `ruled-out` on the row and sits in the ruled-out group, and nothing on the
 band says whether the conflict still holds.
 
+Custom views can read the same groups from a Context projection at the selected stop.
+`ledger` is absent until the recording carries a findings ledger.
+
+```ts
+import { foldFindings } from 'agentfootprint-lens/core';
+
+const { ledger } = context; // The result of projectContext at this stop.
+const findings = ledger && foldFindings(ledger.rows, ledger.toolResults);
+```
+
 `<ContextView>` mounts the band (`FindingsLayer`) under the key table ONLY
 when the fold at the cursor holds `findingsLedger`; the rows and the batch
 (`toolResults`) are read off the one `contextAt(...).keys`, so the band stands

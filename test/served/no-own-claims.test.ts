@@ -257,6 +257,7 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // `settles`) beside ids and values — the walk is what keeps a lens
     // sentence from joining them.
     expect(walked).toContain("FindingsBand.tsx");
+    expect(walked).toContain("findings.ts");
     // 0.62.0: the Reasoning lens quotes the model's words per call — the
     // walk is what keeps a lens sentence from standing beside them.
     expect(walked).toContain("ReasoningLens.tsx");
