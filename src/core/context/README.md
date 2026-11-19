@@ -430,6 +430,34 @@ disclosure; the result beat reuses `reasoning-collapsed`, `reasoning-after`,
 `llmLatestContent`, `llmLatestToolCalls`. Pinned by
 `test/context/reasoningLens.test.tsx`.
 
+### Reading Reasoning without React
+
+Pass the Context reading for the selected stop to `reasoningAt`. Cards and
+coverage are available immediately. Calling `exchange()` builds the transcript
+on first use and returns the same result on subsequent calls to that projection.
+Create a new projection when the cursor or the recording changes.
+
+```ts
+import { reasoningAt, type ContextAt } from 'agentfootprint-lens/core';
+
+function viewsAtStop(context: ContextAt) {
+  const view = reasoningAt(context);
+  return {
+    cards: view.reasoning?.cards,
+    coverage: view.coverage,
+    openExchange: () => view.exchange?.()?.beats,
+  };
+}
+```
+
+Cards and exchange are available when the stop contains a findings ledger.
+A stop that carries only coverage supplies those declarations. A repeated
+`toolCallId` has one card and one current standing. A placement badge requires
+a matching, unambiguous placement receipt in the recording.
+
+For callers that already hold the ledger and history as a `ReasoningInput`,
+`foldReasoning` and `foldExchange` are also available from `agentfootprint-lens/core`.
+
 ## 0.64.0 — the Ontology view, the declared map drawn from the record
 
 **Why.** An agent built with `.ontology(defineOntology({...}))`

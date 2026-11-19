@@ -9,6 +9,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Custom views can read Reasoning cards and the recorded exchange from
+  `reasoningAt` in `agentfootprint-lens/core`. The Reasoning lens now prepares
+  the exchange when you first open it at a replay stop.
 - Custom views can use `foldFindings` from `agentfootprint-lens/core` to read the
   same findings, conflicts and undeclared results as the Findings band at a replay stop.
 - Use `projectContext` and `ContextProjection` from `agentfootprint-lens/core` or

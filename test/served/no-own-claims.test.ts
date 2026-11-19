@@ -261,6 +261,8 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // 0.62.0: the Reasoning lens quotes the model's words per call — the
     // walk is what keeps a lens sentence from standing beside them.
     expect(walked).toContain("ReasoningLens.tsx");
+    expect(walked).toContain("reasoning.ts");
+    expect(walked).toContain("reasoningExchange.ts");
     // 0.64.0: the Ontology view prints the author's map — meanings, coverage
     // sentences, relation words — and the walk is what keeps a sentence of
     // the lens's own from standing beside them.
