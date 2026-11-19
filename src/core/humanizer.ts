@@ -13,6 +13,7 @@
  */
 
 import type { AgentfootprintEvent } from 'agentfootprint/events';
+import { humanizeToolCall } from './humanizeToolCall.js';
 import {
   defaultCommentaryTemplates,
   extractCommentaryVars,
@@ -140,7 +141,7 @@ export const defaultHumanizer: Humanizer = (event) => {
     case 'agentfootprint.stream.llm_end':
       return `Model replied in ${event.payload.durationMs}ms (${event.payload.usage.input}+${event.payload.usage.output} tokens, ${event.payload.toolCallCount} tool calls, stop: ${event.payload.stopReason}).`;
     case 'agentfootprint.stream.tool_start':
-      return `Calling tool "${event.payload.toolName}" with ${JSON.stringify(event.payload.args)}.`;
+      return humanizeToolCall(event.payload);
     // One report from INSIDE a still-running tool call (agentfootprint
     // 9.52.0). It arrives between this call's tool_start and its tool_end, so
     // the stream reads as the call speaking mid-flight. See humanizeToolProgress

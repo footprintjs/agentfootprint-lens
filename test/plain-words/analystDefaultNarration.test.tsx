@@ -2,11 +2,26 @@
 import React from 'react';
 import { describe, expect, it } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { makeTeachingHumanizer } from '../../src/core/humanizer.js';
+import { observeRecording } from '../../src/core/observeRecording.js';
+import { defaultHumanizer, makeTeachingHumanizer } from '../../src/core/humanizer.js';
 import { Lens } from '../../src/react/index.js';
 import { load } from '../served/helpers.js';
 
 describe('<Lens view="analyst"> real default narration wiring', () => {
+  it('preserves the protected proposal when the analyst uses argument-bearing commentary', () => {
+    const { recording } = load('flat-dynamic-tools');
+    const events = recording.events!.map(event => event.type === 'agentfootprint.stream.tool_start'
+      ? { ...event, payload: { ...event.payload, args: { key: 'PRIVATE-MARKER' },
+        shownArgs: { key: 'REDACTED', region: 'west' }, hiddenArgs: ['key'] } }
+      : event);
+    const { recorder } = observeRecording({ ...recording, events });
+    const { container, rerender } = render(<Lens recorder={recorder} view="analyst" />);
+    expect(container.textContent).not.toContain('PRIVATE-MARKER');
+    rerender(<Lens recorder={recorder} view="analyst" humanizer={defaultHumanizer} />);
+    expect(container.textContent).toContain('{"key":"REDACTED","region":"west"}');
+    expect(container.textContent).not.toContain('PRIVATE-MARKER');
+  });
+
   it('renders installed teaching-humanizer lines for configuration, integrity, LLM and tool events', () => {
     const fixture = load('flat-dynamic-tools');
     const humanize = makeTeachingHumanizer({

@@ -22,13 +22,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Context and Flow can open large recordings that include detailed recorder
   events. Lazy subflow loading reuses the validated root recording and
   preserves the replay cursor as child data arrives.
+- Built-in tool-call commentary uses the recorded display proposal when arguments
+  are protected. If that proposal is missing or unreadable, commentary names
+  only the tool. Older recordings keep their existing argument formatting.
 
 ### Known gaps on the 15 line
 
 - The analyst fallback can say a tool returned when the recording leaves
   tool execution unknown.
-- The analyst views still display the recorded `args` field. The protected
-  proposal in `shownArgs` and `hiddenArgs` is not shown there.
 - The Trust Boundary view omits the person's approval and resume phase from
   middleware decisions.
 - The Reasoning Lens placement badge recognizes ticket-shaped results. It
