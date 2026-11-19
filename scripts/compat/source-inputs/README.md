@@ -33,5 +33,5 @@ only its thirteen-member dependency-security format; it does not invent an
 AF candidate protocol or committed UI lock. The generated audit lock stays
 inert. The source-mode projection still changes only three development locators;
 the renderer original is consumed only by the separate packed matrix. Source
-development uses renderer 2.2.0 and the packed matrix also exercises the 1.0.1 native-source API; the
+development uses renderer 2.1.0 and the packed matrix also exercises the 1.0.1 native-source API; the
 original historical replay fixtures remain unchanged.
