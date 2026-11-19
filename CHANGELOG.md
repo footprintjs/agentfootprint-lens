@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Use Explainable UI 2.2.0 for development and add it to the packed React 18 and 19 compatibility checks.
+
 ### Fixed
 
 - Analyst narration uses the recorded tool-entry or refusal evidence. When an
