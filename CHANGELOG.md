@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.84.2] - 2026-11-19
+
 ### Fixed
 
 - Analyst narration uses the recorded tool-entry or refusal evidence. When an
@@ -18,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   decision when the call resumes.
 - The Reasoning Lens shows a placement badge only for a call and artifact
   reference listed together in the run's placement receipt.
+- Show the ordinary lazy-source error when a recording lacks a snapshot. Malformed descriptors keep their own diagnostic.
 
 ## [0.84.1] - 2026-11-19
 
