@@ -193,6 +193,7 @@ describe('teachingHumanizer — T7: stream.tool_end', () => {
         toolCallId: 'c1',
         result: '72°F sunny',
         durationMs: 30,
+        entered: true,
       }),
     );
     expect(out).toMatch(/tool returned its result/);

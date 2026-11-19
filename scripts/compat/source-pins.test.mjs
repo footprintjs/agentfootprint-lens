@@ -3,7 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { authoredDevPins, lazyRenderer, rendererPeerRange } from './contract.mjs';
+import { authoredDevPins, rendererPeerRange } from './contract.mjs';
 
 const root = new URL('../../', import.meta.url);
 const manifest = () => JSON.parse(readFileSync(new URL('package.json', root), 'utf8'));
@@ -21,9 +21,9 @@ test('the authored manifest passes the same exact-pin guard before dependency in
   assert.match(output, /lock and compatibility checks remain separate/);
 });
 
-test('development includes the published native-source API while public peers retain the full matrix range', () => {
+test('development selects published Explainable UI 2.1 while public peers retain the full matrix range', () => {
   const input = manifest();
-  assert.equal(input.devDependencies['footprint-explainable-ui'], lazyRenderer.version);
+  assert.equal(input.devDependencies['footprint-explainable-ui'], '2.1.0');
   assert.equal(input.peerDependencies['footprint-explainable-ui'], rendererPeerRange);
 });
 

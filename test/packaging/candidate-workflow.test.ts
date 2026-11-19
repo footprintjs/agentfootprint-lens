@@ -9,7 +9,7 @@ const workflow = read('.github/workflows/ci.yml');
 const manifest = committedJson<Manifest>('package.json');
 const lock = committedJson<Lock>('package-lock.json');
 
-describe('source-selected native compatibility workflow', () => {
+describe('published cohort compatibility workflow', () => {
   it('pins every hosted CI job to the reviewed Ubuntu image', () => {
     const runners = workflow.match(/^[ \t]*runs-on:.*$/gm) ?? [];
     expect(runners.map((line) => line.trim())).toEqual([
@@ -18,8 +18,8 @@ describe('source-selected native compatibility workflow', () => {
     ]);
   });
 
-  it('keeps stale lock refusal explicit while retaining renderer/React/Node coverage', () => {
-    expect(cohortMismatches(manifest, lock)).not.toEqual([]); // Preparation lock is explicitly unaccepted.
+  it('locks the development cohort and retains renderer/React/Node coverage', () => {
+    expect(cohortMismatches(manifest, lock, [...COHORT, 'footprint-explainable-ui'])).toEqual([]);
     const flows = JSON.parse(workflow.match(/flow: (\[[^\n]+\])/u)![1]!) as string[];
     expect(flows).toEqual(['0.34.0', '0.38.0', 'candidate', '1.0.1', '2.0.0']);
     expect(workflow).toContain('react: ["18", "19"]');
@@ -28,32 +28,34 @@ describe('source-selected native compatibility workflow', () => {
     expect(workflow).not.toMatch(/agentfootprint-(?:11|12|13):|extracted-peers:|--kind (?:floor|modern)/);
   });
 
-  it('uses explicit reviewed native inputs while keeping ordinary registry proof closed', () => {
-    expect(workflow).toContain('source-inputs.mjs fetch');
+  it('reads only the renderer original from hosted candidate inputs', () => {
+    expect(workflow).toContain('source-inputs.mjs fetch-renderer');
     expect(workflow).toContain('GH_TOKEN: ${{ github.token }}');
-    expect(workflow).toContain('--mode target');
+    expect(workflow).not.toMatch(/source-inputs\.mjs fetch\s|--mode target|--source-inputs compat-artifacts/);
     expect(workflow).not.toMatch(/npm (?:publish|version)|workflow_dispatch|--legacy-peer-deps|--force/);
     const registry = read('scripts/compat/contract.mjs');
     expect(registry).toContain('canonical registry archive URL required');
     expect(registry).toContain('source lock root pin');
     expect(registry).not.toContain('source-inputs');
-    const native = read('scripts/compat/source-inputs/materialize.mjs');
-    expect(native).toContain("'--package-lock-only', '--strict-peer-deps', '--ignore-scripts'");
-    expect(native).toContain("['ci', '--strict-peer-deps'");
-    expect(native).toContain('committedLockAccepted: false');
   });
 
-  it('does not turn a stale portable lock into an accepted registry input', () => {
-    for (const name of COHORT) {
+  it('runs both hosted source gates on the committed stable registry lock', () => {
+    for (const name of [...COHORT, 'footprint-explainable-ui']) {
       const entry = lock.packages?.[`node_modules/${name}`];
-      expect(entry?.resolved).toMatch(/^https:\/\//);
+      expect(entry?.version).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(entry?.resolved).toBe(`https://registry.npmjs.org/${name}/-/${name}-${entry?.version}.tgz`);
       expect(entry?.integrity).toMatch(/^sha512-/);
     }
     expect(JSON.stringify(lock)).not.toContain('file:');
-    expect(workflow).not.toContain('run: npm ci --strict-peer-deps');
-    expect(workflow).toContain('source-inputs.mjs gates');
-    expect(read('scripts/compat/source-inputs/gates.mjs')).toContain("['contract', ['run', 'test:contract:foottrace']]");
-    expect(read('scripts/compat/source-inputs/gates.mjs')).toContain("['unit', ['test']]");
+    const node22 = workflow.split('  test:')[1]!.split('  test-24:')[0]!;
+    const node24 = workflow.split('  test-24:')[1]!.split('  published-commentary-control:')[0]!;
+    for (const job of [node22, node24]) {
+      expect(job).toMatch(/run: npm ci --strict-peer-deps[\s\S]+run: npm run test:contract:foottrace[\s\S]+run: npm run build[\s\S]+run: npm test\b/);
+      expect(job).toContain('published-proof.mjs --out "$RUNNER_TEMP/published-evidence" --lock package-lock.json');
+    }
+    expect(node22).toContain('npm pack --ignore-scripts --pack-destination compat-artifacts');
+    expect(node24).not.toContain('npm pack');
+    expect(node24).toContain('assert.deepEqual(archive.files, publishedSourceFiles(process.cwd()))');
   });
 
   it('bootstraps the published commentary CONTROL independently of unavailable target AF15', () => {
@@ -62,8 +64,9 @@ describe('source-selected native compatibility workflow', () => {
     expect(published).toContain('source-inputs.mjs gates');
     expect(published).not.toMatch(/source-inputs.mjs fetch|--inputs |--kind native|source-inputs.mjs pack/);
     const control = read('scripts/compat/commentary-control.mjs');
-    expect(control).toContain("agentfootprint: '14.7.2', footprintjs: '12.3.0', foottrace: '1.11.1'");
-    expect(control).toContain("assertSingleFoottrace(resolve('node_modules'), '1.11.1')");
+    const controlBootstrap = read('scripts/compat/source-inputs/materialize.mjs');
+    expect(controlBootstrap).toMatch(/agentfootprint: '14\.7\.2',[\s\S]+footprintjs: '12\.3\.0',[\s\S]+foottrace: '1\.11\.1',[\s\S]+'footprint-explainable-ui': lazyRenderer\.version/);
+    expect(control).toContain("assertSingleFoottrace(resolve('node_modules'), commentaryControl.foottrace)");
     expect(read('scripts/compat/source-inputs/gates.mjs')).toContain("['unit', ['test']]");
     expect(workflow).not.toMatch(/--package-lock=false|LENS_COMMENTARY_AGENT_VERSION/);
   });
@@ -71,7 +74,7 @@ describe('source-selected native compatibility workflow', () => {
   it('uses the same selected cohort in the archive, isolated consumer and native probe', () => {
     const runner = read('scripts/compat/run-lane.mjs');
     const probe = read('scripts/check-native-recording.mjs');
-    expect(workflow).toContain('--source-inputs compat-artifacts');
+    expect(workflow).toContain('--published-evidence "$RUNNER_TEMP/published-evidence"');
     expect(workflow).toContain('--install-browser yes');
     expect(runner).toContain('assert.deepEqual(contract.cohort, cohort');
     expect(runner).toContain('assertPublishedReceipt(contract.agentSource, readFileSync(agent.path), agentIdentity)');

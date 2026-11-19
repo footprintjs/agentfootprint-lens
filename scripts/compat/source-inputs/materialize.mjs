@@ -1,12 +1,19 @@
 import assert from 'node:assert/strict';
 import { lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { assertEvidenceOutsideRepository, assertSingleFoottrace, sha256 } from '../contract.mjs';
+import { assertEvidenceOutsideRepository, assertSingleFoottrace, lazyRenderer, sha256 } from '../contract.mjs';
 import { command, writeJson } from '../process.mjs';
 import { inspectInputs, readJson } from './archives.mjs';
 import { names } from './admission.mjs';
 import { projectManifest, assertProjection } from './projection.mjs';
 import { verifyNativeInstalled, verifyNativeLock } from './installed.mjs';
+
+export const commentaryControl = Object.freeze({
+  agentfootprint: '14.7.2',
+  footprintjs: '12.3.0',
+  foottrace: '1.11.1',
+  'footprint-explainable-ui': lazyRenderer.version,
+});
 
 export function trackedSource(root) {
   const paths = command('git', ['ls-files', '-z'], { cwd: root }).split('\0').filter(Boolean);
@@ -35,9 +42,8 @@ export function bootstrap({ source, target, evidence, inputs, mode }) {
   const authored = JSON.parse(authoredRaw);
   const admitted = mode === 'target' ? inspectInputs(resolve(inputs)) : null;
   const paths = admitted && Object.fromEntries(names.map(n => [n, admitted.archives[n].path]));
-  const control = { agentfootprint: '14.7.2', footprintjs: '12.3.0', foottrace: '1.11.1' };
   const projected = admitted ? projectManifest(authored, paths) : structuredClone(authored);
-  if (!admitted) Object.assign(projected.devDependencies, control);
+  if (!admitted) Object.assign(projected.devDependencies, commentaryControl);
   mkdirSync(evidence);
   command('git', ['clone', '--shared', '--no-checkout', source, target], { log: join(evidence, 'source-copy.log') });
   const commit = command('git', ['rev-parse', 'HEAD'], { cwd: source }).trim();
@@ -48,8 +54,7 @@ export function bootstrap({ source, target, evidence, inputs, mode }) {
   writeJson(join(evidence, 'projected-manifest.json'), projected);
   writeJson(join(evidence, 'source-inventory.json'), original);
   writeFileSync(join(target, 'package.json'), JSON.stringify(projected, null, 2) + '\n');
-  // The known stale committed lock is not a native replay input. Resolve a real
-  // strict temporary lock from the admitted originals, then replay it fresh.
+  // This projection changes the cohort. Resolve and replay a separate strict lock.
   rmSync(join(target, 'package-lock.json'));
   command('npm', ['install', '--package-lock-only', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
     { cwd: target, log: join(evidence, 'resolve.log'), timeout: 300_000 });
@@ -71,9 +76,9 @@ export function bootstrap({ source, target, evidence, inputs, mode }) {
       verifyNativeLock(target, projected, fresh);
       return verifyNativeInstalled(target, fresh);
     }
-    for (const [name, version] of Object.entries(control))
+    for (const [name, version] of Object.entries(commentaryControl))
       assert.equal(readJson(join(target, 'node_modules', name, 'package.json')).version, version);
-    return assertSingleFoottrace(join(target, 'node_modules'), control.foottrace);
+    return assertSingleFoottrace(join(target, 'node_modules'), commentaryControl.foottrace);
   };
   writeJson(join(evidence, 'installed-before.json'), proof());
   writeJson(join(evidence, 'bootstrap.json'), { mode, source, target, evidence, commit,
@@ -96,9 +101,9 @@ export function verifyBootstrap(evidence) {
     verifyNativeLock(data.target, data.projected, input);
     return verifyNativeInstalled(data.target, input);
   }
-  for (const [name, version] of Object.entries({ agentfootprint: '14.7.2', footprintjs: '12.3.0', foottrace: '1.11.1' }))
+  for (const [name, version] of Object.entries(commentaryControl))
     assert.equal(readJson(join(data.target, 'node_modules', name, 'package.json')).version, version);
-  return assertSingleFoottrace(join(data.target, 'node_modules'), '1.11.1');
+  return assertSingleFoottrace(join(data.target, 'node_modules'), commentaryControl.foottrace);
 }
 
 export function restoreManifest(evidence) {
