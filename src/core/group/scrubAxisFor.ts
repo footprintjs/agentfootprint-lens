@@ -33,7 +33,8 @@
 import { milestoneFor } from 'agentfootprint';
 import type { LensRecorder } from '../LensRecorder.js';
 import { buildGroups } from './buildGroups.js';
-import { buildCommitSyncMap } from './buildCommitSyncMap.js';
+import { commitSyncMapFrom } from './buildCommitSyncMap.js';
+import { commitsOfSnapshot } from '../utils/snapshotOfRunner.js';
 import { commitAxisPositions, cursorPositionsAtDrill, type CursorPosition } from './cursorPositionsAtDrill.js';
 
 /** Which projection of the run the scrub axis stops at. */
@@ -54,9 +55,23 @@ export function scrubAxisFor(
   granularity: 'step' | 'group',
   drillPath: readonly string[] = [],
 ): readonly CursorPosition[] {
+  return buildAxis(recorder, granularity, drillPath, () => recorder.getCommitLog());
+}
+
+/** Keep the grouped positions and the rendered fold on one captured snapshot. */
+export function groupedAxisForSnapshot(recorder: LensRecorder, snapshot: unknown): readonly CursorPosition[] {
+  return buildAxis(recorder, 'group', [], () => commitsOfSnapshot(snapshot));
+}
+
+function buildAxis(
+  recorder: LensRecorder,
+  granularity: 'step' | 'group',
+  drillPath: readonly string[],
+  readLog: () => ReturnType<LensRecorder['getCommitLog']>,
+): readonly CursorPosition[] {
   try {
     const groups = buildGroups(recorder.boundary.boundaryIndex);
-    const commits = buildCommitSyncMap(recorder);
+    const commits = commitSyncMapFrom(readLog(), groups);
     const overlay = recorder.runtime.getOverlay();
     if (granularity === 'step') {
       const commitAxis = commitAxisPositions(groups, commits, drillPath, overlay.executionOrder);

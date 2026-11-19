@@ -20,6 +20,7 @@
  */
 
 export * from "./types.js";
+export { createLensRenderStore, type LensRenderStoreOptions } from "./stores/lensRenderStore.js";
 export { readTrustBoundaries } from './trustBoundaries/index.js';
 export type { TrustBoundariesRead, TrustBoundaryCapture, TrustBoundaryCounters, TrustBoundaryFact, TrustSourcePosition } from './trustBoundaries/index.js';
 export { readSourcePosition, resolveSourcePrefix } from './cursor/sourcePrefix.js';
@@ -291,11 +292,85 @@ export * from "./hitl/index.js";
 // See src/core/context/README.md.
 export {
   contextAt,
+  projectContext,
+  type ContextProjection,
   type ContextAt,
   type ContextAtOptions,
   type ContextKey,
   type ContextServed,
 } from "./context/contextAt.js";
+export { foldFindings, type FindingsFold } from "./context/findings.js";
+export { reasoningAt, type ReasoningAt } from "./context/reasoningAt.js";
+export {
+  foldReasoning,
+  type ReasoningInput,
+  type ReasoningFold,
+  type ReasoningCard,
+  type AnswerCard as ReasoningAnswerCard,
+  type CollapsedShape as ReasoningCollapsedShape,
+} from "./context/reasoning.js";
+export {
+  foldExchange,
+  type ExchangeFold,
+  type ExchangeBeat,
+  type CallBeat as ReasoningCallBeat,
+  type ResultBeat as ReasoningResultBeat,
+  type ServedBeat as ReasoningServedBeat,
+  type AnswerBeat as ReasoningAnswerBeat,
+  type EmittedCallShape as ReasoningEmittedCallShape,
+} from "./context/reasoningExchange.js";
+
+export {
+  proofMapAt,
+  foldProofMap,
+  type ProofMapInput,
+  type ProofFold,
+  type ProofCall,
+  type ProofAnswer,
+  type ProofSource,
+  type ContingentShape as ProofContingentShape,
+  type CarrierShape as ProofCarrierShape,
+} from "./context/proofMap.js";
+export {
+  layoutProofMap,
+  GEOMETRY as PROOF_MAP_GEOMETRY,
+  type ProofLayout,
+  type ProofNodeKind,
+  type ProofEdgeKind,
+  type PlacedNode as ProofPlacedNode,
+  type PlacedEdge as ProofPlacedEdge,
+} from "./context/proofMapLayout.js";
+
+export {
+  ontologyAt,
+  ontologyRecordOf,
+  foldOntology,
+  type OntologyFold,
+  type OntologyRecordShape,
+  type TermShape as OntologyTermShape,
+  type SourceShape as OntologySourceShape,
+  type HeldShape as OntologyHeldShape,
+  type RelationShape as OntologyRelationShape,
+} from "./context/ontology.js";
+export {
+  layoutOntology,
+  GEOMETRY as ONTOLOGY_GEOMETRY,
+  type OntologyLayout,
+  type PlacedNode as OntologyPlacedNode,
+  type PlacedEdge as OntologyPlacedEdge,
+} from "./context/ontologyLayout.js";
+export {
+  storyMarks,
+  LABELS as STORY_MARK_LABELS,
+  CLIP as STORY_MARK_CLIP,
+  type StoryMark,
+  type StoryMarks,
+  type StoryTone,
+  type StoryRecord,
+  type StoryTraceShape,
+  type StoryBeatShape,
+  type StoryKeyShape,
+} from "./context/storyMarks.js";
 
 // The Served tab's data (0.47.0): the ONE cursor resolved to its epoch, the
 // rebuilt request checked against the receipt with the library's own hashes,

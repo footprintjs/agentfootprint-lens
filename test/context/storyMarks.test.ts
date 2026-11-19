@@ -24,8 +24,9 @@ import { describe, expect, it } from 'vitest';
 
 import { contextAt } from '../../src/core/context/contextAt.js';
 import { CLIP, LABELS, storyMarks, type StoryMark, type StoryTraceShape } from '../../src/react/components/storyMarks.js';
-import { STORY_MARK_LABELS } from '../../src/context/index.js';
-import { STORY_MARK_LABELS as ROOT_STORY_MARK_LABELS } from '../../src/react/index.js';
+import { storyMarks as coreStoryMarks, STORY_MARK_LABELS as CORE_STORY_MARK_LABELS } from '../../src/core/index.js';
+import { storyMarks as contextStoryMarks, STORY_MARK_LABELS } from '../../src/context/index.js';
+import { storyMarks as rootStoryMarks, STORY_MARK_LABELS as ROOT_STORY_MARK_LABELS } from '../../src/index.js';
 import { FIXTURES, load, stopsOf } from '../served/helpers.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -208,7 +209,11 @@ describe('storyMarks on hand-built traces and records', () => {
     expect(Object.isFrozen(a[1]![0])).toBe(true);
   });
 
-  it('the label set is exactly STORY_MARK_LABELS, on both barrels', () => {
+  it('the root, context, core and legacy component module share the same fold and labels', () => {
+    expect(rootStoryMarks).toBe(storyMarks);
+    expect(contextStoryMarks).toBe(storyMarks);
+    expect(coreStoryMarks).toBe(storyMarks);
+    expect(CORE_STORY_MARK_LABELS).toBe(LABELS);
     expect(STORY_MARK_LABELS).toBe(LABELS);
     expect(ROOT_STORY_MARK_LABELS).toBe(LABELS);
     expect(Object.values(LABELS)).toEqual([

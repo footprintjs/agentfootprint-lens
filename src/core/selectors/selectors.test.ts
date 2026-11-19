@@ -49,13 +49,14 @@ function mkLogEntry(
   type: string,
   payload: Record<string, unknown>,
   runOffsetMs = 0,
+  runtimeStageId?: string,
 ): EventLogEntry {
   return {
     seq,
     wallClockMs: 1000 + runOffsetMs,
     runOffsetMs,
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    event: { type, payload, meta: {} } as any,
+    event: { type, payload, meta: { runtimeStageId } } as any,
   };
 }
 
@@ -256,6 +257,25 @@ describe("selectFocusDetail — pattern 5: LLM step", () => {
 // ─── Pattern 6: selectFocusDetail — tool step ─────────────────────────
 
 describe("selectFocusDetail — pattern 6: tool step", () => {
+  it.each(["step-tool-start-stage#1-c1", "legacy-step"])(
+    "withholds arguments when two tool names claim the same stage and call ID (%s)",
+    id => {
+      const raw = { request: "execution-only" };
+      const step = mkStep({ id, kind: "llm->tool", runtimeStageId: "stage#1", toolName: "second", startOffsetMs: 20 });
+      const start = "agentfootprint.stream.tool_start";
+      const first = { toolName: "first", toolCallId: "c1", args: raw, hiddenArgs: ["request"] };
+      const second = { toolName: "second", toolCallId: "c1", args: raw };
+      const laterStart = mkLogEntry(1, start, second, 20, "stage#1");
+      const log = [mkLogEntry(0, start, first, 10, "stage#1"), laterStart];
+
+      expect(selectFocusDetail(step, log)).toEqual({ stepId: id, kind: "llm->tool" });
+      // Reuse in a separate, recorded stage does not make this call ambiguous.
+      expect(selectFocusDetail(step, [mkLogEntry(0, start, first, 10, "stage#2"), laterStart])?.toolArgs)
+        .toEqual(raw);
+      expect(selectFocusDetail({ ...step, toolName: "missing" }, [laterStart])?.toolArgs).toBeUndefined();
+    },
+  );
+
   it("pulls args + result from the event log", () => {
     const step = mkStep({
       id: "tool-1",

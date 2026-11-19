@@ -1,14 +1,17 @@
 import React, { useMemo, useState } from 'react';
 import {
   readTrustBoundaries,
+  type TrustBoundariesRead,
   type TrustBoundaryFact,
   type TrustBoundaryCapture,
 } from '../core/trustBoundaries/index.js';
+import { prepareTrustBoundaries } from '../core/trustBoundaries/read.js';
 import type { SharedCursor } from './useSharedCursor.js';
 import type { SourcePrefixResolution, SourcePrefixState } from '../core/cursor/sourcePrefix.js';
 import { T } from './theme/index.js';
 import type { LensRecordingSource } from './recordingSource/types.js';
 import { useSourcePrefixNavigation } from './recordingSource/useSourcePrefixNavigation.js';
+import { approvedResumptions } from '../core/trustBoundaries/approvedResumptions.js';
 
 /** Presentation copy belongs here, not in the headless coordinate resolver. */
 export function sourcePrefixMessage(
@@ -57,11 +60,31 @@ export interface TrustBoundaryViewProps {
   readonly recordingSource?: LensRecordingSource;
 }
 
-function describe(fact: TrustBoundaryFact): { title: string; detail: string } {
+type Decision = Extract<TrustBoundaryFact, { eventType: 'agentfootprint.middleware.decision' | 'agentfootprint.permission.check' }>;
+
+function decisionTitle(fact: Decision, previouslyApproved: boolean): string {
+  const middleware = fact.eventType === 'agentfootprint.middleware.decision';
+  const outcome = middleware ? fact.outcome : fact.result;
+  const human = middleware ? fact.personApproved : undefined;
+  if (human === false) return 'A person declined this call.';
+  if (fact.phase === 'resume') {
+    const approved = human === true || previouslyApproved;
+    if (outcome === 'deny' || outcome === 'halt') return approved
+      ? 'A person approved this call, then a rule refused it.'
+      : 'A rule refused this call on resume.';
+    if (outcome === 'refused') return approved
+      ? 'A person approved this call, then the call was refused on resume.'
+      : 'The call was refused on resume.';
+  }
+  if (human === true) return 'A person approved this call.';
+  return `${middleware ? 'Middleware' : 'Permission'} ${outcome}${fact.phase === 'resume' ? ' on resume' : ''}`;
+}
+
+function describe(fact: TrustBoundaryFact, previouslyApproved: boolean): { title: string; detail: string } {
   switch (fact.eventType) {
     case 'agentfootprint.middleware.decision':
       return {
-        title: `Middleware ${fact.outcome}`,
+        title: decisionTitle(fact, previouslyApproved),
         detail: `${fact.middleware} · ${fact.moment} · changed: ${String(
           fact.changed,
         )}. A wrapper can report allow without invoking a rule. Changed is not proof of redaction.${
@@ -72,10 +95,10 @@ function describe(fact: TrustBoundaryFact): { title: string; detail: string } {
       };
     case 'agentfootprint.permission.check':
       return {
-        title: `Permission ${fact.result}`,
+        title: decisionTitle(fact, previouslyApproved),
         detail: `${fact.capability}${fact.target ? ` · ${fact.target}` : ''}${
           fact.policyRuleId ? ` · rule ${fact.policyRuleId}` : ''
-        }. A check result is not proof of tool execution.`,
+        }${fact.phase === 'resume' ? ` · recorded result: ${fact.result}` : ''}. A check result is not proof of tool execution.`,
       };
     case 'agentfootprint.permission.halt':
       return {
@@ -124,6 +147,7 @@ function Capture({
   const [loading, setLoading] = useState<number>();
   const [notice, setNotice] = useState<{ seq: number; text: string }>();
   const count = capture.counters;
+  const approvals = useMemo(() => approvedResumptions(capture.facts), [capture.facts]);
   const lastPage = Math.max(0, Math.ceil(capture.facts.length / 20) - 1);
   const shownPage = Math.min(page, lastPage);
   const facts = capture.facts.slice(shownPage * 20, (shownPage + 1) * 20);
@@ -163,7 +187,7 @@ function Capture({
       )}
       <ol style={{ paddingLeft: 24 }}>
         {facts.map((fact) => {
-          const label = describe(fact);
+          const label = describe(fact, approvals.has(fact.seq));
           return (
             <li
               key={fact.seq}
@@ -182,6 +206,7 @@ function Capture({
                 </summary>
                 <p>
                   Run {fact.runId} · stage {fact.runtimeStageId}
+                  {'phase' in fact && fact.phase === 'resume' ? ' · phase resume' : ''}
                   {fact.toolCallId ? ` · call ${fact.toolCallId}` : ''}
                   {fact.iteration !== undefined ? ` · iteration ${fact.iteration}` : ''}
                 </p>
@@ -263,16 +288,43 @@ function Capture({
   );
 }
 
-/** Runtime evidence only; this view does not reconstruct decisions or certify policy coverage. */
-export function TrustBoundaryView({
-  snapshot,
+/** The shared shell offers the disclosure only when there is evidence or a recording error to show. */
+export function TrustBoundaryDisclosure({ snapshot, ...navigation }: TrustBoundaryViewProps): React.ReactElement | null {
+  const reader = useMemo(() => prepareTrustBoundaries(snapshot), [snapshot]);
+  return reader === undefined ? null : <Disclosure reader={reader} {...navigation} />;
+}
+
+type Navigation = Omit<TrustBoundaryViewProps, 'snapshot'>;
+
+function Disclosure({ reader, ...navigation }: Navigation & {
+  readonly reader: NonNullable<ReturnType<typeof prepareTrustBoundaries>>;
+}): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const read = open ? reader.read() : reader.current;
+  return (
+    <details style={{ maxHeight: '45%', overflow: 'auto' }} onToggle={(event) => {
+      if (event.target === event.currentTarget) setOpen(event.currentTarget.open);
+    }}>
+      <summary>Trust boundaries</summary>
+      {read && <TrustBoundaryContent read={read} {...navigation} />}
+    </details>
+  );
+}
+
+/** Runtime evidence only; standalone consumers always receive the recording's status. */
+export function TrustBoundaryView({ snapshot, ...navigation }: TrustBoundaryViewProps): React.ReactElement {
+  const read = useMemo(() => readTrustBoundaries(snapshot), [snapshot]);
+  return <TrustBoundaryContent read={read} {...navigation} />;
+}
+
+function TrustBoundaryContent({
+  read,
   shared,
   recordingSource,
-}: TrustBoundaryViewProps): React.ReactElement {
+}: Navigation & { readonly read: TrustBoundariesRead }): React.ReactElement {
   const lazySelect = useSourcePrefixNavigation(recordingSource, shared);
   const select = (position: unknown) => recordingSource === undefined
     ? shared?.selectSourcePrefix?.(position) : lazySelect(position);
-  const read = useMemo(() => readTrustBoundaries(snapshot), [snapshot]);
   return (
     <section
       aria-label="Trust boundaries"

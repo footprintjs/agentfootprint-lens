@@ -48,6 +48,33 @@ ctx.why;     // [{ seq, name: 'agentfootprint.agent.iteration_end', runtimeStage
 `<ContextView>` (`src/react/components/ContextView.tsx`) renders this — standalone
 over the library's milestone axis, or handed the ONE cursor.
 
+### Using Context with your own renderer
+
+`projectContext` is the plain TypeScript reader behind `<ContextView>`. Pass
+the same cursor reading the rest of your application uses. Its fold anchor
+keeps the opening stop at the initial state, including when replaying a resumed run.
+
+```ts
+import { projectContext } from 'agentfootprint-lens/core';
+
+const at = shared.forAxis('group').at;
+// The snapshot and the recorder belong to the displayed runner.
+const context = projectContext(snapshot, at, recorder.getObservedEventEvidence());
+const writesHere = context.keys.filter(key => key.wroteAt === context.cursor.commitIdx);
+```
+
+Pass an optional `previous` fold cursor to see which keys entered, changed or
+left. The same result supplies the served receipt and its verification when
+recorded, and the findings ledger when present. For a live React view, pass
+`runner` and its observing `recorder` to `<ContextView>`. It batches recorder
+notifications before reading the snapshot. Detaching the recorder removes the
+automatic event evidence. When a recorder retains entries from different
+observed runners, Context uses the displayed snapshot's milestone axis and
+reports `whyWithheld: 'mixed-sources'` beside the empty `why` list. The Why
+band explains how to recover. Call `recorder.clear()` when starting a fresh
+run, or pass the displayed run's own `events` explicitly. An explicit list,
+including an empty one, takes precedence and omits `whyWithheld`.
+
 ## 0.54.0 — the served row is rendered, not just badged
 
 `<ContextView>` mounts `<ServedTab runner cursor>` (the Why Lens's own Served
@@ -87,6 +114,18 @@ rows as the history of when each was **first seen**, and beside every witness
 the standing the same fold holds for it now — so a retired witness reads
 `ruled-out` on the row and sits in the ruled-out group, and nothing on the
 band says whether the conflict still holds.
+
+Custom views can read the same groups from a Context projection at the selected stop.
+`ledger` is absent until the recording carries a findings ledger.
+If two results share a `toolCallId`, the fold keeps one current standing for both
+and shows that same standing for every conflict witness with that ID.
+
+```ts
+import { foldFindings } from 'agentfootprint-lens/core';
+
+const { ledger } = context; // The result of projectContext at this stop.
+const findings = ledger && foldFindings(ledger.rows, ledger.toolResults);
+```
 
 `<ContextView>` mounts the band (`FindingsLayer`) under the key table ONLY
 when the fold at the cursor holds `findingsLedger`; the rows and the batch
@@ -170,8 +209,11 @@ hover), `declared on` (the later call's id or `answer`), and ONE quoted line
 — the first assertion for a fact, the `settles` for an open result, the
 `line` for a ruled-out one. A `details` disclosure (a native `<details>`; its
 open bit is the browser's, not a second cursor) opens the full id, the
-result's size (`placed` ref and `bytes` from a placement ticket, else its
-chars), the ticket on the wire, every assertion, and the `settles` / `line`.
+result's size, the ticket on the wire, every assertion, and the `settles` / `line`.
+The `placed` badge and stored byte count require an AgentFootprint placement
+receipt in the state at this stop. Its `placedTickets` entry must match
+the result's call ID and ref. A result without a matching receipt, including
+one from an older recording, keeps its ordinary character count.
 A conflict row puts a `conflict` chip on BOTH witnesses' cards (the key on
 hover).
 
@@ -271,7 +313,8 @@ What each beat reads, and from where:
   spells them — under the chip `from ledger`, and no `args` block.
 - **result** (tool, right) — the tool message's `content` in `history` (then
   the batch, `toolResults`): pretty-printed when it parses as JSON, else
-  verbatim; a placement ticket drawn as the ticket (`placed` ref · `bytes`).
+  verbatim. For a receipted placement, the exchange shows the ticket
+  (`placed` ref · `bytes`) and any recorded text following it.
   When the served wire at the stop's epoch (`served.row.view.messages.asSent`)
   carries this id as a collapsed ticket, a chip `collapsed <standing>` and the
   ticket JSON under `ticket` — what came back beside what the model was
@@ -387,6 +430,34 @@ disclosure; the result beat reuses `reasoning-collapsed`, `reasoning-after`,
 `llmLatestContent`, `llmLatestToolCalls`. Pinned by
 `test/context/reasoningLens.test.tsx`.
 
+### Reading Reasoning without React
+
+Pass the Context reading for the selected stop to `reasoningAt`. Cards and
+coverage are available immediately. Calling `exchange()` builds the transcript
+on first use and returns the same result on subsequent calls to that projection.
+Create a new projection when the cursor or the recording changes.
+
+```ts
+import { reasoningAt, type ContextAt } from 'agentfootprint-lens/core';
+
+function viewsAtStop(context: ContextAt) {
+  const view = reasoningAt(context);
+  return {
+    cards: view.reasoning?.cards,
+    coverage: view.coverage,
+    openExchange: () => view.exchange?.()?.beats,
+  };
+}
+```
+
+Cards and exchange are available when the stop contains a findings ledger.
+A stop that carries only coverage supplies those declarations. A repeated
+`toolCallId` has one card and one current standing. A placement badge requires
+a matching, unambiguous placement receipt in the recording.
+
+For callers that already hold the ledger and history as a `ReasoningInput`,
+`foldReasoning` and `foldExchange` are also available from `agentfootprint-lens/core`.
+
 ## 0.64.0 — the Ontology view, the declared map drawn from the record
 
 **Why.** An agent built with `.ontology(defineOntology({...}))`
@@ -499,6 +570,25 @@ layout (`GEOMETRY`, exported as `ONTOLOGY_GEOMETRY`, the constants they share), 
 shape guard — exported with the component from the root barrel and the
 `/context` door. Pinned by `test/context/ontologyView.test.tsx`.
 
+### Reading the Ontology map without React
+
+`ontologyAt(context)` reads the first `ontology` key at the selected stop.
+A missing or malformed declaration yields `undefined`. A valid declaration
+with empty `nodes` and `sources` retains its ID, version and hash.
+
+```ts
+import { ontologyAt, layoutOntology, type ContextAt } from 'agentfootprint-lens/core';
+
+function chartAt(context: ContextAt) {
+  const map = ontologyAt(context);
+  return map && layoutOntology(map);
+}
+```
+
+Hosts with a raw declaration can pass it to `ontologyRecordOf(value)`, then
+pass the accepted record to `foldOntology(record)`. The fold keeps declared
+relations in order. The layout draws an edge only when both endpoints exist.
+
 ## 0.65.0 — the Coverage band, the answer's boundary read in the lens
 
 **Why.** A tool that returns `coverage(result, {...})` or `absent({...})`
@@ -585,8 +675,9 @@ answer, on the `agentfootprint.agent.turn_end` event's `payload.finalContent`),
 `test/served/no-own-claims.test.ts` covers the file), **one cursor**,
 **a shape the lens does not own** (`coverageRecordOf` narrows every row;
 a row that does not fit is dropped one by one, a malformed item inside a row
-likewise), and **stateless** (the fold past twelve entries opens in a native
-`<details>` under `+K more`). Test ids: `coverage-band` (`data-declarations`,
+likewise). The first twelve calls and first twelve items in each section stay
+visible. Open `+K more` to read the remaining entries twelve at a time. Paging
+keeps the shared replay cursor at its current stop. Test ids: `coverage-band` (`data-declarations`,
 `data-step`, `data-commit`), `coverage-boundary`, `coverage-calls`,
 `coverage-section` (`data-section` = `checked` | `notChecked` |
 `cannotCover`, `data-count`; `coverage-section-chip`), `coverage-item`
@@ -723,6 +814,28 @@ the constants — exported with the component from the root barrel and the
 Pinned by `test/context/proofMap.test.tsx` on the `proof-map` fixture
 (generated alone on agentfootprint 9.110.0).
 
+### Reading the Proof Map without React
+
+Use `proofMapAt` with the Context reading for the selected stop. It uses the
+first recorded value of each key and returns `undefined` when `findingsLedger`
+is missing or is not an array. If the ledger is an empty array, the map still
+includes any recorded tool results at that stop. Repeated tool call IDs share
+one call node, as in the built-in map. Each pair of recorded conflict witnesses
+gets its own overlay edge when both endpoints are present.
+
+```ts
+import { proofMapAt, layoutProofMap, type ContextAt } from 'agentfootprint-lens/core';
+
+function diagramAt(context: ContextAt) {
+  const proof = proofMapAt(context);
+  return proof && layoutProofMap(proof);
+}
+```
+
+Hosts that already have the ledger rows can pass them and the optional
+recorded history, tool results, ontology and unsupported values directly to
+`foldProofMap(input)` from the same entry point.
+
 ## 0.67.0 — the story's marks, the beats joined to the ledger
 
 **Why.** The Story Lens — the AgentThinkingUI player, `prompt → ask → return
@@ -737,7 +850,7 @@ and a `marks` prop (agentthinkingui 0.33.0: `marks[i]` decorates
 a ledger — and the JOIN is data logic, which lives here, in the lens, as a
 pure fold. Four layers kept apart: the player (a component), the fold (data
 logic), the record (data), the host (which stop). `storyMarks(trace, record)`
-(`src/react/components/storyMarks.ts`, no React) is that fold: it reads the
+(`src/core/context/storyMarks.ts`) is that fold: it reads the
 story's beats and the record at ONE stop and returns one array of chips per
 beat, or `undefined` for a beat with nothing to say.
 
@@ -825,7 +938,7 @@ twice** (pure; frozen), and **a shape the fold does not own** (the three
 folds above; a row that does not fit is passed over). `storyMarks`,
 `STORY_MARK_LABELS`, `STORY_MARK_CLIP` (40) and the types `StoryMark`,
 `StoryMarks`, `StoryTone`, `StoryRecord`, `StoryTraceShape`, `StoryBeatShape`,
-`StoryKeyShape` are exported from the root barrel and the `/context` door.
+`StoryKeyShape` are exported from `/core`, the root barrel and `/context`.
 Nothing is mounted: the player is the host's. Pinned by
 `test/context/storyMarks.test.ts` on hand-built records and on the
 `story-marks` fixture (generated alone on agentfootprint 9.111.0, the trace

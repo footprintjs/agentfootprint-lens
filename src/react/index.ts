@@ -326,7 +326,7 @@ export {
   type StoryTraceShape,
   type StoryBeatShape,
   type StoryKeyShape,
-} from "./components/storyMarks.js";
+} from "../core/context/storyMarks.js";
 
 // <ServedTab> — at every LLM call, exactly what the model was served, provable
 // from the log (agentfootprint 9.88.0's `servedAt` / `receiptAt`). The engineer

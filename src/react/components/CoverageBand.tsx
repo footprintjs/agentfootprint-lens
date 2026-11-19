@@ -46,17 +46,22 @@
  *      so every row is narrowed by its shape (`coverageRecordOf`) and a row
  *      that does not fit is passed over, one by one, the way
  *      `FindingsBand.tsx · standingOf` reads a row.
- *   6. STATELESS. The fold past twelve entries opens in a native `<details>`
- *      (the `<ServedGraph>` precedent): the open bit is the browser's, not a
- *      second cursor and not React state.
+ *   6. Paginate the entries after the first twelve within a native disclosure.
+ *      The selected page belongs to that list. Only the host moves replay.
  *
  * `foldCoverage(rows)` is the pure fold — exported for a consumer with its
  * own UI — and `<CoverageRows rows>` the band over rows already in hand, so
  * a view that has folded the stop once mounts the band without folding again.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 
 import { contextAt, type ContextAt } from '../../core/context/contextAt.js';
+import {
+  foldCoverage,
+  type CoverageItemShape,
+  type CoverageSection,
+  type DeclaredCoverageShape,
+} from '../../core/context/coverage.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import { lensCursorFrom } from '../../core/cursor/lensCursor.js';
 import { foldCursorOf } from '../../core/cursor/foldAt.js';
@@ -69,6 +74,12 @@ import { snapshotLogKey, snapshotOfRunner } from '../../core/utils/snapshotOfRun
 import { T } from '../theme/index.js';
 import type { SharedCursor } from '../useSharedCursor.js';
 import { MILESTONE_AXIS } from './ContextView.js';
+
+export {
+  coverageRecordOf, foldCoverage, sameItem,
+  type BoundaryItem, type CoverageBoundary, type CoverageFold,
+  type CoverageItemShape, type CoverageSection, type DeclaredCoverageShape,
+} from '../../core/context/coverage.js';
 
 /**
  * Every string this band owns — names for the band, its two parts and its
@@ -87,137 +98,9 @@ export const LABELS = Object.freeze({
   lookedFor: 'looked for',
   iteration: 'iteration',
   more: 'more',
+  previousPage: 'Previous page',
+  nextPage: 'Next page',
 });
-
-// ─── The row shapes this band reads (narrowed, never trusted whole) ──────
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-
-/** One piece of ground as the record carries it: the author's `what`, and its `why` when written. */
-export interface CoverageItemShape {
-  readonly what: string;
-  readonly why?: string;
-}
-
-/** The three lists of one declaration, by the record's own field names. */
-export type CoverageSection = 'checked' | 'notChecked' | 'cannotCover';
-
-/** One `DeclaredCoverage` row, as read: the call it came from and its three lists. */
-export interface DeclaredCoverageShape {
-  /** The record's own word — `absence` or `ledger` on a 9.109 record; printed, never mapped. */
-  readonly kind: string;
-  readonly toolName: string;
-  readonly toolCallId?: string;
-  readonly iteration: number;
-  /** What the search was for — an absence carries it. */
-  readonly lookedFor?: string;
-  readonly checked: readonly CoverageItemShape[];
-  readonly notChecked: readonly CoverageItemShape[];
-  readonly cannotCover: readonly CoverageItemShape[];
-}
-
-function itemOf(v: unknown): CoverageItemShape | undefined {
-  if (!isRecord(v) || typeof v.what !== 'string' || v.what.length === 0) return undefined;
-  return Object.freeze({ what: v.what, ...(typeof v.why === 'string' ? { why: v.why } : {}) });
-}
-
-/** A list as the record carries it: absent reads as empty; a value that is not an array does not fit. */
-function listOf(v: unknown): readonly CoverageItemShape[] | undefined {
-  if (v === undefined) return Object.freeze([]);
-  if (!Array.isArray(v)) return undefined;
-  return Object.freeze(
-    v.flatMap((entry) => {
-      const item = itemOf(entry);
-      return item !== undefined ? [item] : [];
-    }),
-  );
-}
-
-/** Narrow one row of `coverageDeclared` to the shape the band draws; anything else is nothing. */
-export function coverageRecordOf(value: unknown): DeclaredCoverageShape | undefined {
-  if (!isRecord(value)) return undefined;
-  if (typeof value.kind !== 'string' || value.kind.length === 0) return undefined;
-  if (typeof value.toolName !== 'string' || typeof value.iteration !== 'number') return undefined;
-  const checked = listOf(value.checked);
-  const notChecked = listOf(value.notChecked);
-  const cannotCover = listOf(value.cannotCover);
-  if (checked === undefined || notChecked === undefined || cannotCover === undefined) return undefined;
-  return Object.freeze({
-    kind: value.kind,
-    toolName: value.toolName,
-    iteration: value.iteration,
-    ...(typeof value.toolCallId === 'string' ? { toolCallId: value.toolCallId } : {}),
-    ...(typeof value.lookedFor === 'string' ? { lookedFor: value.lookedFor } : {}),
-    checked,
-    notChecked,
-    cannotCover,
-  });
-}
-
-// ─── The fold ─────────────────────────────────────────────────────────────
-
-/**
- * The library's own equality, copied byte for byte from `agentfootprint ·
- * coverage/items.ts · sameItem`: two entries are the same ground when they
- * say the same two things. Not an equality of this file's own.
- */
-export function sameItem(a: CoverageItemShape, b: CoverageItemShape): boolean {
-  return a.what === b.what && (a.why ?? '') === (b.why ?? '');
-}
-
-/** One merged entry: the ground, and the tools that declared it, in landed order. */
-export interface BoundaryItem extends CoverageItemShape {
-  readonly declaredBy: readonly string[];
-}
-
-/** The merged view — the three sections the appended block carried, in its order. */
-export interface CoverageBoundary {
-  readonly checked: readonly BoundaryItem[];
-  readonly notChecked: readonly BoundaryItem[];
-  readonly cannotCover: readonly BoundaryItem[];
-}
-
-export interface CoverageFold {
-  readonly boundary: CoverageBoundary;
-  /** Every well-formed declaration, in landed order — no dedupe across calls. */
-  readonly calls: readonly DeclaredCoverageShape[];
-}
-
-/** Merge one section across the calls the way the append merges it (`mergeItems`), keeping who declared each entry. */
-function mergeSection(calls: readonly DeclaredCoverageShape[], section: CoverageSection): readonly BoundaryItem[] {
-  const out: { what: string; why?: string; declaredBy: string[] }[] = [];
-  for (const call of calls) {
-    for (const item of call[section]) {
-      const seen = out.find((s) => sameItem(s, item));
-      if (seen === undefined) out.push({ ...item, declaredBy: [call.toolName] });
-      else if (!seen.declaredBy.includes(call.toolName)) seen.declaredBy.push(call.toolName);
-    }
-  }
-  return Object.freeze(out.map((entry) => Object.freeze({ ...entry, declaredBy: Object.freeze(entry.declaredBy) })));
-}
-
-/**
- * Fold the rows for reading: the boundary (each section merged across the
- * calls in landed order, deduped by `sameItem`, every entry stamped with the
- * tools that declared it) and the calls themselves. Pure; a row that does
- * not fit the shape is passed over.
- */
-export function foldCoverage(rows: readonly unknown[]): CoverageFold {
-  const calls = Object.freeze(
-    rows.flatMap((row) => {
-      const call = coverageRecordOf(row);
-      return call !== undefined ? [call] : [];
-    }),
-  );
-  return Object.freeze({
-    boundary: Object.freeze({
-      checked: mergeSection(calls, 'checked'),
-      notChecked: mergeSection(calls, 'notChecked'),
-      cannotCover: mergeSection(calls, 'cannotCover'),
-    }),
-    calls,
-  });
-}
 
 // ─── The band ─────────────────────────────────────────────────────────────
 
@@ -312,9 +195,11 @@ export function CoverageRows(props: CoverageRowsProps): React.ReactElement | nul
       </div>
       <div style={block} data-testid="coverage-calls">
         <span style={heading}>{LABELS.byCall}</span>
-        {fold.calls.map((call, i) => (
-          <Call key={i} call={call} />
-        ))}
+        <PagedList count={fold.calls.length} label={LABELS.byCall}>
+          {(start, end) => fold.calls.slice(start, end).map((call, i) => (
+            <Call key={start + i} call={call} />
+          ))}
+        </PagedList>
       </div>
     </div>
   );
@@ -373,8 +258,6 @@ type SectionItem = CoverageItemShape & { readonly declaredBy?: readonly string[]
 function Section({ section, items }: { readonly section: CoverageSection; readonly items: readonly SectionItem[] }): React.ReactElement | null {
   if (items.length === 0) return null;
   const color = sectionColor(section);
-  const shown = items.slice(0, MAX_SHOWN);
-  const rest = items.slice(MAX_SHOWN);
   return (
     <div data-testid="coverage-section" data-section={section} data-count={items.length}>
       <div style={row}>
@@ -383,24 +266,61 @@ function Section({ section, items }: { readonly section: CoverageSection; readon
         </Chip>
         <span style={dim}>{items.length}</span>
       </div>
-      <ul style={list}>
-        {shown.map((item, i) => (
-          <Item key={i} item={item} color={color} />
-        ))}
-      </ul>
-      {rest.length > 0 && (
-        <details style={detailsStyle} data-testid="coverage-more" data-count={rest.length}>
-          <summary style={summaryStyle}>
-            +{rest.length} {LABELS.more}
-          </summary>
+      <PagedList count={items.length} label={LABELS[section]}>
+        {(start, end) => (
           <ul style={list}>
-            {rest.map((item, i) => (
-              <Item key={i} item={item} color={color} />
-            ))}
+            {items.slice(start, end).map((item, i) => <Item key={start + i} item={item} color={color} />)}
           </ul>
-        </details>
-      )}
+        )}
+      </PagedList>
     </div>
+  );
+}
+
+interface PagedListProps {
+  readonly count: number;
+  readonly label: string;
+  readonly children: (start: number, end: number) => React.ReactNode;
+}
+
+/** Only the visible ranges reach the renderer, including on the server. */
+function PagedList({ count, label, children }: PagedListProps): React.ReactElement {
+  return (
+    <>
+      {children(0, MAX_SHOWN)}
+      {count > MAX_SHOWN && <MorePages count={count} label={label}>{children}</MorePages>}
+    </>
+  );
+}
+
+function MorePages({ count, label, children }: PagedListProps): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const remaining = count - MAX_SHOWN;
+  const lastPage = Math.ceil(remaining / MAX_SHOWN) - 1;
+  // A rewind may remove the selected page. Keep the clamped page on the next append.
+  if (page > lastPage) setPage(lastPage);
+  const start = MAX_SHOWN * (page + 1);
+  const end = Math.min(count, start + MAX_SHOWN);
+  const more = `+${remaining} ${LABELS.more}`;
+
+  return (
+    <details style={detailsStyle} data-testid="coverage-more" data-count={remaining}
+      onToggle={event => {
+        if (event.currentTarget === event.target) setOpen(event.currentTarget.open);
+      }}>
+      <summary style={summaryStyle} aria-label={`${label}, ${more}`}>{more}</summary>
+      {open && <>
+        {lastPage > 0 && <div role="group" aria-label={label} style={row}>
+          <button type="button" style={pageButton(page === 0)} aria-disabled={page === 0}
+            onClick={() => setPage(Math.max(0, page - 1))}>{LABELS.previousPage}</button>
+          <span aria-live="polite">{start + 1}–{end} / {count}</span>
+          <button type="button" style={pageButton(page === lastPage)} aria-disabled={page === lastPage}
+            onClick={() => setPage(Math.min(lastPage, page + 1))}>{LABELS.nextPage}</button>
+        </div>}
+        {children(start, end)}
+      </>}
+    </details>
   );
 }
 
@@ -489,3 +409,11 @@ const chip: React.CSSProperties = {
 };
 const detailsStyle: React.CSSProperties = { fontSize: 12 };
 const summaryStyle: React.CSSProperties = { cursor: 'pointer', color: T.textMuted };
+
+function pageButton(disabled: boolean): React.CSSProperties {
+  return {
+    border: '1px solid', borderColor: T.border, borderRadius: 4, padding: '2px 6px',
+    background: T.bgSecondary, color: disabled ? T.textMuted : T.textPrimary,
+    font: 'inherit', cursor: disabled ? 'default' : 'pointer',
+  };
+}

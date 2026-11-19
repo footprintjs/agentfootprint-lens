@@ -139,9 +139,11 @@ export {
   type StoryTraceShape,
   type StoryBeatShape,
   type StoryKeyShape,
-} from '../react/components/storyMarks.js';
+} from '../core/context/storyMarks.js';
 export {
   contextAt,
+  projectContext,
+  type ContextProjection,
   type ContextAt,
   type ContextAtOptions,
   type ContextKey,

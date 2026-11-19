@@ -45,7 +45,7 @@
  */
 import React, { useMemo } from 'react';
 
-import { contextAt, type ContextAt } from '../../core/context/contextAt.js';
+import { contextAt } from '../../core/context/contextAt.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import { lensCursorFrom } from '../../core/cursor/lensCursor.js';
 import { foldCursorOf } from '../../core/cursor/foldAt.js';
@@ -59,6 +59,28 @@ import { T } from '../theme/index.js';
 import { TimeTravel } from '../TimeTravel.js';
 import type { SharedCursor } from '../useSharedCursor.js';
 import { MILESTONE_AXIS } from './ContextView.js';
+
+import { ontologyAt, type OntologyFold } from '../../core/context/ontology.js';
+import { columnX, GEOMETRY, layoutOntology, type OntologyLayout } from '../../core/context/ontologyLayout.js';
+
+export {
+  GEOMETRY,
+  layoutOntology,
+  type OntologyLayout,
+  type PlacedEdge,
+  type PlacedNode,
+} from '../../core/context/ontologyLayout.js';
+
+export {
+  foldOntology,
+  ontologyRecordOf,
+  type HeldShape,
+  type OntologyFold,
+  type OntologyRecordShape,
+  type RelationShape,
+  type SourceShape,
+  type TermShape,
+} from '../../core/context/ontology.js';
 
 /** Every string this view owns — names for headings, fields and chips, never a sentence. */
 export const LABELS = Object.freeze({
@@ -80,272 +102,6 @@ export const LABELS = Object.freeze({
   chart: 'chart',
   list: 'list',
 });
-
-// ─── The record, read by shape ─────────────────────────────────────────────
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v);
-const isStringArray = (v: unknown): v is readonly string[] => Array.isArray(v) && v.every((s) => typeof s === 'string');
-
-/** Where a term is held, as declared: the source, the tools that read it there, the author's coverage sentence. */
-export interface HeldShape {
-  readonly node: string;
-  readonly source: string;
-  readonly via: readonly string[];
-  readonly coverage?: string;
-}
-
-/** A term as declared. */
-export interface TermShape {
-  readonly id: string;
-  readonly meaning: string;
-  readonly unit?: string;
-  readonly aliases: readonly string[];
-  readonly held: readonly HeldShape[];
-}
-
-/** A source as declared; `configured` only when the author wrote it. */
-export interface SourceShape {
-  readonly id: string;
-  readonly meaning: string;
-  readonly coverage?: string;
-  readonly configured?: boolean;
-}
-
-/** A relation as declared, in the author's own word. */
-export interface RelationShape {
-  readonly from: string;
-  readonly to: string;
-  readonly relation: string;
-  readonly meaning?: string;
-}
-
-/** The run constant `ontology` as the view reads it. */
-export interface OntologyRecordShape {
-  readonly id: string;
-  readonly version: string;
-  readonly hash: string;
-  readonly nodes: Readonly<Record<string, unknown>>;
-  readonly sources: Readonly<Record<string, unknown>>;
-  readonly edges: readonly unknown[];
-}
-
-/** Narrow the committed key to the shape the view draws; anything else is nothing. */
-export function ontologyRecordOf(value: unknown): OntologyRecordShape | undefined {
-  if (!isRecord(value)) return undefined;
-  const { id, version, hash, spec } = value;
-  if (typeof id !== 'string' || typeof version !== 'string' || typeof hash !== 'string' || !isRecord(spec)) return undefined;
-  if (!isRecord(spec.nodes) || !isRecord(spec.sources)) return undefined;
-  return {
-    id,
-    version,
-    hash,
-    nodes: spec.nodes,
-    sources: spec.sources,
-    edges: Array.isArray(spec.edges) ? spec.edges : [],
-  };
-}
-
-function heldOf(node: string, value: unknown, sources: Record<string, unknown>): HeldShape | undefined {
-  if (!isRecord(value) || typeof value.source !== 'string' || !(value.source in sources)) return undefined;
-  return {
-    node,
-    source: value.source,
-    via: isStringArray(value.via) ? value.via : [],
-    ...(typeof value.coverage === 'string' ? { coverage: value.coverage } : {}),
-  };
-}
-
-function termOf(id: string, value: unknown, sources: Record<string, unknown>): TermShape | undefined {
-  if (!isRecord(value) || typeof value.meaning !== 'string') return undefined;
-  const held = Array.isArray(value.sources) ? value.sources.map((s) => heldOf(id, s, sources)).filter((h): h is HeldShape => h !== undefined) : [];
-  return {
-    id,
-    meaning: value.meaning,
-    ...(typeof value.unit === 'string' ? { unit: value.unit } : {}),
-    aliases: isStringArray(value.aliases) ? value.aliases : [],
-    held,
-  };
-}
-
-function sourceOf(id: string, value: unknown): SourceShape | undefined {
-  if (!isRecord(value) || typeof value.meaning !== 'string') return undefined;
-  return {
-    id,
-    meaning: value.meaning,
-    ...(typeof value.coverage === 'string' ? { coverage: value.coverage } : {}),
-    ...(typeof value.configured === 'boolean' ? { configured: value.configured } : {}),
-  };
-}
-
-function relationOf(value: unknown): RelationShape | undefined {
-  if (!isRecord(value) || typeof value.from !== 'string' || typeof value.to !== 'string' || typeof value.relation !== 'string') return undefined;
-  return {
-    from: value.from,
-    to: value.to,
-    relation: value.relation,
-    ...(typeof value.meaning === 'string' ? { meaning: value.meaning } : {}),
-  };
-}
-
-// ─── The fold ──────────────────────────────────────────────────────────────
-
-export interface OntologyFold {
-  readonly id: string;
-  readonly version: string;
-  readonly hash: string;
-  /** Every term, sorted by id — the served piece's own order. */
-  readonly terms: readonly TermShape[];
-  /** Every source, sorted by id. */
-  readonly sources: readonly SourceShape[];
-  /** Every declared holding, in term order then declaration order. */
-  readonly held: readonly HeldShape[];
-  /** Every relation, in declaration order (the hash's order). */
-  readonly relations: readonly RelationShape[];
-  /** The ids of the terms no source holds, sorted. */
-  readonly unheld: readonly string[];
-}
-
-const byId = <A extends { readonly id: string }>(a: A, b: A): number => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
-
-/** Fold the record into the lists the view draws. Pure; sorted by id where the piece sorts. */
-export function foldOntology(record: OntologyRecordShape): OntologyFold {
-  const terms = Object.entries(record.nodes)
-    .map(([id, v]) => termOf(id, v, record.sources))
-    .filter((t): t is TermShape => t !== undefined)
-    .sort(byId);
-  const sources = Object.entries(record.sources)
-    .map(([id, v]) => sourceOf(id, v))
-    .filter((s): s is SourceShape => s !== undefined)
-    .sort(byId);
-  const relations = record.edges.map(relationOf).filter((r): r is RelationShape => r !== undefined);
-  return Object.freeze({
-    id: record.id,
-    version: record.version,
-    hash: record.hash,
-    terms: Object.freeze(terms),
-    sources: Object.freeze(sources),
-    held: Object.freeze(terms.flatMap((t) => t.held)),
-    relations: Object.freeze(relations),
-    unheld: Object.freeze(terms.filter((t) => t.held.length === 0).map((t) => t.id)),
-  });
-}
-
-// ─── The layout ────────────────────────────────────────────────────────────
-
-/** The geometry every chart shares — constants, so two renders agree byte for byte. */
-export const GEOMETRY = Object.freeze({
-  nodeWidth: 168,
-  nodeHeight: 44,
-  rowGap: 18,
-  columnGap: 96,
-  /** The lane each relation elbow takes to the right of the term columns, per edge. */
-  laneGap: 14,
-  padding: 12,
-  labelOffset: 4,
-});
-
-export interface PlacedNode {
-  readonly id: string;
-  readonly kind: 'source' | 'term';
-  readonly column: number;
-  readonly x: number;
-  readonly y: number;
-}
-
-export interface PlacedEdge {
-  readonly kind: 'held' | 'relation';
-  readonly from: string;
-  readonly to: string;
-  /** The SVG path, straight for a holding, an elbow for a relation. */
-  readonly path: string;
-  /** Where the label sits. */
-  readonly labelX: number;
-  readonly labelY: number;
-  /** The `via` names for a holding; the relation word for a relation. */
-  readonly label: string;
-  readonly relation?: string;
-}
-
-export interface OntologyLayout {
-  readonly width: number;
-  readonly height: number;
-  readonly nodes: readonly PlacedNode[];
-  readonly edges: readonly PlacedEdge[];
-  /** The x of the unheld column's heading, when the column is drawn. */
-  readonly unheldX?: number;
-}
-
-const columnX = (column: number): number => GEOMETRY.padding + column * (GEOMETRY.nodeWidth + GEOMETRY.columnGap);
-const rowY = (row: number): number => GEOMETRY.padding + GEOMETRY.nodeHeight + row * (GEOMETRY.nodeHeight + GEOMETRY.rowGap);
-const centreY = (n: PlacedNode): number => n.y + GEOMETRY.nodeHeight / 2;
-
-/**
- * Place the fold: sources in column 0, held terms in column 1, unheld terms in
- * column 2 (when any); rows by sorted index. A holding is a straight line from
- * the source's right edge to the term's left edge; a relation is an elbow out
- * of `from`'s right edge into a lane right of the term columns and back into
- * `to`'s right edge — one lane per relation, in declaration order. Pure.
- */
-export function layoutOntology(fold: OntologyFold): OntologyLayout {
-  const heldTerms = fold.terms.filter((t) => t.held.length > 0);
-  const unheldTerms = fold.terms.filter((t) => t.held.length === 0);
-  const nodes: PlacedNode[] = [
-    ...fold.sources.map((s, i) => ({ id: s.id, kind: 'source' as const, column: 0, x: columnX(0), y: rowY(i) })),
-    ...heldTerms.map((t, i) => ({ id: t.id, kind: 'term' as const, column: 1, x: columnX(1), y: rowY(i) })),
-    ...unheldTerms.map((t, i) => ({ id: t.id, kind: 'term' as const, column: 2, x: columnX(2), y: rowY(i) })),
-  ];
-  const at = new Map(nodes.map((n) => [`${n.kind}:${n.id}`, n]));
-  const columns = unheldTerms.length > 0 ? 3 : heldTerms.length > 0 ? 2 : 1;
-  const rightEdge = columnX(columns - 1) + GEOMETRY.nodeWidth;
-  const edges: PlacedEdge[] = [];
-  for (const h of fold.held) {
-    const from = at.get(`source:${h.source}`);
-    const to = at.get(`term:${h.node}`);
-    if (from === undefined || to === undefined) continue;
-    const x1 = from.x + GEOMETRY.nodeWidth;
-    const y1 = centreY(from);
-    const x2 = to.x;
-    const y2 = centreY(to);
-    edges.push({
-      kind: 'held',
-      from: h.source,
-      to: h.node,
-      path: `M ${x1} ${y1} L ${x2} ${y2}`,
-      labelX: (x1 + x2) / 2,
-      labelY: (y1 + y2) / 2 - GEOMETRY.labelOffset,
-      label: h.via.join(', '),
-    });
-  }
-  fold.relations.forEach((r, i) => {
-    const from = at.get(`term:${r.from}`);
-    const to = at.get(`term:${r.to}`);
-    if (from === undefined || to === undefined) return;
-    const lane = rightEdge + GEOMETRY.laneGap * (i + 1);
-    const x1 = from.x + GEOMETRY.nodeWidth;
-    const y1 = centreY(from);
-    const x2 = to.x + GEOMETRY.nodeWidth;
-    const y2 = centreY(to);
-    edges.push({
-      kind: 'relation',
-      from: r.from,
-      to: r.to,
-      path: `M ${x1} ${y1} H ${lane} V ${y2} H ${x2}`,
-      labelX: lane + GEOMETRY.labelOffset,
-      labelY: (y1 + y2) / 2,
-      label: r.relation,
-      relation: r.relation,
-    });
-  });
-  const rows = Math.max(fold.sources.length, heldTerms.length, unheldTerms.length, 1);
-  const lanes = fold.relations.length;
-  return Object.freeze({
-    width: rightEdge + GEOMETRY.laneGap * (lanes + 1) + GEOMETRY.padding + 120,
-    height: rowY(rows) + GEOMETRY.padding,
-    nodes: Object.freeze(nodes),
-    edges: Object.freeze(edges),
-    ...(unheldTerms.length > 0 ? { unheldX: columnX(2) } : {}),
-  });
-}
 
 // ─── The view ──────────────────────────────────────────────────────────────
 
@@ -373,11 +129,6 @@ function positionsOf(snapshot: unknown): readonly CursorPosition[] {
 
 const noMove = (): void => undefined;
 
-/** The value of one top-level key of the fold at the stop, when it holds one. */
-function keyValue(context: ContextAt, path: string): unknown {
-  return context.keys.find((k) => k.path === path)?.value;
-}
-
 export function OntologyView(props: OntologyViewProps): React.ReactElement | null {
   const { runner, events, shared, recorder } = props;
   const fresh = snapshotOfRunner(runner);
@@ -404,8 +155,7 @@ export function OntologyView(props: OntologyViewProps): React.ReactElement | nul
     () => contextAt(snapshot, foldCursorOf(cursor.at), { events }),
     [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, cursor.at.foldCommitIdx, events],
   );
-  const record = ontologyRecordOf(keyValue(context, 'ontology'));
-  const fold = useMemo(() => (record === undefined ? undefined : foldOntology(record)), [record]);
+  const fold = useMemo(() => ontologyAt(context), [context]);
   const layout = useMemo(() => (fold === undefined ? undefined : layoutOntology(fold)), [fold]);
 
   // THE transport: the same component the Lens, the Skill Graph, the Context

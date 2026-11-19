@@ -53,12 +53,15 @@ import { isDevMode } from 'footprintjs';
 import { SequenceStore } from 'footprintjs/trace';
 import { type FlowchartHandle, type Runner } from 'agentfootprint'
 import { ALL_EVENT_TYPES, type AgentfootprintEvent, type Unsubscribe } from 'agentfootprint/events';
-import { LiveStateRecorder, BoundaryRecorder, type StepGraph } from 'agentfootprint/observe';
+import { LiveStateRecorder, BoundaryRecorder, buildStepGraph, type StepGraph } from 'agentfootprint/observe';
+import { protectedToolArguments } from './toolArgumentDisplay.js';
+import { ToolStepDisplays } from './toolStepDisplay.js';
 import {
   createTraceRuntimeOverlay,
   overlayFromSnapshot,
   type TraceRuntimeOverlayHandle,
 } from 'footprint-explainable-ui/flowchart';
+import { commitsOfSnapshot } from './utils/snapshotOfRunner.js';
 import { ChangeNotifier } from './ChangeNotifier.js';
 import { LensSnapshotRecorder } from './LensSnapshotRecorder.js';
 import type {
@@ -225,7 +228,12 @@ export class LensRecorder {
    * `getStepGraph()` consumes agentfootprint's already-correct one and
    * falls back to LensSnapshotRecorder only when no runner is observed.
    */
-  private flowchartHandle: FlowchartHandle | undefined;
+  private flowchartSource: { handle: FlowchartHandle; reset(): void } | undefined;
+  private toolDisplays = new ToolStepDisplays();
+  // A host may keep a supplied graph across resets. Preserve the recording's
+  // display evidence for that graph, including tool starts delivered after
+  // its first render, without carrying stage or call IDs to the next graph.
+  private readonly displaysByGraph = new WeakMap<StepGraph, ToolStepDisplays>();
   /**
    * Phase 5 Layer 3 — domain-event log with commit-range tracking.
    * Subscribed in `observe()` via both `runner.attach()` (FlowRecorder
@@ -276,6 +284,10 @@ export class LensRecorder {
    *  `getCommitCount` closure on `boundary` can reach the live
    *  executor across multiple events. Cleared on `detach()`. */
   private currentRunner: Runner | undefined;
+  // A recorder may observe multiple runners and retains their aggregate log.
+  // Track dispatchers (not event runIds, which may belong to nested runs).
+  private recordedSources = new WeakSet<Runner>();
+  private mixedSources = false;
 
   /**
    * Change-notification primitive composed in. Push-based refresh for
@@ -324,8 +336,7 @@ export class LensRecorder {
     this.stack.push(this.root);
   }
 
-  /** Reset all transient state. Called on detach + on detected runId
-   *  change so a recorder reused across runs doesn't accumulate. */
+  /** Start a fresh run while retaining the current observation subscription. */
   clear(): void {
     this.store.clear();
     this.stack.length = 0;
@@ -339,6 +350,8 @@ export class LensRecorder {
     this.finalStatus = 'running';
     this.runError = undefined;
     this.lastRunId = undefined;
+    this.recordedSources = new WeakSet();
+    this.mixedSources = false;
     this.unknownEventTypes.clear();
     this.bracketMismatchCount = 0;
     this.warnedUnknownTypes.clear();
@@ -346,6 +359,9 @@ export class LensRecorder {
     this.warnedEviction = false;
     this.liveState.clear();
     this.boundary.clear();
+    this.flowchartSource?.reset();
+    this.toolDisplays = new ToolStepDisplays();
+    this.snapshot.clear();
     this.runtime.reset();
     // Notes describe the run being shown, so they go with it. `replaying` does
     // NOT — it describes how this recorder was filled, which a reset of the run
@@ -436,6 +452,26 @@ export class LensRecorder {
     return this.currentRunner;
   }
 
+  /** Can the aggregate entries and grouped axis be used as evidence for the
+   * current runner? After mixed observations a new run starts with clear(). */
+  hasSingleObservedSource(): boolean {
+    return this.currentRunner !== undefined && !this.mixedSources &&
+      (this.store.size === 0 || this.recordedSources.has(this.currentRunner));
+  }
+
+  /** Event evidence for the currently observed runner, suitable for projectContext.
+   * A detached or unrelated source has no evidence. A mixed log stays private. */
+  getObservedEventEvidence(): {
+    readonly events?: readonly EventLogEntry[];
+    readonly whyWithheld?: 'mixed-sources';
+  } {
+    if (this.hasSingleObservedSource()) return { events: this.getEntries() };
+    if (this.currentRunner && this.mixedSources && this.entryCount > 0 && this.recordedSources.has(this.currentRunner)) {
+      return { whyWithheld: 'mixed-sources' };
+    }
+    return {};
+  }
+
   /**
    * One-line notes about what this view can honestly show — "this recording
    * carried no chart", "3 events could not be read". Views render them; a
@@ -459,7 +495,7 @@ export class LensRecorder {
   /**
    * The StepGraph the UI renders — agentfootprint's ReAct projection
    * (actor-arrow steps with `iterationIndex` + `slotUpdated`, plus
-   * subflow boundaries). Prefers the live `flowchartHandle` from
+   * subflow boundaries). Prefers the observed runner's flowchart from
    * `observe()`; falls back to `snapshot.getStepGraph()` (subflow-only)
    * when no runner is observed (e.g. a standalone snapshot consumer).
    *
@@ -467,8 +503,14 @@ export class LensRecorder {
    * of an empty graph — the handle is a SUPERSET of the snapshot
    * recorder's output, so every existing consumer keeps working.
    */
-  getStepGraph(): StepGraph {
-    return this.flowchartHandle?.getSnapshot() ?? this.snapshot.getStepGraph();
+  getStepGraph(supplied?: StepGraph): StepGraph {
+    const native = supplied ?? this.flowchartSource?.handle.getSnapshot();
+    if (!native) return this.snapshot.getStepGraph();
+    const displays = this.displaysByGraph.get(native) ?? this.toolDisplays;
+    this.displaysByGraph.set(native, displays);
+    const view = displays.graph(native);
+    if (view !== native) this.displaysByGraph.set(view, displays);
+    return view;
   }
 
   /**
@@ -503,24 +545,7 @@ export class LensRecorder {
      *  scope keys (e.g. `systemPromptInjections`). */
     readonly overwriteKeys?: readonly string[];
   }> {
-    const runner = this.currentRunner;
-    if (!runner) return [];
-    const snap = (runner as {
-      getLastSnapshot?: () => {
-        commitLog?: ReadonlyArray<{
-          runtimeStageId?: string;
-          stageId?: string;
-          overwrite?: Record<string, unknown>;
-          updates?: Record<string, unknown>;
-        }>;
-      };
-    }).getLastSnapshot?.();
-    const log = snap?.commitLog ?? [];
-    return log.map((c) => ({
-      runtimeStageId: c.runtimeStageId,
-      stageId: c.stageId,
-      overwriteKeys: [...Object.keys(c.overwrite ?? {}), ...Object.keys(c.updates ?? {})],
-    }));
+    return commitsOfSnapshot(this.currentRunner?.getLastSnapshot?.());
   }
 
   /**
@@ -572,8 +597,14 @@ export class LensRecorder {
     // the base Runner (a Runner<TIn, TOut> IS a Runner at runtime): this single
     // library-side cast replaces what used to be an `as unknown as` cast in every
     // consumer of `observe`.
-    this.currentRunner = runner as Runner;
+    const sourceRunner = runner as Runner;
+    const previousRunner = this.currentRunner;
+    this.currentRunner = sourceRunner;
     const offEvent = runner.on('*', (event: AgentfootprintEvent) => {
+      if (!this.recordedSources.has(sourceRunner)) {
+        this.mixedSources ||= this.store.size > 0;
+        this.recordedSources.add(sourceRunner);
+      }
       this.handleEvent(event);
     });
     // Wire the live-state trackers (LLM / tool / turn). They share the
@@ -605,10 +636,26 @@ export class LensRecorder {
     // the rendered step graph (actor-arrow steps + iterationIndex +
     // slotUpdated + subflow boundaries). `getStepGraph()` reads this
     // handle. onUpdate bumps our version so the UI re-renders as the
-    // graph grows during the run. See `flowchartHandle` field JSDoc.
-    this.flowchartHandle = runner.enable.flowchart({
-      onUpdate: () => this.bumpVersion(),
-    });
+    // graph grows during the run.
+    const openGraph = () => runner.enable.flowchart({ onUpdate: () => this.bumpVersion() });
+    const initialGraph = openGraph();
+    const fromSavedRecording = this.replaying && initialGraph.boundary === this.boundary;
+    const source = {
+      handle: initialGraph,
+      reset: () => {
+        source.handle.unsubscribe();
+        if (!fromSavedRecording) {
+          source.handle = openGraph();
+          return;
+        }
+        // The replay handle always returns its saved graph. After an explicit
+        // reset the new graph must contain only subsequently delivered events.
+        const boundary = new BoundaryRecorder();
+        const unsubscribe = boundary.subscribe(runner as unknown as Parameters<typeof boundary.subscribe>[0]);
+        source.handle = { boundary, getSnapshot: () => buildStepGraph(boundary), unsubscribe };
+      },
+    };
+    this.flowchartSource = source;
     const composed: Unsubscribe = () => {
       offEvent();
       offLive();
@@ -617,11 +664,15 @@ export class LensRecorder {
       offBoundarySubscribe();
       offBoundaryAttach();
       offRuntimeAttach();
-      this.flowchartHandle?.unsubscribe();
-      this.flowchartHandle = undefined;
-      if (this.currentRunner === runner) this.currentRunner = undefined;
+      source.handle.unsubscribe();
+      if (this.flowchartSource === source) {
+        this.flowchartSource = undefined;
+        this.currentRunner = undefined;
+        this.bumpVersion();
+      }
     };
     this.unsubscribes.push(composed);
+    if (previousRunner !== sourceRunner) this.bumpVersion();
     return () => {
       const idx = this.unsubscribes.indexOf(composed);
       if (idx >= 0) {
@@ -925,6 +976,8 @@ export class LensRecorder {
     // ── Tool call (start/end pair → one leaf node) ──
     if (type === 'agentfootprint.stream.tool_start') {
       const p = event.payload;
+      const display = protectedToolArguments(p);
+      this.toolDisplays.remember(event.meta.runtimeStageId, p.toolCallId, display);
       const node: BuildingNode = {
         id: `tool:${p.toolCallId}`,
         kind: 'tool-call',

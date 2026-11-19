@@ -40,8 +40,8 @@ selects the published versions 15.0.0, 14.0.0 and 2.1.0. Node.js 22 or newer
 and React 18 or 19 remain required. Older saved recordings retain their
 existing readers, fixtures and goldens.
 
-Source development uses Explainable UI 2.1.0. The packed consumer tests cover
-2.1.0 on React 18 and 19 with Node.js 22 and 24. They also exercise older
+Source development uses Explainable UI 2.2.0. The packed consumer tests cover
+2.2.0 on React 18 and 19 with Node.js 22 and 24. They also exercise older
 renderer versions and the separately reviewed renderer archive. Hosted CI verifies the stable
 registry archives against their committed lock entries, compares installed
 files and checks that the runtime uses one physical Foottrace package.
@@ -58,18 +58,22 @@ pointers; they derive no new verdict. New attempt summaries use `answered` and
 `effect`. Historical narrative text, including `succeeded`, remains recorded
 data and is not rewritten by Lens.
 
-### Known gaps with AgentFootprint 15 (0.84.0)
+### Reading AgentFootprint 15 evidence
 
-- The analyst fallback can say a tool returned when the recording leaves
-  tool execution unknown.
-- The analyst views still display the recorded `args` field. The protected
-  proposal in `shownArgs` and `hiddenArgs` is not shown there.
-- The Trust Boundary view omits the person's approval and resume phase from
-  middleware decisions.
-- The Reasoning Lens placement badge recognizes ticket-shaped results. It
-  does not check the producer's placement receipt.
+- **Tool execution.** The analyst reads `stream.tool_end.entered` and the
+  recorded refusal markers. When the recording has no boolean entry stamp
+  or refusal marker, the analyst says “The record does not say whether the tool ran.”
+- **Tool arguments.** The analyst and step details show `shownArgs` and name
+  the keys in `hiddenArgs`. Older recordings that have neither field use `args`.
+- **Trust decisions.** The Trust Boundary view shows recorded human approval
+  alongside the decision at resume, including a later refusal by a rule.
+- **Result placement.** The Reasoning Lens displays a placement badge when
+  the call ID and result reference match a recorded entry in `placedTickets`
+  at the selected replay stop. If several recorded calls share that ID and
+  the recording cannot identify which one owns the reference, Lens omits the badge.
 
-See the [Lens 0.84.0 changelog](https://github.com/footprintjs/agentfootprint-lens/blob/v0.84.0/CHANGELOG.md#0840---2026-11-19).
+The release notes document the four gaps in the published 0.84.0 reader.
+[Lens 0.84.0 changelog](https://github.com/footprintjs/agentfootprint-lens/blob/v0.84.0/CHANGELOG.md#0840---2026-11-19).
 
 ### Published AF 14 controls and historical validation
 
@@ -2165,6 +2169,23 @@ so instead of drawing an empty graph.
 `observeRecording`, the selectors and the graph adapters. Build a Vue / Angular
 / CLI view on the same primitives — see `ChangeNotifier`'s JSDoc for adapter
 snippets.
+
+To draw a Proof Map in a custom view, read the selected stop with
+`proofMapAt(context)` and pass the result to `layoutProofMap`. Both are in
+`agentfootprint-lens/core`. The layout gives each node its position and each
+edge its path. A stop with no recorded findings ledger yields `undefined`.
+
+For the application's declared Ontology map, `ontologyAt(context)` returns the
+terms, sources, holdings and relations at the selected stop. Use those lists
+directly or call `layoutOntology(fold)` to draw the chart. Both functions are
+available in `agentfootprint-lens/core`. A missing or malformed declaration
+yields `undefined`.
+
+For a custom story player, import `storyMarks` from `agentfootprint-lens/core`.
+Pass the trace and `contextAt(...).keys` for the selected stop. The returned
+array has one entry per beat. For a tool call, its chips show the recorded
+basis on the ask and its current standing on the return. A recording without
+ledger rows produces no chips.
 
 The cursor is headless too: `scrubAxisFor` builds the ruler, `openLensCursor`
 moves along it through Foottrace's `timeTravel()` port, `resolveNavigation`

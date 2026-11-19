@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readTrustBoundaries } from './read.js';
+import { prepareTrustBoundaries, readTrustBoundaries } from './read.js';
 
 export function trustSnapshot() {
   const kinds = [
@@ -57,6 +57,58 @@ export function trustSnapshot() {
 }
 
 describe('strict TrustBoundaries v1 reader', () => {
+  it('defers fact validation while preserving malformed headers and the first read error', () => {
+    expect(prepareTrustBoundaries({ recorders: [{ name: 'Other' }] })).toBeUndefined();
+    const future = trustSnapshot().recorders[0]!;
+    future.meta.version = 2;
+    let invoked = 0;
+    for (const [recorders, status] of [
+      [[future, null], 'unsupported'],
+      [[null, future], 'invalid'],
+      [[{ get name() { invoked++; return 'TrustBoundaries'; } }], 'invalid'],
+    ] as const) {
+      const prepared = prepareTrustBoundaries({ recorders })!;
+      expect(prepared.current).toBeUndefined();
+      const result = prepared.read();
+      expect(result.status).toBe(status);
+      expect(prepared.current).toBe(result);
+      expect(prepared.read()).toBe(result);
+    }
+    expect(invoked).toBe(0);
+  });
+
+  it('keeps recorded human decisions and resume phases without filling in absent stamps', () => {
+    const snapshot = trustSnapshot();
+    const [decision, permission] = snapshot.recorders[0]!.data.facts;
+    Object.assign(permission!, { phase: 'resume' });
+    for (const stamps of [
+      { outcome: 'allow', personApproved: true },
+      { outcome: 'deny', personApproved: false },
+      { outcome: 'refused', phase: 'resume' },
+      { outcome: 'deny', phase: 'resume', personApproved: true },
+      { outcome: 'allow' },
+    ]) {
+      Reflect.deleteProperty(decision!, 'personApproved');
+      Reflect.deleteProperty(decision!, 'phase');
+      Object.assign(decision!, stamps);
+      const read = readTrustBoundaries(snapshot);
+      if (read.status !== 'available') throw Error('valid decision was refused');
+      const [recorded, recheck] = read.captures[0]!.facts;
+      expect(recorded).toMatchObject(stamps);
+      expect(Object.prototype.hasOwnProperty.call(recorded, 'personApproved')).toBe('personApproved' in stamps);
+      expect(Object.prototype.hasOwnProperty.call(recorded, 'phase')).toBe('phase' in stamps);
+      expect(recheck).toMatchObject({ phase: 'resume' });
+    }
+  });
+
+  it.each([{ phase: 'guessed' }, { personApproved: 'yes' }, { personApproved: null }])(
+    'refuses malformed decision stamps %o', (stamps) => {
+      const snapshot = trustSnapshot();
+      Object.assign(snapshot.recorders[0]!.data.facts[0]!, stamps);
+      expect(readTrustBoundaries(snapshot).status).toBe('invalid');
+    },
+  );
+
   it('reads all seven kinds, freezes detached facts and does not read extra content', () => {
     const snapshot = trustSnapshot();
     Object.defineProperty(snapshot.recorders[0]!.data.facts[0], 'content', {

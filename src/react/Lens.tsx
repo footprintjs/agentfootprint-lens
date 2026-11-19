@@ -33,6 +33,7 @@ import {
   selectAgentInstances,
   selectHops,
 } from "../core/selectors/index.js";
+import { commentaryEventSequences, hopEventSequences, readRunIO } from "../core/selectors/replayEventSequences.js";
 import { LensFlow, type LensFlowProps } from "./LensFlow.js";
 import { SummaryCard } from "./SummaryCard.js";
 import { CopyForLLMButton } from "./copyForLLM/CopyForLLMButton.js";
@@ -74,8 +75,7 @@ import {
   type UseToolChoiceResult,
 } from "./hooks/useToolChoice.js";
 import { ToolChoicePanel } from "./components/ToolChoicePanel.js";
-import { TrustBoundaryView, sourcePrefixMessage, TRUST_BUTTON_STYLE } from './TrustBoundaryView.js';
-import { readTrustBoundaries } from '../core/trustBoundaries/index.js';
+import { TrustBoundaryDisclosure, TrustBoundaryView, sourcePrefixMessage, TRUST_BUTTON_STYLE } from './TrustBoundaryView.js';
 import { buildGroups } from "../core/group/buildGroups.js";
 import {
   resolveDrillChain,
@@ -663,7 +663,7 @@ const StageLens: React.FC<LensProps> = ({
   // actor-arrow steps + iterationIndex + slotUpdated + subflow
   // boundaries — so Agents render their per-iteration steps, not an
   // empty graph. A consumer-supplied `stepGraph` prop still wins.
-  const effectiveStepGraph = stepGraph ?? recorder.getStepGraph();
+  const effectiveStepGraph = recorder.getStepGraph(stepGraph);
   // Pure renderer: agentfootprint's StepGraph already collapses
   // internal subflows (`sf-thinking` + `thinking-{handler}`) into the
   // wrapping LLM step's payload. Lens trusts the data layer.
@@ -964,10 +964,7 @@ const StageLens: React.FC<LensProps> = ({
         onToggle={sourceFeature.toggle} onQuery={sourceFeature.setQuery} onChoose={sourceFeature.choose}
         onCancel={sourceFeature.cancel} onRoot={() => sourceFeature.drill([])} />}
       {!sourceFeature.pending && <LensNotes notes={notes} />}
-      {!sourceFeature.pending && readTrustBoundaries(freshSnapshot).status !== 'missing' && <details style={{ maxHeight: '45%', overflow: 'auto' }}>
-        <summary>Trust boundaries</summary>
-        <TrustBoundaryView snapshot={freshSnapshot} shared={shared} recordingSource={recordingSource} />
-      </details>}
+      {!sourceFeature.pending && <TrustBoundaryDisclosure snapshot={freshSnapshot} shared={shared} recordingSource={recordingSource} />}
       <div style={{ flex: 1, minHeight: 0 }} aria-busy={sourceFeature.pending || undefined}>
         {recordingSource === undefined ? content : <div {...(sourceFeature.pending ? { inert: '' } : {})} aria-hidden={sourceFeature.pending || undefined}
           style={{ height: '100%', minHeight: 0, opacity: sourceFeature.pending ? 0 : undefined,
@@ -1484,29 +1481,8 @@ const EngineerView: React.FC<{
     };
   }, [cursorFocusedNode, drillPath, chart, selectedSpecNodeId, traceOverlay, cursorRuntimeStageId]);
 
-  // Run boundary I/O — the REAL data the (lens-invented) User node
-  // represents. footprintjs records `run.entry` (the input the human
-  // sent) and `run.exit` (the answer returned) at the root boundary;
-  // we surface them so the User node "speaks" at Run·start / Run·end
-  // instead of lighting up mute. NOT a stage — it's the I/O boundary.
-  const { runInput, runOutput } = useMemo(() => {
-    let input: unknown;
-    let output: unknown;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const events = (recorder.boundary as any).getEvents?.() ?? [];
-      for (const e of events) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const ev = e as any;
-        if (ev?.type === 'run.entry' && input === undefined) input = ev.payload;
-        if (ev?.type === 'run.exit') output = ev.payload; // last wins
-      }
-    } catch {
-      /* boundary not ready / no run yet */
-    }
-    return { runInput: input, runOutput: output };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recorder, log]);
+  // The boundary supplies the recorded root input and output. Live events refresh the reading.
+  const { runInput, runOutput } = useMemo(() => readRunIO(recorder.boundary), [recorder, log]);
   // Which root boundary the cursor sits on — drives whether the Details
   // panel shows the run input (start) or the final answer (end).
   const rootPhase: 'start' | 'end' | undefined =
@@ -1539,175 +1515,8 @@ const EngineerView: React.FC<{
         : undefined,
     [bands, activeBandIdx, cursorPositions, syncMap],
   );
-  // Step → event-seq mapping. Resolves each step to a concrete log
-  // entry so Commentary can scrub by slider position even when a step
-  // is a SYNTHETIC node (User / fork-branch / decision-branch nodes
-  // have no runtimeStageId from the event log). For synthetic steps we
-  // inherit the prior step's seq so the timeline keeps moving forward
-  // monotonically as the user drags.
-  //
-  // Without this map: steps 0, 2, 6 (synthetic-only positions in a
-  // typical agent run) showed no commentary highlight and no filter,
-  // making the slider feel broken on every other position.
-  // hop → event seq mapping. v0.16: keyed by HOP index (slider axis),
-  // not raw node index. Each hop's `anchorStep` resolves to a concrete
-  // event seq using the same first/last-match rule as before:
-  //   • user→llm / tool→llm / llm→tool → FIRST matching event (dispatch)
-  //   • llm→user                       → LAST matching event (delivery)
-  //   • asks / forwards / answers      → FIRST matching event for the
-  //     anchor (which is the first ReAct step inside the destination
-  //     agent — captures the moment that agent received its input)
-  //   • hops with NO anchor            → inherit the prior hop's seq so
-  //     the slider doesn't rewind the visible commentary.
-  const stepToEventSeq = useMemo<readonly number[]>(() => {
-    if (!stepGraph || hops.length === 0 || log.length === 0) return [];
-    const firstSeq = log[0].seq;
-    const seqs: number[] = [];
-    let lastResolvedSeq = firstSeq;
-
-    const anchorSide = (kind: string): "first" | "last" =>
-      kind === "llm->user" || kind === "answers" ? "last" : "first";
-
-    for (const hop of hops) {
-      const id = hop.anchorStep?.runtimeStageId;
-      let resolved = -1;
-      if (id !== undefined) {
-        const side = anchorSide(hop.kind);
-        if (side === "first") {
-          for (const e of log) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const stageId = (e.event.meta as any)?.runtimeStageId as
-              | string
-              | undefined;
-            if (stageId === id) {
-              resolved = e.seq;
-              break;
-            }
-          }
-        } else {
-          for (let i = log.length - 1; i >= 0; i--) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const stageId = (log[i].event.meta as any)?.runtimeStageId as
-              | string
-              | undefined;
-            if (stageId === id) {
-              resolved = log[i].seq;
-              break;
-            }
-          }
-        }
-      }
-      if (resolved === -1) resolved = lastResolvedSeq;
-      seqs.push(resolved);
-      lastResolvedSeq = resolved;
-    }
-    return seqs;
-  }, [stepGraph, hops, log]);
-  // Resolve the slider's current cursor to a commentary `focusedSeq`:
-  //
-  // The cursor is a SUBFLOW-LEVEL position (e.g., `sf-llm-call#1`) but
-  // log entries carry STAGE-LEVEL `runtimeStageId`s from INSIDE that
-  // subflow (e.g., `sf-llm-call/call-llm#7`). Exact match is too narrow.
-  // Strategy:
-  //   1. Strip the cursor to its base subflow id (drop `#N`).
-  //   2. Find the LAST log entry whose meta.runtimeStageId starts with
-  //      that base — this is the most recent event "inside" the
-  //      cursor's subflow scope, which is what the user expects to see
-  //      highlighted at that scrub position.
-  //   3. Special case: `__root__` cursor at the LAST slider position
-  //      (`group-end` of the run) → highlight the last log entry overall.
-  //   4. Special case: `__root__` cursor at the FIRST slider position
-  //      (`group-start` of the run) → no highlight (nothing's happened).
-  //   5. Fall back to the legacy hops-based mapping when nothing else
-  //      resolves.
-  // Skip plumbing event types (run.entry/exit, subflow.entry/exit, context.*
-  // metadata, stream deltas). They have runtimeStageIds inside the cursor's
-  // scope but the humanizer returns null for them — matching one would cut the
-  // cumulative slice off BEFORE any user-visible line. Raw emit events carry the
-  // `agentfootprint.` prefix; BoundaryRecorder's typed channel strips it — match
-  // both shapes.
-  const isPlumbingEvent = useCallback((eventType: string | undefined): boolean => {
-    if (!eventType) return false;
-    const stripped = eventType.startsWith('agentfootprint.')
-      ? eventType.slice('agentfootprint.'.length)
-      : eventType;
-    return (
-      stripped === 'run.entry' ||
-      stripped === 'run.exit' ||
-      stripped === 'subflow.entry' ||
-      stripped === 'subflow.exit' ||
-      stripped === 'context.injected' ||
-      stripped === 'context.slot_composed' ||
-      stripped === 'stream.token' ||
-      stripped === 'stream.thinking_delta'
-    );
-  }, []);
-
-  // Resolve EVERY cursor position to a commentary `seq` in ONE cumulative,
-  // MONOTONIC pass — so the mapping is ITERATION-AWARE. Each position takes the
-  // first in-scope event AFTER the previous position's event (group-end walks
-  // backward to the closing moment within the remaining window). This is the fix
-  // for the "commentary resets each iteration" bug: the OLD per-step walk
-  // restarted at log[0] every time, so a looping milestone ("Context 2",
-  // "Iteration 3") matched iteration 1's first event and the cutoff froze. With
-  // a forward-advancing window, the Nth occurrence maps to the Nth event group,
-  // so commentary ACCUMULATES across iterations and scrubs correctly.
-  const commentarySeqs = useMemo<readonly number[]>(() => {
-    const seqs: number[] = new Array(cursorPositions.length).fill(-1);
-    if (log.length === 0) return seqs;
-    const matchesScope = (stageId: string | undefined, rid: string): boolean => {
-      if (!stageId) return false;
-      const base = rid.split('#')[0]!;
-      return stageId === rid || stageId === base || stageId.startsWith(`${base}/`);
-    };
-    let searchFrom = 0; // log index — the forward window floor (monotonic)
-    let prevSeq = -1;
-    for (let s = 0; s < cursorPositions.length; s++) {
-      const cur = cursorPositions[s]!;
-      const rid = cur.runtimeStageId;
-      if (rid.startsWith('__root__')) {
-        // Root boundary: end → whole log revealed; start → nothing yet.
-        if (cur.kind === 'group-end') {
-          prevSeq = log[log.length - 1]!.seq;
-          seqs[s] = prevSeq;
-        } else {
-          seqs[s] = -1;
-        }
-        continue;
-      }
-      let resolved = prevSeq; // default: inherit (commentary never rewinds)
-      let foundIdx = -1;
-      if (cur.kind === 'group-end') {
-        for (let i = log.length - 1; i >= searchFrom; i--) {
-          const e = log[i]!;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (isPlumbingEvent((e.event as any)?.type)) continue;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (matchesScope((e.event.meta as any)?.runtimeStageId, rid)) {
-            resolved = e.seq;
-            foundIdx = i;
-            break;
-          }
-        }
-      } else {
-        for (let i = searchFrom; i < log.length; i++) {
-          const e = log[i]!;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (isPlumbingEvent((e.event as any)?.type)) continue;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          if (matchesScope((e.event.meta as any)?.runtimeStageId, rid)) {
-            resolved = e.seq;
-            foundIdx = i;
-            break;
-          }
-        }
-      }
-      seqs[s] = resolved;
-      prevSeq = resolved;
-      if (foundIdx >= 0) searchFrom = foundIdx + 1;
-    }
-    return seqs;
-  }, [cursorPositions, log, isPlumbingEvent]);
+  const stepToEventSeq = useMemo(() => hopEventSequences(hops, log), [hops, log]);
+  const commentarySeqs = useMemo(() => commentaryEventSequences(cursorPositions, log), [cursorPositions, log]);
 
   const focusedSeq = useMemo<number>(() => {
     const v = commentarySeqs[focusStep];

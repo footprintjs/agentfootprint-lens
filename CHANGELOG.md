@@ -7,6 +7,68 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.85.0] - 2026-11-19
+
+### Added
+
+- Custom story players can use `storyMarks` from `agentfootprint-lens/core`
+  to show the same recorded chips at a replay stop without loading React.
+- Custom views can draw the Ontology chart or list from the selected stop using
+  `ontologyAt` and `layoutOntology` from `agentfootprint-lens/core`.
+- Custom views can draw the same Proof Map as the built-in view using
+  `proofMapAt`, `foldProofMap` and `layoutProofMap` from `agentfootprint-lens/core`.
+- Custom views can read Reasoning cards and the recorded exchange from
+  `reasoningAt` in `agentfootprint-lens/core`. The Reasoning lens now prepares
+  the exchange when you first open it at a replay stop.
+- Custom views can use `foldFindings` from `agentfootprint-lens/core` to read the
+  same findings, conflicts and undeclared results as the Findings band at a replay stop.
+- Use `projectContext` and `ContextProjection` from `agentfootprint-lens/core` or
+  `agentfootprint-lens/context` to build a custom view from the same data as Context.
+  `createLensRenderStore` in `/core` batches recorder updates. On `LensRecorder`,
+  `hasSingleObservedSource()` checks source identity and `getObservedEventEvidence()`
+  supplies the event evidence for that source.
+
+### Changed
+
+- Why and Flow replay spend less time locating commentary and handoffs when
+  many stages in a recording have nested or missing event matches.
+- Coverage shows the first 12 declarations and the first 12 items in each
+  section. Open the remaining entries and page through them in recorded order.
+- The Trust boundaries section reads the recorded facts when you first open it
+  and reuses them when you reopen it on the same snapshot.
+- Use Explainable UI 2.2.0 for development and add it to the packed React 18 and 19 compatibility checks.
+- Context reads Why events from its recorder when the host omits `events`.
+  If the recorder mixes runs, Context explains why it withheld the events and
+  the projection reports `whyWithheld: 'mixed-sources'`. Call `recorder.clear()`
+  when starting a fresh run or pass the displayed run's `events` explicitly.
+
+### Fixed
+
+- Events arriving at a held cursor appear in Context. Long values show a
+  bounded preview and open in full on demand, including values containing BigInts.
+
+## [0.84.2] - 2026-11-19
+
+### Fixed
+
+- Analyst narration uses the recorded tool-entry or refusal evidence. When an
+  older recording lacks that evidence, Lens says execution is unknown.
+- Analyst narration and step details show the recorded argument proposal and
+  the names of hidden arguments. Older calls without either display field
+  retain their original arguments.
+- The Trust Boundary view shows a person's recorded approval and the rule's
+  decision when the call resumes.
+- The Reasoning Lens shows a placement badge only for a call and artifact
+  reference listed together in the run's placement receipt.
+- Show the ordinary lazy-source error when a recording lacks a snapshot. Malformed descriptors keep their own diagnostic.
+
+## [0.84.1] - 2026-11-19
+
+### Fixed
+
+- Open large saved runs in Context and Flow replay without copying the validated root a second time and counting it against the loader limit.
+- Keep the Served Graph view selected when replay crosses the first model call or rewinds before it.
+
 ## [0.84.0] - 2026-11-19
 
 ### Breaking

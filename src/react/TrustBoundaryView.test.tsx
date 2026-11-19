@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TrustBoundaryView } from './TrustBoundaryView.js';
 import { useSharedCursor } from './useSharedCursor.js';
 import { lensRecorder } from '../core/LensRecorder.js';
@@ -64,6 +64,109 @@ function fixture() {
 }
 
 describe('TrustBoundaryView', () => {
+  it('reads Trust facts only when its shell disclosure opens and reuses the displayed evidence', async () => {
+    let snapshot = fixture();
+    let reads = 0;
+    const facts = snapshot.recorders[0]!.data.facts;
+    facts[0] = new Proxy(facts[0]!, {
+      getOwnPropertyDescriptor(target, key) {
+        if (key === 'changed') reads++;
+        return Reflect.getOwnPropertyDescriptor(target, key);
+      },
+    });
+    const recorder = lensRecorder();
+    vi.spyOn(recorder, 'observedRunner').mockReturnValue(
+      { getLastSnapshot: () => snapshot } as unknown as ReturnType<typeof recorder.observedRunner>,
+    );
+    const view = () => <Lens recorder={recorder} view="user" />;
+    const { rerender } = render(view());
+    const summary = screen.getByText('Trust boundaries', { selector: 'summary' });
+    summary.focus();
+    expect(summary).toHaveFocus();
+    expect(reads).toBe(0);
+    fireEvent.click(summary);
+    await waitFor(() => expect(screen.getByText('Middleware deny')).toBeVisible());
+    expect(reads).toBe(1);
+    rerender(view());
+    expect(reads).toBe(1);
+    fireEvent.click(summary);
+    await waitFor(() => expect(summary.parentElement).not.toHaveAttribute('open'));
+    fireEvent.click(summary);
+    await waitFor(() => expect(screen.getByText('Middleware deny')).toBeVisible());
+    expect(reads).toBe(1);
+    expect(summary).toHaveFocus();
+    const updated = fixture();
+    Object.assign(updated.recorders[0]!.data.facts[0]!, { outcome: 'allow' });
+    snapshot = updated;
+    rerender(view());
+    expect(screen.getByText('Middleware allow')).toBeVisible();
+    expect(screen.queryByText('Middleware deny')).toBeNull();
+    fireEvent.click(summary);
+    await waitFor(() => expect(summary.parentElement).not.toHaveAttribute('open'));
+    snapshot = { ...snapshot, recorders: [] };
+    rerender(view());
+    expect(screen.queryByText('Trust boundaries', { selector: 'summary' })).toBeNull();
+    expect(screen.queryByText('Middleware deny')).toBeNull();
+  });
+
+  it.each(['deny', 'halt'])('shows the human answer and later permission %s for the same recorded call', result => {
+    const snapshot = fixture();
+    const [human, rule] = snapshot.recorders[0]!.data.facts;
+    Object.assign(human!, { moment: 'before-tool', outcome: 'allow', personApproved: true, toolCallId: 'one' });
+    Object.assign(rule!, { result, phase: 'resume', toolCallId: 'one', iteration: 1 });
+    const { rerender } = render(<TrustBoundaryView snapshot={snapshot} />);
+    expect(screen.getByText('A person approved this call.')).toBeVisible();
+    expect(screen.getByText('A person approved this call, then a rule refused it.')).toBeVisible();
+    expect(screen.getByText(new RegExp(`recorded result: ${result}`, 'i'))).toBeVisible();
+
+    for (const mismatch of [{ toolCallId: 'two' }, { runId: 'other' }, { iteration: 2 }]) {
+      const other = structuredClone(snapshot);
+      Object.assign(other.recorders[0]!.data.facts[1]!, mismatch);
+      rerender(<TrustBoundaryView snapshot={other} />);
+      expect(screen.queryByText(/then a rule refused it/i)).toBeNull();
+      expect(screen.getByText('A rule refused this call on resume.')).toBeVisible();
+    }
+  });
+
+  it('shows a combined resume denial, a personal decline, and legacy middleware on their own evidence', () => {
+    const snapshot = fixture();
+    const decision = snapshot.recorders[0]!.data.facts[0]!;
+    Object.assign(decision, { moment: 'before-tool', phase: 'resume', personApproved: true });
+    const { rerender } = render(<TrustBoundaryView snapshot={snapshot} />);
+    expect(screen.getByText('A person approved this call, then a rule refused it.')).toBeVisible();
+
+    Reflect.deleteProperty(decision, 'phase');
+    Object.assign(decision, { personApproved: false });
+    rerender(<TrustBoundaryView snapshot={{ ...snapshot }} />);
+    expect(screen.getByText('A person declined this call.')).toBeVisible();
+
+    Reflect.deleteProperty(decision, 'personApproved');
+    rerender(<TrustBoundaryView snapshot={{ ...snapshot }} />);
+    expect(screen.getByText('Middleware deny')).toBeVisible();
+    expect(screen.queryByText(/a person (approved|declined)/i)).toBeNull();
+  });
+
+  it('shows an unexecuted resume refusal only as a refusal, and never borrows a missing human decision', () => {
+    const snapshot = fixture();
+    const data = snapshot.recorders[0]!.data;
+    const [human, rule] = data.facts;
+    Object.assign(human!, { moment: 'before-tool', outcome: 'allow', personApproved: true, toolCallId: 'one' });
+    Object.assign(rule!, { eventType: 'agentfootprint.middleware.decision', middleware: 'agentfootprint', moment: 'before-tool',
+      outcome: 'refused', changed: false, phase: 'resume', iteration: 1, toolCallId: 'one' });
+    const { rerender } = render(<TrustBoundaryView snapshot={snapshot} />);
+    expect(screen.getByText('A person approved this call, then the call was refused on resume.')).toBeVisible();
+
+    // A missing observation may be a newer human answer. Keep the refusal by itself.
+    data.facts.slice(1).forEach(row => row.seq++);
+    data.counters.observed++;
+    data.counters.invalid++;
+    data.lastObservedSeq++;
+    data.lastRetainedSeq++;
+    rerender(<TrustBoundaryView snapshot={{ ...snapshot }} />);
+    expect(screen.getByText('The call was refused on resume.')).toBeVisible();
+    expect(screen.queryByText(/then the call was refused/i)).toBeNull();
+  });
+
   it('renders all seven event kinds without a safe badge or raw state', () => {
     const snapshot = fixture();
     Object.assign(snapshot.recorders[0]!.data.facts[0]!, {

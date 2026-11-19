@@ -16,6 +16,21 @@ export function snapshotOfRunner(runner: unknown): unknown {
   return runner;
 }
 
+/** The commit identities and changed keys used by the recorder's navigation axis. */
+export function commitsOfSnapshot(snapshot: unknown) {
+  const log = (snapshot as { commitLog?: readonly {
+    runtimeStageId?: string;
+    stageId?: string;
+    overwrite?: Record<string, unknown>;
+    updates?: Record<string, unknown>;
+  }[] } | undefined)?.commitLog;
+  return (log ?? []).map(commit => ({
+    runtimeStageId: commit.runtimeStageId,
+    stageId: commit.stageId,
+    overwriteKeys: [...Object.keys(commit.overwrite ?? {}), ...Object.keys(commit.updates ?? {})],
+  }));
+}
+
 /**
  * The mounted subflows' own logs, ONE per mount.
  *
