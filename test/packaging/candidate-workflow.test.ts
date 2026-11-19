@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { COHORT, cohortMismatches, committedJson, type Lock, type Manifest } from './committedInputs';
@@ -9,54 +9,72 @@ const workflow = read('.github/workflows/ci.yml');
 const manifest = committedJson<Manifest>('package.json');
 const lock = committedJson<Lock>('package-lock.json');
 
-describe('source-selected native compatibility workflow', () => {
+describe('published cohort compatibility workflow', () => {
   it('pins every hosted CI job to the reviewed Ubuntu image', () => {
     const runners = workflow.match(/^[ \t]*runs-on:.*$/gm) ?? [];
     expect(runners.map((line) => line.trim())).toEqual([
       'runs-on: ubuntu-24.04', 'runs-on: ubuntu-24.04', 'runs-on: ubuntu-24.04',
+      'runs-on: ubuntu-24.04',
     ]);
   });
 
-  it('derives active package identities from the manifest and lock while retaining renderer/React/Node coverage', () => {
-    expect(cohortMismatches(manifest, lock)).toEqual([]);
-    expect(workflow).toContain('flow: ["0.34.0", "0.38.0", "candidate", "1.0.1"]');
+  it('locks the development cohort and retains renderer/React/Node coverage', () => {
+    expect(cohortMismatches(manifest, lock, [...COHORT, 'footprint-explainable-ui'])).toEqual([]);
     const flows = JSON.parse(workflow.match(/flow: (\[[^\n]+\])/u)![1]!) as string[];
-    expect(flows).toHaveLength(4);
-    expect(flows.length * 2 * 2).toBe(16); // React18/19 × Node22/24, preserving all12 legacy lanes.
+    expect(flows).toEqual(['0.34.0', '0.38.0', 'candidate', '1.0.1', '2.0.0', '2.1.0']);
     expect(workflow).toContain('react: ["18", "19"]');
     expect(workflow).toContain('node: [22, 24]');
     expect(workflow).toContain('--kind native');
     expect(workflow).not.toMatch(/agentfootprint-(?:11|12|13):|extracted-peers:|--kind (?:floor|modern)/);
   });
 
-  it('uses one registry-selected cohort and no optional offline staging path', () => {
-    expect(workflow).toContain('node scripts/compat/published-proof.mjs');
-    expect(workflow).toContain('agent_archive="$(node scripts/compat/published-proof.mjs --archive-name)"');
-    expect(workflow).toContain('--agent-tar "published-evidence-22/$agent_archive"');
-    expect(workflow).not.toMatch(/agent-profile|repository: footprintjs\/agentfootprint|stage-proof|source-install|SOURCE_MANIFEST|jq --arg version/);
+  it('reads only the renderer original from hosted candidate inputs', () => {
+    expect(workflow).toContain('source-inputs.mjs fetch-renderer');
+    expect(workflow).toContain('GH_TOKEN: ${{ github.token }}');
+    expect(workflow).not.toMatch(/source-inputs\.mjs fetch\s|--mode target|--source-inputs compat-artifacts/);
     expect(workflow).not.toMatch(/npm (?:publish|version)|workflow_dispatch|--legacy-peer-deps|--force/);
-    for (const name of ['stage-proof.mjs', 'stage-proof.test.mjs', 'source-install.mjs']) {
-      expect(existsSync(resolve('scripts/compat', name))).toBe(false);
-    }
+    const registry = read('scripts/compat/contract.mjs');
+    expect(registry).toContain('canonical registry archive URL required');
+    expect(registry).toContain('source lock root pin');
+    expect(registry).not.toContain('source-inputs');
   });
 
-  it('runs every source gate on the committed strict lock, without a local archive dev input', () => {
-    for (const name of COHORT) {
+  it('runs both hosted source gates on the committed stable registry lock', () => {
+    for (const name of [...COHORT, 'footprint-explainable-ui']) {
       const entry = lock.packages?.[`node_modules/${name}`];
-      expect(entry?.resolved).toMatch(/^https:\/\//);
+      expect(entry?.version).toMatch(/^\d+\.\d+\.\d+$/);
+      expect(entry?.resolved).toBe(`https://registry.npmjs.org/${name}/-/${name}-${entry?.version}.tgz`);
       expect(entry?.integrity).toMatch(/^sha512-/);
     }
     expect(JSON.stringify(lock)).not.toContain('file:');
-    expect(workflow.match(/run: npm ci --strict-peer-deps/g)).toHaveLength(3);
-    expect(workflow).not.toMatch(/npm install --strict-peer-deps|bootstrap-lock/);
-    expect(workflow.match(/run: npm test/g)).toHaveLength(2);
-    expect(workflow.match(/run: npm run typecheck/g)).toHaveLength(2);
+    const node22 = workflow.split('  test:')[1]!.split('  test-24:')[0]!;
+    const node24 = workflow.split('  test-24:')[1]!.split('  published-commentary-control:')[0]!;
+    for (const job of [node22, node24]) {
+      expect(job).toMatch(/run: npm ci --strict-peer-deps[\s\S]+run: npm run test:contract:foottrace[\s\S]+run: npm run build[\s\S]+run: npm test\b/);
+      expect(job).toContain('published-proof.mjs --out "$RUNNER_TEMP/published-evidence" --lock package-lock.json');
+    }
+    expect(node22).toContain('npm pack --ignore-scripts --pack-destination compat-artifacts');
+    expect(node24).not.toContain('npm pack');
+    expect(node24).toContain('assert.deepEqual(archive.files, publishedSourceFiles(process.cwd()))');
+  });
+
+  it('bootstraps the published commentary CONTROL independently of unavailable target AF15', () => {
+    const published = workflow.split('  published-commentary-control:')[1]!.split('  peer-matrix:')[0]!;
+    expect(published).toContain('--mode CONTROL');
+    expect(published).toContain('source-inputs.mjs gates');
+    expect(published).not.toMatch(/source-inputs.mjs fetch|--inputs |--kind native|source-inputs.mjs pack/);
+    const control = read('scripts/compat/commentary-control.mjs');
+    const controlBootstrap = read('scripts/compat/source-inputs/materialize.mjs');
+    expect(controlBootstrap).toMatch(/agentfootprint: '14\.7\.2',[\s\S]+footprintjs: '12\.3\.0',[\s\S]+foottrace: '1\.11\.1',[\s\S]+'footprint-explainable-ui': lazyRenderer\.version/);
+    expect(control).toContain("assertSingleFoottrace(resolve('node_modules'), commentaryControl.foottrace)");
+    expect(read('scripts/compat/source-inputs/gates.mjs')).toContain("['unit', ['test']]");
+    expect(workflow).not.toMatch(/--package-lock=false|LENS_COMMENTARY_AGENT_VERSION/);
   });
 
   it('uses the same selected cohort in the archive, isolated consumer and native probe', () => {
     const runner = read('scripts/compat/run-lane.mjs');
     const probe = read('scripts/check-native-recording.mjs');
-    expect(workflow).toContain('--agent-source published-evidence-22/published-agent.json');
+    expect(workflow).toContain('--published-evidence "$RUNNER_TEMP/published-evidence"');
     expect(workflow).toContain('--install-browser yes');
     expect(runner).toContain('assert.deepEqual(contract.cohort, cohort');
     expect(runner).toContain('assertPublishedReceipt(contract.agentSource, readFileSync(agent.path), agentIdentity)');
