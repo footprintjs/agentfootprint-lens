@@ -1,7 +1,7 @@
 // Build Why normally before calling this. All compatibility consumers receive
 // this ONE archive; none repack it for their selected renderer or React version.
 import assert from 'node:assert/strict';
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { candidate, parseFlags, publishedSourceFiles, readActiveCohort, rendererPeerRange } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
