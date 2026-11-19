@@ -181,6 +181,8 @@ export interface FindingsFold {
  * stamped with the standing this same fold holds for it now; a result in
  * `toolResults` no standing row names is undeclared. Pure; a row that does
  * not fit its kind's shape is passed over.
+ * When two results share a `toolCallId`, their last recorded standing applies
+ * to both results and to every conflict witness with that ID.
  */
 export function foldFindings(rows: readonly unknown[], toolResults?: readonly unknown[]): FindingsFold {
   const standing = new Map<string, StandingShape>();

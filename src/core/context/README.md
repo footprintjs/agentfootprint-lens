@@ -117,6 +117,8 @@ band says whether the conflict still holds.
 
 Custom views can read the same groups from a Context projection at the selected stop.
 `ledger` is absent until the recording carries a findings ledger.
+If two results share a `toolCallId`, the fold keeps one current standing for both
+and shows that same standing for every conflict witness with that ID.
 
 ```ts
 import { foldFindings } from 'agentfootprint-lens/core';
