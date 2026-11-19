@@ -159,12 +159,13 @@ export const defaultHumanizer: Humanizer = (event) => {
       const key = selectCommentaryKey(event);
       // Teaching skips a settled end because its start already told that story.
       // AgentFootprint's execution reader also requires these saved leaves to be booleans when present.
-      const { entered, error, notExecuted } = event.payload;
+      const { error, notExecuted } = event.payload;
+      const entered = 'entered' in event.payload ? event.payload.entered : undefined;
       const settled = key === null && [entered, error, notExecuted].every(
         field => field === undefined || typeof field === 'boolean',
       );
       if (settled || key === 'stream.tool_end.notExecuted') return 'The call was not executed.';
-      if (key !== 'stream.tool_end' || event.payload.entered !== true) return 'The record does not say whether the tool ran.';
+      if (key !== 'stream.tool_end' || entered !== true) return 'The record does not say whether the tool ran.';
       return event.payload.error === true
         ? `Tool "${event.payload.toolCallId}" ran and reported an error after ${event.payload.durationMs}ms.`
         : `Tool "${event.payload.toolCallId}" returned in ${event.payload.durationMs}ms.`;
