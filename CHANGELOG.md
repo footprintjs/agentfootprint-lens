@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Context and Flow can open large recordings that include detailed recorder
+  events. Lazy subflow loading reuses the validated root recording and
+  preserves the replay cursor as child data arrives.
+
+### Changed
+
+- Use Explainable UI 2.2.0 for development and add it to the packed React 18 and 19 compatibility checks.
+
 ## [0.84.0] - 2026-11-19
 
 ### Breaking
@@ -14,14 +24,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Require AgentFootprint 15, FootPrint 14 and Foottrace 2.1. Migration: update
   the runtime packages together to `agentfootprint ^15.0.0`, `footprintjs ^14.0.0`
   and `foottrace ^2.1.0`. The committed lock selects the stable published
-  versions and Explainable UI 2.2.0. The Explainable UI peer range adds 2.x.
+  versions and Explainable UI 2.1.0. The Explainable UI peer range adds 2.x.
   Lens continues to read older saved recordings.
-
-### Fixed
-
-- Context and Flow can open large recordings that include detailed recorder
-  events. Lazy subflow loading reuses the validated root recording and
-  preserves the replay cursor as child data arrives.
 
 ### Known gaps on the 15 line
 
