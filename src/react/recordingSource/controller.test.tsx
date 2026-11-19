@@ -38,6 +38,26 @@ describe('creator-owned lazy recording source', () => {
     } finally { source.dispose(); }
   });
 
+  it('keeps a large recorder payload in replay when a child is admitted', async () => {
+    const full = fixture();
+    full.snapshot.recorders.push({ name: 'samples', data: Array.from({ length: 40_000 }, (_, i) => i) });
+    const projected = projectRecordingSource(full);
+    if (projected.status !== 'ready') throw Error('Native fixture cannot be projected');
+    const root = projected.value;
+    const loadSubflow = vi.fn((request: RecordedInvocation) => child(full, request));
+    const source = createLensRecordingSource({ root, loadSubflow });
+    try {
+      const recorders = source.getSnapshot().recording.snapshot!.recorders!;
+      const samples = recorders.find(entry => entry.name === 'samples')!.data;
+      expect(samples).toHaveLength(40_000);
+      expect(Object.isFrozen(samples)).toBe(true);
+      expect(loadSubflow).not.toHaveBeenCalled();
+      await source.load(root.invocations.find(value => value.invocationPath.length === 1)!);
+      expect(source.getSnapshot().recording.snapshot!.recorders).toBe(recorders);
+      expect(loadSubflow).toHaveBeenCalledTimes(1);
+    } finally { source.dispose(); }
+  });
+
   it('deduplicates exact children while keeping one recorder, runner and event replay', async () => {
     const { full, root } = input(); const request = root.invocations.find(value => value.invocationPath.length === 1)!;
     let release!: (value: { result: unknown }) => void;
