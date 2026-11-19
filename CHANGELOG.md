@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Analyst narration uses the recorded tool-entry or refusal evidence. When an
+  older recording lacks that evidence, Lens says execution is unknown.
+- Analyst narration and step details show the recorded argument proposal and
+  the names of hidden arguments. Older calls without either display field
+  retain their original arguments.
+- The Trust Boundary view shows a person's recorded approval and the rule's
+  decision when the call resumes.
+- The Reasoning Lens shows a placement badge only for a call and artifact
+  reference listed together in the run's placement receipt.
+
 ## [0.84.1] - 2026-11-19
 
 ### Fixed

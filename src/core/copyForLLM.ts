@@ -36,6 +36,7 @@ import { selectAgentInstances } from "./selectors/selectAgentInstances.js";
 import { selectStepAgentName } from "./selectors/selectStepAgentName.js";
 import type { AgentInstance } from "./selectors/types.js";
 import { STORED_TOOL_RESULT_LABEL } from './toolResultLabels.js';
+import type { DisplayStep } from './toolStepDisplay.js';
 import { compactNarration, contextPayloads, printRecordedContext, type RecordedContextView } from './recordedContext.js';
 
 export interface BuildLLMTextArgs {
@@ -97,7 +98,7 @@ export interface ViewStateSnapshot {
 export function buildLLMText(args: BuildLLMTextArgs): string {
   const {
     recorder,
-    stepGraph,
+    stepGraph: suppliedGraph,
     boundaryRollups,
     humanizer,
     appName = "Chatbot",
@@ -106,6 +107,8 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
   } = args;
   const summary = recorder.selectSummary();
   const log = recorder.selectEventLog();
+  // The exported builder also accepts the host's original (unprojected) graph.
+  const stepGraph = suppliedGraph && (recorder.getStepGraph?.(suppliedGraph) ?? suppliedGraph);
 
   const sections: string[] = [];
 
@@ -313,7 +316,7 @@ function compactBoundaryPayload(value: unknown): unknown {
 
 function formatStep(
   index: number,
-  n: StepNode,
+  n: DisplayStep,
   agents: readonly AgentInstance[],
   annotationSteps?: Map<string, string>,
   payloads?: ReturnType<typeof contextPayloads>,
@@ -370,6 +373,7 @@ function formatStep(
     lines.push(payloads ? payloads.format(n.toolArgs) : safeJson(n.toolArgs));
     lines.push("```");
   }
+  if (n.hiddenArgs?.length) lines.push(`\n**Hidden arguments:** ${n.hiddenArgs.join(', ')}`);
   if (n.toolResult !== undefined) {
     lines.push(`\n**${STORED_TOOL_RESULT_LABEL}:**`);
     lines.push(payloads ? "```text" : "```json");

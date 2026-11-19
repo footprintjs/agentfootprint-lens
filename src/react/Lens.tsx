@@ -663,7 +663,7 @@ const StageLens: React.FC<LensProps> = ({
   // actor-arrow steps + iterationIndex + slotUpdated + subflow
   // boundaries — so Agents render their per-iteration steps, not an
   // empty graph. A consumer-supplied `stepGraph` prop still wins.
-  const effectiveStepGraph = stepGraph ?? recorder.getStepGraph();
+  const effectiveStepGraph = recorder.getStepGraph(stepGraph);
   // Pure renderer: agentfootprint's StepGraph already collapses
   // internal subflows (`sf-thinking` + `thinking-{handler}`) into the
   // wrapping LLM step's payload. Lens trusts the data layer.
