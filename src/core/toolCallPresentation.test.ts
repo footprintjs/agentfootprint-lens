@@ -23,13 +23,6 @@ describe('analyst fallback for a tool end', () => {
     expect(end({ notDispatched })).toBe('The call was not executed.');
   });
 
-  it('uses the ordinary start and its description when the saved settlement is malformed', () => {
-    const humanize = makeTeachingHumanizer({ getToolDescription: () => 'public lookup' });
-    const fields = { toolCallId: 'c1', toolName: 'lookup', args: {}, notDispatched: { pausedCall: null } };
-    expect(defaultHumanizer(event('tool_start', fields))).toMatch(/Calling tool/);
-    expect(humanize(event('tool_start', fields))).toContain('public lookup');
-  });
-
   // The historical CI control installs 14.7.2 independently of the supported peer.
   // Its selector has one end template. The old-recording assertions above run with both producers.
   if (producer.version === '14.7.2') {
@@ -42,6 +35,12 @@ describe('analyst fallback for a tool end', () => {
     return;
   }
 
+  it('uses the ordinary start and its description when the saved settlement is malformed', () => {
+    const humanize = makeTeachingHumanizer({ getToolDescription: () => 'public lookup' });
+    const fields = { toolCallId: 'c1', toolName: 'lookup', args: {}, notDispatched: { pausedCall: null } };
+    expect(defaultHumanizer(event('tool_start', fields))).toMatch(/Calling tool/);
+    expect(humanize(event('tool_start', fields))).toContain('public lookup');
+  });
   it('reports execution when entry is recorded, including a failure inside the function', () => {
     expect(end({ entered: true })).toMatch(/returned|ran/i);
     expect(end({ entered: true, error: true })).toMatch(/ran.*(?:error|failed)/i);
