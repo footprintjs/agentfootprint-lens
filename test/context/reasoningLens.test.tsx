@@ -19,10 +19,10 @@
  */
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 
-import { contextAt } from '../../src/core/context/contextAt.js';
+import * as contextReader from '../../src/core/context/contextAt.js';
 import { lensCursorFrom } from '../../src/core/cursor/lensCursor.js';
 import { foldFactsAt } from '../../src/core/served/index.js';
 import { ContextView } from '../../src/react/components/ContextView.js';
@@ -317,6 +317,28 @@ describe('<ReasoningLens> carries the transport when it holds the shared address
 });
 
 describe('<ReasoningLens> moves with the ONE cursor', () => {
+  it('holds a stop while the runner grows and rewinds Exchange to the same recorded calls', () => {
+    const fixture = load('findings-ledger');
+    const [first, second] = stopsOf(fixture, 'tool-call');
+    const snapshot = fixture.recording.snapshot!;
+    let lastCommit = first!.commitIdx;
+    const runner = { getLastSnapshot: () => ({ ...snapshot, commitLog: snapshot.commitLog!.slice(0, lastCommit + 1) }) };
+    const at = (stop: typeof first) =>
+      <ReasoningLens runner={runner} cursor={lensCursorFrom(fixture.positions, stepOf(fixture, stop!), () => undefined)} />;
+    const { rerender } = render(at(first));
+    expect(cards()).toHaveLength(4);
+    lastCommit = second!.commitIdx;
+    rerender(at(first));
+    expect(cards()).toHaveLength(4);
+    rerender(at(second));
+    expect(cards()).toHaveLength(6);
+    toExchange();
+    expect(beatOf('c6', 'tool')).toBeInTheDocument();
+    rerender(at(first));
+    expect(beats().some(beat => beat.getAttribute('data-tool-call-id') === 'c6')).toBe(false);
+    expect(beatOf('c1', 'tool')).toBeInTheDocument();
+  });
+
   function Host({ fixture }: { readonly fixture: Fixture }) {
     const shared = useSharedCursor(fixture.recorder);
     return (
@@ -530,10 +552,38 @@ describe('<ReasoningLens view> — the exchange', () => {
   const lastStop = fixture.positions[last]!;
   /** The record at the answer stop, read through the join the lens itself reads. */
   const recordAt = (path: string): unknown =>
-    contextAt(fixture.snapshot, { runtimeStageId: lastStop.runtimeStageId, commitIdx: lastStop.commitIdx }, {}).keys.find((k) => k.path === path)?.value;
+    contextReader.contextAt(fixture.snapshot, { runtimeStageId: lastStop.runtimeStageId, commitIdx: lastStop.commitIdx }, {}).keys.find((k) => k.path === path)?.value;
   const history = recordAt('history') as HistoryMessage[];
   const emitted = new Map(history.flatMap((m) => (m.toolCalls ?? []).map((c) => [c.id, c] as const)));
   const toolMessages = new Map(history.filter((m) => m.role === 'tool').map((m) => [m.toolCallId!, m] as const));
+
+  it('reads emitted arguments only on the first Exchange open at a stop', () => {
+    const readArgs = vi.fn(() => ({ query: 'status' }));
+    const call = { id: 'a', name: 'lookup', get args() { return readArgs(); } };
+    const read = vi.spyOn(contextReader, 'contextAt').mockReturnValue({
+      cursor: { runtimeStageId: lastStop.runtimeStageId, commitIdx: lastStop.commitIdx },
+      keys: [
+        { path: 'findingsLedger', value: [{ kind: 'basis', toolCallId: 'a', basis: 'direct' }] },
+        { path: 'history', value: [{ role: 'assistant', toolCalls: [call] }] },
+      ],
+      left: [], rows: [], redacted: false, why: [],
+    });
+    try {
+      renderAt(fixture, last);
+      expect(cardOf('a')).toBeInTheDocument();
+      expect(readArgs).not.toHaveBeenCalled();
+      toExchange();
+      expect(screen.getByTestId('reasoning-beat-args')).toHaveTextContent('status');
+      expect(readArgs).toHaveBeenCalled();
+      readArgs.mockClear();
+      fireEvent.click(screen.getByTestId('reasoning-view-cards'));
+      toExchange();
+      expect(screen.getByTestId('reasoning-beat-args')).toHaveTextContent('status');
+      expect(readArgs).not.toHaveBeenCalled();
+    } finally {
+      read.mockRestore();
+    }
+  });
 
   it('the toggle is two real tabs; cards by default, the exchange on click, and back — the cursor untouched', () => {
     renderAt(fixture, last);

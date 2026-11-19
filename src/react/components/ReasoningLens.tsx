@@ -11,7 +11,7 @@
  * (a placement ticket's ref and bytes, or the result's size in chars; and
  * whether the wire at the stop's epoch carried it collapsed to a ticket),
  * and what the model declared about the result afterwards (its CURRENT
- * standing — the last standing row per `toolCallId`, `FindingsBand.tsx ·
+ * standing — the last standing row per `toolCallId`, `core/context/findings.ts ·
  * foldFindings`, reused not re-derived — with the assertions, the `settles`,
  * the `line`, and where the declaration landed). A trailing card for the
  * answer turn, once a standing was declared on the answer, counts the fold's
@@ -73,8 +73,11 @@
  */
 import React, { useMemo, useState } from 'react';
 
-import { contextAt, type ContextAt } from '../../core/context/contextAt.js';
-import { placedRefsByCall, resultShapeOf, type PlacedShape, type ResultShape } from '../../core/context/reasoningResult.js';
+import { contextAt } from '../../core/context/contextAt.js';
+import type { ResultShape } from '../../core/context/reasoningResult.js';
+import type { AnswerCard, BasisShape, ReasoningCard } from '../../core/context/reasoning.js';
+import type { CallBeat, ResultBeat, ServedBeat, AnswerBeat, ExchangeBeat } from '../../core/context/reasoningExchange.js';
+import { reasoningAt } from '../../core/context/reasoningAt.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import { lensCursorFrom } from '../../core/cursor/lensCursor.js';
 import { foldCursorOf } from '../../core/cursor/foldAt.js';
@@ -89,9 +92,14 @@ import { TimeTravel } from '../TimeTravel.js';
 import type { SharedCursor } from '../useSharedCursor.js';
 import { MILESTONE_AXIS } from './ContextView.js';
 import { CoverageRows } from './CoverageBand.js';
-import { foldFindings, type AssertionShape, type FindingsFold, type StandingShape } from './FindingsBand.js';
-import { collapsedTicketOf } from '../../core/served/collapsedTicket.js';
+import type { AssertionShape, StandingShape } from '../../core/context/findings.js';
 
+export {
+  foldReasoning, type BasisShape, type CollapsedShape, type ReasoningCard, type AnswerCard, type ReasoningFold, type ReasoningInput,
+} from '../../core/context/reasoning.js';
+export {
+  foldExchange, type EmittedCallShape, type CallBeat, type ResultBeat, type ServedBeat, type AnswerBeat, type ExchangeBeat, type ExchangeFold,
+} from '../../core/context/reasoningExchange.js';
 export type { PlacedShape, ResultShape } from '../../core/context/reasoningResult.js';
 
 /** Every string this lens owns — names for fields and chips, never a sentence. */
@@ -144,378 +152,6 @@ export const LABELS = Object.freeze({
   lines: 'lines',
 });
 
-// ─── The row shapes this lens reads beyond the band's ────────────────────
-
-const isRecord = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
-
-/** A basis row, as read: what the model declared BEFORE the call ran. */
-export interface BasisShape {
-  readonly toolCallId: string;
-  readonly toolName?: string;
-  readonly iteration?: number;
-  readonly basis: string;
-  readonly expect?: string;
-  readonly malformed?: number;
-  /** What the model said it was testing (a record that carries it). */
-  readonly proposition?: string;
-  /** What the model said the result would show (a record that carries it). */
-  readonly predicts?: string;
-}
-
-function basisOf(row: unknown): BasisShape | undefined {
-  if (!isRecord(row) || row.kind !== 'basis') return undefined;
-  if (typeof row.toolCallId !== 'string' || typeof row.basis !== 'string') return undefined;
-  return {
-    toolCallId: row.toolCallId,
-    basis: row.basis,
-    ...(typeof row.toolName === 'string' ? { toolName: row.toolName } : {}),
-    ...(typeof row.iteration === 'number' ? { iteration: row.iteration } : {}),
-    ...(typeof row.expect === 'string' ? { expect: row.expect } : {}),
-    ...(typeof row.malformed === 'number' ? { malformed: row.malformed } : {}),
-    ...(typeof row.proposition === 'string' ? { proposition: row.proposition } : {}),
-    ...(typeof row.predicts === 'string' ? { predicts: row.predicts } : {}),
-  };
-}
-
-/** The tool results on the record by id: `history`'s `role: 'tool'` messages, then the batch. */
-function resultsById(history: readonly unknown[] | undefined, toolResults: readonly unknown[] | undefined): ReadonlyMap<string, unknown> {
-  const out = new Map<string, unknown>();
-  for (const m of history ?? []) {
-    if (isRecord(m) && m.role === 'tool' && typeof m.toolCallId === 'string' && !out.has(m.toolCallId)) out.set(m.toolCallId, m.content);
-  }
-  for (const r of toolResults ?? []) {
-    if (isRecord(r) && typeof r.toolCallId === 'string' && !out.has(r.toolCallId)) out.set(r.toolCallId, r.result);
-  }
-  return out;
-}
-
-/** A collapsed ticket as the wire carried it: the standing, and the content string itself. */
-export interface CollapsedShape {
-  readonly standing: string;
-  readonly content: string;
-}
-
-/** The collapsed tickets on the wire at the epoch, by the result's id. */
-function collapsedById(asSent: readonly unknown[] | undefined): ReadonlyMap<string, CollapsedShape> {
-  const out = new Map<string, CollapsedShape>();
-  for (const m of asSent ?? []) {
-    if (!isRecord(m) || m.role !== 'tool' || typeof m.content !== 'string') continue;
-    const t = collapsedTicketOf(m.content);
-    if (t !== undefined) out.set(t.toolCallId, { standing: t.standing, content: m.content });
-  }
-  return out;
-}
-
-// ─── The fold ─────────────────────────────────────────────────────────────
-
-/** One tool call as the lens draws it: before, result, after. */
-export interface ReasoningCard {
-  readonly toolCallId: string;
-  readonly before: BasisShape;
-  /** The result as the record holds it; absent when no result names the id. */
-  readonly result?: ResultShape;
-  /** The standing the wire at the epoch collapsed this result under; absent when served verbatim. */
-  readonly collapsed?: string;
-  /** The CURRENT standing row about this result; absent = undeclared. */
-  readonly after?: StandingShape;
-  /** The keys of the conflict rows naming this result as a witness. */
-  readonly conflicts: readonly string[];
-}
-
-/** The answer turn's card: the fold's buckets under the served piece's field names. */
-export interface AnswerCard {
-  readonly facts: number;
-  readonly limitations: number;
-  readonly evidenceRefs: number;
-  readonly nextSteps: number;
-  readonly noise: number;
-  readonly undeclared: number;
-  /** The run constant `findingsServe`, when the record carries it. */
-  readonly serve?: string;
-  /** The run constant `findingsAnswerAsk`, when the record carries it. */
-  readonly answerAsk?: unknown;
-}
-
-export interface ReasoningFold {
-  readonly cards: readonly ReasoningCard[];
-  /** Present once a standing row was declared on the answer. */
-  readonly answer?: AnswerCard;
-  /** The band's own fold, which this one stands on. */
-  readonly findings: FindingsFold;
-}
-
-export interface ReasoningInput {
-  /** The ledger as the fold holds it at the stop (`findingsLedger`). */
-  readonly rows: readonly unknown[];
-  /** The state's `toolResults` at the same stop. */
-  readonly toolResults?: readonly unknown[];
-  /** The state's `history` at the same stop — the tool messages hold every result. */
-  readonly history?: readonly unknown[];
-  /** The producer's { toolCallId, ref } pairs at this stop. Older recordings omit this receipt. */
-  readonly placedTickets?: unknown;
-  /** The served wire at the stop's epoch (`messages.asSent`), for the collapsed tickets. */
-  readonly asSent?: readonly unknown[];
-  readonly findingsServe?: unknown;
-  readonly findingsAnswerAsk?: unknown;
-  /** The served view's `system.pieces` at the stop's epoch (0.63.0, the exchange's served beat). */
-  readonly pieces?: readonly unknown[];
-  /** The state's `finalContent` at the stop (0.63.0, the answer beat). */
-  readonly finalContent?: unknown;
-  /** The state's `llmLatestContent` / `llmLatestToolCalls` at the stop (0.63.0, the answer beat). */
-  readonly llmLatestContent?: unknown;
-  readonly llmLatestToolCalls?: unknown;
-}
-
-/**
- * Fold the ledger BY CALL. The basis rows give the calls in call order (the
- * ledger is append-only, a basis row lands before its call runs); the
- * standings come from `foldFindings` — the LAST standing row per result is
- * the current one — and every other fact is looked up by the result's id.
- * Pure; a row that does not fit its kind's shape is passed over.
- */
-export function foldReasoning(input: ReasoningInput): ReasoningFold {
-  const findings = foldFindings(input.rows, input.toolResults);
-  const results = resultsById(input.history, input.toolResults);
-  const bases = input.rows.flatMap(row => {
-    const before = basisOf(row);
-    return before === undefined ? [] : [before];
-  });
-  const placedRefs = placedRefsByCall(input.placedTickets, bases, input.history, input.toolResults);
-  const collapsed = collapsedById(input.asSent);
-  const witnessed = new Map<string, string[]>();
-  for (const c of findings.conflicts) {
-    for (const w of c.witnesses) {
-      const keys = witnessed.get(w.toolCallId) ?? [];
-      keys.push(c.key);
-      witnessed.set(w.toolCallId, keys);
-    }
-  }
-  const seen = new Set<string>();
-  const cards: ReasoningCard[] = [];
-  for (const before of bases) {
-    if (seen.has(before.toolCallId)) continue;
-    seen.add(before.toolCallId);
-    const id = before.toolCallId;
-    const after = findings.standings.get(id);
-    const onWire = collapsed.get(id);
-    cards.push(
-      Object.freeze({
-        toolCallId: id,
-        before,
-        ...(results.has(id) ? { result: resultShapeOf(results.get(id), placedRefs.get(id)) } : {}),
-        ...(onWire !== undefined ? { collapsed: onWire.standing } : {}),
-        ...(after !== undefined ? { after } : {}),
-        conflicts: Object.freeze(witnessed.get(id) ?? []),
-      }),
-    );
-  }
-  const answered = Array.from(findings.standings.values()).some((s) => s.declaredOn === 'answer');
-  const answer: AnswerCard | undefined = answered
-    ? Object.freeze({
-        facts: findings.facts.length,
-        limitations: findings.ruledOut.length,
-        evidenceRefs: findings.open.length,
-        nextSteps: findings.open.filter((s) => s.settles !== undefined).length,
-        noise: findings.noise.length,
-        undeclared: findings.undeclared.length,
-        ...(typeof input.findingsServe === 'string' ? { serve: input.findingsServe } : {}),
-        ...(input.findingsAnswerAsk !== undefined ? { answerAsk: input.findingsAnswerAsk } : {}),
-      })
-    : undefined;
-  return Object.freeze({
-    cards: Object.freeze(cards),
-    ...(answer !== undefined ? { answer } : {}),
-    findings,
-  });
-}
-
-// ─── The exchange fold (0.63.0) ───────────────────────────────────────────
-
-/** The emission as the assistant message in `history` carries it: `toolCalls[i]`. */
-export interface EmittedCallShape {
-  readonly id: string;
-  readonly name?: string;
-  readonly args?: Record<string, unknown>;
-}
-
-/** The tool calls the record's assistant messages emitted, by id, first message wins. */
-function emittedById(history: readonly unknown[] | undefined): ReadonlyMap<string, EmittedCallShape> {
-  const out = new Map<string, EmittedCallShape>();
-  for (const m of history ?? []) {
-    if (!isRecord(m) || m.role !== 'assistant' || !Array.isArray(m.toolCalls)) continue;
-    for (const c of m.toolCalls) {
-      if (!isRecord(c) || typeof c.id !== 'string' || out.has(c.id)) continue;
-      out.set(c.id, {
-        id: c.id,
-        ...(typeof c.name === 'string' ? { name: c.name } : {}),
-        ...(isRecord(c.args) ? { args: c.args } : {}),
-      });
-    }
-  }
-  return out;
-}
-
-/** The model's beat for one call: the emission, split into its `_findings` block and the rest. */
-export interface CallBeat {
-  readonly kind: 'call';
-  readonly side: 'model';
-  readonly toolCallId: string;
-  readonly toolName?: string;
-  /** `args._findings` as emitted — or, `fromLedger`, the basis row's own declaration. */
-  readonly findings?: unknown;
-  /** The remaining args as emitted; absent when the emission is not on the record. */
-  readonly args?: Record<string, unknown>;
-  /** `history` no longer carries the emission; the ledger's basis row stands in. */
-  readonly fromLedger: boolean;
-}
-
-/** The tool's beat for one call: the result as the tool message holds it, and what the wire served instead. */
-export interface ResultBeat {
-  readonly kind: 'result';
-  readonly side: 'tool';
-  readonly toolCallId: string;
-  readonly toolName?: string;
-  /** The content as the record holds it (a string, or the batch's value). */
-  readonly content: unknown;
-  /** The placement ticket, when the producer recorded a matching receipt. */
-  readonly placed?: PlacedShape;
-  /** Recorded text following that ticket in the tool message. */
-  readonly followingText?: string;
-  /** The ticket the wire at the stop's epoch carried in place of this result. */
-  readonly collapsed?: CollapsedShape;
-  /** The standing a later call (or the answer) declared for it — the cards' AFTER. */
-  readonly after?: StandingShape;
-}
-
-/** What was served for the answer turn: the `source: 'findings'` piece, its text verbatim. */
-export interface ServedBeat {
-  readonly kind: 'served';
-  readonly side: 'model';
-  readonly source: string;
-  readonly text: string;
-}
-
-/** The answer the model gave, and which field of the record holds it. */
-export interface AnswerBeat {
-  readonly kind: 'answer';
-  readonly side: 'model';
-  readonly text: string;
-  readonly from: 'history' | 'finalContent' | 'llmLatestContent';
-}
-
-export type ExchangeBeat = CallBeat | ResultBeat | ServedBeat | AnswerBeat;
-
-export interface ExchangeFold {
-  readonly beats: readonly ExchangeBeat[];
-  /** The cards' fold, which this one stands on. */
-  readonly reasoning: ReasoningFold;
-}
-
-/** The basis row's declaration as the ledger spells it, for a call `history` no longer carries. */
-function ledgerFindings(before: BasisShape): Record<string, unknown> {
-  return {
-    basis: before.basis,
-    ...(before.expect !== undefined ? { expect: before.expect } : {}),
-    ...(before.proposition !== undefined ? { proposition: before.proposition } : {}),
-    ...(before.predicts !== undefined ? { predicts: before.predicts } : {}),
-  };
-}
-
-function callBeatOf(card: ReasoningCard, emitted: ReadonlyMap<string, EmittedCallShape>): CallBeat {
-  const id = card.toolCallId;
-  const e = emitted.get(id);
-  const toolName = e?.name ?? card.before.toolName;
-  if (e === undefined) {
-    return Object.freeze({
-      kind: 'call',
-      side: 'model',
-      toolCallId: id,
-      ...(toolName !== undefined ? { toolName } : {}),
-      findings: ledgerFindings(card.before),
-      fromLedger: true,
-    });
-  }
-  const { _findings, ...rest } = e.args ?? {};
-  return Object.freeze({
-    kind: 'call',
-    side: 'model',
-    toolCallId: id,
-    ...(toolName !== undefined ? { toolName } : {}),
-    ...(_findings !== undefined ? { findings: _findings } : {}),
-    ...(e.args !== undefined ? { args: Object.freeze(rest) } : {}),
-    fromLedger: false,
-  });
-}
-
-function resultBeatOf(card: ReasoningCard, content: unknown, collapsed: CollapsedShape | undefined, toolName: string | undefined): ResultBeat {
-  const placement = card.result && 'placed' in card.result ? card.result : undefined;
-  return Object.freeze({
-    kind: 'result',
-    side: 'tool',
-    toolCallId: card.toolCallId,
-    ...(toolName !== undefined ? { toolName } : {}),
-    content,
-    ...placement,
-    ...(collapsed !== undefined ? { collapsed } : {}),
-    ...(card.after !== undefined ? { after: card.after } : {}),
-  });
-}
-
-/** The served view's first `source: 'findings'` piece, read by shape. */
-function findingsPieceOf(pieces: readonly unknown[] | undefined): ServedBeat | undefined {
-  for (const p of pieces ?? []) {
-    if (!isRecord(p) || p.source !== 'findings' || typeof p.text !== 'string') continue;
-    return Object.freeze({ kind: 'served', side: 'model', source: p.source, text: p.text });
-  }
-  return undefined;
-}
-
-const nonEmpty = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
-
-/**
- * The answer as the record holds it: `history`'s closing assistant message
- * (content, no tool calls, after the last tool message), else `finalContent`,
- * else `llmLatestContent` once `llmLatestToolCalls` carries no call. Absent
- * when none of the three holds one — the run has not answered at the stop.
- */
-function answerOf(input: ReasoningInput): AnswerBeat | undefined {
-  const history = input.history ?? [];
-  const last = history[history.length - 1];
-  if (isRecord(last) && last.role === 'assistant' && nonEmpty(last.content) && (!Array.isArray(last.toolCalls) || last.toolCalls.length === 0)) {
-    return Object.freeze({ kind: 'answer', side: 'model', text: last.content, from: 'history' });
-  }
-  if (nonEmpty(input.finalContent)) return Object.freeze({ kind: 'answer', side: 'model', text: input.finalContent, from: 'finalContent' });
-  const calls = input.llmLatestToolCalls;
-  if (nonEmpty(input.llmLatestContent) && (!Array.isArray(calls) || calls.length === 0)) {
-    return Object.freeze({ kind: 'answer', side: 'model', text: input.llmLatestContent, from: 'llmLatestContent' });
-  }
-  return undefined;
-}
-
-/**
- * Fold the exchange, in wire order per call: the model's emission, the tool's
- * result; then what was served for the answer turn and the answer. Stands on
- * `foldReasoning` (the calls, the standings, the wire's tickets) and looks the
- * emission up in `history` by id. Pure; a beat prints only what its row holds.
- */
-export function foldExchange(input: ReasoningInput): ExchangeFold {
-  const reasoning = foldReasoning(input);
-  const emitted = emittedById(input.history);
-  const results = resultsById(input.history, input.toolResults);
-  const collapsed = collapsedById(input.asSent);
-  const beats: ExchangeBeat[] = [];
-  for (const card of reasoning.cards) {
-    const call = callBeatOf(card, emitted);
-    beats.push(call);
-    if (results.has(card.toolCallId)) beats.push(resultBeatOf(card, results.get(card.toolCallId), collapsed.get(card.toolCallId), call.toolName));
-  }
-  const served = findingsPieceOf(input.pieces);
-  if (served !== undefined) beats.push(served);
-  const answer = answerOf(input);
-  if (answer !== undefined) beats.push(answer);
-  return Object.freeze({ beats: Object.freeze(beats), reasoning });
-}
-
 // ─── The lens ─────────────────────────────────────────────────────────────
 
 export interface ReasoningLensProps {
@@ -547,16 +183,6 @@ function positionsOf(snapshot: unknown): readonly CursorPosition[] {
 
 const noMove = (): void => undefined;
 
-/** The value of one top-level key of the fold at the stop, when it holds one. */
-function keyValue(context: ContextAt, path: string): unknown {
-  return context.keys.find((k) => k.path === path)?.value;
-}
-
-function arrayValue(context: ContextAt, path: string): readonly unknown[] | undefined {
-  const v = keyValue(context, path);
-  return Array.isArray(v) ? v : undefined;
-}
-
 export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | null {
   const { runner, events, shared, recorder } = props;
   const [view, setView] = useState<ReasoningView>(props.defaultView ?? 'cards');
@@ -584,31 +210,8 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
     () => contextAt(snapshot, foldCursorOf(cursor.at), { events }),
     [snapshot, cursor.at.runtimeStageId, cursor.at.commitIdx, cursor.at.foldCommitIdx, events],
   );
-  const rows = arrayValue(context, 'findingsLedger');
-  // 0.65.0: the tools' declared coverage at the same stop — a tracked key,
-  // so the fold at the stop already holds what had landed by then.
-  const coverage = arrayValue(context, 'coverageDeclared');
-  const declared = coverage !== undefined && coverage.length > 0 ? coverage : undefined;
-  const exchange = useMemo(() => {
-    if (rows === undefined) return undefined;
-    const toolResults = arrayValue(context, 'toolResults');
-    const history = arrayValue(context, 'history');
-    const wire = context.served?.row.view.messages.asSent;
-    const pieces = context.served?.row.view.system.pieces;
-    return foldExchange({
-      rows,
-      ...(toolResults !== undefined ? { toolResults } : {}),
-      ...(history !== undefined ? { history } : {}),
-      placedTickets: keyValue(context, 'placedTickets'),
-      ...(Array.isArray(wire) ? { asSent: wire } : {}),
-      ...(Array.isArray(pieces) ? { pieces } : {}),
-      findingsServe: keyValue(context, 'findingsServe'),
-      findingsAnswerAsk: keyValue(context, 'findingsAnswerAsk'),
-      finalContent: keyValue(context, 'finalContent'),
-      llmLatestContent: keyValue(context, 'llmLatestContent'),
-      llmLatestToolCalls: keyValue(context, 'llmLatestToolCalls'),
-    });
-  }, [context, rows]);
+  const model = useMemo(() => reasoningAt(context), [context]);
+  const { reasoning: fold, coverage: declared } = model;
 
   // THE transport (0.63.1): the same component the Lens, the Skill Graph and
   // the Context view mount, moving the same address through the same funnel.
@@ -624,9 +227,8 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
   // Omit, never deny: neither a ledger nor a declaration at the stop, nothing
   // drawn. Declarations alone draw the Coverage band alone — no cards, no
   // count, no toggle (0.65.0).
-  const drawn = exchange !== undefined || declared !== undefined;
+  const drawn = fold !== undefined || declared !== undefined;
   if (!drawn && !mover) return null;
-  const fold = exchange?.reasoning;
   return (
     <div
       style={panel}
@@ -664,7 +266,7 @@ export function ReasoningLens(props: ReasoningLensProps): React.ReactElement | n
           {fold.answer !== undefined && <Answer answer={fold.answer} />}
         </div>
       )}
-      {exchange !== undefined && view === 'exchange' && <Exchange beats={exchange.beats} />}
+      {view === 'exchange' && model.exchange !== undefined && <Exchange beats={model.exchange().beats} />}
       {declared !== undefined && (
         <div data-testid="reasoning-coverage">
           <CoverageRows rows={declared} step={cursor.at.step} commit={cursor.at.commitIdx} />

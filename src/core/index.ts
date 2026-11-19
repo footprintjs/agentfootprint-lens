@@ -300,6 +300,25 @@ export {
   type ContextServed,
 } from "./context/contextAt.js";
 export { foldFindings, type FindingsFold } from "./context/findings.js";
+export { reasoningAt, type ReasoningAt } from "./context/reasoningAt.js";
+export {
+  foldReasoning,
+  type ReasoningInput,
+  type ReasoningFold,
+  type ReasoningCard,
+  type AnswerCard as ReasoningAnswerCard,
+  type CollapsedShape as ReasoningCollapsedShape,
+} from "./context/reasoning.js";
+export {
+  foldExchange,
+  type ExchangeFold,
+  type ExchangeBeat,
+  type CallBeat as ReasoningCallBeat,
+  type ResultBeat as ReasoningResultBeat,
+  type ServedBeat as ReasoningServedBeat,
+  type AnswerBeat as ReasoningAnswerBeat,
+  type EmittedCallShape as ReasoningEmittedCallShape,
+} from "./context/reasoningExchange.js";
 
 // The Served tab's data (0.47.0): the ONE cursor resolved to its epoch, the
 // rebuilt request checked against the receipt with the library's own hashes,
