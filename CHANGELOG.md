@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.84.1] - 2026-11-19
+
+### Fixed
+
+- Open large saved runs in Context and Flow replay without copying the validated root a second time and counting it against the loader limit.
+
 ## [0.84.0] - 2026-11-19
 
 ### Breaking
