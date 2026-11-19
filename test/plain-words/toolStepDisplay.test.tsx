@@ -48,6 +48,49 @@ describe('protected arguments in the step drawer', () => {
       { id: node.id, toolArgs: { city: 'next-city' } },
     ]);
   });
+  it('withholds reused legacy IDs in a supplied native graph and its copy without masking other calls', () => {
+    const { recorder, runner, node, events } = recordedToolRun();
+    recorder.clear();
+    const start = events.find(e => e.type === 'agentfootprint.stream.tool_start')!;
+    if (start.type !== 'agentfootprint.stream.tool_start') throw new Error('Missing recorded tool');
+    const emit = (callId: string, name: string) => {
+      const event = { ...start, payload: { toolName: name, toolCallId: callId, args: { name } } };
+      (runner as unknown as { emit(e: typeof event): void }).emit(event);
+    };
+    emit('c1', 'first');
+    emit('other', 'independent');
+    const duplicate = { ...node, toolName: 'different', toolArgs: { value: 'ambiguous-raw-value' } };
+    const unique = { ...node, id: node.id.replace(/-c1$/, '-other'), toolArgs: { name: 'independent' } };
+    const supplied = { nodes: [duplicate, unique], edges: [] };
+    expect(recorder.getStepGraph(supplied)).toBe(supplied);
+
+    emit('c1', 'different');
+    const graph = recorder.getStepGraph(supplied);
+    expect(graph.nodes[0]?.toolArgs).toBeUndefined();
+    expect(graph.nodes[1]).toBe(unique);
+    expect(buildLLMText({ recorder, stepGraph: supplied })).not.toContain('ambiguous-raw-value');
+    expect(duplicate.toolArgs).toEqual({ value: 'ambiguous-raw-value' });
+  });
+  it('keeps a known duplicate withheld after its protected start leaves the bounded event log', () => {
+    const { events, node } = recordedToolRun();
+    const first = events.find(e => e.type === 'agentfootprint.stream.tool_start' && e.payload.toolCallId === 'c1')!;
+    if (first.type !== 'agentfootprint.stream.tool_start') throw new Error('Missing recorded tool');
+    const last = { ...first, payload: { toolName: 'different', toolCallId: 'c1', args: { token: secret } } };
+    const { recorder } = observeRecording({ events: [first, last] }, { maxEvents: 1 });
+    const raw = { ...node, toolName: last.payload.toolName, toolArgs: last.payload.args };
+    const historical = { ...raw, id: 'historical-step' };
+    const [step, unbound] = recorder.getStepGraph({ nodes: [raw, historical], edges: [] }).nodes;
+    const retained = recorder.selectEventLog();
+    expect(recorder.getDiagnostics().droppedEvents).toBe(1);
+    expect(retained.map(entry => entry.seq)).toEqual([1]);
+    expect(step?.toolArgs).toBeUndefined();
+    expect(selectFocusDetail(step, retained)?.toolArgs).toBeUndefined();
+    expect(selectFocusDetail(unbound, retained)?.toolArgs).toBeUndefined();
+    // A consumer can also supply a filtered log with the same missing evidence in the middle.
+    const earlier = { ...first, payload: { ...first.payload, toolCallId: 'unrelated' } };
+    const filtered = [{ ...retained[0]!, event: earlier, seq: 0 }, { ...retained[0]!, seq: 2 }];
+    expect(selectFocusDetail(unbound, filtered)?.toolArgs).toBeUndefined();
+  });
   it('retains later display evidence for a supplied graph already viewed before its tool start arrived', () => {
     const { recorder, runner, node, events } = recordedToolRun();
     const stage = 'late-stage#1';
