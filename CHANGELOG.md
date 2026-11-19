@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Why and Flow replay spend less time locating commentary and handoffs when
+  many stages in a recording have nested or missing event matches.
 - Coverage shows the first 12 declarations and the first 12 items in each
   section. Open the remaining entries and page through them in recorded order.
 - The Trust boundaries section reads the recorded facts when you first open it
