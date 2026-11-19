@@ -2175,6 +2175,12 @@ To draw a Proof Map in a custom view, read the selected stop with
 `agentfootprint-lens/core`. The layout gives each node its position and each
 edge its path. A stop with no recorded findings ledger yields `undefined`.
 
+For the application's declared Ontology map, `ontologyAt(context)` returns the
+terms, sources, holdings and relations at the selected stop. Use those lists
+directly or call `layoutOntology(fold)` to draw the chart. Both functions are
+available in `agentfootprint-lens/core`. A missing or malformed declaration
+yields `undefined`.
+
 The cursor is headless too: `scrubAxisFor` builds the ruler, `openLensCursor`
 moves along it through Foottrace's `timeTravel()` port, `resolveNavigation`
 turns an address into a step with every rung named, and `stepForCommitIdx`

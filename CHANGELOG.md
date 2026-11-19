@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Custom views can draw the Ontology chart or list from the selected stop using
+  `ontologyAt` and `layoutOntology` from `agentfootprint-lens/core`.
 - Custom views can draw the same Proof Map as the built-in view using
   `proofMapAt`, `foldProofMap` and `layoutProofMap` from `agentfootprint-lens/core`.
 - Custom views can read Reasoning cards and the recorded exchange from
