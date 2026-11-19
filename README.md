@@ -58,6 +58,19 @@ pointers; they derive no new verdict. New attempt summaries use `answered` and
 `effect`. Historical narrative text, including `succeeded`, remains recorded
 data and is not rewritten by Lens.
 
+### Known gaps with AgentFootprint 15 (0.84.0)
+
+- The analyst fallback can say a tool returned when the recording leaves
+  tool execution unknown.
+- The analyst views still display the recorded `args` field. The protected
+  proposal in `shownArgs` and `hiddenArgs` is not shown there.
+- The Trust Boundary view omits the person's approval and resume phase from
+  middleware decisions.
+- The Reasoning Lens placement badge recognizes ticket-shaped results. It
+  does not check the producer's placement receipt.
+
+See the [Lens 0.84.0 changelog](https://github.com/footprintjs/agentfootprint-lens/blob/v0.84.0/CHANGELOG.md#0840---2026-11-19).
+
 ### Published AF 14 controls and historical validation
 
 The following retained procedure and receipts describe the published AF 14
