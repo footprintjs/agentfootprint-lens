@@ -850,7 +850,7 @@ and a `marks` prop (agentthinkingui 0.33.0: `marks[i]` decorates
 a ledger — and the JOIN is data logic, which lives here, in the lens, as a
 pure fold. Four layers kept apart: the player (a component), the fold (data
 logic), the record (data), the host (which stop). `storyMarks(trace, record)`
-(`src/react/components/storyMarks.ts`, no React) is that fold: it reads the
+(`src/core/context/storyMarks.ts`) is that fold: it reads the
 story's beats and the record at ONE stop and returns one array of chips per
 beat, or `undefined` for a beat with nothing to say.
 
@@ -938,7 +938,7 @@ twice** (pure; frozen), and **a shape the fold does not own** (the three
 folds above; a row that does not fit is passed over). `storyMarks`,
 `STORY_MARK_LABELS`, `STORY_MARK_CLIP` (40) and the types `StoryMark`,
 `StoryMarks`, `StoryTone`, `StoryRecord`, `StoryTraceShape`, `StoryBeatShape`,
-`StoryKeyShape` are exported from the root barrel and the `/context` door.
+`StoryKeyShape` are exported from `/core`, the root barrel and `/context`.
 Nothing is mounted: the player is the host's. Pinned by
 `test/context/storyMarks.test.ts` on hand-built records and on the
 `story-marks` fixture (generated alone on agentfootprint 9.111.0, the trace

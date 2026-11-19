@@ -359,6 +359,18 @@ export {
   type PlacedNode as OntologyPlacedNode,
   type PlacedEdge as OntologyPlacedEdge,
 } from "./context/ontologyLayout.js";
+export {
+  storyMarks,
+  LABELS as STORY_MARK_LABELS,
+  CLIP as STORY_MARK_CLIP,
+  type StoryMark,
+  type StoryMarks,
+  type StoryTone,
+  type StoryRecord,
+  type StoryTraceShape,
+  type StoryBeatShape,
+  type StoryKeyShape,
+} from "./context/storyMarks.js";
 
 // The Served tab's data (0.47.0): the ONE cursor resolved to its epoch, the
 // rebuilt request checked against the receipt with the library's own hashes,

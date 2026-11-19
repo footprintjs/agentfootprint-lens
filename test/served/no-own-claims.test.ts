@@ -99,7 +99,7 @@ import { LABELS as PROOF_MAP_LABELS } from "../../src/react/components/ProofMap.
 // (`hypothesis`, `expect`, `undeclared`, `stood on`); every other string it
 // emits is a value off the record (a basis word, a standing word, the
 // model's proposition and `predicts` verbatim, a count).
-import { LABELS as STORY_MARK_LABELS } from "../../src/react/components/storyMarks.js";
+import { LABELS as STORY_MARK_LABELS } from "../../src/core/context/storyMarks.js";
 // 0.68.0: the In plain words pane and its print report — agentfootprint's
 // answer ACCOUNT drawn for a reader who is not an engineer. Every sentence
 // they print is the library's (a row heading, a line, a chip, the one-liner,
@@ -161,9 +161,6 @@ const FILES: string[] = [
   ...sources("react/components", (f) =>
     /^(Served|BookmarksTab|TagPicker|ContextView|FindingsBand|ReasoningLens|OntologyView|CoverageBand|ProofMap).*\.tsx$/.test(f),
   ),
-  // 0.67.0: the story-marks fold — a `.ts` beside the `.tsx` views, under
-  // the same rule: it emits chip labels the player prints.
-  ...sources("react/components", (f) => /^storyMarks\.ts$/.test(f)),
   // 0.68.0: the In plain words pane, its layout half and its print report.
   ...sources("react/components", (f) => /^(PlainWords\.tsx|plainWordsLayout\.ts|AnswerReportPrint\.tsx)$/.test(f)),
   ...sources("react/hooks", (f) => /^useBookmarkSidecar\.ts$/.test(f)),
@@ -282,7 +279,7 @@ describe("the Served tab writes no claim sentences of its own", () => {
     // 0.67.0: the story-marks fold emits the chips the player prints — the
     // model's own words and the record's words — and the walk is what keeps
     // a sentence of the lens's own off the story.
-    expect(walked).toContain("storyMarks.ts");
+    expect(FILES).toContain(join(SRC, "core/context/storyMarks.ts"));
     // 0.68.0: the In plain words pane prints the library's account — every
     // sentence, chip and heading is the library's — and the walk is what
     // keeps a sentence of the lens's own from standing beside them.
