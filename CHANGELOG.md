@@ -14,7 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Require AgentFootprint 15, FootPrint 14 and Foottrace 2.1. Migration: update
   the runtime packages together to `agentfootprint ^15.0.0`, `footprintjs ^14.0.0`
   and `foottrace ^2.1.0`. The committed lock selects the stable published
-  versions and Explainable UI 2.1.0. The Explainable UI peer range adds 2.x.
+  versions and Explainable UI 2.2.0. The Explainable UI peer range adds 2.x.
   Lens continues to read older saved recordings.
 
 ### Fixed

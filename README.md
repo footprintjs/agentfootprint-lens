@@ -40,8 +40,8 @@ selects the published versions 15.0.0, 14.0.0 and 2.1.0. Node.js 22 or newer
 and React 18 or 19 remain required. Older saved recordings retain their
 existing readers, fixtures and goldens.
 
-Source development uses Explainable UI 2.1.0. The packed consumer tests cover
-2.1.0 on React 18 and 19 with Node.js 22 and 24. They also exercise older
+Source development uses Explainable UI 2.2.0. The packed consumer tests cover
+2.2.0 on React 18 and 19 with Node.js 22 and 24. They also exercise older
 renderer versions and the separately reviewed renderer archive. Hosted CI verifies the stable
 registry archives against their committed lock entries, compares installed
 files and checks that the runtime uses one physical Foottrace package.
