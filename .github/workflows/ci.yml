@@ -45,6 +45,13 @@ jobs:
       - run: npm exec --no -- publint
       - name: Verify registry bytes, committed lock and installed packages
         run: node scripts/compat/published-proof.mjs --out "$RUNNER_TEMP/published-evidence" --lock package-lock.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: published-source-node22
+          path: |
+            ${{ runner.temp }}/published-evidence/*.json
+            ${{ runner.temp }}/published-evidence/*.log
+          if-no-files-found: error
       - name: Read the independently reviewed renderer original
         env:
           GH_TOKEN: ${{ github.token }}
@@ -68,14 +75,6 @@ jobs:
             compat-artifacts/*.json
             compat-artifacts/*.log
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: published-source-node22
-          path: |
-            ${{ runner.temp }}/published-evidence/*.json
-            ${{ runner.temp }}/published-evidence/*.log
-          if-no-files-found: warn
 
   test-24:
     needs: test
@@ -108,6 +107,13 @@ jobs:
       - run: npm exec --no -- publint
       - name: Verify registry bytes, committed lock and installed packages
         run: node scripts/compat/published-proof.mjs --out "$RUNNER_TEMP/published-evidence" --lock package-lock.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: published-source-node24
+          path: |
+            ${{ runner.temp }}/published-evidence/*.json
+            ${{ runner.temp }}/published-evidence/*.log
+          if-no-files-found: error
       - name: Compare Node 24’s build to the original Node 22 archive
         run: |
           node --input-type=module <<'JS'
@@ -129,14 +135,6 @@ jobs:
           JS
           why_archive="$(node scripts/compat/why-identity.mjs)"
           npm exec --no -- attw "compat-artifacts/$why_archive"
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: published-source-node24
-          path: |
-            ${{ runner.temp }}/published-evidence/*.json
-            ${{ runner.temp }}/published-evidence/*.log
-          if-no-files-found: warn
 
   published-commentary-control:
     runs-on: ubuntu-24.04
