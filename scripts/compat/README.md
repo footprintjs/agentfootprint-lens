@@ -107,8 +107,8 @@ locked version, canonical registry URL, integrity and an unlinked package.
 The earlier native source proof used an unpublished AgentFootprint original
 and temporary locks. The active target jobs now replay the committed stable
 registry lock. Node 22 packs Lens once, and Node 24 compares its build with
-that archive. The separate published commentary control still bootstraps
-directly at 14.7.2 / 12.3.0 / 1.11.1.
+that archive. The unpublished AgentFootprint path is retired. The separate published
+commentary control still bootstraps directly at 14.7.2 / 12.3.0 / 1.11.1.
 
 ## Original renderer producer
 

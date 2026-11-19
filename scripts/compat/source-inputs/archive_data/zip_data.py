@@ -1,15 +1,13 @@
-"""Bounded regular-file and four-member ZIP reads; never extract or write."""
+"""Bounded regular-file and ZIP reads with the caller’s closed member inventory."""
 import io
 import os
 import stat
 import zipfile
 import zlib
 
-from .receipt import DataRefused, FILENAME, MAX_ARCHIVE, digest, require
+from .receipt import DataRefused, digest, require
 
 MAX_ZIP = 64 * 1024 * 1024
-LIMITS = {FILENAME: MAX_ARCHIVE, 'candidate.json': 8 * 1024 * 1024,
-          'source-package.json': 1024 * 1024, 'source-package-lock.json': 8 * 1024 * 1024}
 
 
 def read_regular(path, limit):
@@ -27,7 +25,7 @@ def read_regular(path, limit):
         raise DataRefused('input-file') from None
 
 
-def read_zip(raw, expected_sha256, limits=LIMITS, empty=()):
+def read_zip(raw, expected_sha256, limits, empty=()):
     require(digest(raw) == expected_sha256, 'outer-digest')
     try:
         with zipfile.ZipFile(io.BytesIO(raw)) as archive:

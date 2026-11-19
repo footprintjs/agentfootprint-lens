@@ -1,14 +1,12 @@
-# Bounded inert archive data
+# Bounded renderer archive data
 
-The AF receipt and tar reader originate from the independently read App DATA
-component at19db9dc5. They never extract files or execute package bytes. The ZIP
-reader now takes a closed internal profile: the unchanged four-member AF format
-or the separately reviewed thirteen-member UI dependency-security format.
-`renderer.py` owns that second format, including its two empty stderr files,
-original source manifest, actual packed metadata and complete member hashes.
-The generated audit/install lock never becomes a source lock. Both paths use
-the same regular-file, type, expansion, path, duplicate and single-gzip guards.
-Adjacent tiny hostile fixtures exercise both formats without package execution.
-`inspection.py` owns the bounded registry archive census; the facade exposes the
-entry. Registry/source provenance is checked outside this inert reader before
-materialization or installation.
+The original format comes from the independently reviewed App data reader
+at `19db9dc5`. It reads archive bytes without extracting members or running
+package scripts. `renderer.py` owns the reviewed thirteen-member UI
+dependency-security ZIP. It checks the original source manifest, packed
+metadata and member hashes. Its generated audit lock remains evidence.
+
+The renderer and standalone package census share the regular-file, type,
+expansion, path, duplicate and single-gzip guards. Adjacent fixtures exercise
+these guards directly and through the renderer. The archive provider's run,
+tested commit and source identity are checked before reading its artifact.

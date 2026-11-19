@@ -1,23 +1,8 @@
 """Bounded archive data entry; no package execution or file extraction."""
 import io
 import tarfile
-from .receipt import DataRefused, FILENAME, MAX_FILES, digest, integrity, parse_json, require
-from .receipt import validate_expected, validate_receipt, census_digest
+from .receipt import DataRefused, MAX_FILES, digest, integrity, parse_json, require
 from .tar_data import _expand, _path, validate_tar
-from .zip_data import MAX_ZIP, read_regular, read_zip
-
-
-def inspect_artifact(path, expected):
-    expected = validate_expected(expected)
-    files = read_zip(read_regular(path, MAX_ZIP), expected['outerSha256'])
-    record = validate_receipt(parse_json(files['candidate.json']), expected, files)
-    census = validate_tar(files[FILENAME], record['archive']['files'], files['source-package.json'])
-    archive = {key: value for key, value in record['archive'].items() if key != 'files'}
-    archive.update(census)
-    archive['memberCensusSha256'] = census_digest(record['archive']['files'])
-    return {'status': 'DATA_ONLY', 'activationAllowed': False, 'packageExecutionAllowed': False,
-            'outerSha256': expected['outerSha256'], 'source': dict(record['source']),
-            'tested': dict(record['tested']), 'archive': archive}
 
 
 def inspect_package(raw, name, version):
@@ -49,15 +34,3 @@ def inspect_package(raw, name, version):
     return {'name': name, 'version': version, 'sha256': digest(raw), 'integrity': integrity(raw),
             'files': {m['path'][8:]: m['sha256'] for m in members}, 'members': members,
             'manifest': pkg, **census}
-
-
-def stage_source(path, expected, destination):
-    """Retain the original compressed archive, never extract package members."""
-    expected = validate_expected(expected)
-    files = read_zip(read_regular(path, MAX_ZIP), expected['outerSha256'])
-    record = validate_receipt(parse_json(files['candidate.json']), expected, files)
-    validate_tar(files[FILENAME], record['archive']['files'], files['source-package.json'])
-    report = inspect_package(files[FILENAME], 'agentfootprint', expected['archive']['version'])
-    with open(destination, 'xb') as output:
-        output.write(files[FILENAME])
-    return {'candidate': record, 'archive': report}
