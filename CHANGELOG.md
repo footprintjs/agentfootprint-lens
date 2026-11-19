@@ -17,6 +17,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   versions and Explainable UI 2.1.0. The Explainable UI peer range adds 2.x.
   Lens continues to read older saved recordings.
 
+### Fixed
+
+- Context and Flow can open large recordings that include detailed recorder
+  events. Lazy subflow loading reuses the validated root recording and
+  preserves the replay cursor as child data arrives.
+
 ## [0.82.0] - 2026-11-14
 
 ### Added
