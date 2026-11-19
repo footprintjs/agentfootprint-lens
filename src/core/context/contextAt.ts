@@ -303,6 +303,8 @@ function contextFromFold(
 
 /** All Context bands read one stop. Absent keys and missing receipts stay absent. */
 export interface ContextProjection extends ContextAt {
+  /** Available events were withheld because the recorder observed multiple sources. */
+  readonly whyWithheld?: 'mixed-sources';
   readonly served?: ServedGraphInput;
   readonly ledger?: {
     readonly rows: readonly unknown[];
@@ -316,7 +318,7 @@ export interface ContextProjection extends ContextAt {
 export function projectContext(
   snapshot: unknown,
   at: Parameters<typeof foldCursorOf>[0],
-  options: ContextAtOptions = {},
+  options: ContextAtOptions & Pick<ContextProjection, 'whyWithheld'> = {},
 ): ContextProjection {
   const cursor = foldCursorOf(at);
   const folded = foldAt(snapshot, cursor.commitIdx);
@@ -326,6 +328,7 @@ export function projectContext(
   const coverage = context.keys.find(key => key.path === 'coverageDeclared')?.value;
   return Object.freeze({
     ...context,
+    ...(options.events === undefined && options.whyWithheld === 'mixed-sources' && { whyWithheld: options.whyWithheld }),
     ...(served !== undefined && !('error' in folded) && {
       served: Object.freeze({ ...served, fold: foldFactsFrom(folded) }),
     }),

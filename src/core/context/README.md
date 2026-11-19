@@ -58,7 +58,8 @@ keeps the opening stop at the initial state, including when replaying a resumed 
 import { projectContext } from 'agentfootprint-lens/core';
 
 const at = shared.forAxis('group').at;
-const context = projectContext(snapshot, at, { events: recorder.getEntries() });
+// The snapshot and the recorder belong to the displayed runner.
+const context = projectContext(snapshot, at, recorder.getObservedEventEvidence());
 const writesHere = context.keys.filter(key => key.wroteAt === context.cursor.commitIdx);
 ```
 
@@ -69,8 +70,10 @@ recorded, and the findings ledger when present. For a live React view, pass
 notifications before reading the snapshot. Detaching the recorder removes the
 automatic event evidence. When a recorder retains entries from different
 observed runners, Context uses the displayed snapshot's milestone axis and
-omits the mixed event log. Call `recorder.clear()` when starting a fresh run,
-or pass the displayed run's own `events` explicitly.
+reports `whyWithheld: 'mixed-sources'` beside the empty `why` list. The Why
+band explains how to recover. Call `recorder.clear()` when starting a fresh
+run, or pass the displayed run's own `events` explicitly. An explicit list,
+including an empty one, takes precedence and omits `whyWithheld`.
 
 ## 0.54.0 — the served row is rendered, not just badged
 

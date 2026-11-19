@@ -55,6 +55,8 @@ export const LABELS = Object.freeze({
   rows: 'rows',
   served: 'served',
   why: 'why',
+  mixedEvents: 'Hiding events from multiple runs.',
+  mixedEventsHelp: 'Clear the recorder or pass run-specific events.',
   epoch: 'epoch',
   system: 'system',
   tools: 'tools',
@@ -253,12 +255,17 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
   );
 }
 
+/** Represent live bigint values as suffixed decimal strings in the on-demand JSON. */
+function formatContextJson(value: unknown, space?: number) {
+  return JSON.stringify(value, (_key, part: unknown) => typeof part === 'bigint' ? `${part}n` : part, space);
+}
+
 /** A value, shortened past 160 characters — and opened in place on a click,
  *  so a system prompt or a tool schema is readable where it sits. */
 function ValueCell({ row }: { readonly row: ContextKey }): React.ReactElement {
   const [open, setOpen] = useState(false);
   const preview = useMemo(() => previewRecordedValue(row.value), [row]);
-  const full = useMemo(() => open && preview.truncated ? JSON.stringify(row.value) : undefined,
+  const full = useMemo(() => open && preview.truncated ? formatContextJson(row.value) : undefined,
     [open, preview, row]);
   if (!preview.truncated) return <span>{preview.text}</span>;
   return (
@@ -281,7 +288,7 @@ function JsonPane({ context }: { readonly context: ContextAt }): React.ReactElem
   const full = useMemo(() => {
     const object: Record<string, unknown> = Object.create(null);
     for (const k of context.keys) object[k.path] = k.value;
-    return JSON.stringify(object, null, 2);
+    return formatContextJson(object, 2);
   }, [context]);
   return (
     <pre style={{ ...mono, ...pre }} data-testid="context-json">
@@ -324,7 +331,10 @@ function ServedLayer({
   );
 }
 
-function WhyBand({ context }: { readonly context: ContextAt }): React.ReactElement | null {
+function WhyBand({ context }: { readonly context: ContextProjection }): React.ReactElement | null {
+  if (context.whyWithheld === 'mixed-sources') {
+    return <div style={dim} data-testid="context-why-withheld">{LABELS.mixedEvents} {LABELS.mixedEventsHelp}</div>;
+  }
   if (context.why.length === 0) return null;
   return (
     <div style={band} data-testid="context-why">

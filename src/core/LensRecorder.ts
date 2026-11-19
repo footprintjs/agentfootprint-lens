@@ -459,6 +459,17 @@ export class LensRecorder {
       (this.store.size === 0 || this.recordedSources.has(this.currentRunner));
   }
 
+  /** Event evidence for the currently observed runner, suitable for projectContext.
+   * A detached or unrelated source has no evidence. A mixed log stays private. */
+  getObservedEventEvidence(): {
+    readonly events?: readonly EventLogEntry[];
+    readonly whyWithheld?: 'mixed-sources';
+  } {
+    if (this.hasSingleObservedSource()) return { events: this.getEntries() };
+    if (this.currentRunner && this.mixedSources && this.entryCount > 0) return { whyWithheld: 'mixed-sources' };
+    return {};
+  }
+
   /**
    * One-line notes about what this view can honestly show — "this recording
    * carried no chart", "3 events could not be read". Views render them; a
