@@ -284,6 +284,10 @@ export class LensRecorder {
    *  `getCommitCount` closure on `boundary` can reach the live
    *  executor across multiple events. Cleared on `detach()`. */
   private currentRunner: Runner | undefined;
+  // A recorder may observe multiple runners and retains their aggregate log.
+  // Track dispatchers (not event runIds, which may belong to nested runs).
+  private recordedSources = new WeakSet<Runner>();
+  private mixedSources = false;
 
   /**
    * Change-notification primitive composed in. Push-based refresh for
@@ -346,6 +350,8 @@ export class LensRecorder {
     this.finalStatus = 'running';
     this.runError = undefined;
     this.lastRunId = undefined;
+    this.recordedSources = new WeakSet();
+    this.mixedSources = false;
     this.unknownEventTypes.clear();
     this.bracketMismatchCount = 0;
     this.warnedUnknownTypes.clear();
@@ -444,6 +450,13 @@ export class LensRecorder {
    */
   observedRunner(): Runner | undefined {
     return this.currentRunner;
+  }
+
+  /** Can the aggregate entries and grouped axis be used as evidence for the
+   * current runner? After mixed observations a new run starts with clear(). */
+  hasSingleObservedSource(): boolean {
+    return this.currentRunner !== undefined && !this.mixedSources &&
+      (this.store.size === 0 || this.recordedSources.has(this.currentRunner));
   }
 
   /**
@@ -571,8 +584,14 @@ export class LensRecorder {
     // the base Runner (a Runner<TIn, TOut> IS a Runner at runtime): this single
     // library-side cast replaces what used to be an `as unknown as` cast in every
     // consumer of `observe`.
-    this.currentRunner = runner as Runner;
+    const sourceRunner = runner as Runner;
+    const previousRunner = this.currentRunner;
+    this.currentRunner = sourceRunner;
     const offEvent = runner.on('*', (event: AgentfootprintEvent) => {
+      if (!this.recordedSources.has(sourceRunner)) {
+        this.mixedSources ||= this.store.size > 0;
+        this.recordedSources.add(sourceRunner);
+      }
       this.handleEvent(event);
     });
     // Wire the live-state trackers (LLM / tool / turn). They share the
@@ -636,9 +655,11 @@ export class LensRecorder {
       if (this.flowchartSource === source) {
         this.flowchartSource = undefined;
         this.currentRunner = undefined;
+        this.bumpVersion();
       }
     };
     this.unsubscribes.push(composed);
+    if (previousRunner !== sourceRunner) this.bumpVersion();
     return () => {
       const idx = this.unsubscribes.indexOf(composed);
       if (idx >= 0) {

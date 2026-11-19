@@ -8,7 +8,7 @@ import { contextAt } from '../../src/core/context/contextAt.js';
 import { lensCursorFrom } from '../../src/core/cursor/lensCursor.js';
 import { foldCursorOf } from '../../src/core/cursor/foldAt.js';
 import { ContextView } from '../../src/react/components/ContextView.js';
-import { load, stopsOf } from '../served/helpers.js';
+import { load, loadTampered, stopsOf } from '../served/helpers.js';
 
 vi.mock('foottrace', async importOriginal => {
   const api = await importOriginal<typeof import('foottrace')>();
@@ -152,6 +152,50 @@ describe('Context projection', () => {
     view.rerender(pane(fixture.snapshot, untracked));
     expect(screen.queryByTestId('context-why')).toBeNull();
     expect(entries).not.toHaveBeenCalled();
+  });
+
+  it('drops recorder evidence on detach and rebind at a held cursor, including before a queued flush', async () => {
+    const a = load('flat-dynamic-tools');
+    const b = loadTampered('flat-dynamic-tools', packet => {
+      Object.assign(packet.snapshot, { runId: 'another-run' });
+    });
+    const runnerA = a.recorder.observedRunner()!;
+    const cursor = lensCursorFrom(a.positions, a.positions.indexOf(stopsOf(a, 'llm-turn')[0]!), () => {});
+    const pane = (runner: unknown) => <ContextView runner={runner} recorder={a.recorder} cursor={cursor} />;
+    const view = render(pane(a.snapshot));
+    expect(screen.getByTestId('context-why')).toBeTruthy();
+
+    act(() => a.recorder.detach());
+    await waitFor(() => expect(screen.queryByTestId('context-why')).toBeNull());
+    act(() => { a.recorder.observe(runnerA); });
+    await waitFor(() => expect(screen.getByTestId('context-why')).toBeTruthy());
+
+    const runnerB = b.recorder.observedRunner()!;
+    act(() => { a.recorder.observe(runnerB); });
+    view.rerender(pane(a.snapshot));
+    expect(screen.queryByTestId('context-why')).toBeNull();
+    view.rerender(pane(b.snapshot));
+    expect(screen.queryByTestId('context-why')).toBeNull();
+    const priorCount = a.recorder.entryCount;
+    const entry = b.recorder.getEntries().find(row => row.runtimeStageId === cursor.at.runtimeStageId)!;
+    const replay = b.runner as { emit(event: typeof entry.event): void };
+    act(() => replay.emit(entry.event));
+    expect(a.recorder.entryCount).toBe(priorCount + 1);
+    view.rerender(pane(b.snapshot));
+    expect(screen.queryByTestId('context-why')).toBeNull();
+    view.rerender(<ContextView runner={b.snapshot} recorder={a.recorder} cursor={cursor} events={[entry]} />);
+    expect(screen.getByTestId('context-why')).toBeTruthy();
+    view.rerender(pane(b.snapshot));
+    expect(screen.queryByTestId('context-why')).toBeNull();
+
+    act(() => {
+      a.recorder.clear();
+      replay.emit(entry.event);
+    });
+    await waitFor(() => expect(screen.getByTestId('context-why')).toBeTruthy());
+    expect(a.recorder.entryCount).toBe(1);
+    view.unmount();
+    a.recorder.detach();
   });
 
   it('reads the observed snapshot once per grouped-axis publication and refreshes without a host render', async () => {

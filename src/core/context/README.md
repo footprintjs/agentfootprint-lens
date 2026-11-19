@@ -66,8 +66,11 @@ Pass an optional `previous` fold cursor to see which keys entered, changed or
 left. The same result supplies the served receipt and its verification when
 recorded, and the findings ledger when present. For a live React view, pass
 `runner` and its observing `recorder` to `<ContextView>`. It batches recorder
-notifications before reading the snapshot. A consumer can still supply an
-explicit event list for replay.
+notifications before reading the snapshot. Detaching the recorder removes the
+automatic event evidence. When a recorder retains entries from different
+observed runners, Context uses the displayed snapshot's milestone axis and
+omits the mixed event log. Call `recorder.clear()` when starting a fresh run,
+or pass the displayed run's own `events` explicitly.
 
 ## 0.54.0 — the served row is rendered, not just badged
 
