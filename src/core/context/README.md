@@ -616,8 +616,9 @@ answer, on the `agentfootprint.agent.turn_end` event's `payload.finalContent`),
 `test/served/no-own-claims.test.ts` covers the file), **one cursor**,
 **a shape the lens does not own** (`coverageRecordOf` narrows every row;
 a row that does not fit is dropped one by one, a malformed item inside a row
-likewise), and **stateless** (the fold past twelve entries opens in a native
-`<details>` under `+K more`). Test ids: `coverage-band` (`data-declarations`,
+likewise). The first twelve calls and first twelve items in each section stay
+visible. Open `+K more` to read the remaining entries twelve at a time. Paging
+keeps the shared replay cursor at its current stop. Test ids: `coverage-band` (`data-declarations`,
 `data-step`, `data-commit`), `coverage-boundary`, `coverage-calls`,
 `coverage-section` (`data-section` = `checked` | `notChecked` |
 `cannotCover`, `data-count`; `coverage-section-chip`), `coverage-item`
