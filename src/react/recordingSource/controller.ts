@@ -23,13 +23,25 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
   // invoking this feature, rather than importing an ordinary Lens, needs 1.0.1.
   if (typeof native.createRecordingSource !== 'function') throw new Error('Lazy recording sources require footprint-explainable-ui 1.0.1 or newer.');
   const root = checked.value;
-  let currentSnapshot = root.recording.snapshot ?? undefined;
+  // The codec already validated, copied and froze all replay data. The native
+  // loader checks the original tree and history and owns subsequent child results.
+  const base = root.recording.snapshot as RecordedSnapshot & RecordingSourceOptions['snapshot'];
+  let currentSnapshot = base;
+  const overlayChildren = (loaded: RecordingSourceOptions['snapshot']) =>
+    Object.freeze({ ...base, ...(loaded.subflowResults !== undefined && { subflowResults: loaded.subflowResults }) });
   const observed = observeRecordingWithSnapshot(root.recording, { debug: false }, () => currentSnapshot);
   const graph = observed.runner === undefined ? { nodes: [], edges: [] } : structureGraphFromRunner(observed.runner);
+  const readNarrative = native.narrativeFromSnapshot;
   let source: RecordingSource;
   try {
     source = native.createRecordingSource({
-      snapshot: currentSnapshot as unknown as RecordingSourceOptions['snapshot'], graph,
+      snapshot: {
+        runId: base.runId, executionTree: base.executionTree, commitLog: base.commitLog,
+        sharedState: base.sharedState,
+        ...(typeof readNarrative !== 'function' && { recorders: base.recorders }),
+      },
+      graph,
+      ...(typeof readNarrative === 'function' && { narrativeEntries: readNarrative(base) ?? [] }),
       loadSubflow: (request, interest) => {
         // Native admission supplied an owned exact request before this host
         // capability is consulted. Never inspect caller accessors ourselves.
@@ -47,7 +59,8 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
     observed.recorder.detach();
     throw new Error('The recording cannot be opened as a lazy source.');
   }
-  currentSnapshot = source.getSnapshot().snapshot as unknown as RecordedSnapshot;
+  let loaderSnapshot = source.getSnapshot().snapshot;
+  currentSnapshot = overlayChildren(loaderSnapshot);
   const byPath = new Map(root.invocations.map(value => [source.getKey(value.invocationPath), value]));
   let recording: Recording = Object.freeze({ ...root.recording, snapshot: currentSnapshot });
   let disposed = false;
@@ -63,11 +76,11 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
   const off = source.subscribe(() => {
     if (disposed) return;
     const next = source.getSnapshot();
-    const admittedSnapshot = next.snapshot as unknown as RecordedSnapshot;
-    const changed = admittedSnapshot !== currentSnapshot;
+    const changed = next.snapshot !== loaderSnapshot;
     if (changed) {
       axes.clear(); overlays.clear();
-      currentSnapshot = admittedSnapshot;
+      loaderSnapshot = next.snapshot;
+      currentSnapshot = overlayChildren(loaderSnapshot);
       recording = Object.freeze({ ...root.recording, snapshot: currentSnapshot });
     }
     snapshot = Object.freeze({ revision: next.revision, recording, invocations: root.invocations, loads: readLoads(next.scopes) });
@@ -122,7 +135,7 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
           || typeof index !== 'number' || !Number.isSafeInteger(index) || index < 0) return undefined;
         if (request !== undefined) await controller.load(request, interest);
         if (disposed || interest?.signal?.aborted) return undefined;
-        const current = source.getSnapshot().snapshot;
+        const current = currentSnapshot;
         const projection = path.length === 0 ? undefined : native.projectTraceInvocation(current, path[path.length - 1]!, { invocationPath: path });
         if (projection !== undefined && !projection.availability.ok) return undefined;
         const commits = projection?.commitLog ?? current.commitLog;
@@ -145,7 +158,7 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
           const result = scrubAxisFor(observed.recorder, 'step'); axes.set(key, result); return result;
         }
         const request = byPath.get(key); if (request === undefined) return [];
-        const projection = native.projectTraceInvocation(source.getSnapshot().snapshot, request.mountRuntimeStageId, {invocationPath: request.invocationPath});
+        const projection = native.projectTraceInvocation(currentSnapshot, request.mountRuntimeStageId, {invocationPath: request.invocationPath});
         if (!projection.availability.ok) return [];
         const positions: CursorPosition[] = [];
         for (let index = 0; index < projection.commitLog.length; index++) {
@@ -164,7 +177,7 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
         const overlay = observed.recorder.runtime.getOverlay(); overlays.set(key, overlay); return overlay;
       }
       const request = byPath.get(key);
-      const projection = request === undefined ? undefined : native.projectTraceInvocation(source.getSnapshot().snapshot, request.mountRuntimeStageId, {invocationPath: request.invocationPath});
+      const projection = request === undefined ? undefined : native.projectTraceInvocation(currentSnapshot, request.mountRuntimeStageId, {invocationPath: request.invocationPath});
       const overlay = native.overlayFromSnapshot({commitLog: projection?.availability.ok ? projection.commitLog : []});
       overlays.set(key, overlay); return overlay;
     },
