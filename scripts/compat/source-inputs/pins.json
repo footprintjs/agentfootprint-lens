@@ -1,0 +1,277 @@
+{
+  "kind": "lens.native-source-input.v2",
+  "agent": {
+    "repository": "footprintjs/agentfootprint",
+    "repositoryId": 1183666171,
+    "source": {
+      "head": "37985a9c4a998a52838905322040a34a63229de8",
+      "tree": "fd33fcad63edc9a9ea750e02feef65355e225832",
+      "manifestSha256": "d6dc726430a4e8e890daf1bc9f513db9ac1aa23f89556b443c51303632bf7c0b",
+      "lockSha256": "c7e65f46a13b92c8417ec27570ae4b64f2a001eb817bff323c00fc4cf324c166"
+    },
+    "tested": {
+      "head": "64eba8e10d28f21424985116257484970cc7bdc3",
+      "tree": "fd33fcad63edc9a9ea750e02feef65355e225832"
+    },
+    "run": {
+      "id": 44215477577,
+      "name": "CI",
+      "head_sha": "37985a9c4a998a52838905322040a34a63229de8",
+      "event": "pull_request",
+      "run_attempt": 1,
+      "status": "completed",
+      "conclusion": "failure",
+      "html_url": "https://github.com/footprintjs/agentfootprint/actions/runs/44215477577",
+      "workflow_id": 247073236,
+      "head_branch": "codex/af-next-major-cohort-preparation-20261116"
+    },
+    "sourceJob": {
+      "id": 134504312868,
+      "name": "test-package (24)",
+      "status": "completed",
+      "conclusion": "success",
+      "actualSourceArtifactIdPresentInCanonicalLog": true
+    },
+    "sourceArtifact": {
+      "id": 14387843673,
+      "name": "agentfootprint-source-37985a9c4a998a52838905322040a34a63229de8",
+      "size_in_bytes": 10463750,
+      "digest": "sha256:fe47d31a88a9f540abef6c896ca5aa6f9d996cdbd1879dc2690e594b20ccc297",
+      "expired": false
+    },
+    "archive": {
+      "filename": "agentfootprint-15.0.0-rc.0.tgz",
+      "package": "agentfootprint",
+      "version": "15.0.0-rc.0",
+      "sha256": "c540187d33440c796c34624d117d026f11921a2c27a7bbda1dd2723128e57cc6",
+      "shasum": "e319da3fd5cf16201c1db1e7cfdcd5b5b356654a",
+      "integrity": "sha512-j1X9y0y4T6u8Gqps3mTl73N6qkbxCe0CB5hjAlOd0fAtQygXIAL3OoEF+ihBZFEcwnpRQ6WfNNgXLrvQsh98+w==",
+      "bytes": 9887236,
+      "memberCount": 11434,
+      "memberBytes": 52835290,
+      "expandedTarBytes": 61640192,
+      "memberCensusSha256": "0f57950538f47be2109c29db06c3192e8a8a83cb26879bc1c825da39794d007e"
+    },
+    "nativeEvidence": {
+      "nodes": [
+        "v22.23.4",
+        "v24.22.2"
+      ],
+      "casesEach": [
+        "source-online",
+        "source-offline",
+        "consumer-online",
+        "consumer-offline"
+      ],
+      "artifacts": [
+        {
+          "id": 14389015672,
+          "name": "agentfootprint-native-context-22-37985a9c4a998a52838905322040a34a63229de8",
+          "size_in_bytes": 5806365,
+          "digest": "sha256:a083b84889b4e4b9d66a7757cfe53ec9a92c853bf752267dc97130a4bb5e3e58",
+          "expired": false
+        },
+        {
+          "id": 14387579685,
+          "name": "agentfootprint-native-context-24-37985a9c4a998a52838905322040a34a63229de8",
+          "size_in_bytes": 5806548,
+          "digest": "sha256:d0a324330bfa54a03965db9487821d5903c3a7c2d28abe8bca7b0e046abff5d3",
+          "expired": false
+        }
+      ],
+      "sameOriginalArchiveAcrossEveryMode": true,
+      "allSourceMembers": 11434,
+      "allDistJoinsEach": 11418,
+      "allProofReferenceJoinsEach": 252,
+      "allProbeBodyJoinsEach": 64,
+      "compiler": "5.4.5/bin/tsc",
+      "selectedFamily": {
+        "footprintjs": {
+          "version": "14.0.0-rc.0",
+          "sha256": "c9f73ddada14a36c277cbceab6b8b8946710e63493ace1da59e457c36f4e7128",
+          "integrity": "sha512-oBaE4kZFgLso4DzntWDgTJ03WVdcjMxBmyMa0mqt6XzcIEkBMuOe2P9TKTJSL4L5ZyxjHPutUbPRpYu+APcfDA==",
+          "bytes": 4282582,
+          "memberCount": 1289
+        },
+        "foottrace": {
+          "version": "2.1.0",
+          "sha256": "300022ebdc7a401871a90d8da3db2739632b4e70012b1ac4e55fabc5fe2dbc68",
+          "integrity": "sha512-FaFqEPRvawnfy1AA9mNQ8DqKBlAXNAcM9tLnz7ZDTyYHebQRCawIHI6z4hFl0GOaMokWbIwp8E2jp0naUXNfgQ==",
+          "bytes": 621311,
+          "memberCount": 724
+        },
+        "contextfootprint": {
+          "version": "0.1.1",
+          "sha256": "6a7f2be20707c8d4ab0c67845bed02a583f215fa37050ca83e49fd9216740827",
+          "integrity": "sha512-svx/T10drbS9/PHdYL9vFsLBjkyTi/80TS83xvC/jc58ILXYGOTuOxAajDQYUDK7wGWsuN824YXE+jJ2IQe5Jg==",
+          "bytes": 11500,
+          "memberCount": 20
+        }
+      }
+    },
+    "review": {
+      "path": "reviews/second-read/agentfootprint-next-major-native-37985a9c.md",
+      "bytes": 2081,
+      "sha256": "3e4a951e6833b2629661d708d6ac65881f7e379f8d88e08515e12d0a3e253ef6",
+      "CFullRead": true,
+      "independentSourceAndCurrentNativeDataClear": true
+    }
+  },
+  "jobs": [
+    {
+      "id": 134504312530,
+      "name": "test-examples",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312624,
+      "name": "test-shard (22, 4)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312655,
+      "name": "test-shard (24, 1)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312696,
+      "name": "test-shard (24, 2)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312705,
+      "name": "lint",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312753,
+      "name": "test-shard (24, 4)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312782,
+      "name": "docs",
+      "conclusion": "failure"
+    },
+    {
+      "id": 134504312797,
+      "name": "coverage-shard (3)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312800,
+      "name": "test-shard (24, 3)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312808,
+      "name": "coverage-shard (2)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312813,
+      "name": "file-size / file-size",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312828,
+      "name": "test-shard (22, 1)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312837,
+      "name": "coverage-shard (1)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312847,
+      "name": "changes",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312852,
+      "name": "generated",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312868,
+      "name": "test-package (24)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312873,
+      "name": "coverage-shard (4)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312911,
+      "name": "tested-tree",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312936,
+      "name": "test-shard (22, 2)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312963,
+      "name": "test-shard (22, 3)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312989,
+      "name": "hold / hold",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504312994,
+      "name": "test-package (22)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504313079,
+      "name": "docs-truth",
+      "conclusion": "success"
+    },
+    {
+      "id": 134504313228,
+      "name": "docs-links",
+      "conclusion": "success"
+    },
+    {
+      "id": 134507106956,
+      "name": "test (22)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134507107024,
+      "name": "test (24)",
+      "conclusion": "success"
+    },
+    {
+      "id": 134507912946,
+      "name": "coverage",
+      "conclusion": "success"
+    }
+  ],
+  "deferredJob": 134504312782,
+  "published": {
+    "footprintjs": {
+      "version": "14.0.0-rc.0",
+      "integrity": "sha512-oBaE4kZFgLso4DzntWDgTJ03WVdcjMxBmyMa0mqt6XzcIEkBMuOe2P9TKTJSL4L5ZyxjHPutUbPRpYu+APcfDA==",
+      "sha256": "c9f73ddada14a36c277cbceab6b8b8946710e63493ace1da59e457c36f4e7128"
+    },
+    "foottrace": {
+      "version": "2.1.0",
+      "integrity": "sha512-FaFqEPRvawnfy1AA9mNQ8DqKBlAXNAcM9tLnz7ZDTyYHebQRCawIHI6z4hFl0GOaMokWbIwp8E2jp0naUXNfgQ==",
+      "sha256": "300022ebdc7a401871a90d8da3db2739632b4e70012b1ac4e55fabc5fe2dbc68"
+    }
+  },
+  "closure": {
+    "contextfootprint": {
+      "version": "0.1.1",
+      "sha256": "6a7f2be20707c8d4ab0c67845bed02a583f215fa37050ca83e49fd9216740827",
+      "integrity": "sha512-svx/T10drbS9/PHdYL9vFsLBjkyTi/80TS83xvC/jc58ILXYGOTuOxAajDQYUDK7wGWsuN824YXE+jJ2IQe5Jg=="
+    }
+  }
+}

@@ -10,10 +10,12 @@ permissions:
   contents: read
 
 jobs:
-  # Keep the required source-check name; every source gate uses the committed lock.
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    permissions:
+      contents: read
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -21,55 +23,61 @@ jobs:
       - uses: actions/checkout@v4
         with:
           repository: footprintjs/explainable-ui
-          ref: e3681ab46e01a2a03adf97a27d58df987fef4db8
+          ref: 0af1a2d0d21edb0a86fb447b4c032c1f3d896412
           path: flow-candidate
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Check authored cohort development pins
+        run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
+      - name: Exercise every ordinary registry helper and the explicit native refusals
+        run: node --test scripts/compat/*.test.mjs scripts/compat/source-inputs/*.test.mjs
+      - name: Exercise the bounded hostile archive controls without installing packages
+        run: python3 -B -m unittest discover -s scripts/compat/source-inputs/archive_data -t scripts/compat/source-inputs -p '*_test.py' -v
       - run: npm ci --strict-peer-deps
-      - name: Verify registry bytes, committed identity and installed files
-        run: node scripts/compat/published-proof.mjs --out published-evidence-22 --lock package-lock.json
-      - run: npm run test:compat-helpers
       - run: npm run test:contract:foottrace
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
       - run: npm run fixtures:time:check
-      - run: npx publint
-      - run: npx @arethetypeswrong/cli --pack
-      - name: Pack one Lens artifact and the exact reviewed renderer candidate
+      - run: npm exec --no -- publint
+      - name: Verify registry bytes, committed lock and installed packages
+        run: node scripts/compat/published-proof.mjs --out "$RUNNER_TEMP/published-evidence" --lock package-lock.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: published-source-node22
+          path: |
+            ${{ runner.temp }}/published-evidence/*.json
+            ${{ runner.temp }}/published-evidence/*.log
+          if-no-files-found: error
+      - name: Read the independently reviewed renderer original
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/compat/source-inputs.mjs fetch-renderer --out "$RUNNER_TEMP/renderer-inputs"
+      - name: Pack one Lens archive and bind it to stable AgentFootprint and the renderer original
         run: |
           mkdir -p compat-artifacts
           why_archive="$(node scripts/compat/why-identity.mjs)"
-          agent_archive="$(node scripts/compat/published-proof.mjs --archive-name)"
           npm pack --ignore-scripts --pack-destination compat-artifacts
+          npm exec --no -- attw "compat-artifacts/$why_archive"
           node scripts/compat/prepare-artifacts.mjs \
             --why-tar "compat-artifacts/$why_archive" \
             --flow-source flow-candidate --out compat-artifacts \
-            --agent-tar "published-evidence-22/$agent_archive" \
-            --agent-source published-evidence-22/published-agent.json
+            --renderer-inputs "$RUNNER_TEMP/renderer-inputs" \
+            --published-evidence "$RUNNER_TEMP/published-evidence"
       - uses: actions/upload-artifact@v4
         with:
           name: compatibility-archives
           path: |
             compat-artifacts/*.tgz
-            compat-artifacts/contract.json
-            compat-artifacts/agent-source.json
+            compat-artifacts/*.json
             compat-artifacts/*.log
-          if-no-files-found: error
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: published-source-node22
-          path: |
-            published-evidence-22/*.tgz
-            published-evidence-22/*.json
-            published-evidence-22/*.log
           if-no-files-found: error
 
   test-24:
+    needs: test
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -79,26 +87,81 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
+      - name: Check authored cohort development pins
+        run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
+      - name: Exercise every ordinary registry helper and the explicit native refusals
+        run: node --test scripts/compat/*.test.mjs scripts/compat/source-inputs/*.test.mjs
+      - name: Exercise the bounded hostile archive controls without installing packages
+        run: python3 -B -m unittest discover -s scripts/compat/source-inputs/archive_data -t scripts/compat/source-inputs -p '*_test.py' -v
+      - uses: actions/download-artifact@v4
+        with:
+          name: compatibility-archives
+          path: compat-artifacts
       - run: npm ci --strict-peer-deps
-      - name: Verify registry bytes, committed identity and installed files
-        run: node scripts/compat/published-proof.mjs --out published-evidence-24 --lock package-lock.json
-      - run: npm run test:compat-helpers
       - run: npm run test:contract:foottrace
       - run: npm run typecheck
       - run: npm run build
       - run: npm test
       - run: npm run fixtures:time:check
-      - run: npx publint
-      - run: npx @arethetypeswrong/cli --pack
+      - run: npm exec --no -- publint
+      - name: Verify registry bytes, committed lock and installed packages
+        run: node scripts/compat/published-proof.mjs --out "$RUNNER_TEMP/published-evidence" --lock package-lock.json
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: published-source-node24
           path: |
-            published-evidence-24/*.json
-            published-evidence-24/*.log
+            ${{ runner.temp }}/published-evidence/*.json
+            ${{ runner.temp }}/published-evidence/*.log
           if-no-files-found: error
+      - name: Compare Node 24’s build to the original Node 22 archive
+        run: |
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { publishedSourceFiles } from './scripts/compat/contract.mjs';
+          import { inspectArchive } from './scripts/compat/process.mjs';
+          import { assertWhyIdentity } from './scripts/compat/why-identity.mjs';
+
+          const contract = JSON.parse(readFileSync('compat-artifacts/contract.json', 'utf8'));
+          const identity = assertWhyIdentity(contract);
+          assert.equal(contract.source.whyCommit, process.env.GITHUB_SHA);
+          assert.equal(contract.source.workflowRun, process.env.GITHUB_RUN_ID);
+          assert.equal(contract.source.workflowAttempt, process.env.GITHUB_RUN_ATTEMPT);
+          const archive = inspectArchive(`compat-artifacts/${identity.filename}`, process.env.RUNNER_TEMP,
+            { ...identity, expectedSha: contract.why.sha256 });
+          assert.deepEqual(archive.files, publishedSourceFiles(process.cwd()));
+          assert.deepEqual(archive.manifest, JSON.parse(readFileSync('package.json', 'utf8')));
+          JS
+          why_archive="$(node scripts/compat/why-identity.mjs)"
+          npm exec --no -- attw "compat-artifacts/$why_archive"
+
+  published-commentary-control:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Check authored cohort development pins
+        run: node scripts/compat/check-source-pins.mjs
+      - run: npm install -g npm@11.21.0
+      - name: Bootstrap the separate published CONTROL directly, never through target AF15
+        run: |
+          node scripts/compat/source-inputs.mjs bootstrap --mode CONTROL --source "$GITHUB_WORKSPACE" --target "$RUNNER_TEMP/published-control" --evidence "$RUNNER_TEMP/control-evidence"
+      - name: Preserve commentary assertions, build and the complete historical layout suite
+        run: node scripts/compat/source-inputs.mjs gates --evidence "$RUNNER_TEMP/control-evidence"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-CONTROL-only
+          path: |
+            ${{ runner.temp }}/control-evidence/*.json
+            ${{ runner.temp }}/control-evidence/*.log
+          if-no-files-found: warn
 
   # Retire historical installed runtime cohorts. Keep historical record DATA
   # fixtures in the whole suite, plus public renderer floor/current/candidate.
@@ -116,7 +179,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flow: ["0.34.0", "0.38.0", "candidate", "1.0.1"]
+        flow: ["0.34.0", "0.38.0", "candidate", "1.0.1", "2.0.0", "2.1.0"]
         react: ["18", "19"]
         node: [22, 24]
     steps:
@@ -127,18 +190,19 @@ jobs:
         if: matrix.flow == 'candidate'
         with:
           repository: footprintjs/explainable-ui
-          ref: e3681ab46e01a2a03adf97a27d58df987fef4db8
+          ref: 0af1a2d0d21edb0a86fb447b4c032c1f3d896412
           path: flow-candidate
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
+      - name: Check authored cohort development pins
+        run: node scripts/compat/check-source-pins.mjs
       - run: npm install -g npm@11.21.0
       - uses: actions/download-artifact@v4
         with:
           name: compatibility-archives
           path: compat-artifacts
-      - run: npm ci --strict-peer-deps
       - name: Strict packed public runtime, declarations, native recording and browser replay
         run: |
           node scripts/compat/run-lane.mjs --kind native --flow "${{ matrix.flow }}" \
@@ -154,9 +218,12 @@ jobs:
             ${{ runner.temp }}/compat-evidence/*.log
             ${{ runner.temp }}/compat-evidence/*.tgz
             ${{ runner.temp }}/compat-evidence/consumer/package*.json
+            ${{ runner.temp }}/compat-evidence/consumer-resolve/package*.json
             ${{ runner.temp }}/compat-evidence/consumer/native-recording.json
             ${{ runner.temp }}/compat-evidence/consumer/expected-cohort.json
             ${{ runner.temp }}/compat-evidence/record-only/package*.json
+            ${{ runner.temp }}/compat-evidence/record-only-resolve/package*.json
             ${{ runner.temp }}/compat-evidence/record-browser/package*.json
+            ${{ runner.temp }}/compat-evidence/record-browser-resolve/package*.json
             ${{ runner.temp }}/compat-evidence/browser/**
           if-no-files-found: error

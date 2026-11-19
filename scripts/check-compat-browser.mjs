@@ -6,8 +6,9 @@ import { createRequire } from 'node:module';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { assertInstalled, candidate } from './compat/contract.mjs';
+import { assertInstalled } from './compat/contract.mjs';
 import { assertBrowserOutputSafe, assertBrowserOutputUnchanged, captureBrowserOutput } from './compat/browser-output.mjs';
+import { requireRecordBrowser } from './compat/browser-plan.mjs';
 
 const root = fileURLToPath(new URL('../', import.meta.url));
 const options = Object.fromEntries(process.argv.slice(2).reduce((pairs, arg, index, all) => {
@@ -28,7 +29,8 @@ const archiveProofBytes = await readFile(resolve(options['archive-proof']));
 const archiveProof = JSON.parse(archiveProofBytes);
 assert.match(archiveProof.why.sha256, /^[a-f0-9]{64}$/);
 assert.match(archiveProof.flow.sha256, /^[a-f0-9]{64}$/);
-if (options['flow-version'] === '1.0.0') assert.equal(archiveProof.flow.sha256, candidate.sha256);
+const recordBrowser = requireRecordBrowser({ version: options['flow-version'],
+  sha256: archiveProof.flow.sha256, recordConsumer: options['record-consumer'] });
 
 async function copyFixture(source, target, name) {
   const bytes = await readFile(source);
@@ -249,10 +251,7 @@ async function checkRecord(page, proof) {
 
 try {
   await runBrowser(options.consumer, 'replay');
-  if (options['flow-version'] === '1.0.0') {
-    assert.ok(options['record-consumer'], 'Every candidate lane requires its separate /record browser host');
-    await runBrowser(options['record-consumer'], 'record');
-  } else assert.ok(!options['record-consumer'], 'Old Flow releases do not provide /record');
+  if (recordBrowser) await runBrowser(options['record-consumer'], 'record');
   await writeFile(join(evidence, 'verification.json'), JSON.stringify({ passed: true, lane: options.lane, results }, null, 2));
   console.log(`Installed browser compatibility passed: ${options.lane}`);
 } catch (error) {

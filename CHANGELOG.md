@@ -5,6 +5,47 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+## [0.84.0] - 2026-11-19
+
+### Breaking
+
+- Require AgentFootprint 15, FootPrint 14 and Foottrace 2.1. Migration: update
+  the runtime packages together to `agentfootprint ^15.0.0`, `footprintjs ^14.0.0`
+  and `foottrace ^2.1.0`. The committed lock selects the stable published
+  versions and Explainable UI 2.1.0. The Explainable UI peer range adds 2.x.
+  Lens continues to read older saved recordings.
+
+### Known gaps on the 15 line
+
+- The analyst fallback can say a tool returned when the recording leaves
+  tool execution unknown.
+- The analyst views still display the recorded `args` field. The protected
+  proposal in `shownArgs` and `hiddenArgs` is not shown there.
+- The Trust Boundary view omits the person's approval and resume phase from
+  middleware decisions.
+- The Reasoning Lens placement badge recognizes ticket-shaped results. It
+  does not check the producer's placement receipt.
+
+## [0.83.0] - 2026-11-18
+
+### Added
+
+- Open large saved runs through the new native recording exports. Lens can
+  display the root, then load and replay a recorded child scope when the
+  reader opens it. The loaded scopes share one playback cursor.
+- Preserve each child's playback axis and overlay. Root readers refuse
+  child indices, and cancellation and stale responses leave the current
+  selection intact.
+
+### Notes
+
+- The host supplies the recording storage or transport. Lazy child replay
+  does not change how a host reads a whole JSON recording from storage.
+- Existing Lens APIs and renderer peer floors were retained. The optional
+  native recording interface requires Explainable UI 1.0.1 or newer.
+
 ## [0.82.0] - 2026-11-14
 
 ### Added
