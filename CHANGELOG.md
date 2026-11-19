@@ -23,6 +23,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   events. Lazy subflow loading reuses the validated root recording and
   preserves the replay cursor as child data arrives.
 
+### Known gaps on the 15 line
+
+- The analyst fallback can say a tool returned when the recording leaves
+  tool execution unknown.
+- The analyst views still display the recorded `args` field. The protected
+  proposal in `shownArgs` and `hiddenArgs` is not shown there.
+- The Trust Boundary view omits the person's approval and resume phase from
+  middleware decisions.
+- The Reasoning Lens placement badge recognizes ticket-shaped results. It
+  does not check the producer's placement receipt.
+
+## [0.83.0] - 2026-11-18
+
+### Added
+
+- Open large saved runs through the new native recording exports. Lens can
+  display the root, then load and replay a recorded child scope when the
+  reader opens it. The loaded scopes share one playback cursor.
+- Preserve each child's playback axis and overlay. Root readers refuse
+  child indices, and cancellation and stale responses leave the current
+  selection intact.
+
+### Notes
+
+- The host supplies the recording storage or transport. Lazy child replay
+  does not change how a host reads a whole JSON recording from storage.
+- Existing Lens APIs and renderer peer floors were retained. The optional
+  native recording interface requires Explainable UI 1.0.1 or newer.
+
 ## [0.82.0] - 2026-11-14
 
 ### Added
