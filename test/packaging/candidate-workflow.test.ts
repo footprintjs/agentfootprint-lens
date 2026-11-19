@@ -21,7 +21,7 @@ describe('published cohort compatibility workflow', () => {
   it('locks the development cohort and retains renderer/React/Node coverage', () => {
     expect(cohortMismatches(manifest, lock, [...COHORT, 'footprint-explainable-ui'])).toEqual([]);
     const flows = JSON.parse(workflow.match(/flow: (\[[^\n]+\])/u)![1]!) as string[];
-    expect(flows).toEqual(['0.34.0', '0.38.0', 'candidate', '1.0.1', '2.0.0']);
+    expect(flows).toEqual(['0.34.0', '0.38.0', 'candidate', '1.0.1', '2.0.0', '2.1.0']);
     expect(workflow).toContain('react: ["18", "19"]');
     expect(workflow).toContain('node: [22, 24]');
     expect(workflow).toContain('--kind native');
