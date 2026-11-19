@@ -320,6 +320,27 @@ export {
   type EmittedCallShape as ReasoningEmittedCallShape,
 } from "./context/reasoningExchange.js";
 
+export {
+  proofMapAt,
+  foldProofMap,
+  type ProofMapInput,
+  type ProofFold,
+  type ProofCall,
+  type ProofAnswer,
+  type ProofSource,
+  type ContingentShape as ProofContingentShape,
+  type CarrierShape as ProofCarrierShape,
+} from "./context/proofMap.js";
+export {
+  layoutProofMap,
+  GEOMETRY as PROOF_MAP_GEOMETRY,
+  type ProofLayout,
+  type ProofNodeKind,
+  type ProofEdgeKind,
+  type PlacedNode as ProofPlacedNode,
+  type PlacedEdge as ProofPlacedEdge,
+} from "./context/proofMapLayout.js";
+
 // The Served tab's data (0.47.0): the ONE cursor resolved to its epoch, the
 // rebuilt request checked against the receipt with the library's own hashes,
 // what changed since the previous epoch, and the agent's own keys at the stop
