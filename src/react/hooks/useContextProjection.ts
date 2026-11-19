@@ -53,13 +53,14 @@ export function useContextProjection({ runner, recorder, shared, cursor: supplie
     const sameSnapshot = snapshot != null && snapshot === runner;
     if (!observesRunner && !sameSnapshot &&
         (independentRunId === undefined || independentRunId !== runIdOf(snapshot))) return undefined;
+    const singleSource = current.hasSingleObservedSource();
     return {
       observesRunner,
       snapshot,
-      positions: ownAxis ? groupedAxisForSnapshot(current, snapshot) : undefined,
-      events: readEvents ? current.getEntries() : undefined,
+      positions: ownAxis && singleSource ? groupedAxisForSnapshot(current, snapshot) : undefined,
+      events: readEvents && singleSource ? current.getEntries() : undefined,
     };
-  }) : noRecorder, [recorder, runner, independentRunId, ownAxis, readEvents]);
+  }) : noRecorder, [recorder, observed, runner, independentRunId, ownAxis, readEvents]);
   const published = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   const sampled = published?.observesRunner ? published.snapshot : independent;
   const logKey = published?.observesRunner ? undefined : snapshotLogKey(sampled);
