@@ -17,15 +17,15 @@ README; the duplicate descriptor, staging path and its tests are removed.
 and the reviewed renderer original to the workflow run. `run-lane.mjs`
 requires that cohort in its strict lock, checks installed files against their
 original archives and supplies the expected versions to the recording probe.
-The five renderer selections run with React 18/19 on Node 22/24.
+The six renderer selections run with React 18/19 on Node 22/24.
 The packed lock and browser plan share the closed declared renderer versions.
 Only the admitted source candidate requires the separate literal Flow/HCI record
 browser; its original archive digest remains mandatory. The published lazy lane
 retains both the registry pack receipt and actual byte SRI checks.
-The 0.38.0 and 2.0.0 lanes bind the original registry archives by URL, size and
+The 0.38.0, 2.0.0 and 2.1.0 lanes bind the original registry archives by URL, size and
 digest. They compile the same full engine narrative fixture under strict NodeNext
 ESM, NodeNext CommonJS and Bundler. Only the expected narrative-argument
-diagnostic qualifies as a 0.38.0 rejection. The 2.0.0 fixture must compile cleanly.
+diagnostic qualifies as a 0.38.0 rejection. Both 2.x lanes must compile the fixture cleanly.
 
 Consumer fixture locks replay their renderer/React/private Lens-tar graph with
 strict npm ci. They contain a CI-local Lens path and are non-portable evidence,

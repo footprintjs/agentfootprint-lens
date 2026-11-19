@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 
-// The paired declaration check uses these two original registry images.
+// The paired declaration check uses these original registry images.
 export const narrativeRenderers = Object.freeze({
   '0.38.0': Object.freeze({
     tarball: 'https://registry.npmjs.org/footprint-explainable-ui/-/footprint-explainable-ui-0.38.0.tgz',
@@ -17,6 +17,14 @@ export const narrativeRenderers = Object.freeze({
     shasum: 'f02fa7e4ead7423e3695726665cc445a47502a04',
     sha256: '964d9b917cbbf1f4f9d278c63dbe4f105c776cc997638d70206197f2433c3831',
     bytes: 2_655_498,
+    acceptsNarrative: true,
+  }),
+  '2.1.0': Object.freeze({
+    tarball: 'https://registry.npmjs.org/footprint-explainable-ui/-/footprint-explainable-ui-2.1.0.tgz',
+    integrity: 'sha512-epeJi7fbvjSojhUgagbR5VfEc71bX1BtO06K7f8iZGhnmJQpCdAvYxSDlGTOvEpPXblQ5LJpAGhsEIheRtFKUA==',
+    shasum: '6799c2efbf03d4d151a382a68bcdcbac050c76e0',
+    sha256: '92fa080346f32c718286ee6e81052bca7a72559bc07f96d8cd0c86b441e7b87a',
+    bytes: 2_702_203,
     acceptsNarrative: true,
   }),
 });

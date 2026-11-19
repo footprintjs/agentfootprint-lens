@@ -41,7 +41,7 @@ test('four published lazy-source lanes extend the existing matrix and run the pa
   assert.equal(new Set(ids).size, 4);
   const workflow = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.deepEqual(JSON.parse(workflow.match(/flow:\s*(\[[^\]]+\])/)?.[1] ?? '[]'),
-    ['0.34.0', '0.38.0', 'candidate', '1.0.1', '2.0.0']);
+    ['0.34.0', '0.38.0', 'candidate', '1.0.1', '2.0.0', '2.1.0']);
   const runner = readFileSync(new URL('./run-lane.mjs', import.meta.url), 'utf8');
   assert.ok(runner.includes('check-lazy-recording.mjs'));
   assert.ok(runner.includes('check-lazy-recording-types'));
