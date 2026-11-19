@@ -353,6 +353,8 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
   const [viewMode, setViewMode] = useState<ServedViewMode>('list');
   const [showDiff, setShowDiff] = useState(false);
   const [openSchemas, setOpenSchemas] = useState<ReadonlySet<string>>(() => new Set());
+  const hasCall = derived !== undefined;
+  const cacheTotals = useMemo(() => hasCall ? cacheTotalsOf(snapshot) : undefined, [hasCall, snapshot]);
 
   if (derived === undefined) {
     return (
@@ -368,7 +370,6 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
   const { row, checks, since, fold, graph } = derived;
   const view = row.view;
   const markers = row.receipt?.cache.markersApplied ?? [];
-  const cacheTotals = useMemo(() => cacheTotalsOf(snapshot), [snapshot]);
   // The findings ledger on THIS wire (agentfootprint 9.101.0): the system
   // piece(s) it composed, and the tool results it served as tickets.
   const findingsPieces = view.system.pieces.filter((p) => p.source === 'findings').length;
