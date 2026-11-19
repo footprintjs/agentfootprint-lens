@@ -6,18 +6,17 @@ joined with version, registry URL and SHA512 integrity in the committed
 lock, non-exact versions, non-HTTPS inputs, malformed integrity and links.
 Every ordinary registry gate uses `npm ci --strict-peer-deps` on that lock.
 
-`published-proof.mjs` keeps three joins: registry SHA512/SHA1 agree with the
-actual downloaded bytes and the committed lock integrity; installed package
-files match that archive; one physical Foottrace matches the selected pin.
+`published-proof.mjs` binds each of the three registry archives to the
+committed lock, registry SHA512/SHA1 and installed files. It also checks that
+one physical Foottrace matches the selected pin.
 SHA256 and archive size are measured receipt data, never another fixed identity.
 The old one-time RC/offline comparison lives in Git history and the repository
 README; the duplicate descriptor, staging path and its tests are removed.
 
-`prepare-artifacts.mjs` binds one Lens archive, the qualified native agent
-original and immutable renderer original to the same workflow run. The
-contract carries the source-derived cohort. `run-lane.mjs` requires that exact
-cohort, installs its admitted originals and gives the native probe an expected-cohort
-sidecar; the probe checks actual versions and consumer lock identities.
+`prepare-artifacts.mjs` binds one Lens archive, the stable registry cohort
+and the reviewed renderer original to the workflow run. `run-lane.mjs`
+requires that cohort in its strict lock, checks installed files against their
+original archives and supplies the expected versions to the recording probe.
 The five renderer selections run with React 18/19 on Node 22/24.
 The packed lock and browser plan share the closed declared renderer versions.
 Only the admitted source candidate requires the separate literal Flow/HCI record
@@ -102,27 +101,18 @@ The CI and context-producer source bootstraps run it before registry installatio
 syntax only: a valid pin does not prove availability, lock identity, archive
 bytes or compatibility. `deriveCohort` still requires the matching root pin,
 locked version, canonical registry URL, integrity and an unlinked package.
-The existing old lock can therefore continue to refuse a draft cohort.
 
-## Unpublished major source proof
+## Earlier RC proof and published control
 
-The preparation branch's committed root lock is stale and deliberately remains
-unaccepted by the ordinary registry guards. `source-inputs.mjs` is a distinct,
-closed native entry for the reviewed AF15 original plus published engine14.0.0-rc.0 and
-Foottrace2.1.0, including the actual contextfootprint owner. Its adjacent README
-names admission, genuine temporary locks, physical graph and archive checks.
-No native result claims a repaired portable lock or AF registry publication.
-
-Both Node source gates run against exact disposable source copies; the original
-manifest is restored before one Node22 Lens pack. Node24 compares its build to
-that same archive. All twenty packed renderer/React/Node lanes and the separate
-published commentary control remain. Native and registry evidence cannot be
-substituted for one another. The control bootstraps directly at14.7.2/12.3.0/1.11.1;
-it does not first install the unavailable target.
+The earlier native source proof used an unpublished AgentFootprint original
+and temporary locks. The active target jobs now replay the committed stable
+registry lock. Node 22 packs Lens once, and Node 24 compares its build with
+that archive. The separate published commentary control still bootstraps
+directly at 14.7.2 / 12.3.0 / 1.11.1.
 
 ## Original renderer producer
 
-The native input receipt also carries the separately reviewed UI64 original.
+The hosted renderer receipt carries the separately reviewed UI64 original.
 Its fixed source/run/tested parents and all four required jobs must match.
 The bounded data reader understands only that thirteen-member dependency-security
 ZIP, verifies its original package and source manifest plus packed member table,

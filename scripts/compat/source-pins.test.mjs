@@ -27,11 +27,13 @@ test('development includes the published native-source API while public peers re
   assert.equal(input.peerDependencies['footprint-explainable-ui'], rendererPeerRange);
 });
 
-test('the authored public contract explicitly accepts engine14 RC and Foottrace2.1', () => {
+test('the authored public contract selects the stable AgentFootprint 15, engine 14 and Foottrace 2.1 cohort', () => {
   const input = manifest();
-  assert.equal(input.peerDependencies.footprintjs, '^14.0.0-rc.0');
+  assert.equal(input.peerDependencies.agentfootprint, '^15.0.0');
+  assert.equal(input.devDependencies.agentfootprint, '15.0.0');
+  assert.equal(input.peerDependencies.footprintjs, '^14.0.0');
   assert.equal(input.peerDependencies.foottrace, '^2.1.0');
-  assert.equal(input.devDependencies.footprintjs, '14.0.0-rc.0');
+  assert.equal(input.devDependencies.footprintjs, '14.0.0');
   assert.equal(input.devDependencies.foottrace, '2.1.0');
 });
 

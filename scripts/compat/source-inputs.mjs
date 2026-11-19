@@ -2,7 +2,7 @@
 export { validateProvider, validateInputKind } from './source-inputs/admission.mjs';
 export { projectManifest } from './source-inputs/projection.mjs';
 export { scanInstalledPackages, verifyNativeLock, verifyPackedNativeLock, verifyNativeInstalled } from './source-inputs/installed.mjs';
-export { inspectInputs } from './source-inputs/archives.mjs';
+export { inspectInputs, inspectRendererInputs } from './source-inputs/archives.mjs';
 export { bootstrap, verifyBootstrap, restoreManifest, assertSourceClone } from './source-inputs/materialize.mjs';
 export { verifyRestored } from './source-inputs/gates.mjs';
 
@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import { realpathSync } from 'node:fs';
 import { parseFlags } from './contract.mjs';
-import { fetchInputs } from './source-inputs/transport.mjs';
+import { fetchInputs, fetchRendererInputs } from './source-inputs/transport.mjs';
 import { bootstrap, verifyBootstrap, restoreManifest } from './source-inputs/materialize.mjs';
 import { runGates, packTarget, verifyRestored } from './source-inputs/gates.mjs';
 
@@ -21,6 +21,8 @@ if (process.argv[1] && realpathSync(process.argv[1]) === fileURLToPath(import.me
   let result;
   if (action === 'fetch') {
     const f = parseFlags(args, ['out']); assert.ok(f.out); result = fetchInputs(f.out);
+  } else if (action === 'fetch-renderer') {
+    const f = parseFlags(args, ['out']); assert.ok(f.out); result = fetchRendererInputs(f.out);
   } else if (action === 'bootstrap') {
     const f = parseFlags(args, ['source', 'target', 'evidence', 'inputs', 'mode']);
     assert.ok(f.source && f.target && f.evidence && f.mode); result = bootstrap(f);

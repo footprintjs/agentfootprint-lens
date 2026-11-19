@@ -36,25 +36,30 @@ jobs:
         run: node --test scripts/compat/*.test.mjs scripts/compat/source-inputs/*.test.mjs
       - name: Exercise the bounded hostile archive controls without installing packages
         run: python3 -B -m unittest discover -s scripts/compat/source-inputs/archive_data -t scripts/compat/source-inputs -p '*_test.py' -v
-      - name: Read the fixed native source input with this workflow's existing token
+      - run: npm ci --strict-peer-deps
+      - run: npm run test:contract:foottrace
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - run: npm run fixtures:time:check
+      - run: npm exec --no -- publint
+      - name: Verify registry bytes, committed lock and installed packages
+        run: node scripts/compat/published-proof.mjs --out "$RUNNER_TEMP/published-evidence" --lock package-lock.json
+      - name: Read the independently reviewed renderer original
         env:
           GH_TOKEN: ${{ github.token }}
-        run: node scripts/compat/source-inputs.mjs fetch --out "$RUNNER_TEMP/native-inputs"
-      - name: Materialize the exact source with admitted originals and a genuine strict lock
+        run: node scripts/compat/source-inputs.mjs fetch-renderer --out "$RUNNER_TEMP/renderer-inputs"
+      - name: Pack one Lens archive and bind it to stable AgentFootprint and the renderer original
         run: |
-          node scripts/compat/source-inputs.mjs bootstrap --mode target --source "$GITHUB_WORKSPACE" --inputs "$RUNNER_TEMP/native-inputs" --target "$RUNNER_TEMP/native-target" --evidence "$RUNNER_TEMP/native-evidence"
-      - name: Preserve contract, types, build, whole-suite, time-fixture and publint gates
-        run: node scripts/compat/source-inputs.mjs gates --evidence "$RUNNER_TEMP/native-evidence"
-      - name: Restore the authored manifest, pack once and check those exact declarations
-        run: node scripts/compat/source-inputs.mjs pack --evidence "$RUNNER_TEMP/native-evidence" --out "$GITHUB_WORKSPACE/compat-artifacts"
-      - name: Bind the single Lens archive and exact renderer to the original native inputs
-        working-directory: ${{ runner.temp }}/native-target
-        run: |
+          mkdir -p compat-artifacts
           why_archive="$(node scripts/compat/why-identity.mjs)"
+          npm pack --ignore-scripts --pack-destination compat-artifacts
+          npm exec --no -- attw "compat-artifacts/$why_archive"
           node scripts/compat/prepare-artifacts.mjs \
-            --why-tar "$GITHUB_WORKSPACE/compat-artifacts/$why_archive" \
-            --flow-source "$GITHUB_WORKSPACE/flow-candidate" --out "$GITHUB_WORKSPACE/compat-artifacts" \
-            --source-inputs "$RUNNER_TEMP/native-inputs" --bootstrap-evidence "$RUNNER_TEMP/native-evidence"
+            --why-tar "compat-artifacts/$why_archive" \
+            --flow-source flow-candidate --out compat-artifacts \
+            --renderer-inputs "$RUNNER_TEMP/renderer-inputs" \
+            --published-evidence "$RUNNER_TEMP/published-evidence"
       - uses: actions/upload-artifact@v4
         with:
           name: compatibility-archives
@@ -66,10 +71,10 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-source-node22
+          name: published-source-node22
           path: |
-            ${{ runner.temp }}/native-evidence/*.json
-            ${{ runner.temp }}/native-evidence/*.log
+            ${{ runner.temp }}/published-evidence/*.json
+            ${{ runner.temp }}/published-evidence/*.log
           if-no-files-found: warn
 
   test-24:
@@ -94,21 +99,43 @@ jobs:
         with:
           name: compatibility-archives
           path: compat-artifacts
-      - name: Materialize the exact source with admitted originals and a genuine strict lock
+      - run: npm ci --strict-peer-deps
+      - run: npm run test:contract:foottrace
+      - run: npm run typecheck
+      - run: npm run build
+      - run: npm test
+      - run: npm run fixtures:time:check
+      - run: npm exec --no -- publint
+      - name: Verify registry bytes, committed lock and installed packages
+        run: node scripts/compat/published-proof.mjs --out "$RUNNER_TEMP/published-evidence" --lock package-lock.json
+      - name: Compare Node 24’s build to the original Node 22 archive
         run: |
-          node scripts/compat/source-inputs.mjs bootstrap --mode target --source "$GITHUB_WORKSPACE" --inputs "$GITHUB_WORKSPACE/compat-artifacts" --target "$RUNNER_TEMP/native-target" --evidence "$RUNNER_TEMP/native-evidence"
-      - name: Preserve contract, types, build, whole-suite, time-fixture and publint gates
-        run: node scripts/compat/source-inputs.mjs gates --evidence "$RUNNER_TEMP/native-evidence"
-      - name: Bind Node24's tested build to the same Node22 original and check its declarations
-        run: |
-          node scripts/compat/source-inputs.mjs pack --evidence "$RUNNER_TEMP/native-evidence" --out "$RUNNER_TEMP/native-evidence" --existing "$GITHUB_WORKSPACE/compat-artifacts"
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { readFileSync } from 'node:fs';
+          import { publishedSourceFiles } from './scripts/compat/contract.mjs';
+          import { inspectArchive } from './scripts/compat/process.mjs';
+          import { assertWhyIdentity } from './scripts/compat/why-identity.mjs';
+
+          const contract = JSON.parse(readFileSync('compat-artifacts/contract.json', 'utf8'));
+          const identity = assertWhyIdentity(contract);
+          assert.equal(contract.source.whyCommit, process.env.GITHUB_SHA);
+          assert.equal(contract.source.workflowRun, process.env.GITHUB_RUN_ID);
+          assert.equal(contract.source.workflowAttempt, process.env.GITHUB_RUN_ATTEMPT);
+          const archive = inspectArchive(`compat-artifacts/${identity.filename}`, process.env.RUNNER_TEMP,
+            { ...identity, expectedSha: contract.why.sha256 });
+          assert.deepEqual(archive.files, publishedSourceFiles(process.cwd()));
+          assert.deepEqual(archive.manifest, JSON.parse(readFileSync('package.json', 'utf8')));
+          JS
+          why_archive="$(node scripts/compat/why-identity.mjs)"
+          npm exec --no -- attw "compat-artifacts/$why_archive"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: native-source-node24
+          name: published-source-node24
           path: |
-            ${{ runner.temp }}/native-evidence/*.json
-            ${{ runner.temp }}/native-evidence/*.log
+            ${{ runner.temp }}/published-evidence/*.json
+            ${{ runner.temp }}/published-evidence/*.log
           if-no-files-found: warn
 
   published-commentary-control:
@@ -183,7 +210,7 @@ jobs:
           node scripts/compat/run-lane.mjs --kind native --flow "${{ matrix.flow }}" \
             --react "${{ matrix.react }}" --node "${{ matrix.node }}" \
             --artifacts compat-artifacts --evidence "$RUNNER_TEMP/compat-evidence" \
-            --flow-source flow-candidate --install-browser yes --source-inputs compat-artifacts --browser-provisioning bundled
+            --flow-source flow-candidate --install-browser yes --browser-provisioning bundled
       - uses: actions/upload-artifact@v4
         if: always()
         with:

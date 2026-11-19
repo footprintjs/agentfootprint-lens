@@ -1,8 +1,9 @@
 # Explicit Lens native source inputs
 
-This library owns the temporary unpublished-cohort proof. It does not change
-`deriveCohort`, `readActiveCohort` or the registry receipt/lock policy.
-The committed old lock is preparation evidence and remains refused.
+This library owns the historical unpublished-cohort proof and the separate
+published control. The current stable target reads the committed registry lock.
+The hosted `fetch-renderer` command reuses the fixed renderer admission and
+emits its own original archive and receipt for the stable compatibility matrix.
 
 The fixed table binds the independently read original AF archive and native
 proof to one source/tree/run/attempt and all original required jobs. Only the

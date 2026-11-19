@@ -75,8 +75,10 @@ for (const field of ['kind', 'schema', 'version', 'sha256', 'integrity', 'shasum
   });
 }
 test('an installed consumer lock joins the source-derived registry identity', () => {
-  const { expected, lock } = fixture();
-  assert.deepEqual(proof.assertRegistryLock(lock, expected), lock.packages['node_modules/agentfootprint']);
+  const { cohort, lock } = fixture();
+  for (const expected of Object.values(cohort.packages)) {
+    assert.deepEqual(proof.assertRegistryLock(lock, expected), lock.packages[`node_modules/${expected.name}`]);
+  }
 });
 for (const [field, value] of [['version', 'different'], ['resolved', 'file:/synthetic.tgz'], ['integrity', 'forged'], ['link', true]]) {
   test(`consumer lock ${field} mismatch refuses`, () => {

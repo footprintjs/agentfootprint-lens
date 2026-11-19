@@ -39,6 +39,14 @@ writeJson(join(evidence, 'verification.json'), report);
 async function step(name, run) {
   await run(); report.steps.push(name); writeJson(join(evidence, 'verification.json'), report);
 }
+function verifyConsumerLock(directory, packed) {
+  if (native) {
+    verifyPackedNativeLock(directory, JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')), native, packed);
+    return;
+  }
+  const lock = JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8'));
+  for (const expected of Object.values(cohort.packages)) assertRegistryLock(lock, expected);
+}
 function install(directory, dependencies, label, packed) {
   const resolution = `${directory}-resolve`;
   mkdirSync(resolution);
@@ -47,19 +55,13 @@ function install(directory, dependencies, label, packed) {
   if (native) inspectInputs(resolve(flags['source-inputs']));
   command('npm', ['install', '--package-lock-only', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
     { cwd: resolution, log: join(evidence, `${label}-resolve.log`) });
-  if (label === 'consumer') {
-    if (native) verifyPackedNativeLock(resolution, JSON.parse(readFileSync(join(resolution, 'package.json'), 'utf8')), native, packed);
-    else assertRegistryLock(JSON.parse(readFileSync(join(resolution, 'package-lock.json'), 'utf8')), agentIdentity);
-  }
+  if (label === 'consumer') verifyConsumerLock(resolution, packed);
   if (native) inspectInputs(resolve(flags['source-inputs']));
   for (const name of ['package.json', 'package-lock.json']) copyFileSync(join(resolution, name), join(directory, name));
   command('npm', ['ci', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
     { cwd: directory, log: join(evidence, `${label}-ci.log`) });
   command('npm', ['ls', '--all', '--json'], { cwd: directory, log: join(evidence, `${label}-tree.json`) });
-  if (label === 'consumer') {
-    if (native) verifyPackedNativeLock(directory, JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')), native, packed);
-    else assertRegistryLock(JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8')), agentIdentity);
-  }
+  if (label === 'consumer') verifyConsumerLock(directory, packed);
 }
 function checkTypes(consumer, stem, toolConsumer = consumer, verifyRejection) {
   const tsc = join(toolConsumer, 'node_modules/typescript/bin/tsc');
@@ -107,6 +109,29 @@ try {
   const agentSource = native ? contract.agentSource
     : assertPublishedReceipt(contract.agentSource, readFileSync(agent.path), agentIdentity);
   report.packages.agent = { sha256: agent.sha256, source: agentSource };
+  const publishedPeers = {};
+  if (!native) {
+    for (const name of ['footprintjs', 'foottrace']) {
+      const expected = cohort.packages[name];
+      const { archive: declared, receipt } = contract.publishedPeers[name];
+      assert.equal(declared.path, expected.filename);
+      const archive = inspectArchive(join(artifacts, expected.filename), evidence,
+        { ...expected, expectedSha: declared.sha256 });
+      assertPublishedReceipt(receipt, readFileSync(archive.path), expected);
+      assert.deepEqual(archive.files, declared.files);
+      publishedPeers[name] = archive;
+      report.packages[name] = { sha256: archive.sha256, source: receipt };
+    }
+  }
+
+  function verifyRecordOwner(directory) {
+    if (native) verifyNativeInstalled(directory, native, { recordOnly: true });
+    else {
+      const modules = join(directory, 'node_modules');
+      assertSingleFoottrace(modules, cohort.pins.foottrace);
+      assertInstalled(join(modules, 'foottrace'), publishedPeers.foottrace.files, 'record-only Foottrace');
+    }
+  }
 
   const narrativeIdentity = narrativeRenderer(lane.flow);
   let flow;
@@ -151,6 +176,10 @@ try {
     if (native) {
       inspectInputs(resolve(flags['source-inputs']));
       report.nativeOwners = verifyNativeInstalled(consumer, native);
+    }
+    for (const [name, archive] of Object.entries(publishedPeers)) {
+      assertInstalled(join(consumer, 'node_modules', name), archive.files, name);
+      assert.equal(sha256(readFileSync(archive.path)), archive.sha256, `${name} archive changed during checks`);
     }
     assertInstalled(flowInstalled, flow.files, 'Flow');
     assert.equal(sha256(readFileSync(why.path)), why.sha256, 'Why archive changed during checks');
@@ -210,7 +239,7 @@ try {
       const packages = installedPackageNames(join(recordOnly, 'node_modules'));
       assertRecordIsolation(packages, lane.react);
       report.recordOnly = { packages };
-      if (native) verifyNativeInstalled(recordOnly, native, { recordOnly: true });
+      verifyRecordOwner(recordOnly);
       assertInstalled(join(recordOnly, 'node_modules/footprint-explainable-ui'), flow.files, 'record-only Flow');
     });
     await step('record-only ESM/CJS public viewer and literal saved-record expectations', () => {
@@ -259,7 +288,7 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
       ...lane.types, vite: tooling.vite, playwright: tooling.playwright,
     }, 'record-browser'));
     assertInstalled(join(recordConsumer, 'node_modules/footprint-explainable-ui'), flow.files, 'record browser Flow');
-    if (native) verifyNativeInstalled(recordConsumer, native, { recordOnly: true });
+    verifyRecordOwner(recordConsumer);
   }
   if (lane.kind === 'native' && flags.browser !== 'no') {
     let browserEnvironment;
@@ -283,11 +312,12 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
     verifyBytes();
     if (recordConsumer) assertInstalled(join(recordConsumer, 'node_modules/footprint-explainable-ui'), flow.files, 'record browser Flow');
     if (recordOnly) {
-      if (native) verifyNativeInstalled(recordOnly, native, { recordOnly: true });
+      verifyRecordOwner(recordOnly);
       assertInstalled(join(recordOnly, 'node_modules/footprint-explainable-ui'), flow.files, 'record-only Flow');
       assertRecordIsolation(installedPackageNames(join(recordOnly, 'node_modules')), lane.react);
+      verifyRecordOwner(recordOnly);
     }
-    if (recordConsumer && native) verifyNativeInstalled(recordConsumer, native, { recordOnly: true });
+    if (recordConsumer) verifyRecordOwner(recordConsumer);
   });
   report.status = flags.browser === 'no' && lane.kind === 'native' ? 'diagnostic-without-browser' : 'passed';
 } catch (error) {

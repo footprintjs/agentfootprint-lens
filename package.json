@@ -150,9 +150,9 @@
   },
   "peerDependencies": {
     "@xyflow/react": "^12.0.0",
-    "agentfootprint": "^15.0.0-rc.0",
+    "agentfootprint": "^15.0.0",
     "footprint-explainable-ui": ">=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0",
-    "footprintjs": "^14.0.0-rc.0",
+    "footprintjs": "^14.0.0",
     "foottrace": "^2.1.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
@@ -169,9 +169,9 @@
     "@types/react-dom": "^18.3.7",
     "@vitest/coverage-v8": "^4.1.8",
     "@xyflow/react": "^12.10.2",
-    "agentfootprint": "15.0.0-rc.0",
+    "agentfootprint": "15.0.0",
     "footprint-explainable-ui": "1.0.1",
-    "footprintjs": "14.0.0-rc.0",
+    "footprintjs": "14.0.0",
     "foottrace": "2.1.0",
     "jsdom": "^29.0.2",
     "publint": "^0.3.0",

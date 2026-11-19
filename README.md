@@ -32,36 +32,19 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-### Migration: next major dependency cohort (draft)
+### Migration: AgentFootprint 15, engine 14 and Foottrace 2.1
 
-This draft requires the joint peer ranges `agentfootprint ^15.0.0-rc.0`,
-`footprintjs ^14.0.0-rc.0` and `foottrace ^2.1.0`. Development identities
-are exact: `agentfootprint 15.0.0-rc.0`, `footprintjs 14.0.0-rc.0` and
-`foottrace 2.1.0`. The earlier AF 14, engine 11/12/13 and Foottrace 1/2.0 lines
-are no longer in the declared runtime ranges. This is intended next-major
-adoption; the source package version stays unchanged until the normal release.
-Node.js 22 or newer and React 18 or 19 remain required. Older saved recordings
-retain their existing readers, fixtures and goldens.
+Update the runtime packages together: `agentfootprint ^15.0.0`,
+`footprintjs ^14.0.0` and `foottrace ^2.1.0`. The committed development lock
+selects the published versions 15.0.0, 14.0.0 and 2.1.0. Node.js 22 or newer
+and React 18 or 19 remain required. Older saved recordings retain their
+existing readers, fixtures and goldens.
 
-Source development uses renderer1.0.1 for the inherited optional native-source API.
-Public compatibility still exercises the declared renderer floor, current and
-reviewed next-major candidate in the separate packed matrix. A fresh source
-lock must not silently replace that historical layout input with a newer major.
-
-The explicit source-mode lane pairs the original AF 15 candidate archive with
-the real published engine 14.0.0-rc.0 and Foottrace 2.1.0 archives. It checks source,
-artifact and byte identities before materialization, then generates and replays
-a genuine strict temporary lock. Its three temporary development locators never
-enter the packed Lens manifest. The real committed lock remains the prior AF 14.4.0 / engine 12.0.0 /
-Foottrace 1.11.1 baseline; it does not satisfy these draft declarations. No
-registry URL, integrity or committed local-file lock is invented.
-
-Compatibility stays unverified until the original builds, declarations, runtime,
-record, packaging and browser checks pass against the actual admitted cohort
-with one physical Foottrace image. After separately authorized real publication,
-regenerate the committed lock normally and rerun the required hosted checks.
-The published AF 14 controls below are separate evidence, never substitutes for
-this new cohort. No production fallback or golden update is part of this draft.
+Source development keeps renderer 1.0.1 for its optional native-source API.
+The packed matrix checks five renderer selections, including published 2.0.0
+and the separately reviewed renderer original. Hosted CI verifies the stable
+registry archives against their committed lock entries, compares installed
+files and checks that the runtime uses one physical Foottrace package.
 
 The renderer peer is `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0`.
 Its minimum supplies the renderer APIs used by Lens. Public imports from
@@ -78,11 +61,9 @@ data and is not rewritten by Lens.
 ### Published AF 14 controls and historical validation
 
 The following retained procedure and receipts describe the published AF 14
-control cohort, not current draft install readiness or engine 13 / FT 2 / AF 15
-compatibility. That control cohort pins `agentfootprint@14.4.0`,
-`footprintjs@12.0.0` and `foottrace@1.11.1`. Release validation uses a normally
-generated committed lock after the upstream finals are published, with
-`npm ci --strict-peer-deps` on Node 22 and 24.
+control cohort. That cohort pins `agentfootprint@14.4.0`, `footprintjs@12.0.0`
+and `foottrace@1.11.1`. The current source uses `npm ci --strict-peer-deps`
+against the stable-cohort lock on Node 22 and 24.
 
 The 0.81.0 stable line widened the footprintjs peer to accept 12 while retaining
 11. Its published-cohort proof below concerns that stable line. The draft above
@@ -110,15 +91,14 @@ source candidate, published 1.0.1 and published 2.0.0, each with React 18/19 on 
 child admission and declarations. A strict declaration fixture passes the full engine
 narrative, including an attempt entry, directly to the 2.0.0 renderer. The same
 fixture must fail at that argument on 0.38.0.
-Every native consumer uses the new qualified original AgentFootprint archive and
-checks its generated strict lock and installed bytes against that original; an old
-engine13 proof does not qualify. Public ESM/CommonJS doors,
+Every packed consumer resolves the exact stable cohort and checks its strict lock
+and installed bytes against the three original registry archives. Public ESM/CommonJS doors,
 strict NodeNext/Bundler declarations, mock-agent recording/replay and Chromium
 rendering remain covered. Candidate `/record` isolation and browser checks
 remain separate.
 
-Each matrix job consumes the same Lens archive and the exact admitted native
-inputs. Consumer evidence lives outside the source checkout to avoid inheriting
+Each matrix job consumes the same Lens archive and the same stable registry
+identities. Consumer evidence lives outside the source checkout to avoid inheriting
 its dependencies. Its
 isolated consumer fixture then performs a normal strict resolution and a fresh
 `npm ci` replay for that renderer/React combination and the newly built Lens
@@ -134,11 +114,9 @@ Archives, source-lock digests, consumer locks, logs, dependency trees and browse
 evidence remain available on failed runs. Browser builds use Vite without
 aliases, externals or stubs.
 
-The previous one-time offline staging lane is removed; its proof remains in
-Git history. Ordinary registry validation follows the current manifest and
-committed lock; native preparation uses the separately admitted originals while
-that portable lock remains refused. All runtime lanes use `--kind native`; `--browser no` remains
-diagnostic-only and cannot report a passing lane.
+The earlier RC proof remains in Git history. Registry validation follows the
+current manifest and committed lock. All runtime lanes use `--kind native`.
+The `--browser no` option is for diagnostics and cannot report a passing lane.
 
 ```tsx
 import { useMemo } from 'react';

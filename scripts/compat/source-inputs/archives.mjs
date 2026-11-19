@@ -75,3 +75,8 @@ export function inspectInputs(directory) {
   const renderer = inspectRenderer(directory, receipt.renderer, archiveData);
   return { cohort, archives, receipt, renderer };
 }
+
+/** Read the same original renderer independently of the old RC cohort. */
+export function inspectRendererInputs(directory) {
+  return inspectRenderer(directory, readJson(join(directory, 'renderer.json')), archiveData);
+}

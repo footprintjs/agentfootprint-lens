@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { pins, names, versions, validateProvider, validateArtifact } from './admission.mjs';
-import { archiveData, expectedSource, inspectInputs, sha, sri } from './archives.mjs';
+import { archiveData, expectedSource, inspectInputs, inspectRendererInputs, sha, sri } from './archives.mjs';
 import { rendererPins, validateRendererProvider, expectedRenderer } from './renderer.mjs';
 
 const save = (path, data) => writeFileSync(path, JSON.stringify(data, null, 2) + '\n', { flag: 'wx' });
@@ -26,6 +26,42 @@ function existingJobApi(config) {
     assert.ok(result.stdout.length > 0 && result.stdout.length <= limit, 'bounded API response');
     return result.stdout;
   };
+}
+
+function fetchRenderer(get, temporary, out) {
+  const uiApi = path => JSON.parse(get(`repos/${rendererPins.repository}/${path}`));
+  const rendererProvider = { run: uiApi(`actions/runs/${rendererPins.run.id}`),
+    jobs: uiApi(`actions/runs/${rendererPins.run.id}/attempts/${rendererPins.run.run_attempt}/jobs?per_page=100`).jobs,
+    artifact: uiApi(`actions/artifacts/${rendererPins.sourceArtifact.id}`),
+    tested: uiApi(`git/commits/${rendererPins.tested.head}`) };
+  validateRendererProvider(rendererProvider);
+  const rendererZip = get(`repos/${rendererPins.repository}/actions/artifacts/${rendererPins.sourceArtifact.id}/zip`,
+    8 * 1024 * 1024);
+  assert.equal(rendererZip.length, rendererPins.sourceArtifact.size_in_bytes);
+  assert.equal(sha(rendererZip), rendererPins.sourceArtifact.digest.slice(7));
+  const rendererZipPath = join(temporary, 'RENDERER.zip');
+  writeFileSync(rendererZipPath, rendererZip, { mode: 0o600, flag: 'wx' });
+  const rendererExpectedPath = join(temporary, 'renderer-expected.json');
+  save(rendererExpectedPath, expectedRenderer());
+  const rendererArchive = archiveData(['renderer', rendererZipPath, rendererExpectedPath,
+    join(out, rendererPins.archive.filename)]);
+  return { independentReviewSha256: rendererPins.reviewSha256,
+    provider: rendererProvider, archive: rendererArchive };
+}
+
+export function fetchRendererInputs(destination) {
+  assert.equal(process.env.GITHUB_ACTIONS, 'true', 'workflow-only');
+  assert.equal(process.env.GITHUB_REPOSITORY, 'footprintjs/agentfootprint-lens');
+  const out = resolve(destination);
+  const temporary = mkdtempSync(join(tmpdir(), 'lens-renderer-read-'));
+  try {
+    mkdirSync(join(temporary, 'config'), { mode: 0o700 });
+    const get = existingJobApi(join(temporary, 'config'));
+    mkdirSync(out);
+    save(join(out, 'renderer.json'), fetchRenderer(get, temporary, out));
+    const renderer = inspectRendererInputs(out);
+    return { version: rendererPins.archive.version, sha256: renderer.sha256 };
+  } finally { rmSync(temporary, { recursive: true, force: true }); }
 }
 
 export function fetchInputs(destination) {
@@ -53,22 +89,7 @@ export function fetchInputs(destination) {
     const zipPath = join(temporary, 'SOURCE.zip'); writeFileSync(zipPath, zip, { mode: 0o600 });
     const expected = join(temporary, 'expected.json'); save(expected, expectedSource());
     const source = archiveData(['source', zipPath, expected, join(out, pins.agent.archive.filename)]);
-    const uiApi = path => JSON.parse(get(`repos/${rendererPins.repository}/${path}`));
-    const rendererProvider = { run: uiApi(`actions/runs/${rendererPins.run.id}`),
-      jobs: uiApi(`actions/runs/${rendererPins.run.id}/attempts/${rendererPins.run.run_attempt}/jobs?per_page=100`).jobs,
-      artifact: uiApi(`actions/artifacts/${rendererPins.sourceArtifact.id}`),
-      tested: uiApi(`git/commits/${rendererPins.tested.head}`) };
-    validateRendererProvider(rendererProvider);
-    const rendererZip = get(`repos/${rendererPins.repository}/actions/artifacts/${rendererPins.sourceArtifact.id}/zip`,
-      8 * 1024 * 1024);
-    assert.equal(rendererZip.length, rendererPins.sourceArtifact.size_in_bytes);
-    assert.equal(sha(rendererZip), rendererPins.sourceArtifact.digest.slice(7));
-    const rendererZipPath = join(temporary, 'RENDERER.zip');
-    writeFileSync(rendererZipPath, rendererZip, { mode: 0o600, flag: 'wx' });
-    const rendererExpectedPath = join(temporary, 'renderer-expected.json');
-    save(rendererExpectedPath, expectedRenderer());
-    const rendererArchive = archiveData(['renderer', rendererZipPath, rendererExpectedPath,
-      join(out, rendererPins.archive.filename)]);
+    const renderer = fetchRenderer(get, temporary, out);
     const archives = { agentfootprint: source.archive }, registry = {};
     for (const [name, identity] of Object.entries({ ...pins.published, ...pins.closure })) {
       const version = identity.version;
@@ -93,8 +114,7 @@ export function fetchInputs(destination) {
     save(join(out, 'input.json'), { kind: pins.kind, qualification: 'NATIVE_SOURCE_READY',
       independentReviewSha256: pins.agent.review.sha256, provider, nativeArtifacts,
       candidate: source.candidate, registry, archives,
-      renderer: { independentReviewSha256: rendererPins.reviewSha256,
-        provider: rendererProvider, archive: rendererArchive },
+      renderer,
       deferred: 'Only AF-docs/Lens bootstrap; not final whole-AF or registry acceptance' });
     inspectInputs(out); // Reopen the original bytes before returning admission.
     return { qualification: 'NATIVE_SOURCE_READY', source: pins.agent.source,

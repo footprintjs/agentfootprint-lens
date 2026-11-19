@@ -9,7 +9,8 @@ test('matrix identity equals the original renderer profile, never a registry ver
   assert.deepEqual(candidate, { repository: pins.repository, commit: pins.source.head,
     tree: pins.source.tree, version: pins.archive.version, sha256: pins.archive.sha256 });
   const prepare = readFileSync(new URL('../prepare-artifacts.mjs', import.meta.url), 'utf8');
-  assert.ok(prepare.includes('copyFileSync(native.renderer.path, flowFile)'));
+  assert.ok(prepare.includes('inspectRendererInputs('));
+  assert.ok(prepare.includes('copyFileSync(renderer.path, flowFile)'));
   assert.ok(!/command\('npm'|\['pack'|\['build'/.test(prepare), 'no upstream renderer rebuild or repack');
 });
 function fixture() {
