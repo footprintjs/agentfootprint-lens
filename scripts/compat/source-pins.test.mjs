@@ -21,9 +21,9 @@ test('the authored manifest passes the same exact-pin guard before dependency in
   assert.match(output, /lock and compatibility checks remain separate/);
 });
 
-test('development selects published Explainable UI 2.1 while public peers retain the full matrix range', () => {
+test('development selects published Explainable UI 2.2 while public peers retain the full matrix range', () => {
   const input = manifest();
-  assert.equal(input.devDependencies['footprint-explainable-ui'], '2.1.0');
+  assert.equal(input.devDependencies['footprint-explainable-ui'], '2.2.0');
   assert.equal(input.peerDependencies['footprint-explainable-ui'], rendererPeerRange);
 });
 

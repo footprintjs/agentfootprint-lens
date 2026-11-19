@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Use Explainable UI 2.2.0 for development and add it to the packed React 18 and 19 compatibility checks.
+
 ## [0.84.2] - 2026-11-19
 
 ### Fixed
