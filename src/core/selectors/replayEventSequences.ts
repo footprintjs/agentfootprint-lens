@@ -57,6 +57,7 @@ export function hopEventSequences(hops: readonly Anchor[], log: readonly LogRow[
       const seq = delivery ? last(id) : first(id);
       if (seq !== undefined && seq !== -1) previous = seq;
     }
+    // A hop without a matching anchor inherits the last sequence so the slider doesn't rewind.
     return previous;
   });
 }
@@ -69,6 +70,7 @@ const plumbing = new Set([
 function commentaryStage({ event }: LogRow): string | undefined {
   const type = event.type;
   const spelling = type?.startsWith('agentfootprint.') ? type.slice('agentfootprint.'.length) : type;
+  // Plumbing events share the stop's scope but produce no line, so matching one could cut off commentary before its first visible line.
   if (spelling && plumbing.has(spelling)) return undefined;
   return event.meta?.runtimeStageId;
 }
@@ -123,6 +125,7 @@ export function commentaryEventSequences(positions: readonly Stop[], log: readon
   // Ordered visits usually find their match in one pass. Switch to indexed
   // lookups only if the total scan would exceed one pass (e.g. missing scopes).
   let scanBudget = log.length;
+  // The window moves forward so each visit to a repeated milestone finds events from its own iteration.
   let floor = 0;
   let previous = -1;
   return positions.map(({ runtimeStageId: id, kind }) => {
