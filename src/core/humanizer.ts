@@ -13,6 +13,7 @@
  */
 
 import type { AgentfootprintEvent } from 'agentfootprint/events';
+import { describeToolArguments, protectedToolArguments } from './toolArgumentDisplay.js';
 import {
   defaultCommentaryTemplates,
   extractCommentaryVars,
@@ -139,16 +140,31 @@ export const defaultHumanizer: Humanizer = (event) => {
       return `Calling ${event.payload.provider}/${event.payload.model} (iter ${event.payload.iteration}, ${event.payload.messagesCount} messages, ${event.payload.toolsCount} tools).`;
     case 'agentfootprint.stream.llm_end':
       return `Model replied in ${event.payload.durationMs}ms (${event.payload.usage.input}+${event.payload.usage.output} tokens, ${event.payload.toolCallCount} tool calls, stop: ${event.payload.stopReason}).`;
-    case 'agentfootprint.stream.tool_start':
-      return `Calling tool "${event.payload.toolName}" with ${JSON.stringify(event.payload.args)}.`;
+    case 'agentfootprint.stream.tool_start': {
+      const display = protectedToolArguments(event.payload);
+      const call = selectCommentaryKey(event) === 'stream.tool_start.notDispatched'
+        ? `Skipped tool "${event.payload.toolName}"`
+        : `Calling tool "${event.payload.toolName}"`;
+      return display === undefined
+        ? `${call} with ${JSON.stringify(event.payload.args)}.`
+        : `${call}.${describeToolArguments(display)}`;
+    }
     // One report from INSIDE a still-running tool call (agentfootprint
     // 9.52.0). It arrives between this call's tool_start and its tool_end, so
     // the stream reads as the call speaking mid-flight. See humanizeToolProgress
     // for why the author's payload is previewed rather than interpreted.
     case 'agentfootprint.stream.tool_progress':
       return humanizeToolProgress(event.payload as ToolProgressLike);
-    case 'agentfootprint.stream.tool_end':
-      return `Tool "${event.payload.toolCallId}" returned in ${event.payload.durationMs}ms${event.payload.error === true ? ' (error)' : ''}.`;
+    case 'agentfootprint.stream.tool_end': {
+      // The producer's public classifier also validates the refusal and settlement
+      // markers. It skips a settled end because its teaching template told the start.
+      const key = selectCommentaryKey(event);
+      if (key === null || key === 'stream.tool_end.notExecuted') return 'The call was not executed.';
+      if (key !== 'stream.tool_end' || event.payload.entered !== true) return 'The record does not say whether the tool ran.';
+      return event.payload.error === true
+        ? `Tool "${event.payload.toolCallId}" ran and reported an error after ${event.payload.durationMs}ms.`
+        : `Tool "${event.payload.toolCallId}" returned in ${event.payload.durationMs}ms.`;
+    }
     case 'agentfootprint.stream.token':
       return null; // too low-signal for the analyst view
 
@@ -381,7 +397,12 @@ export function makeTeachingHumanizer(
 
     // 3. Build vars from payload + ctx, render, return.
     const vars = extractCommentaryVars(event, ctx, templates);
-    return renderCommentary(template, vars);
+    const line = renderCommentary(template, vars);
+    if (event.type === 'agentfootprint.stream.tool_start') {
+      const display = protectedToolArguments(event.payload);
+      if (display !== undefined) return line + describeToolArguments(display);
+    }
+    return line;
   };
 }
 

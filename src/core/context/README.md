@@ -170,8 +170,11 @@ hover), `declared on` (the later call's id or `answer`), and ONE quoted line
 — the first assertion for a fact, the `settles` for an open result, the
 `line` for a ruled-out one. A `details` disclosure (a native `<details>`; its
 open bit is the browser's, not a second cursor) opens the full id, the
-result's size (`placed` ref and `bytes` from a placement ticket, else its
-chars), the ticket on the wire, every assertion, and the `settles` / `line`.
+result's size, the ticket on the wire, every assertion, and the `settles` / `line`.
+The `placed` badge and stored byte count require an AgentFootprint placement
+receipt in the state at this stop. Its `placedTickets` entry must match
+the result's call ID and ref. A result without a matching receipt, including
+one from an older recording, keeps its ordinary character count.
 A conflict row puts a `conflict` chip on BOTH witnesses' cards (the key on
 hover).
 
@@ -271,7 +274,8 @@ What each beat reads, and from where:
   spells them — under the chip `from ledger`, and no `args` block.
 - **result** (tool, right) — the tool message's `content` in `history` (then
   the batch, `toolResults`): pretty-printed when it parses as JSON, else
-  verbatim; a placement ticket drawn as the ticket (`placed` ref · `bytes`).
+  verbatim. For a receipted placement, the exchange shows the ticket
+  (`placed` ref · `bytes`) and any recorded text following it.
   When the served wire at the stop's epoch (`served.row.view.messages.asSent`)
   carries this id as a collapsed ticket, a chip `collapsed <standing>` and the
   ticket JSON under `ticket` — what came back beside what the model was

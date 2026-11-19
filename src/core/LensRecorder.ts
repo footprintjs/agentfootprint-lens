@@ -54,6 +54,8 @@ import { SequenceStore } from 'footprintjs/trace';
 import { type FlowchartHandle, type Runner } from 'agentfootprint'
 import { ALL_EVENT_TYPES, type AgentfootprintEvent, type Unsubscribe } from 'agentfootprint/events';
 import { LiveStateRecorder, BoundaryRecorder, type StepGraph } from 'agentfootprint/observe';
+import { protectedToolArguments } from './toolArgumentDisplay.js';
+import { ToolStepDisplays } from './toolStepDisplay.js';
 import {
   createTraceRuntimeOverlay,
   overlayFromSnapshot,
@@ -226,6 +228,7 @@ export class LensRecorder {
    * falls back to LensSnapshotRecorder only when no runner is observed.
    */
   private flowchartHandle: FlowchartHandle | undefined;
+  private toolDisplays = new ToolStepDisplays();
   /**
    * Phase 5 Layer 3 — domain-event log with commit-range tracking.
    * Subscribed in `observe()` via both `runner.attach()` (FlowRecorder
@@ -346,6 +349,8 @@ export class LensRecorder {
     this.warnedEviction = false;
     this.liveState.clear();
     this.boundary.clear();
+    this.toolDisplays = new ToolStepDisplays();
+    this.snapshot.clear();
     this.runtime.reset();
     // Notes describe the run being shown, so they go with it. `replaying` does
     // NOT — it describes how this recorder was filled, which a reset of the run
@@ -467,8 +472,9 @@ export class LensRecorder {
    * of an empty graph — the handle is a SUPERSET of the snapshot
    * recorder's output, so every existing consumer keeps working.
    */
-  getStepGraph(): StepGraph {
-    return this.flowchartHandle?.getSnapshot() ?? this.snapshot.getStepGraph();
+  getStepGraph(supplied?: StepGraph): StepGraph {
+    const native = supplied ?? this.flowchartHandle?.getSnapshot();
+    return native ? this.toolDisplays.graph(native) : this.snapshot.getStepGraph();
   }
 
   /**
@@ -925,6 +931,8 @@ export class LensRecorder {
     // ── Tool call (start/end pair → one leaf node) ──
     if (type === 'agentfootprint.stream.tool_start') {
       const p = event.payload;
+      const display = protectedToolArguments(p);
+      this.toolDisplays.remember(event.meta.runtimeStageId, p.toolCallId, display);
       const node: BuildingNode = {
         id: `tool:${p.toolCallId}`,
         kind: 'tool-call',

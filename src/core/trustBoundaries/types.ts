@@ -17,7 +17,9 @@ export type TrustBoundaryFact = Origin &
         readonly eventType: 'agentfootprint.middleware.decision';
         readonly middleware: string;
         readonly moment: 'input' | 'window' | 'before-tool' | 'after-tool' | 'output';
-        readonly outcome: 'allow' | 'deny' | 'ask';
+        readonly outcome: 'allow' | 'deny' | 'ask' | 'refused';
+        readonly phase?: 'resume';
+        readonly personApproved?: boolean;
         readonly changed: boolean;
         readonly iteration: number;
       }
@@ -31,6 +33,7 @@ export type TrustBoundaryFact = Origin &
           | 'external_net'
           | 'user_data';
         readonly result: 'allow' | 'deny' | 'halt' | 'gate_open';
+        readonly phase?: 'resume';
         readonly target?: string;
         readonly policyRuleId?: string;
       }

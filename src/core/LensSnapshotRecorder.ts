@@ -27,6 +27,8 @@ import type {
 import type { StepGraph, StepNode, StepEdge } from 'agentfootprint/observe';
 import type { AgentfootprintEvent, AgentfootprintEventType } from 'agentfootprint/events';
 import type { Unsubscribe } from 'agentfootprint/events';
+import { protectedToolArguments } from './toolArgumentDisplay.js';
+import type { DisplayStep } from './toolStepDisplay.js';
 
 /**
  * Internal mutable mirror of StepNode. The public type is fully
@@ -35,7 +37,7 @@ import type { Unsubscribe } from 'agentfootprint/events';
  * then expose via the readonly StepNode interface in `getStepGraph()`.
  */
 type MutableStepNode = {
-  -readonly [K in keyof StepNode]: StepNode[K];
+  -readonly [K in keyof DisplayStep]: DisplayStep[K];
 };
 
 // FlowRunEvent isn't re-exported from footprintjs's main barrel; use a
@@ -171,8 +173,11 @@ export class LensSnapshotRecorder implements CombinedRecorder {
     offs.push(
       runner.on('agentfootprint.stream.tool_start', (event) => {
         this.decorate(event.meta.runtimeStageId, (n) => {
+          const display = protectedToolArguments(event.payload);
           n.toolName = event.payload.toolName;
-          n.toolArgs = event.payload.args;
+          n.toolArgs = display === undefined ? event.payload.args : display.toolArgs;
+          if (display?.hiddenArgs) n.hiddenArgs = display.hiddenArgs;
+          else delete n.hiddenArgs;
         });
       }),
     );

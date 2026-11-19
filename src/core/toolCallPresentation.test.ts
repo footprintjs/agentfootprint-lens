@@ -1,0 +1,92 @@
+import type { AgentfootprintEvent } from 'agentfootprint/events';
+import { describe, expect, it, vi } from 'vitest';
+import { defaultHumanizer, makeTeachingHumanizer, teachingHumanizer } from './humanizer.js';
+import { selectFocusDetail } from './selectors/selectFocusDetail.js';
+
+const meta = { wallClockMs: 0, runOffsetMs: 0, runtimeStageId: 'tools#1', subflowPath: [], compositionPath: [], runId: 'run' };
+function event(type: 'tool_start' | 'tool_end', payload: Record<string, unknown>): AgentfootprintEvent {
+  return { type: `agentfootprint.stream.${type}`, payload, meta } as unknown as AgentfootprintEvent;
+}
+
+describe('analyst fallback for a tool end', () => {
+  const end = (fields: Record<string, unknown>) => defaultHumanizer(event('tool_end',
+    { toolCallId: 'lookup-1', durationMs: 7, result: 'the recorded response', ...fields }));
+
+  it('reports execution when entry is recorded, including a failure inside the function', () => {
+    expect(end({ entered: true })).toMatch(/returned|ran/i);
+    expect(end({ entered: true, error: true })).toMatch(/ran.*(?:error|failed)/i);
+  });
+  it.each([
+    { entered: false }, { entered: false, error: true }, { notExecuted: true },
+    { notDispatched: { pausedCall: { toolCallId: 'a', toolName: 'earlier' } } },
+  ])('does not report an execution for %j', fields => {
+    expect(end(fields)).toBe('The call was not executed.');
+  });
+  it.each([{}, { error: true }, { entered: 'yes' }, { entered: 1 }, { entered: null },
+    { entered: true, notDispatched: {} }])('leaves an unrecorded or malformed entry unknown for %j', fields => {
+    expect(end(fields)).toBe('The record does not say whether the tool ran.');
+  });
+});
+
+describe('display arguments in analyst commentary and step detail', () => {
+  const secret = 'VALUE-NEVER-DISPLAYED';
+  function inspect(fields: Record<string, unknown>) {
+    const start = event('tool_start', { toolName: 'lookup', toolCallId: 'c1', ...fields });
+    const log = [{ seq: 0, runOffsetMs: 0, wallClockMs: 0, event: start }];
+    const step = { id: 'step', kind: 'llm->tool' as const, label: 'lookup', startOffsetMs: 0, subflowPath: [] };
+    return { fallback: defaultHumanizer(start), teaching: teachingHumanizer(start), detail: selectFocusDetail(step, log) };
+  }
+  it('shows the projection and names hidden keys, even if they are absent from the projection', () => {
+    const outputs = inspect({ args: { credential: secret }, shownArgs: { region: 'west' }, hiddenArgs: ['credential'] });
+    for (const line of [outputs.fallback, outputs.teaching]) {
+      expect(line).toContain('west');
+      expect(line).toMatch(/hidden.*credential/i);
+    }
+    expect(outputs.detail).toMatchObject({ toolArgs: { region: 'west' }, hiddenArgs: ['credential'] });
+    expect(JSON.stringify(outputs)).not.toContain(secret);
+  });
+  it('shows only the recorded projection or only the hidden names when supplied individually', () => {
+    const shownOnly = inspect({ args: { token: secret }, shownArgs: { mode: 'safe' } });
+    expect(shownOnly.detail?.toolArgs).toEqual({ mode: 'safe' });
+    expect(shownOnly.fallback).toContain('safe');
+    const namesOnly = inspect({ args: { token: secret }, hiddenArgs: ['token'] });
+    expect(namesOnly.fallback).toMatch(/hidden.*token/i);
+    expect(namesOnly.detail).toMatchObject({ hiddenArgs: ['token'] });
+    expect(namesOnly.detail?.toolArgs).toBeUndefined();
+    expect(JSON.stringify([shownOnly, namesOnly])).not.toContain(secret);
+  });
+  it('never reads raw arguments or invokes a display accessor on the protected path', () => {
+    const read = vi.fn(() => { throw Error('private value was read'); });
+    const start = event('tool_start', { toolName: 'lookup', toolCallId: 'c1', hiddenArgs: ['token'] });
+    Object.defineProperty(start.payload, 'args', { get: read });
+    Object.defineProperty(start.payload, 'shownArgs', { enumerable: true, get: read });
+    const detail = selectFocusDetail({ id: 's', kind: 'llm->tool', label: '', startOffsetMs: 0, subflowPath: [] },
+      [{ seq: 0, runOffsetMs: 0, wallClockMs: 0, event: start }]);
+    expect(detail?.toolArgs).toBeUndefined();
+    for (const humanize of [defaultHumanizer, teachingHumanizer]) expect(() => humanize(start)).not.toThrow();
+    expect(read).not.toHaveBeenCalled();
+  });
+  it('keeps raw args out of a host teaching template and its variable extraction', () => {
+    const read = vi.fn(() => secret);
+    const start = event('tool_start', { toolName: 'lookup', toolCallId: 'c1',
+      shownArgs: { region: 'west' }, hiddenArgs: ['token'] });
+    Object.defineProperty(start.payload, 'args', { enumerable: true, get: read });
+    const humanize = makeTeachingHumanizer({ appName: 'Workspace',
+      commentaryTemplates: { 'stream.tool_start': '{{appName}} requests {{toolName}} [{{args}}].' } });
+    expect(humanize(start)).toBe('Workspace requests lookup []. Shown arguments: {"region":"west"}. Hidden arguments: token.');
+    expect(read).not.toHaveBeenCalled();
+  });
+  it.each([{ shownArgs: undefined }, { shownArgs: null }, { hiddenArgs: 'bad' },
+    { shownArgs: { toJSON: () => secret } }, { shownArgs: { token: secret }, hiddenArgs: [1] }])(
+    'never falls back to private values for malformed protection metadata %j', fields => {
+      const outputs = inspect({ args: { token: secret }, ...fields });
+      expect(outputs.detail?.toolArgs).toBeUndefined();
+      expect(JSON.stringify(outputs)).not.toContain(secret);
+    },
+  );
+  it('retains historical unprotected args in the fallback and detail', () => {
+    const outputs = inspect({ args: { city: 'Tokyo' } });
+    expect(outputs.fallback).toBe('Calling tool "lookup" with {"city":"Tokyo"}.');
+    expect(outputs.detail?.toolArgs).toEqual({ city: 'Tokyo' });
+  });
+});

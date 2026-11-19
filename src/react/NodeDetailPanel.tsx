@@ -23,6 +23,7 @@ import React from 'react';
 import type { StepNode } from 'agentfootprint/observe';
 import { T } from './theme/index.js';
 import { ioSectionsFor } from '../core/nodeIoSections.js';
+import type { DisplayStep } from '../core/toolStepDisplay.js';
 
 export interface NodeDetailPanelProps {
   /** The selected step node, or undefined when nothing is selected. */
@@ -321,7 +322,7 @@ const RelatedStepsSection: React.FC<{
   );
 };
 
-const RelatedStepCard: React.FC<{ node: StepNode }> = ({ node }) => {
+const RelatedStepCard: React.FC<{ node: DisplayStep }> = ({ node }) => {
   // Compact title: kind + label so a reader can see "user→llm · call-llm"
   // at a glance and decide whether to expand the payload.
   const title = node.label && node.label !== node.kind
@@ -387,6 +388,7 @@ const RelatedStepCard: React.FC<{ node: StepNode }> = ({ node }) => {
   if (node.toolArgs !== undefined) {
     payloads.push({ label: 'Tool input (args)', value: node.toolArgs });
   }
+  if (node.hiddenArgs?.length) payloads.push({ label: 'Hidden arguments', value: node.hiddenArgs });
   if (node.toolResult !== undefined) {
     payloads.push({ label: 'Tool result', value: node.toolResult });
   }

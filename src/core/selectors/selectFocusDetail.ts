@@ -12,6 +12,8 @@
 import type { StepNode } from 'agentfootprint/observe';
 import type { EventLogEntry } from '../types.js';
 import type { FocusDetail } from './types.js';
+import { protectedToolArguments } from '../toolArgumentDisplay.js';
+import { toolStepId } from '../toolStepDisplay.js';
 
 /**
  * Extract detail for the given step from the event log.
@@ -42,14 +44,27 @@ export function selectFocusDetail(
     : 'agentfootprint.stream.tool_start';
   let openIdx = -1;
   let bestDelta = Number.POSITIVE_INFINITY;
+  const nativeTool = isTool && step.runtimeStageId !== undefined &&
+    step.id.startsWith(toolStepId(step.runtimeStageId, ''));
   for (let i = 0; i < log.length; i++) {
     const entry = log[i];
     if (entry.event.type !== openType) continue;
+    if (entry.event.type === 'agentfootprint.stream.tool_start') {
+      const { meta, payload } = entry.event;
+      if (step.runtimeStageId !== undefined && meta.runtimeStageId !== undefined && step.runtimeStageId !== meta.runtimeStageId) continue;
+      if (step.toolName !== undefined && step.toolName !== payload.toolName) continue;
+      if (nativeTool) {
+        if (step.id !== toolStepId(meta.runtimeStageId, payload.toolCallId)) continue;
+        if (openIdx !== -1) return { stepId: step.id, kind: step.kind };
+        openIdx = i;
+        continue;
+      }
+    }
     const delta = Math.abs(entry.runOffsetMs - step.startOffsetMs);
     if (delta < bestDelta) {
       bestDelta = delta;
       openIdx = i;
-    }
+    } else if (isTool && delta === bestDelta) openIdx = -1; // Ambiguous legacy calls cannot borrow one another's args.
   }
   if (openIdx === -1) return { stepId: step.id, kind: step.kind };
 
@@ -58,13 +73,16 @@ export function selectFocusDetail(
   if (isTool) {
     // Tool step: open = stream.tool_start carries args; end carries result.
     const openEvent = log[openIdx].event as StreamToolStartEvent;
-    detail.toolArgs = openEvent.payload.args;
+    const display = protectedToolArguments(openEvent.payload);
+    if (display === undefined) detail.toolArgs = openEvent.payload.args;
+    else Object.assign(detail, display);
     // Find the matching tool_end — same toolCallId, next in sequence.
     for (let i = openIdx + 1; i < log.length; i++) {
       const e = log[i].event;
       if (
         e.type === 'agentfootprint.stream.tool_end' &&
-        (e as StreamToolEndEvent).payload.toolCallId === openEvent.payload.toolCallId
+        (e as StreamToolEndEvent).payload.toolCallId === openEvent.payload.toolCallId &&
+        (!step.runtimeStageId || !e.meta.runtimeStageId || step.runtimeStageId === e.meta.runtimeStageId)
       ) {
         detail.toolResult = String((e as StreamToolEndEvent).payload.result ?? '');
         break;

@@ -16,6 +16,12 @@ loss counters. An allow may come from a quiet wrapper; a changed value is not
 proof of redaction; an after-tool refusal does not undo execution. Missing
 facts do not establish coverage or safety.
 
+On AgentFootprint 15, the capture can record the human answer and the rule's
+resume decision in separate rows. The view links them only within the same
+capture, run, iteration and tool call, across a continuous sequence of facts.
+A resume row can also carry the approval itself. Older captures with neither
+field keep their original decision labels.
+
 Source navigation uses the shared cursor's exact source-prefix resolver. It
 does not resolve the emitting stage to its eventual commit. A missing log or
 invalid coordinate leaves the cursor unchanged. A valid location can still
