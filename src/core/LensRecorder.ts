@@ -53,7 +53,7 @@ import { isDevMode } from 'footprintjs';
 import { SequenceStore } from 'footprintjs/trace';
 import { type FlowchartHandle, type Runner } from 'agentfootprint'
 import { ALL_EVENT_TYPES, type AgentfootprintEvent, type Unsubscribe } from 'agentfootprint/events';
-import { LiveStateRecorder, BoundaryRecorder, type StepGraph } from 'agentfootprint/observe';
+import { LiveStateRecorder, BoundaryRecorder, buildStepGraph, type StepGraph } from 'agentfootprint/observe';
 import { protectedToolArguments } from './toolArgumentDisplay.js';
 import { ToolStepDisplays } from './toolStepDisplay.js';
 import {
@@ -227,8 +227,12 @@ export class LensRecorder {
    * `getStepGraph()` consumes agentfootprint's already-correct one and
    * falls back to LensSnapshotRecorder only when no runner is observed.
    */
-  private flowchartHandle: FlowchartHandle | undefined;
+  private flowchartSource: { handle: FlowchartHandle; reset(): void } | undefined;
   private toolDisplays = new ToolStepDisplays();
+  // A host may keep a supplied graph across resets. Preserve the recording's
+  // display evidence for that graph, including tool starts delivered after
+  // its first render, without carrying stage or call IDs to the next graph.
+  private readonly displaysByGraph = new WeakMap<StepGraph, ToolStepDisplays>();
   /**
    * Phase 5 Layer 3 — domain-event log with commit-range tracking.
    * Subscribed in `observe()` via both `runner.attach()` (FlowRecorder
@@ -327,8 +331,7 @@ export class LensRecorder {
     this.stack.push(this.root);
   }
 
-  /** Reset all transient state. Called on detach + on detected runId
-   *  change so a recorder reused across runs doesn't accumulate. */
+  /** Start a fresh run while retaining the current observation subscription. */
   clear(): void {
     this.store.clear();
     this.stack.length = 0;
@@ -349,6 +352,7 @@ export class LensRecorder {
     this.warnedEviction = false;
     this.liveState.clear();
     this.boundary.clear();
+    this.flowchartSource?.reset();
     this.toolDisplays = new ToolStepDisplays();
     this.snapshot.clear();
     this.runtime.reset();
@@ -464,7 +468,7 @@ export class LensRecorder {
   /**
    * The StepGraph the UI renders — agentfootprint's ReAct projection
    * (actor-arrow steps with `iterationIndex` + `slotUpdated`, plus
-   * subflow boundaries). Prefers the live `flowchartHandle` from
+   * subflow boundaries). Prefers the observed runner's flowchart from
    * `observe()`; falls back to `snapshot.getStepGraph()` (subflow-only)
    * when no runner is observed (e.g. a standalone snapshot consumer).
    *
@@ -473,8 +477,13 @@ export class LensRecorder {
    * recorder's output, so every existing consumer keeps working.
    */
   getStepGraph(supplied?: StepGraph): StepGraph {
-    const native = supplied ?? this.flowchartHandle?.getSnapshot();
-    return native ? this.toolDisplays.graph(native) : this.snapshot.getStepGraph();
+    const native = supplied ?? this.flowchartSource?.handle.getSnapshot();
+    if (!native) return this.snapshot.getStepGraph();
+    const displays = this.displaysByGraph.get(native) ?? this.toolDisplays;
+    this.displaysByGraph.set(native, displays);
+    const view = displays.graph(native);
+    if (view !== native) this.displaysByGraph.set(view, displays);
+    return view;
   }
 
   /**
@@ -611,10 +620,26 @@ export class LensRecorder {
     // the rendered step graph (actor-arrow steps + iterationIndex +
     // slotUpdated + subflow boundaries). `getStepGraph()` reads this
     // handle. onUpdate bumps our version so the UI re-renders as the
-    // graph grows during the run. See `flowchartHandle` field JSDoc.
-    this.flowchartHandle = runner.enable.flowchart({
-      onUpdate: () => this.bumpVersion(),
-    });
+    // graph grows during the run.
+    const openGraph = () => runner.enable.flowchart({ onUpdate: () => this.bumpVersion() });
+    const initialGraph = openGraph();
+    const fromSavedRecording = this.replaying && initialGraph.boundary === this.boundary;
+    const source = {
+      handle: initialGraph,
+      reset: () => {
+        source.handle.unsubscribe();
+        if (!fromSavedRecording) {
+          source.handle = openGraph();
+          return;
+        }
+        // The replay handle always returns its saved graph. After an explicit
+        // reset the new graph must contain only subsequently delivered events.
+        const boundary = new BoundaryRecorder();
+        const unsubscribe = boundary.subscribe(runner as unknown as Parameters<typeof boundary.subscribe>[0]);
+        source.handle = { boundary, getSnapshot: () => buildStepGraph(boundary), unsubscribe };
+      },
+    };
+    this.flowchartSource = source;
     const composed: Unsubscribe = () => {
       offEvent();
       offLive();
@@ -623,9 +648,11 @@ export class LensRecorder {
       offBoundarySubscribe();
       offBoundaryAttach();
       offRuntimeAttach();
-      this.flowchartHandle?.unsubscribe();
-      this.flowchartHandle = undefined;
-      if (this.currentRunner === runner) this.currentRunner = undefined;
+      source.handle.unsubscribe();
+      if (this.flowchartSource === source) {
+        this.flowchartSource = undefined;
+        this.currentRunner = undefined;
+      }
     };
     this.unsubscribes.push(composed);
     return () => {

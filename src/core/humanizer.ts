@@ -156,10 +156,14 @@ export const defaultHumanizer: Humanizer = (event) => {
     case 'agentfootprint.stream.tool_progress':
       return humanizeToolProgress(event.payload as ToolProgressLike);
     case 'agentfootprint.stream.tool_end': {
-      // The producer's public classifier also validates the refusal and settlement
-      // markers. It skips a settled end because its teaching template told the start.
       const key = selectCommentaryKey(event);
-      if (key === null || key === 'stream.tool_end.notExecuted') return 'The call was not executed.';
+      // Teaching skips a settled end because its start already told that story.
+      // AgentFootprint's execution reader also requires these saved leaves to be booleans when present.
+      const { entered, error, notExecuted } = event.payload;
+      const settled = key === null && [entered, error, notExecuted].every(
+        field => field === undefined || typeof field === 'boolean',
+      );
+      if (settled || key === 'stream.tool_end.notExecuted') return 'The call was not executed.';
       if (key !== 'stream.tool_end' || event.payload.entered !== true) return 'The record does not say whether the tool ran.';
       return event.payload.error === true
         ? `Tool "${event.payload.toolCallId}" ran and reported an error after ${event.payload.durationMs}ms.`

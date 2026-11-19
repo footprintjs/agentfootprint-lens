@@ -26,13 +26,43 @@ function recordedToolRun() {
   const recorders = snapshot.recorders!.map(r => r.name !== 'BoundaryEvents' ? r : { ...r,
     data: (r.data as Record<string, unknown>[]).flatMap(e => e.type === 'tool.start'
       ? [{ ...e, toolCallId: 'parallel', args: { public: 'first-call' } }, { ...e, args: rawArgs }] : [e]) });
-  const { recorder } = observeRecording({ ...recording, snapshot: { ...snapshot, recorders }, events });
+  const { recorder, runner } = observeRecording({ ...recording, snapshot: { ...snapshot, recorders }, events });
   const graph = recorder.getStepGraph();
   const node = graph.nodes.find(n => n.kind === 'llm->tool' && n.id.endsWith('-c1'))!;
-  return { recorder, node, graph, events };
+  return { recorder, runner, node, graph, events };
 }
 
 describe('protected arguments in the step drawer', () => {
+  it('drops the saved native graph on clear and projects subsequent events with reused call IDs independently', () => {
+    const { recorder, runner, node, events } = recordedToolRun();
+    expect(node.toolArgs).toEqual(projection);
+    recorder.clear();
+    expect(recorder.getStepGraph().nodes).toEqual([]);
+
+    const start = events.find(e => e.type === 'agentfootprint.stream.tool_start' && e.payload.toolCallId === 'c1')!;
+    if (start.type !== 'agentfootprint.stream.tool_start') throw new Error('Missing recorded tool');
+    const next = { ...start, meta: { ...start.meta, runId: 'next-run' },
+      payload: { toolName: start.payload.toolName, toolCallId: 'c1', args: { city: 'next-city' } } };
+    (runner as unknown as { emit(event: typeof next): void }).emit(next);
+    expect(recorder.getStepGraph().nodes.filter(n => n.kind === 'llm->tool')).toMatchObject([
+      { id: node.id, toolArgs: { city: 'next-city' } },
+    ]);
+  });
+  it('retains later display evidence for a supplied graph already viewed before its tool start arrived', () => {
+    const { recorder, runner, node, events } = recordedToolRun();
+    const stage = 'late-stage#1';
+    const next = { ...node, runtimeStageId: stage, id: 'step-tool-start-late-stage#1-late',
+      toolArgs: { credential: secret } };
+    const supplied = { nodes: [next], edges: [] };
+    expect(recorder.getStepGraph(supplied)).toBe(supplied);
+    const start = events.find(e => e.type === 'agentfootprint.stream.tool_start' && e.payload.toolCallId === 'c1')!;
+    if (start.type !== 'agentfootprint.stream.tool_start') throw new Error('Missing recorded tool');
+    const late = { ...start, meta: { ...start.meta, runtimeStageId: stage },
+      payload: { ...start.payload, toolCallId: 'late' } };
+    (runner as unknown as { emit(event: typeof late): void }).emit(late);
+    recorder.clear();
+    expect(recorder.getStepGraph(supplied).nodes[0]?.toolArgs).toEqual(projection);
+  });
   it('decorates the live local snapshot with the same safe proposal', () => {
     const { events } = recordedToolRun();
     const starts = events.filter(e => e.type === 'agentfootprint.stream.tool_start');
@@ -101,6 +131,9 @@ describe('protected arguments in the step drawer', () => {
     expect(copy).toContain('public-region');
     expect(native.toolArgs).toEqual({ credential: secret });
     recorder.clear();
-    expect(recorder.getStepGraph(supplied)).toBe(supplied);
+    expect(recorder.getStepGraph(supplied).nodes[0]?.toolArgs).toEqual(projection);
+    expect(buildLLMText({ recorder, stepGraph: supplied })).not.toContain(secret);
+    const next = { nodes: [{ ...native, toolArgs: { city: 'next-city' } }], edges: [] };
+    expect(recorder.getStepGraph(next)).toBe(next);
   });
 });

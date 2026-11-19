@@ -26,6 +26,28 @@ describe('analyst fallback for a tool end', () => {
     { entered: true, notDispatched: {} }])('leaves an unrecorded or malformed entry unknown for %j', fields => {
     expect(end(fields)).toBe('The record does not say whether the tool ran.');
   });
+  it.each([{ entered: 'yes' }, { error: 0 }, { notExecuted: null }])(
+    'a paused-batch marker cannot establish execution when its end has a malformed boolean leaf %j', fields => {
+      const notDispatched = { pausedCall: { toolCallId: 'paused-call', toolName: 'paused-tool' } };
+      expect(end({ ...fields, notDispatched })).toBe('The record does not say whether the tool ran.');
+      expect(end({ ...fields, notDispatched: { pausedCall: { toolCallId: 'paused-call' } } }))
+        .toBe('The record does not say whether the tool ran.');
+    },
+  );
+  it('keeps the other call named by a settlement independent, and honors teaching template selection', () => {
+    const humanize = makeTeachingHumanizer({ appName: 'Workspace', commentaryTemplates: {
+      'stream.tool_start.notDispatched': '{{appName}} skipped {{toolName}} after {{pausedToolName}} paused.',
+      'stream.tool_end.notExecuted': 'Recorded refusal.',
+      'stream.tool_end.executionUnknown': 'No entry evidence.',
+    } });
+    const notDispatched = { pausedCall: { toolCallId: 'paused-call', toolName: 'paused-tool' } };
+    expect(humanize(event('tool_start', { toolCallId: 'settled-call', toolName: 'settled-tool', notDispatched })))
+      .toBe('Workspace skipped settled-tool after paused-tool paused.');
+    expect(humanize(event('tool_end', { toolCallId: 'settled-call', notDispatched }))).toBeNull();
+    expect(humanize(event('tool_end', { toolCallId: 'paused-call', notExecuted: true }))).toBe('Recorded refusal.');
+    expect(humanize(event('tool_end', { toolCallId: 'paused-call' }))).toBe('No entry evidence.');
+    expect(end({ toolCallId: 'paused-call', entered: true })).toContain('returned');
+  });
 });
 
 describe('display arguments in analyst commentary and step detail', () => {
