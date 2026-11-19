@@ -11,6 +11,7 @@
  * Historical test titles remain stable because they are the immutable snapshot keys.
  * The `engineer` and `user` views never read the prop.
  */
+import { readFileSync } from 'node:fs';
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -24,7 +25,10 @@ import { legacyAnalystNarration } from './legacyAnalystNarration/index.js';
 // EUI 1.0.1 extends its public coolLight preset with native control,
 // contrast, geometry and motion tokens. Retain them in the rendered app;
 // isolate those exact additions from the immutable 0.67 layout oracle.
+const installedRenderer = JSON.parse(readFileSync('node_modules/footprint-explainable-ui/package.json', 'utf8')) as { version: string };
+const hasDiagramActivity = Number(installedRenderer.version.split('.')[0]) >= 2;
 const nativeControlTokens = {
+  ...(hasDiagramActivity ? { '--fp-diagram-removed-opacity': '0.4' } : {}),
   "--fp-on-primary": "#fff",
   "--fp-on-success": "#fff",
   "--fp-on-error": "#fff",
@@ -85,7 +89,8 @@ describe('<Lens view="analyst"> without an account', () => {
     // In plain words pane's tones), and `<Lens theme>` stamps the whole
     // palette at its root — so the root's style gains exactly those four
     // declarations. EUI 1.0.1 additionally supplies the exact native control
-    // tokens asserted below. Keep all additions in production, remove only
+    // tokens asserted below. EUI 2 also supplies the removal opacity token.
+    // Keep all additions in production, remove only
     // that closed list here, and require the historical layout bytes.
     const f = load('flat-dynamic-tools');
     const { container } = render(<Lens recorder={f.recorder} view="analyst" theme={{ mode: 'light' }} humanizer={legacyAnalystNarration} />);

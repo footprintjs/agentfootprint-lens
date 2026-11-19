@@ -27,6 +27,8 @@ import type {
 import type { StepGraph, StepNode, StepEdge } from 'agentfootprint/observe';
 import type { AgentfootprintEvent, AgentfootprintEventType } from 'agentfootprint/events';
 import type { Unsubscribe } from 'agentfootprint/events';
+import { protectedToolArguments } from './toolArgumentDisplay.js';
+import type { DisplayStep } from './toolStepDisplay.js';
 
 /**
  * Internal mutable mirror of StepNode. The public type is fully
@@ -35,7 +37,7 @@ import type { Unsubscribe } from 'agentfootprint/events';
  * then expose via the readonly StepNode interface in `getStepGraph()`.
  */
 type MutableStepNode = {
-  -readonly [K in keyof StepNode]: StepNode[K];
+  -readonly [K in keyof DisplayStep]: DisplayStep[K];
 };
 
 // FlowRunEvent isn't re-exported from footprintjs's main barrel; use a
@@ -91,6 +93,8 @@ export class LensSnapshotRecorder implements CombinedRecorder {
   private nodes: MutableStepNode[] = [];
   /** O(1) lookup index for payload joins, keyed by runtimeStageId. */
   private nodesById = new Map<string, MutableStepNode>();
+  /** A repeated stage/call pair cannot identify one tool proposal. */
+  private readonly seenToolCalls = new Map<string, Set<string>>();
   /** Edges in registration order. */
   private edges: StepEdge[] = [];
   /** Stack of currently-open subflow runtimeStageIds for boundary tracking. */
@@ -122,6 +126,7 @@ export class LensSnapshotRecorder implements CombinedRecorder {
   clear(): void {
     this.nodes = [];
     this.nodesById.clear();
+    this.seenToolCalls.clear();
     this.edges = [];
     this.boundaryStack = [];
     this.runStartMs = 0;
@@ -170,9 +175,30 @@ export class LensSnapshotRecorder implements CombinedRecorder {
     );
     offs.push(
       runner.on('agentfootprint.stream.tool_start', (event) => {
-        this.decorate(event.meta.runtimeStageId, (n) => {
+        const stage = event.meta.runtimeStageId;
+        const call = event.payload.toolCallId;
+        // A start can arrive before the structure hook registers its node.
+        // It still counts when another start later claims the same identity.
+        let seen = this.seenToolCalls.get(stage);
+        if (!seen) {
+          seen = new Set();
+          this.seenToolCalls.set(stage, seen);
+        }
+        const repeated = seen.has(call);
+        seen.add(call);
+        this.decorate(stage, (n) => {
           n.toolName = event.payload.toolName;
-          n.toolArgs = event.payload.args;
+          if (repeated) {
+            n.toolArgumentBinding = 'ambiguous';
+            delete n.toolArgs;
+            delete n.hiddenArgs;
+            return;
+          }
+          delete n.toolArgumentBinding;
+          const display = protectedToolArguments(event.payload);
+          n.toolArgs = display === undefined ? event.payload.args : display.toolArgs;
+          if (display?.hiddenArgs) n.hiddenArgs = display.hiddenArgs;
+          else delete n.hiddenArgs;
         });
       }),
     );

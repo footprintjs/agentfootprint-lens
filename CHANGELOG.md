@@ -5,6 +5,73 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Use Explainable UI 2.2.0 for development and add it to the packed React 18 and 19 compatibility checks.
+
+## [0.84.2] - 2026-11-19
+
+### Fixed
+
+- Analyst narration uses the recorded tool-entry or refusal evidence. When an
+  older recording lacks that evidence, Lens says execution is unknown.
+- Analyst narration and step details show the recorded argument proposal and
+  the names of hidden arguments. Older calls without either display field
+  retain their original arguments.
+- The Trust Boundary view shows a person's recorded approval and the rule's
+  decision when the call resumes.
+- The Reasoning Lens shows a placement badge only for a call and artifact
+  reference listed together in the run's placement receipt.
+- Show the ordinary lazy-source error when a recording lacks a snapshot. Malformed descriptors keep their own diagnostic.
+
+## [0.84.1] - 2026-11-19
+
+### Fixed
+
+- Open large saved runs in Context and Flow replay without copying the validated root a second time and counting it against the loader limit.
+- Keep the Served Graph view selected when replay crosses the first model call or rewinds before it.
+
+## [0.84.0] - 2026-11-19
+
+### Breaking
+
+- Require AgentFootprint 15, FootPrint 14 and Foottrace 2.1. Migration: update
+  the runtime packages together to `agentfootprint ^15.0.0`, `footprintjs ^14.0.0`
+  and `foottrace ^2.1.0`. The committed lock selects the stable published
+  versions and Explainable UI 2.1.0. The Explainable UI peer range adds 2.x.
+  Lens continues to read older saved recordings.
+
+### Known gaps on the 15 line
+
+- The analyst fallback can say a tool returned when the recording leaves
+  tool execution unknown.
+- The analyst views still display the recorded `args` field. The protected
+  proposal in `shownArgs` and `hiddenArgs` is not shown there.
+- The Trust Boundary view omits the person's approval and resume phase from
+  middleware decisions.
+- The Reasoning Lens placement badge recognizes ticket-shaped results. It
+  does not check the producer's placement receipt.
+
+## [0.83.0] - 2026-11-18
+
+### Added
+
+- Open large saved runs through the new native recording exports. Lens can
+  display the root, then load and replay a recorded child scope when the
+  reader opens it. The loaded scopes share one playback cursor.
+- Preserve each child's playback axis and overlay. Root readers refuse
+  child indices, and cancellation and stale responses leave the current
+  selection intact.
+
+### Notes
+
+- The host supplies the recording storage or transport. Lazy child replay
+  does not change how a host reads a whole JSON recording from storage.
+- Existing Lens APIs and renderer peer floors were retained. The optional
+  native recording interface requires Explainable UI 1.0.1 or newer.
+
 ## [0.82.0] - 2026-11-14
 
 ### Added

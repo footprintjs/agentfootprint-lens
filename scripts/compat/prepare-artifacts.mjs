@@ -3,16 +3,19 @@
 import assert from 'node:assert/strict';
 import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
-import { candidate, parseFlags, publishedSourceFiles, readActiveCohort } from './contract.mjs';
+import { candidate, parseFlags, publishedSourceFiles, readActiveCohort, rendererPeerRange } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
-import { assertPublishedReceipt, readPublishedAgent } from './published-proof.mjs';
 import { readWhyIdentity } from './why-identity.mjs';
+import { assertPublishedReceipt, readPublishedAgent } from './published-proof.mjs';
+import { inspectRendererInputs } from './source-inputs.mjs';
 
-const flags = parseFlags(process.argv.slice(2), ['why-tar', 'flow-source', 'out', 'agent-tar', 'agent-source']);
-assert.ok(flags['why-tar'] && flags['flow-source'] && flags.out && flags['agent-tar'] && flags['agent-source'],
-  'usage: --why-tar <archive> --flow-source <exact M6 checkout> --agent-tar <archive> --agent-source <metadata> --out <directory>');
+const flags = parseFlags(process.argv.slice(2), ['why-tar', 'flow-source', 'out', 'renderer-inputs', 'published-evidence']);
+assert.ok(flags['why-tar'] && flags['flow-source'] && flags.out && flags['renderer-inputs'] && flags['published-evidence'],
+  'usage: --why-tar <original> --flow-source <exact fixture checkout> --renderer-inputs <original renderer> --published-evidence <registry archives and receipts> --out <directory>');
+const renderer = inspectRendererInputs(resolve(flags['renderer-inputs']));
 const cohort = readActiveCohort();
 const agentIdentity = readPublishedAgent(cohort);
+const published = resolve(flags['published-evidence']);
 const out = resolve(flags.out);
 const source = resolve(flags['flow-source']);
 mkdirSync(out, { recursive: true });
@@ -20,13 +23,10 @@ assert.equal(command('git', ['rev-parse', 'HEAD'], { cwd: source }).trim(), cand
 assert.equal(command('git', ['rev-parse', 'HEAD^{tree}'], { cwd: source }).trim(), candidate.tree);
 assert.equal(command('git', ['status', '--porcelain', '--untracked-files=no'], { cwd: source }).trim(), '',
   'candidate source must retain its reviewed tracked tree');
-// The M6 dist is already tracked and reviewed. Rebuilding it here would make a
-// different, unreviewed candidate. npm 11.21 is the archive-format control.
-assert.equal(command('npm', ['--version']).trim(), '11.21.0');
-const packed = JSON.parse(command('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', out],
-  { cwd: source, log: join(out, 'flow-pack.log') }));
-assert.equal(packed.length, 1);
-const flowFile = join(out, packed[0].filename);
+// The source checkout supplies only immutable fixtures. Consume the producer's
+// original archive without rebuilding or packing any upstream source.
+const flowFile = join(out, `footprint-explainable-ui-${candidate.version}.tgz`);
+if (resolve(renderer.path) !== flowFile) copyFileSync(renderer.path, flowFile);
 const flow = inspectArchive(flowFile, out, {
   name: 'footprint-explainable-ui', version: candidate.version, expectedSha: candidate.sha256,
 });
@@ -37,19 +37,33 @@ if (resolve(flags['why-tar']) !== whyFile) copyFileSync(flags['why-tar'], whyFil
 const why = inspectArchive(whyFile, out, whyIdentity);
 assert.deepEqual(Object.keys(why.manifest.exports).sort(),
   ['.', './context', './core', './recording', './recording/react', './skillgraph', './why']);
-assert.equal(why.manifest.peerDependencies['footprint-explainable-ui'], '>=0.34.0 <1.0.0 || ^1.0.0');
+assert.equal(why.manifest.peerDependencies['footprint-explainable-ui'], rendererPeerRange);
 assert.deepEqual(why.files, publishedSourceFiles(process.cwd()),
   'Why archive must contain exactly this checkout’s package metadata, built dist, README and LICENSE');
 const dirtyTracked = command('git', ['status', '--porcelain', '--untracked-files=no']).trim();
 if (process.env.GITHUB_RUN_ID) assert.equal(dirtyTracked, '', 'hosted archive source must be the checked clean commit');
-const agentFile = join(out, agentIdentity.filename);
-if (resolve(flags['agent-tar']) !== agentFile) copyFileSync(flags['agent-tar'], agentFile);
-const agent = inspectArchive(agentFile, out, agentIdentity);
-const sourceReceipt = JSON.parse(readFileSync(flags['agent-source'], 'utf8'));
-const agentSource = assertPublishedReceipt(sourceReceipt, readFileSync(agentFile), agentIdentity);
+const verification = JSON.parse(readFileSync(join(published, 'source-verification.json'), 'utf8'));
+assert.deepEqual(verification.cohort, cohort, 'registry evidence must use the current committed cohort');
+const packages = {};
+const receipts = {};
+for (const expected of Object.values(cohort.packages)) {
+  const target = join(out, expected.filename);
+  const original = join(published, expected.filename);
+  const sourceReceipt = verification.published[expected.name];
+  const receipt = assertPublishedReceipt(sourceReceipt, readFileSync(original), expected);
+  if (resolve(original) !== target) copyFileSync(original, target);
+  const archive = inspectArchive(target, out, { ...expected, expectedSha: receipt.sha256 });
+  packages[expected.name] = { ...archive, path: basename(archive.path) };
+  receipts[expected.name] = receipt;
+}
+const agent = packages[agentIdentity.name];
+const agentSource = receipts[agentIdentity.name];
+const publishedPeers = Object.fromEntries(['footprintjs', 'foottrace'].map(name => [
+  name, { archive: packages[name], receipt: receipts[name] },
+]));
 writeJson(join(out, 'agent-source.json'), agentSource);
 const report = {
-  schema: 1, cohort, agentSource, agent: { ...agent, path: basename(agent.path) }, whyIdentity, why: { ...why, path: basename(why.path) }, flow: { ...flow, path: basename(flow.path) },
+  schema: 1, cohort, agentSource, agent, publishedPeers, whyIdentity, why: { ...why, path: basename(why.path) }, flow: { ...flow, path: basename(flow.path) },
   candidate, source: {
     whyCommit: command('git', ['rev-parse', 'HEAD']).trim(),
     whyTree: command('git', ['rev-parse', 'HEAD^{tree}']).trim(),

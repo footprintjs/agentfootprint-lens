@@ -4,7 +4,7 @@ import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { hashFiles, safeArchiveNames, sha256 } from './contract.mjs';
 
-export function command(command, args, { cwd, log, env = {}, timeout = 300_000 } = {}) {
+export function command(command, args, { cwd, log, env = {}, timeout = 300_000, expectedStatus = 0 } = {}) {
   const result = spawnSync(command, args, {
     cwd, env: { ...process.env, ...env }, encoding: 'utf8',
     timeout, maxBuffer: 32 * 1024 * 1024,
@@ -12,8 +12,9 @@ export function command(command, args, { cwd, log, env = {}, timeout = 300_000 }
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
   if (log) writeFileSync(log, output);
   assert.equal(result.error, undefined, `${command} failed: ${result.error?.message}; log: ${log}`);
-  assert.equal(result.status, 0, `${command} ${args.join(' ')} failed (${result.status}); log: ${log}\n${output.slice(-6000)}`);
-  return result.stdout;
+  assert.equal(result.status, expectedStatus,
+    `${command} ${args.join(' ')} returned ${result.status}, expected ${expectedStatus}; log: ${log}\n${output.slice(-6000)}`);
+  return expectedStatus === 0 ? result.stdout : output;
 }
 
 export function inspectArchive(filename, parent, { name, version, expectedSha } = {}) {

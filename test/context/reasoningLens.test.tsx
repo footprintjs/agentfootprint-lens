@@ -9,7 +9,7 @@
  * (the lens moves with the ONE shared cursor — a card is gone once the cursor
  * stands before its call; the collapsed chip follows the epoch's wire) · Unit
  * (`foldReasoning`: the proposition and the prediction are quoted verbatim
- * when a record carries them; a placement ticket is read by shape; a row
+ * when a record carries them; a placement ticket requires the producer's receipt; a row
  * that does not fit is passed over) · Exchange (0.63.0: the toggle switches
  * views; beats in wire order per call up to the cursor; the model beat's
  * `_findings` is the emission in `history`, verbatim; the tool beat's content
@@ -255,6 +255,29 @@ describe('<ReasoningLens> laws', () => {
     expect(within(before).getByText('fc1/7 is up').tagName).toBe('Q');
     expect(within(cardOf('c2')).queryByTestId('reasoning-before')).toBeNull();
   });
+
+  it('shows a placement only once its exact receipt is in the recorded state at the cursor', () => {
+    const ticket = { placed: true, ref: 'art_1', reason: 'stored by tool "export}"', bytes: 5000 };
+    const stepNote = ' Step 1 of 1 done. All 1 steps complete.';
+    const fixture = loadTampered('findings-ledger', ({ snapshot }) => {
+      const [first, second] = snapshot.commitLog.filter((b) => b.runtimeStageId.startsWith('tool-calls#') && Array.isArray(b.overwrite?.history));
+      const history = first!.overwrite!.history as { role: string; toolCallId?: string; content: string }[];
+      history.find((message) => message.role === 'tool' && message.toolCallId === 'c1')!.content = JSON.stringify(ticket) + stepNote;
+      second!.overwrite!.placedTickets = [{ toolCallId: 'c1', ref: ticket.ref }];
+      (second!.trace as unknown[]).push({ path: 'placedTickets', verb: 'set' });
+    });
+    const [early, late] = stopsOf(fixture, 'tool-call');
+    for (const stop of [early!, late!, early!]) {
+      renderAt(fixture, stepOf(fixture, stop));
+      const result = within(cardOf('c1')).getByTestId('reasoning-result');
+      expect(result.hasAttribute('data-placed')).toBe(stop === late);
+      fireEvent.click(screen.getByRole('tab', { name: LABELS.exchange }));
+      const beat = beatOf('c1', 'tool');
+      expect(beat.textContent).toContain(stepNote);
+      expect(beat.querySelector('[data-placed]') !== null).toBe(stop === late);
+      cleanup();
+    }
+  });
 });
 
 describe('<ReasoningLens> carries the transport when it holds the shared address (0.63.1)', () => {
@@ -346,10 +369,14 @@ describe('foldReasoning — the fold the lens reads', () => {
     ...extra,
   });
 
-  it('a placement ticket is read by shape — the ref and the bytes — from the tool message or the batch', () => {
+  it('a receipted placement keeps its ref and bytes from the tool message or the batch', () => {
     const ticket = { placed: true, ref: 'art_1', kind: 'tool-result/t', mediaType: 'text/plain', bytes: 5000, reason: 'r' };
     const fold = foldReasoning({
       rows: [basis('a'), basis('b'), basis('c')],
+      placedTickets: [
+        { toolCallId: 'a', ref: ticket.ref }, { toolCallId: 'a', ref: 'another-placement' },
+        { toolCallId: 'b', ref: ticket.ref },
+      ],
       history: [{ role: 'tool', toolCallId: 'a', content: JSON.stringify(ticket) }],
       toolResults: [
         { toolCallId: 'b', result: ticket },
@@ -364,6 +391,71 @@ describe('foldReasoning — the fold the lens reads', () => {
     expect(Object.isFrozen(fold)).toBe(true);
     expect(Object.isFrozen(fold.cards[0])).toBe(true);
     expect(fold.answer).toBeUndefined();
+  });
+
+  describe('placement belongs to an identifiable call occurrence', () => {
+    const ticket = { placed: true, ref: 'art_later', reason: 'stored', bytes: 90 };
+    const content = JSON.stringify(ticket) + '\nrecorded note';
+    const receipt = [{ toolCallId: 'shared', ref: ticket.ref }, { toolCallId: 'shared', ref: 'another' }];
+    const first = basis('shared', { toolName: 'first', iteration: 1 });
+    const later = basis('shared', { toolName: 'later', iteration: 2 });
+    const result = { role: 'tool', toolCallId: 'shared', toolName: 'later', content };
+    const emitted = (name: string) => ({ role: 'assistant', toolCalls: [{ id: 'shared', name }] });
+
+    it.each(['history', 'batch'])('withholds a later %s result’s badge from the earlier card with its reused ID', source => {
+      const exchange = foldExchange({
+        rows: [first, later, basis('other')],
+        placedTickets: [...receipt, { toolCallId: 'other', ref: ticket.ref }],
+        history: source === 'history' ? [emitted('later'), result] : [],
+        toolResults: [
+          ...(source === 'batch' ? [{ toolCallId: 'shared', toolName: 'later', result: content }] : []),
+          { toolCallId: 'other', result: content },
+        ],
+      });
+      expect(exchange.reasoning.cards[0]!.before).toMatchObject({ toolName: 'first', iteration: 1 });
+      expect(exchange.reasoning.cards[0]!.result).toEqual({ chars: content.length });
+      expect(exchange.beats[1]).toMatchObject({ kind: 'result', content });
+      expect(exchange.beats[1]).not.toHaveProperty('placed');
+      expect(exchange.beats[1]).not.toHaveProperty('followingText');
+      expect(exchange.beats[3]).toMatchObject({ placed: { ref: ticket.ref }, followingText: '\nrecorded note' });
+    });
+
+    it.each([
+      ['reused emitted ID', [emitted('later'), emitted('later'), result], []],
+      ['reused tool-message ID', [result, result], []],
+      ['conflicting emitted name', [emitted('first'), result], []],
+      ['conflicting result name', [{ ...result, toolName: 'first' }], []],
+      ['reused batch ID', [], [{ toolCallId: 'shared', result: content }, { toolCallId: 'shared', result: 'other' }]],
+    ] as const)('withholds the badge when the ledger retained only one basis but the record shows a %s', (_case, history, toolResults) => {
+      const exchange = foldExchange({ rows: [later], placedTickets: receipt, history, toolResults });
+      expect(exchange.reasoning.cards[0]!.result).toEqual({ chars: content.length });
+      expect(exchange.beats[1]).not.toHaveProperty('placed');
+    });
+
+    it('keeps a unique call’s badge when its result appears in history and the batch and the receipt has multiple refs', () => {
+      const exchange = foldExchange({ rows: [later], history: [emitted('later'), result],
+        toolResults: [{ toolCallId: 'shared', toolName: 'later', result: ticket }], placedTickets: receipt });
+      expect(exchange.reasoning.cards[0]!.result).toMatchObject({ placed: { ref: ticket.ref } });
+      expect(exchange.beats[1]).toMatchObject({ kind: 'result', placed: { ref: ticket.ref }, followingText: '\nrecorded note' });
+    });
+  });
+
+  it.each([
+    ['legacy recording', undefined],
+    ['empty receipt', []],
+    ['other call and other ref', [{ toolCallId: 'other', ref: 'art_1' }, { toolCallId: 'a', ref: 'other' }]],
+    ['malformed receipt entry', [{ toolCallId: 'a' }, null]],
+  ])('keeps ticket-shaped tool output as ordinary content for %s', (_case, receipt) => {
+    const content = JSON.stringify({ placed: true, ref: 'art_1', reason: 'supplied by the tool', bytes: 5000 });
+    const exchange = foldExchange({
+      rows: [basis('a')],
+      history: [{ role: 'tool', toolCallId: 'a', content }],
+      placedTickets: receipt,
+    });
+    expect(exchange.reasoning.cards[0]!.result).toEqual({ chars: content.length });
+    const result = exchange.beats[1]!;
+    expect(result).toMatchObject({ kind: 'result', content });
+    expect(result).not.toHaveProperty('placed');
   });
 
   it('the proposition, the prediction, `malformed` and `unknownId` ride the rows as declared; a basis row that does not fit is passed over', () => {
@@ -683,8 +775,9 @@ describe('foldExchange — the fold the exchange reads', () => {
   });
 
   it('a placement ticket, a collapsed ticket and the standing ride the result beat; the served piece and the answer close the exchange', () => {
-    const ticket = { placed: true, ref: 'art_1', bytes: 5000 };
+    const ticket = { placed: true, ref: 'art_1', reason: 'stored by the producer', bytes: 5000 };
     const fold = foldExchange({
+      placedTickets: [{ toolCallId: 'a', ref: ticket.ref }],
       rows: [basis('a'), { kind: 'standing', toolCallId: 'a', standing: 'noise', assertions: [], declaredOn: 'answer', iteration: 2 }],
       toolResults: [{ toolCallId: 'a', result: ticket }],
       asSent: [{ role: 'tool', toolCallId: 'a', content: JSON.stringify({ collapsed: true, standing: 'noise', toolCallId: 'a' }) }],

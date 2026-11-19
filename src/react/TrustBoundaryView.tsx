@@ -9,6 +9,7 @@ import type { SourcePrefixResolution, SourcePrefixState } from '../core/cursor/s
 import { T } from './theme/index.js';
 import type { LensRecordingSource } from './recordingSource/types.js';
 import { useSourcePrefixNavigation } from './recordingSource/useSourcePrefixNavigation.js';
+import { approvedResumptions } from '../core/trustBoundaries/approvedResumptions.js';
 
 /** Presentation copy belongs here, not in the headless coordinate resolver. */
 export function sourcePrefixMessage(
@@ -57,11 +58,31 @@ export interface TrustBoundaryViewProps {
   readonly recordingSource?: LensRecordingSource;
 }
 
-function describe(fact: TrustBoundaryFact): { title: string; detail: string } {
+type Decision = Extract<TrustBoundaryFact, { eventType: 'agentfootprint.middleware.decision' | 'agentfootprint.permission.check' }>;
+
+function decisionTitle(fact: Decision, previouslyApproved: boolean): string {
+  const middleware = fact.eventType === 'agentfootprint.middleware.decision';
+  const outcome = middleware ? fact.outcome : fact.result;
+  const human = middleware ? fact.personApproved : undefined;
+  if (human === false) return 'A person declined this call.';
+  if (fact.phase === 'resume') {
+    const approved = human === true || previouslyApproved;
+    if (outcome === 'deny' || outcome === 'halt') return approved
+      ? 'A person approved this call, then a rule refused it.'
+      : 'A rule refused this call on resume.';
+    if (outcome === 'refused') return approved
+      ? 'A person approved this call, then the call was refused on resume.'
+      : 'The call was refused on resume.';
+  }
+  if (human === true) return 'A person approved this call.';
+  return `${middleware ? 'Middleware' : 'Permission'} ${outcome}${fact.phase === 'resume' ? ' on resume' : ''}`;
+}
+
+function describe(fact: TrustBoundaryFact, previouslyApproved: boolean): { title: string; detail: string } {
   switch (fact.eventType) {
     case 'agentfootprint.middleware.decision':
       return {
-        title: `Middleware ${fact.outcome}`,
+        title: decisionTitle(fact, previouslyApproved),
         detail: `${fact.middleware} · ${fact.moment} · changed: ${String(
           fact.changed,
         )}. A wrapper can report allow without invoking a rule. Changed is not proof of redaction.${
@@ -72,10 +93,10 @@ function describe(fact: TrustBoundaryFact): { title: string; detail: string } {
       };
     case 'agentfootprint.permission.check':
       return {
-        title: `Permission ${fact.result}`,
+        title: decisionTitle(fact, previouslyApproved),
         detail: `${fact.capability}${fact.target ? ` · ${fact.target}` : ''}${
           fact.policyRuleId ? ` · rule ${fact.policyRuleId}` : ''
-        }. A check result is not proof of tool execution.`,
+        }${fact.phase === 'resume' ? ` · recorded result: ${fact.result}` : ''}. A check result is not proof of tool execution.`,
       };
     case 'agentfootprint.permission.halt':
       return {
@@ -124,6 +145,7 @@ function Capture({
   const [loading, setLoading] = useState<number>();
   const [notice, setNotice] = useState<{ seq: number; text: string }>();
   const count = capture.counters;
+  const approvals = useMemo(() => approvedResumptions(capture.facts), [capture.facts]);
   const lastPage = Math.max(0, Math.ceil(capture.facts.length / 20) - 1);
   const shownPage = Math.min(page, lastPage);
   const facts = capture.facts.slice(shownPage * 20, (shownPage + 1) * 20);
@@ -163,7 +185,7 @@ function Capture({
       )}
       <ol style={{ paddingLeft: 24 }}>
         {facts.map((fact) => {
-          const label = describe(fact);
+          const label = describe(fact, approvals.has(fact.seq));
           return (
             <li
               key={fact.seq}
@@ -182,6 +204,7 @@ function Capture({
                 </summary>
                 <p>
                   Run {fact.runId} · stage {fact.runtimeStageId}
+                  {'phase' in fact && fact.phase === 'resume' ? ' · phase resume' : ''}
                   {fact.toolCallId ? ` · call ${fact.toolCallId}` : ''}
                   {fact.iteration !== undefined ? ` · iteration ${fact.iteration}` : ''}
                 </p>

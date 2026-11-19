@@ -64,6 +64,64 @@ function fixture() {
 }
 
 describe('TrustBoundaryView', () => {
+  it.each(['deny', 'halt'])('shows the human answer and later permission %s for the same recorded call', result => {
+    const snapshot = fixture();
+    const [human, rule] = snapshot.recorders[0]!.data.facts;
+    Object.assign(human!, { moment: 'before-tool', outcome: 'allow', personApproved: true, toolCallId: 'one' });
+    Object.assign(rule!, { result, phase: 'resume', toolCallId: 'one', iteration: 1 });
+    const { rerender } = render(<TrustBoundaryView snapshot={snapshot} />);
+    expect(screen.getByText('A person approved this call.')).toBeVisible();
+    expect(screen.getByText('A person approved this call, then a rule refused it.')).toBeVisible();
+    expect(screen.getByText(new RegExp(`recorded result: ${result}`, 'i'))).toBeVisible();
+
+    for (const mismatch of [{ toolCallId: 'two' }, { runId: 'other' }, { iteration: 2 }]) {
+      const other = structuredClone(snapshot);
+      Object.assign(other.recorders[0]!.data.facts[1]!, mismatch);
+      rerender(<TrustBoundaryView snapshot={other} />);
+      expect(screen.queryByText(/then a rule refused it/i)).toBeNull();
+      expect(screen.getByText('A rule refused this call on resume.')).toBeVisible();
+    }
+  });
+
+  it('shows a combined resume denial, a personal decline, and legacy middleware on their own evidence', () => {
+    const snapshot = fixture();
+    const decision = snapshot.recorders[0]!.data.facts[0]!;
+    Object.assign(decision, { moment: 'before-tool', phase: 'resume', personApproved: true });
+    const { rerender } = render(<TrustBoundaryView snapshot={snapshot} />);
+    expect(screen.getByText('A person approved this call, then a rule refused it.')).toBeVisible();
+
+    Reflect.deleteProperty(decision, 'phase');
+    Object.assign(decision, { personApproved: false });
+    rerender(<TrustBoundaryView snapshot={{ ...snapshot }} />);
+    expect(screen.getByText('A person declined this call.')).toBeVisible();
+
+    Reflect.deleteProperty(decision, 'personApproved');
+    rerender(<TrustBoundaryView snapshot={{ ...snapshot }} />);
+    expect(screen.getByText('Middleware deny')).toBeVisible();
+    expect(screen.queryByText(/a person (approved|declined)/i)).toBeNull();
+  });
+
+  it('shows an unexecuted resume refusal only as a refusal, and never borrows a missing human decision', () => {
+    const snapshot = fixture();
+    const data = snapshot.recorders[0]!.data;
+    const [human, rule] = data.facts;
+    Object.assign(human!, { moment: 'before-tool', outcome: 'allow', personApproved: true, toolCallId: 'one' });
+    Object.assign(rule!, { eventType: 'agentfootprint.middleware.decision', middleware: 'agentfootprint', moment: 'before-tool',
+      outcome: 'refused', changed: false, phase: 'resume', iteration: 1, toolCallId: 'one' });
+    const { rerender } = render(<TrustBoundaryView snapshot={snapshot} />);
+    expect(screen.getByText('A person approved this call, then the call was refused on resume.')).toBeVisible();
+
+    // A missing observation may be a newer human answer. Keep the refusal by itself.
+    data.facts.slice(1).forEach(row => row.seq++);
+    data.counters.observed++;
+    data.counters.invalid++;
+    data.lastObservedSeq++;
+    data.lastRetainedSeq++;
+    rerender(<TrustBoundaryView snapshot={{ ...snapshot }} />);
+    expect(screen.getByText('The call was refused on resume.')).toBeVisible();
+    expect(screen.queryByText(/then the call was refused/i)).toBeNull();
+  });
+
   it('renders all seven event kinds without a safe badge or raw state', () => {
     const snapshot = fixture();
     Object.assign(snapshot.recorders[0]!.data.facts[0]!, {

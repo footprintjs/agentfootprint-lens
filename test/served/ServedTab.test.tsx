@@ -324,6 +324,27 @@ describe('<ServedTab> — verified where hashes agree, nowhere else', () => {
     expect(screen.queryByTestId('served-epoch')).toBeNull();
   });
 
+  it('keeps the graph selection when rewinding before the first call and replaying it', () => {
+    const f = load('flat-dynamic-tools');
+    const start = f.positions[0]!;
+    const call = stopsOf(f, 'llm-turn')[0]!;
+    const at = (stop: typeof start) => (
+      <ServedTab runner={f.runner} cursorRuntimeStageId={stop.runtimeStageId} commitIdx={stop.commitIdx} />
+    );
+    const { rerender } = render(at(start));
+    expect(screen.getByTestId('served-no-call')).toBeInTheDocument();
+
+    rerender(at(call));
+    expect(screen.getByTestId('served-epoch')).toHaveTextContent(`${LABELS.epoch} 1`);
+    fireEvent.click(screen.getByTestId('served-view-graph'));
+    expect(screen.getByTestId('served-tab')).toHaveAttribute('data-view', 'graph');
+    rerender(at(start));
+    expect(screen.getByTestId('served-no-call')).toBeInTheDocument();
+
+    rerender(at(call));
+    expect(screen.getByTestId('served-tab')).toHaveAttribute('data-view', 'graph');
+  });
+
   it('forced tool marked; its schema NAME listed as on-receipt-only beside the names (RowCounts.schemas)', () => {
     const f = load('tool-forced');
     mount(f, stopsOf(f, 'llm-turn')[0]!);

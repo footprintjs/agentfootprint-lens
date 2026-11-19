@@ -32,14 +32,21 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-Lens 0.81.0 supports **agentfootprint 14**, **footprintjs 11 or 12** and
-**Foottrace 1.11.1 or newer**, with Node.js 22 or newer and React 18 or 19.
-The stable peers are `agentfootprint ^14.0.0` and `footprintjs ^11.0.0 || ^12.0.0`.
-footprintjs 12 needs agentfootprint 14.4.0 or newer, the first that accepts it.
-Earlier installed runtime lines are no longer supported. Reading older saved recordings remains supported; their fixtures
-and tests are retained unchanged.
+### Migration: AgentFootprint 15, engine 14 and Foottrace 2.1
 
-The renderer peer remains `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0`.
+Update the runtime packages together: `agentfootprint ^15.0.0`,
+`footprintjs ^14.0.0` and `foottrace ^2.1.0`. The committed development lock
+selects the published versions 15.0.0, 14.0.0 and 2.1.0. Node.js 22 or newer
+and React 18 or 19 remain required. Older saved recordings retain their
+existing readers, fixtures and goldens.
+
+Source development uses Explainable UI 2.2.0. The packed consumer tests cover
+2.2.0 on React 18 and 19 with Node.js 22 and 24. They also exercise older
+renderer versions and the separately reviewed renderer archive. Hosted CI verifies the stable
+registry archives against their committed lock entries, compares installed
+files and checks that the runtime uses one physical Foottrace package.
+
+The renderer peer is `footprint-explainable-ui >=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0`.
 Its minimum supplies the renderer APIs used by Lens. Public imports from
 `agentfootprint-lens`, `/core`, `/why`, `/skillgraph`, and `/context` stay the
 same. Flow Lens's separate `/record` door is tested independently.
@@ -51,19 +58,35 @@ pointers; they derive no new verdict. New attempt summaries use `answered` and
 `effect`. Historical narrative text, including `succeeded`, remains recorded
 data and is not rewritten by Lens.
 
-### Compatibility proof and final validation
+### Reading AgentFootprint 15 evidence
 
-The development cohort pins `agentfootprint@14.4.0`,
-`footprintjs@12.0.0` and `foottrace@1.11.1`. Release validation uses a normally
-generated committed lock after the upstream finals are published, with
-`npm ci --strict-peer-deps` on Node 22 and 24.
+- **Tool execution.** The analyst reads `stream.tool_end.entered` and the
+  recorded refusal markers. When the recording has no boolean entry stamp
+  or refusal marker, the analyst says “The record does not say whether the tool ran.”
+- **Tool arguments.** The analyst and step details show `shownArgs` and name
+  the keys in `hiddenArgs`. Older recordings that have neither field use `args`.
+- **Trust decisions.** The Trust Boundary view shows recorded human approval
+  alongside the decision at resume, including a later refusal by a rule.
+- **Result placement.** The Reasoning Lens displays a placement badge when
+  the call ID and result reference match a recorded entry in `placedTickets`
+  at the selected replay stop. If several recorded calls share that ID and
+  the recording cannot identify which one owns the reference, Lens omits the badge.
 
-0.81.0 widened the footprintjs peer to accept 12 and changed nothing else. Now
-that footprintjs 12.0.0 is published, the cohort runs on it: this repository's
-own build and whole suite are the proof on 12. The peer range still accepts 11;
-dropping 11 would be a separate, deliberate release.
+The release notes document the four gaps in the published 0.84.0 reader.
+[Lens 0.84.0 changelog](https://github.com/footprintjs/agentfootprint-lens/blob/v0.84.0/CHANGELOG.md#0840---2026-11-19).
 
-The active cohort is derived from the exact development pins in `package.json`
+### Published AF 14 controls and historical validation
+
+The following retained procedure and receipts describe the published AF 14
+control cohort. That cohort pins `agentfootprint@14.4.0`, `footprintjs@12.0.0`
+and `foottrace@1.11.1`. The current source uses `npm ci --strict-peer-deps`
+against the stable-cohort lock on Node 22 and 24.
+
+The 0.81.0 stable line widened the footprintjs peer to accept 12 while retaining
+11. Its published-cohort proof below concerns that stable line. The draft above
+deliberately drops both older engine lines for the next major cohort.
+
+The recorded control cohort was derived from the exact development pins in `package.json`
 and the version, registry URL and integrity entries in the committed lock. CI
 joins registry SHA512/SHA1 with the downloaded bytes and locked integrity,
 compares installed files with the archive, and requires one physical Foottrace
@@ -79,34 +102,38 @@ package scan must show one Foottrace 1.11.1 owner.
 
 Both Nodes run the whole Lens suite, including historical saved-record data,
 approval-fixture generation, helpers, typechecking, build and packaging checks.
-One Lens archive feeds renderer 0.34.0, 0.38.0, the exact reviewed 1.0.0
-candidate and published 1.0.1, each with React 18/19 on Node 22/24. The four
+One Lens archive feeds renderer 0.34.0, 0.38.0, the exact reviewed 1.1.1
+source candidate, published 1.0.1 and published 2.0.0, each with React 18/19 on Node 22/24. The four
 1.0.1 lanes additionally exercise the packed lazy-source exports, native exact
-child admission and declarations; the twelve preceding lanes remain intact.
-Every consumer installs the
-registry AgentFootprint candidate normally and checks its locked integrity and
-installed bytes against the same proven archive. Public ESM/CommonJS doors,
+child admission and declarations. A strict declaration fixture passes the full engine
+narrative, including an attempt entry, directly to the 2.0.0 renderer. The same
+fixture must fail at that argument on 0.38.0.
+Every packed consumer resolves the exact stable cohort and checks its strict lock
+and installed bytes against the three original registry archives. Public ESM/CommonJS doors,
 strict NodeNext/Bundler declarations, mock-agent recording/replay and Chromium
 rendering remain covered. Candidate `/record` isolation and browser checks
 remain separate.
 
-Each matrix job first installs the repository's committed source lock. Consumer
-evidence lives outside that checkout to avoid inheriting its dependencies. Its
+Each matrix job consumes the same Lens archive and the same stable registry
+identities. Consumer evidence lives outside the source checkout to avoid inheriting
+its dependencies. Its
 isolated consumer fixture then performs a normal strict resolution and a fresh
 `npm ci` replay for that renderer/React combination and the newly built Lens
 tarball. Those generated fixture locks contain a CI-local Lens archive path:
 they are non-portable evidence, not the repository's committed source lock.
 
-The renderer candidate's tracked build is pinned by commit and digest in
-`scripts/compat/contract.mjs`; npm 11.21.0 packs it without rebuilding.
+The renderer candidate is the original UI64 producer archive, pinned by source,
+run, provider ZIP and tarball digest. Its dependency-security ZIP has thirteen
+members; its generated audit lock is not a committed source lock. The consumer
+never rebuilds or repacks the UI source. Version1.1.1 here identifies these
+unpublished original bytes, not the registry1.1.1 package.
 Archives, source-lock digests, consumer locks, logs, dependency trees and browser
 evidence remain available on failed runs. Browser builds use Vite without
 aliases, externals or stubs.
 
-The previous one-time offline staging lane is removed; its proof remains in
-Git history. New validation always follows the current manifest and committed
-lock. All supported runtime lanes use `--kind native`; `--browser no` remains
-diagnostic-only and cannot report a passing lane.
+The earlier RC proof remains in Git history. Registry validation follows the
+current manifest and committed lock. All runtime lanes use `--kind native`.
+The `--browser no` option is for diagnostics and cannot report a passing lane.
 
 ```tsx
 import { useMemo } from 'react';

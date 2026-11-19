@@ -12,6 +12,8 @@
 import type { StepNode } from 'agentfootprint/observe';
 import type { EventLogEntry } from '../types.js';
 import type { FocusDetail } from './types.js';
+import { protectedToolArguments } from '../toolArgumentDisplay.js';
+import { toolStepId } from '../toolStepDisplay.js';
 
 /**
  * Extract detail for the given step from the event log.
@@ -35,6 +37,14 @@ export function selectFocusDetail(
     step.kind === 'llm->user';
   const isTool = step.kind === 'llm->tool';
   if (!isLLM && !isTool) return undefined;
+  if (isTool && 'toolArgumentBinding' in step) {
+    // Missing entries can make the last start look unique. Recorder sequence
+    // numbers start at zero and increase by one in this ordered log.
+    const completePrefix = log[0]?.seq === 0 && log[log.length - 1]?.seq === log.length - 1;
+    if (step.toolArgumentBinding === 'ambiguous' || (step.toolArgumentBinding === 'unmatched' && !completePrefix)) {
+      return { stepId: step.id, kind: step.kind };
+    }
+  }
 
   // Find the opening event closest to step.startOffsetMs.
   const openType = isLLM
@@ -42,14 +52,27 @@ export function selectFocusDetail(
     : 'agentfootprint.stream.tool_start';
   let openIdx = -1;
   let bestDelta = Number.POSITIVE_INFINITY;
+  const nativeTool = isTool && step.runtimeStageId !== undefined &&
+    step.id.startsWith(toolStepId(step.runtimeStageId, ''));
   for (let i = 0; i < log.length; i++) {
     const entry = log[i];
     if (entry.event.type !== openType) continue;
+    if (entry.event.type === 'agentfootprint.stream.tool_start') {
+      const { meta, payload } = entry.event;
+      if (step.runtimeStageId !== undefined && meta.runtimeStageId !== undefined && step.runtimeStageId !== meta.runtimeStageId) continue;
+      if (nativeTool) {
+        if (step.id !== toolStepId(meta.runtimeStageId, payload.toolCallId)) continue;
+        if (openIdx !== -1) return { stepId: step.id, kind: step.kind };
+        openIdx = i;
+        continue;
+      }
+      if (step.toolName !== undefined && step.toolName !== payload.toolName) continue;
+    }
     const delta = Math.abs(entry.runOffsetMs - step.startOffsetMs);
     if (delta < bestDelta) {
       bestDelta = delta;
       openIdx = i;
-    }
+    } else if (isTool && delta === bestDelta) openIdx = -1; // Ambiguous legacy calls cannot borrow one another's args.
   }
   if (openIdx === -1) return { stepId: step.id, kind: step.kind };
 
@@ -57,14 +80,25 @@ export function selectFocusDetail(
 
   if (isTool) {
     // Tool step: open = stream.tool_start carries args; end carries result.
-    const openEvent = log[openIdx].event as StreamToolStartEvent;
-    detail.toolArgs = openEvent.payload.args;
+    const openEvent = log[openIdx].event;
+    if (openEvent.type !== 'agentfootprint.stream.tool_start') return detail;
+    // A legacy name/time match only identifies a candidate. Every tool start,
+    // including one with a different name, can claim its stage and call ID.
+    if (!nativeTool && log.some(({ event }, i) => i !== openIdx
+      && event.type === 'agentfootprint.stream.tool_start'
+      && event.meta.runtimeStageId === openEvent.meta.runtimeStageId
+      && event.payload.toolCallId === openEvent.payload.toolCallId)) return detail;
+    if (step.toolName !== undefined && step.toolName !== openEvent.payload.toolName) return detail;
+    const display = protectedToolArguments(openEvent.payload);
+    if (display === undefined) detail.toolArgs = openEvent.payload.args;
+    else Object.assign(detail, display);
     // Find the matching tool_end — same toolCallId, next in sequence.
     for (let i = openIdx + 1; i < log.length; i++) {
       const e = log[i].event;
       if (
         e.type === 'agentfootprint.stream.tool_end' &&
-        (e as StreamToolEndEvent).payload.toolCallId === openEvent.payload.toolCallId
+        (e as StreamToolEndEvent).payload.toolCallId === openEvent.payload.toolCallId &&
+        (!step.runtimeStageId || !e.meta.runtimeStageId || step.runtimeStageId === e.meta.runtimeStageId)
       ) {
         detail.toolResult = String((e as StreamToolEndEvent).payload.result ?? '');
         break;
@@ -100,14 +134,6 @@ type Writable<T> = { -readonly [K in keyof T]: T[K] };
 
 // Narrowing types — we accept unknown in the event payloads and
 // cast locally. No module augmentation on the core event types.
-interface StreamToolStartEvent {
-  readonly type: 'agentfootprint.stream.tool_start';
-  readonly payload: {
-    readonly toolCallId: string;
-    readonly toolName: string;
-    readonly args: Record<string, unknown>;
-  };
-}
 interface StreamToolEndEvent {
   readonly type: 'agentfootprint.stream.tool_end';
   readonly payload: {
