@@ -1,3 +1,4 @@
+import producer from 'agentfootprint/package.json';
 import type { AgentfootprintEvent } from 'agentfootprint/events';
 import { describe, expect, it, vi } from 'vitest';
 import { defaultHumanizer, makeTeachingHumanizer, teachingHumanizer } from './humanizer.js';
@@ -12,19 +13,46 @@ describe('analyst fallback for a tool end', () => {
   const end = (fields: Record<string, unknown>) => defaultHumanizer(event('tool_end',
     { toolCallId: 'lookup-1', durationMs: 7, result: 'the recorded response', ...fields }));
 
+  it.each([{}, { error: true }, { entered: 'yes' }, { entered: 1 }, { entered: null }])(
+    'leaves a missing or malformed entry unknown for %j', fields => {
+      expect(end(fields)).toBe('The record does not say whether the tool ran.');
+    },
+  );
+  it('reports a recorded settlement of an earlier paused call', () => {
+    const notDispatched = { pausedCall: { toolCallId: 'paused-call', toolName: 'paused-tool' } };
+    expect(end({ notDispatched })).toBe('The call was not executed.');
+  });
+
+  it('uses the ordinary start and its description when the saved settlement is malformed', () => {
+    const humanize = makeTeachingHumanizer({ getToolDescription: () => 'public lookup' });
+    const fields = { toolCallId: 'c1', toolName: 'lookup', args: {}, notDispatched: { pausedCall: null } };
+    expect(defaultHumanizer(event('tool_start', fields))).toMatch(/Calling tool/);
+    expect(humanize(event('tool_start', fields))).toContain('public lookup');
+  });
+
+  // The historical CI control installs 14.7.2 independently of the supported peer.
+  // Its selector has one end template. The old-recording assertions above run with both producers.
+  if (producer.version === '14.7.2') {
+    it('uses the published historical end template and skips a settled end in the teaching voice', () => {
+      const humanize = makeTeachingHumanizer({ commentaryTemplates: { 'stream.tool_end': 'The bracket closed.' } });
+      const notDispatched = { pausedCall: { toolCallId: 'paused-call', toolName: 'paused-tool' } };
+      expect(humanize(event('tool_end', { toolCallId: 'historical', durationMs: 7, result: 'saved response' }))).toBe('The bracket closed.');
+      expect(humanize(event('tool_end', { toolCallId: 'settled', durationMs: 0, result: 'batch paused', notDispatched }))).toBeNull();
+    });
+    return;
+  }
+
   it('reports execution when entry is recorded, including a failure inside the function', () => {
     expect(end({ entered: true })).toMatch(/returned|ran/i);
     expect(end({ entered: true, error: true })).toMatch(/ran.*(?:error|failed)/i);
   });
   it.each([
     { entered: false }, { entered: false, error: true }, { notExecuted: true },
-    { notDispatched: { pausedCall: { toolCallId: 'a', toolName: 'earlier' } } },
   ])('does not report an execution for %j', fields => {
     expect(end(fields)).toBe('The call was not executed.');
   });
-  it.each([{}, { error: true }, { entered: 'yes' }, { entered: 1 }, { entered: null },
-    { entered: true, notDispatched: {} }])('leaves an unrecorded or malformed entry unknown for %j', fields => {
-    expect(end(fields)).toBe('The record does not say whether the tool ran.');
+  it('leaves entry unknown when the settlement is unreadable', () => {
+    expect(end({ entered: true, notDispatched: {} })).toBe('The record does not say whether the tool ran.');
   });
   it.each([{ entered: 'yes' }, { error: 0 }, { notExecuted: null }])(
     'a paused-batch marker cannot establish execution when its end has a malformed boolean leaf %j', fields => {
@@ -53,12 +81,6 @@ describe('analyst fallback for a tool end', () => {
     expect(teachingHumanizer(event('tool_end', { entered: true, notExecuted: true }))).toMatch(/not executed/);
     expect(teachingHumanizer(event('tool_end', { entered: true, notDispatched: {} })))
       .toBe('The record does not say whether the tool ran.');
-  });
-  it('uses the ordinary start and its description when the saved settlement is malformed', () => {
-    const humanize = makeTeachingHumanizer({ getToolDescription: () => 'public lookup' });
-    const fields = { toolCallId: 'c1', toolName: 'lookup', args: {}, notDispatched: { pausedCall: null } };
-    expect(defaultHumanizer(event('tool_start', fields))).toMatch(/Calling tool/);
-    expect(humanize(event('tool_start', fields))).toContain('public lookup');
   });
 });
 

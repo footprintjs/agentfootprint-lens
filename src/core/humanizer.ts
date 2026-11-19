@@ -14,10 +14,11 @@
 
 import type { AgentfootprintEvent } from 'agentfootprint/events';
 import { describeToolArguments, protectedToolArguments } from './toolArgumentDisplay.js';
-import { commentaryDefaults, commentaryKey, readableToolFlags } from './toolCommentary.js';
 import {
+  defaultCommentaryTemplates,
   extractCommentaryVars,
   renderCommentary,
+  selectCommentaryKey,
   type CommentaryTemplates,
 } from 'agentfootprint';
 import {
@@ -141,7 +142,7 @@ export const defaultHumanizer: Humanizer = (event) => {
       return `Model replied in ${event.payload.durationMs}ms (${event.payload.usage.input}+${event.payload.usage.output} tokens, ${event.payload.toolCallCount} tool calls, stop: ${event.payload.stopReason}).`;
     case 'agentfootprint.stream.tool_start': {
       const display = protectedToolArguments(event.payload);
-      const call = commentaryKey(event) === 'stream.tool_start.notDispatched'
+      const call = selectCommentaryKey(event) === 'stream.tool_start.notDispatched'
         ? `Skipped tool "${event.payload.toolName}"`
         : `Calling tool "${event.payload.toolName}"`;
       return display === undefined
@@ -155,11 +156,14 @@ export const defaultHumanizer: Humanizer = (event) => {
     case 'agentfootprint.stream.tool_progress':
       return humanizeToolProgress(event.payload as ToolProgressLike);
     case 'agentfootprint.stream.tool_end': {
-      const key = commentaryKey(event);
+      const key = selectCommentaryKey(event);
       // Teaching skips a settled end because its start already told that story.
       // AgentFootprint's execution reader also requires these saved leaves to be booleans when present.
       const entered = 'entered' in event.payload ? event.payload.entered : undefined;
-      const settled = key === null && readableToolFlags(event.payload);
+      const { error, notExecuted } = event.payload;
+      const settled = key === null && [entered, error, notExecuted].every(
+        field => field === undefined || typeof field === 'boolean',
+      );
       if (settled || key === 'stream.tool_end.notExecuted') return 'The call was not executed.';
       if (key !== 'stream.tool_end' || entered !== true) return 'The record does not say whether the tool ran.';
       return event.payload.error === true
@@ -372,8 +376,8 @@ export function makeTeachingHumanizer(
   // values are present (string), but TS widens to `string | undefined`
   // through `Partial`. The defaults guarantee every key resolves.
   const templates: CommentaryTemplates = options.commentaryTemplates
-    ? ({ ...commentaryDefaults, ...options.commentaryTemplates } as CommentaryTemplates)
-    : commentaryDefaults;
+    ? ({ ...defaultCommentaryTemplates, ...options.commentaryTemplates } as CommentaryTemplates)
+    : defaultCommentaryTemplates;
   const ctx = { appName, getToolDescription };
 
   return (event) => {
@@ -386,7 +390,7 @@ export function makeTeachingHumanizer(
       return humanizeToolProgressTeaching(event.payload as ToolProgressLike);
     }
     // 1. Pick a template key. `null` skips, `undefined` falls through.
-    const key = commentaryKey(event);
+    const key = selectCommentaryKey(event);
     if (key === null) return null;
     if (key === undefined) return defaultHumanizer(event);
 
