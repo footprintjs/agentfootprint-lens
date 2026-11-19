@@ -184,46 +184,61 @@ function capture(row: object): TrustBoundaryCapture {
   });
 }
 
-/** Strict, detached metadata-only v1 reader. It never scans events or execution trees. */
-export function readTrustBoundaries(snapshot: unknown): TrustBoundariesRead {
-  try {
-    if (snapshot === undefined || snapshot === null)
-      return Object.freeze({
-        status: 'missing',
-        message: 'No trust boundary capture was retained.',
-      });
-    const rows = own(object(snapshot), 'recorders');
-    if (rows === undefined)
-      return Object.freeze({
-        status: 'missing',
-        message: 'No trust boundary capture was retained.',
-      });
+/** Enumerate recorder headers in order, using the same strict descriptors as the fact reader. */
+function* trustRecorders(snapshot: unknown): Generator<object> {
+  if (snapshot === undefined || snapshot === null) return;
+  const rows = own(object(snapshot), 'recorders');
+  if (rows === undefined) return;
+  for (const value of list(rows, 10000)) {
+    const row = object(value);
+    if (own(row, 'name') === 'TrustBoundaries') yield row;
+  }
+}
+
+function failedRead(error: unknown): TrustBoundariesRead {
+  return Object.freeze(error === FUTURE
+    ? { status: 'unsupported', message: 'This trust boundary capture has an unsupported version; only version 1 can be read.' }
+    : { status: 'invalid', message: 'This trust boundary capture is invalid; its facts cannot be displayed reliably.' });
+}
+
+/** One snapshot's strict result, shared by repeated reads after first inspection. */
+function deferredRead(load: () => TrustBoundariesRead) {
+  let result: TrustBoundariesRead | undefined;
+  return {
+    get current() { return result; },
+    read() {
+      if (result === undefined) {
+        try { result = load(); }
+        catch (error) { result = failedRead(error); }
+      }
+      return result;
+    },
+  };
+}
+
+/** Discover the first Trust recorder. Missing recordings have no disclosure. */
+export function prepareTrustBoundaries(snapshot: unknown) {
+  const rows = trustRecorders(snapshot);
+  let first: IteratorResult<object>;
+  try { first = rows.next(); }
+  catch (error) { return deferredRead(() => failedRead(error)); }
+  if (first.done) return undefined;
+
+  return deferredRead(() => {
     const captures: TrustBoundaryCapture[] = [];
     const ids = new Set<string>();
-    for (const value of list(rows, 10000)) {
-      const row = object(value);
-      if (own(row, 'name') !== 'TrustBoundaries') continue;
-      const parsed = capture(row);
+    for (let next: IteratorResult<object> = first; !next.done; next = rows.next()) {
+      const parsed = capture(next.value);
       if (ids.has(parsed.id)) throw BAD;
       ids.add(parsed.id);
       captures.push(parsed);
     }
-    return captures.length
-      ? Object.freeze({ status: 'available', captures: Object.freeze(captures) })
-      : Object.freeze({ status: 'missing', message: 'No trust boundary capture was retained.' });
-  } catch (error) {
-    return Object.freeze(
-      error === FUTURE
-        ? {
-            status: 'unsupported',
-            message:
-              'This trust boundary capture has an unsupported version; only version 1 can be read.',
-          }
-        : {
-            status: 'invalid',
-            message:
-              'This trust boundary capture is invalid; its facts cannot be displayed reliably.',
-          },
-    );
-  }
+    return Object.freeze({ status: 'available', captures: Object.freeze(captures) });
+  });
+}
+
+/** Strict, detached metadata-only v1 reader. It never scans events or execution trees. */
+export function readTrustBoundaries(snapshot: unknown): TrustBoundariesRead {
+  return prepareTrustBoundaries(snapshot)?.read() ??
+    Object.freeze({ status: 'missing', message: 'No trust boundary capture was retained.' });
 }

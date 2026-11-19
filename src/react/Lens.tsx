@@ -74,8 +74,7 @@ import {
   type UseToolChoiceResult,
 } from "./hooks/useToolChoice.js";
 import { ToolChoicePanel } from "./components/ToolChoicePanel.js";
-import { TrustBoundaryView, sourcePrefixMessage, TRUST_BUTTON_STYLE } from './TrustBoundaryView.js';
-import { readTrustBoundaries } from '../core/trustBoundaries/index.js';
+import { TrustBoundaryDisclosure, TrustBoundaryView, sourcePrefixMessage, TRUST_BUTTON_STYLE } from './TrustBoundaryView.js';
 import { buildGroups } from "../core/group/buildGroups.js";
 import {
   resolveDrillChain,
@@ -964,10 +963,7 @@ const StageLens: React.FC<LensProps> = ({
         onToggle={sourceFeature.toggle} onQuery={sourceFeature.setQuery} onChoose={sourceFeature.choose}
         onCancel={sourceFeature.cancel} onRoot={() => sourceFeature.drill([])} />}
       {!sourceFeature.pending && <LensNotes notes={notes} />}
-      {!sourceFeature.pending && readTrustBoundaries(freshSnapshot).status !== 'missing' && <details style={{ maxHeight: '45%', overflow: 'auto' }}>
-        <summary>Trust boundaries</summary>
-        <TrustBoundaryView snapshot={freshSnapshot} shared={shared} recordingSource={recordingSource} />
-      </details>}
+      {!sourceFeature.pending && <TrustBoundaryDisclosure snapshot={freshSnapshot} shared={shared} recordingSource={recordingSource} />}
       <div style={{ flex: 1, minHeight: 0 }} aria-busy={sourceFeature.pending || undefined}>
         {recordingSource === undefined ? content : <div {...(sourceFeature.pending ? { inert: '' } : {})} aria-hidden={sourceFeature.pending || undefined}
           style={{ height: '100%', minHeight: 0, opacity: sourceFeature.pending ? 0 : undefined,

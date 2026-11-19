@@ -110,12 +110,15 @@ describe('sparse child replay with a shared address', () => {
     expect(screen.getByLabelText('Go to step 19')).toHaveAttribute('aria-current', 'step');
   });
 
-  it('the recorded source prefix stays in its dedicated shell at local prefix 18', () => {
+  it('the recorded source prefix stays in its dedicated shell at local prefix 18', async () => {
     const observed = observeRecording(recording);
     const { rerender } = render(<Host observed={observed} />);
     fireEvent.click(screen.getByText('Hold root step 19'));
     fireEvent.click(screen.getByText('Drill into final'));
-    fireEvent.click(screen.getByText('Inspect source prefix'));
+    const disclosure = screen.getByText('Trust boundaries', { selector: 'summary' });
+    expect(disclosure).toBeVisible();
+    fireEvent.click(disclosure);
+    fireEvent.click(await screen.findByRole('button', { name: 'Inspect source prefix' }));
     const target = screen.getByTestId('target').textContent;
     expect(JSON.parse(target!)).toMatchObject({ kind: 'source-prefix', position: { committedThroughIdx: 18, drillPath: [] } });
     expect(screen.getByRole('region', { name: 'Source prefix' })).toBeVisible();

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { readTrustBoundaries } from './read.js';
+import { prepareTrustBoundaries, readTrustBoundaries } from './read.js';
 
 export function trustSnapshot() {
   const kinds = [
@@ -57,6 +57,26 @@ export function trustSnapshot() {
 }
 
 describe('strict TrustBoundaries v1 reader', () => {
+  it('defers fact validation while preserving malformed headers and the first read error', () => {
+    expect(prepareTrustBoundaries({ recorders: [{ name: 'Other' }] })).toBeUndefined();
+    const future = trustSnapshot().recorders[0]!;
+    future.meta.version = 2;
+    let invoked = 0;
+    for (const [recorders, status] of [
+      [[future, null], 'unsupported'],
+      [[null, future], 'invalid'],
+      [[{ get name() { invoked++; return 'TrustBoundaries'; } }], 'invalid'],
+    ] as const) {
+      const prepared = prepareTrustBoundaries({ recorders })!;
+      expect(prepared.current).toBeUndefined();
+      const result = prepared.read();
+      expect(result.status).toBe(status);
+      expect(prepared.current).toBe(result);
+      expect(prepared.read()).toBe(result);
+    }
+    expect(invoked).toBe(0);
+  });
+
   it('keeps recorded human decisions and resume phases without filling in absent stamps', () => {
     const snapshot = trustSnapshot();
     const [decision, permission] = snapshot.recorders[0]!.data.facts;

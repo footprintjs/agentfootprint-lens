@@ -17,6 +17,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- The Trust boundaries section reads the recorded facts when you first open it
+  and reuses them when you reopen it on the same snapshot.
 - Use Explainable UI 2.2.0 for development and add it to the packed React 18 and 19 compatibility checks.
 - Context reads Why events from its recorder when the host omits `events`.
   If the recorder mixes runs, Context explains why it withheld the events and

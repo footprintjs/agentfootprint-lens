@@ -1,6 +1,6 @@
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TrustBoundaryView } from './TrustBoundaryView.js';
 import { useSharedCursor } from './useSharedCursor.js';
 import { lensRecorder } from '../core/LensRecorder.js';
@@ -64,6 +64,51 @@ function fixture() {
 }
 
 describe('TrustBoundaryView', () => {
+  it('reads Trust facts only when its shell disclosure opens and reuses the displayed evidence', async () => {
+    let snapshot = fixture();
+    let reads = 0;
+    const facts = snapshot.recorders[0]!.data.facts;
+    facts[0] = new Proxy(facts[0]!, {
+      getOwnPropertyDescriptor(target, key) {
+        if (key === 'changed') reads++;
+        return Reflect.getOwnPropertyDescriptor(target, key);
+      },
+    });
+    const recorder = lensRecorder();
+    vi.spyOn(recorder, 'observedRunner').mockReturnValue(
+      { getLastSnapshot: () => snapshot } as unknown as ReturnType<typeof recorder.observedRunner>,
+    );
+    const view = () => <Lens recorder={recorder} view="user" />;
+    const { rerender } = render(view());
+    const summary = screen.getByText('Trust boundaries', { selector: 'summary' });
+    summary.focus();
+    expect(summary).toHaveFocus();
+    expect(reads).toBe(0);
+    fireEvent.click(summary);
+    await waitFor(() => expect(screen.getByText('Middleware deny')).toBeVisible());
+    expect(reads).toBe(1);
+    rerender(view());
+    expect(reads).toBe(1);
+    fireEvent.click(summary);
+    await waitFor(() => expect(summary.parentElement).not.toHaveAttribute('open'));
+    fireEvent.click(summary);
+    await waitFor(() => expect(screen.getByText('Middleware deny')).toBeVisible());
+    expect(reads).toBe(1);
+    expect(summary).toHaveFocus();
+    const updated = fixture();
+    Object.assign(updated.recorders[0]!.data.facts[0]!, { outcome: 'allow' });
+    snapshot = updated;
+    rerender(view());
+    expect(screen.getByText('Middleware allow')).toBeVisible();
+    expect(screen.queryByText('Middleware deny')).toBeNull();
+    fireEvent.click(summary);
+    await waitFor(() => expect(summary.parentElement).not.toHaveAttribute('open'));
+    snapshot = { ...snapshot, recorders: [] };
+    rerender(view());
+    expect(screen.queryByText('Trust boundaries', { selector: 'summary' })).toBeNull();
+    expect(screen.queryByText('Middleware deny')).toBeNull();
+  });
+
   it.each(['deny', 'halt'])('shows the human answer and later permission %s for the same recorded call', result => {
     const snapshot = fixture();
     const [human, rule] = snapshot.recorders[0]!.data.facts;
