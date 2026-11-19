@@ -108,7 +108,10 @@ The earlier native source proof used an unpublished AgentFootprint original
 and temporary locks. The active target jobs now replay the committed stable
 registry lock. Node 22 packs Lens once, and Node 24 compares its build with
 that archive. The separate published commentary control still bootstraps
-directly at 14.7.2 / 12.3.0 / 1.11.1.
+directly at 14.7.2 / 12.3.0 / 1.11.1. Its tool commentary fixture checks
+the published 14.7.2 selector with an ordinary end and a settled end. The
+supported AgentFootprint 15 install also exercises refused, unknown and
+confirmed execution, including replay of older unstamped recordings.
 
 ## Original renderer producer
 
