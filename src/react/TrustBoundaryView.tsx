@@ -1,9 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import {
   readTrustBoundaries,
+  type TrustBoundariesRead,
   type TrustBoundaryFact,
   type TrustBoundaryCapture,
 } from '../core/trustBoundaries/index.js';
+import { prepareTrustBoundaries } from '../core/trustBoundaries/read.js';
 import type { SharedCursor } from './useSharedCursor.js';
 import type { SourcePrefixResolution, SourcePrefixState } from '../core/cursor/sourcePrefix.js';
 import { T } from './theme/index.js';
@@ -286,16 +288,43 @@ function Capture({
   );
 }
 
-/** Runtime evidence only; this view does not reconstruct decisions or certify policy coverage. */
-export function TrustBoundaryView({
-  snapshot,
+/** The shared shell offers the disclosure only when there is evidence or a recording error to show. */
+export function TrustBoundaryDisclosure({ snapshot, ...navigation }: TrustBoundaryViewProps): React.ReactElement | null {
+  const reader = useMemo(() => prepareTrustBoundaries(snapshot), [snapshot]);
+  return reader === undefined ? null : <Disclosure reader={reader} {...navigation} />;
+}
+
+type Navigation = Omit<TrustBoundaryViewProps, 'snapshot'>;
+
+function Disclosure({ reader, ...navigation }: Navigation & {
+  readonly reader: NonNullable<ReturnType<typeof prepareTrustBoundaries>>;
+}): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const read = open ? reader.read() : reader.current;
+  return (
+    <details style={{ maxHeight: '45%', overflow: 'auto' }} onToggle={(event) => {
+      if (event.target === event.currentTarget) setOpen(event.currentTarget.open);
+    }}>
+      <summary>Trust boundaries</summary>
+      {read && <TrustBoundaryContent read={read} {...navigation} />}
+    </details>
+  );
+}
+
+/** Runtime evidence only; standalone consumers always receive the recording's status. */
+export function TrustBoundaryView({ snapshot, ...navigation }: TrustBoundaryViewProps): React.ReactElement {
+  const read = useMemo(() => readTrustBoundaries(snapshot), [snapshot]);
+  return <TrustBoundaryContent read={read} {...navigation} />;
+}
+
+function TrustBoundaryContent({
+  read,
   shared,
   recordingSource,
-}: TrustBoundaryViewProps): React.ReactElement {
+}: Navigation & { readonly read: TrustBoundariesRead }): React.ReactElement {
   const lazySelect = useSourcePrefixNavigation(recordingSource, shared);
   const select = (position: unknown) => recordingSource === undefined
     ? shared?.selectSourcePrefix?.(position) : lazySelect(position);
-  const read = useMemo(() => readTrustBoundaries(snapshot), [snapshot]);
   return (
     <section
       aria-label="Trust boundaries"
