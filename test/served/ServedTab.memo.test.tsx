@@ -12,15 +12,18 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 
 vi.mock('../../src/core/served/index.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/core/served/index.js')>();
-  return { ...actual, foldFactsAt: vi.fn(actual.foldFactsAt), servedRowAt: vi.fn(actual.servedRowAt) };
+  return { ...actual, servedGraphAt: vi.fn(actual.servedGraphAt), foldFactsAt: vi.fn(actual.foldFactsAt), servedRowAt: vi.fn(actual.servedRowAt) };
 });
 
-import { foldFactsAt, servedRowAt } from '../../src/core/served/index.js';
-import { ServedTab } from '../../src/react/components/ServedTab.js';
+vi.mock('../../src/core/served/collapsedTicket.js', { spy: true });
+import { collapsedTicketOf } from '../../src/core/served/collapsedTicket.js';
+import { foldFactsAt, servedRowAt, servedGraphAt } from '../../src/core/served/index.js';
+import { projectContext } from '../../src/core/context/contextAt.js';
+import { ContextServedTab, ServedTab } from '../../src/react/components/ServedTab.js';
 import { load, stopsOf } from './helpers.js';
 
 const folds = () => vi.mocked(foldFactsAt).mock.calls.length;
@@ -45,6 +48,48 @@ describe('<ServedTab> — derivation per log and cursor, never per render', () =
     expect(handed).toBeGreaterThanOrEqual(4);
     expect(folds()).toBe(1);
     expect(rows()).toBe(1);
+  });
+
+  it('reads wire tickets once per stop and builds the graph on its first visit', () => {
+    const recording = load('findings-ledger');
+    const calls = stopsOf(recording, 'llm-turn');
+    const stop = calls[2]!;
+    const view = (at = stop) => <ServedTab runner={recording.runner} cursorRuntimeStageId={at.runtimeStageId} commitIdx={at.commitIdx} />;
+    vi.mocked(collapsedTicketOf).mockClear();
+    vi.mocked(servedGraphAt).mockClear();
+    const tab = render(view());
+    const ticketReads = vi.mocked(collapsedTicketOf).mock.calls.length;
+    expect(ticketReads).toBeGreaterThan(0);
+    expect(servedGraphAt).not.toHaveBeenCalled();
+    tab.rerender(view());
+    fireEvent.click(tab.getByTestId('served-view-graph'));
+    fireEvent.click(tab.getByTestId('served-view-list'));
+    fireEvent.click(tab.getByTestId('served-view-graph'));
+    expect(servedGraphAt).toHaveBeenCalledTimes(1);
+    expect(collapsedTicketOf).toHaveBeenCalledTimes(ticketReads);
+
+    tab.rerender(view(recording.positions[0]!));
+    expect(tab.getByTestId('served-no-call')).toBeInTheDocument();
+    expect(servedGraphAt).toHaveBeenCalledTimes(1);
+    tab.rerender(view(calls[0]!));
+    expect(tab.getByTestId('served-tab')).toHaveAttribute('data-epoch', '1');
+    expect(tab.getByTestId('served-tab')).toHaveAttribute('data-view', 'graph');
+    expect(servedGraphAt).toHaveBeenCalledTimes(2);
+  });
+
+  it('uses the reading Context already prepared when its graph opens', () => {
+    const recording = load('flat-dynamic-tools');
+    const at = stopsOf(recording, 'llm-turn')[0]!;
+    const reading = projectContext(recording.snapshot, at).served!;
+    vi.mocked(servedGraphAt).mockClear();
+    vi.mocked(servedRowAt).mockClear();
+    vi.mocked(foldFactsAt).mockClear();
+    const tab = render(<ContextServedTab snapshot={recording.snapshot} at={at} reading={reading} onJumpTo={() => {}} />);
+    expect(servedGraphAt).not.toHaveBeenCalled();
+    fireEvent.click(tab.getByTestId('served-view-graph'));
+    expect(servedGraphAt).toHaveBeenCalledExactlyOnceWith(reading);
+    expect(rows()).toBe(0);
+    expect(folds()).toBe(0);
   });
 
   it('a commit landing on the log (the key moves) derives once more; the cursor moving derives once more', () => {

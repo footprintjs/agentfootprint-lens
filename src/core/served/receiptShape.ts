@@ -89,3 +89,8 @@ export function carriesCacheStrategy(
 ): receipt is StoredReceipt & { readonly cache: Receipt['cache'] } {
   return receipt.cache !== undefined && 'strategy' in receipt.cache;
 }
+
+/** Older receipts omit this field. Null records that the call had no strategy. */
+export function cacheStrategyOf(receipt: StoredReceipt | undefined): string | null | undefined {
+  return receipt && carriesCacheStrategy(receipt) ? receipt.cache.strategy : undefined;
+}

@@ -1,4 +1,3 @@
-import { collapsedTicketOf } from '../../core/served/collapsedTicket.js';
 /**
  * <ServedTab> — at every LLM call, exactly what the model was served, provable
  * from the log.
@@ -41,12 +40,6 @@ import { SERVED_GAPS, type ServedGap } from 'agentfootprint';
 import {
   EXCUSING_GAPS,
   type AttentionOmissionStatus,
-  foldFactsAt,
-  servedGraphAt,
-  servedRowAt,
-  servedRowForEpoch,
-  sincePrevious,
-  verify,
   type FieldCheck,
   type FoldFacts,
   type ServedFieldStatus,
@@ -55,6 +48,7 @@ import {
   type ServedVerification,
   type SincePrevious,
 } from '../../core/served/index.js';
+import { cacheTotalsOf, projectServedReading, servedAtStop, type RecordedClaim } from '../../core/served/servedAtStop.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import { foldCursorOf } from '../../core/cursor/foldAt.js';
 import type { DiffSegment } from '../../core/utils/diffPrompts.js';
@@ -266,28 +260,6 @@ const boundaryStyle: React.CSSProperties = {
   opacity: 0.8,
 };
 
-/** A recorded claim, as agentfootprint's `Claim<T>` spells it: known with a value, or not. */
-type RecordedClaim =
-  | { readonly kind: 'known'; readonly value: number; readonly reason?: undefined }
-  | { readonly kind: string; readonly value?: undefined; readonly reason?: string };
-
-/** The cache recorder's run totals, read off the snapshot's recorder rows (0.60.0). Absent when no host attached one. */
-function cacheTotalsOf(snapshot: unknown): { readonly read?: RecordedClaim; readonly fresh?: RecordedClaim; readonly hitRate?: RecordedClaim } | undefined {
-  const rows = (snapshot as { recorders?: unknown } | null | undefined)?.recorders;
-  if (!Array.isArray(rows)) return undefined;
-  const row = rows.find((r) => (r as { id?: unknown } | null)?.id === 'cache-recorder') as { data?: unknown } | undefined;
-  const data = row?.data as Record<string, unknown> | undefined;
-  if (data === undefined || data === null || typeof data !== 'object') return undefined;
-  const claim = (v: unknown): RecordedClaim | undefined =>
-    v !== null && typeof v === 'object' && typeof (v as { kind?: unknown }).kind === 'string' ? (v as RecordedClaim) : undefined;
-  return {
-    ...(claim(data.cacheReadTokensTotal) !== undefined && { read: claim(data.cacheReadTokensTotal)! }),
-    ...(claim(data.freshInputTokensTotal) !== undefined && { fresh: claim(data.freshInputTokensTotal)! }),
-    ...(claim(data.hitRate) !== undefined && { hitRate: claim(data.hitRate)! }),
-  };
-}
-
-
 /** The ledger's rows counted by their own `kind`, first-seen order: `basis 6 · standing 4`. */
 function rowKindCounts(rows: readonly unknown[]): string {
   const counts = new Map<string, number>();
@@ -346,20 +318,11 @@ function ServedTabBody(props: ServedTabProps): React.ReactElement {
   const logKey = logKeyOf(fresh);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `fresh` is keyed by `logKey` on purpose
   const snapshot = useMemo(() => fresh, [runner, logKey]);
-  // Derived from the cursor — nothing here remembers a position.
-  const derived = useMemo(() => {
-    // The ANCHOR, not a cursor — this tab holds no position, it reads one.
-    const at = { runtimeStageId: cursorRuntimeStageId, commitIdx };
-    const row = servedRowAt(snapshot, at);
-    if (row === undefined) return undefined;
-    const checks = verify(row.view, row.receipt, row.receipt?.basis.runId ?? '', row.receiptCause);
-    const previous =
-      row.previousEpoch !== undefined ? servedRowForEpoch(snapshot, row.previousEpoch) : undefined;
-    const since = previous !== undefined ? sincePrevious(row, previous) : undefined;
-    const fold = foldFactsAt(snapshot, at);
-    return { row, checks, since, fold };
-  }, [snapshot, cursorRuntimeStageId, commitIdx]);
-  return <ServedReading snapshot={snapshot} reading={derived} onJumpTo={onJumpTo} />;
+  const reading = useMemo(
+    () => servedAtStop(snapshot, { runtimeStageId: cursorRuntimeStageId, commitIdx }),
+    [snapshot, cursorRuntimeStageId, commitIdx],
+  );
+  return <ServedReading snapshot={snapshot} reading={reading} onJumpTo={onJumpTo} />;
 }
 
 function ServedReading({ snapshot, reading, onJumpTo }: {
@@ -367,14 +330,14 @@ function ServedReading({ snapshot, reading, onJumpTo }: {
   readonly reading?: ServedGraphInput;
   readonly onJumpTo?: (runtimeStageId: string) => void;
 }): React.ReactElement {
-  const graph = useMemo(() => reading && servedGraphAt(reading), [reading]);
+  const projection = useMemo(() => reading && projectServedReading(reading), [reading]);
   const hasRow = reading !== undefined;
   const cacheTotals = useMemo(() => hasRow ? cacheTotalsOf(snapshot) : undefined, [snapshot, hasRow]);
   const [viewMode, setViewMode] = useState<ServedViewMode>('list');
   const [showDiff, setShowDiff] = useState(false);
   const [openSchemas, setOpenSchemas] = useState<ReadonlySet<string>>(() => new Set());
 
-  if (reading === undefined || graph === undefined) {
+  if (reading === undefined || projection === undefined) {
     return (
       <div style={panelStyle} data-testid="served-tab" data-served="none">
         <Header row={undefined} onJumpTo={onJumpTo} viewMode={viewMode} onViewMode={setViewMode} />
@@ -386,15 +349,9 @@ function ServedReading({ snapshot, reading, onJumpTo }: {
   }
 
   const { row, checks, since, fold } = reading;
+  const { pieceIndexes, tickets, cacheStrategy } = projection;
   const view = row.view;
   const markers = row.receipt?.cache.markersApplied ?? [];
-  // The findings ledger on THIS wire (agentfootprint 9.101.0): the system
-  // piece(s) it composed, and the tool results it served as tickets.
-  const findingsPieces = view.system.pieces.filter((p) => p.source === 'findings').length;
-  const tickets = view.messages.asSent.flatMap((m) => {
-    const t = m.role === 'tool' ? collapsedTicketOf(m.content) : undefined;
-    return t !== undefined ? [t] : [];
-  });
   const gapsCovering = (fields: readonly string[]): readonly ServedGap[] =>
     view.gaps.filter((g) => g.fields.some((f) => fields.includes(f)));
   const excusing = (fields: readonly string[]): boolean =>
@@ -414,7 +371,7 @@ function ServedReading({ snapshot, reading, onJumpTo }: {
       <Header row={row} onJumpTo={onJumpTo} viewMode={viewMode} onViewMode={setViewMode} />
 
       {viewMode === 'graph' ? (
-        <ServedGraph graph={graph} />
+        <ServedGraph graph={projection.getGraph()} />
       ) : (
         <>
       {/* ── SERVED ─────────────────────────────────────────────────────── */}
@@ -471,14 +428,12 @@ function ServedReading({ snapshot, reading, onJumpTo }: {
                 the check gave THAT piece. Absent when no piece carries the
                 source: an unarmed run, or an armed one before any standing
                 was declared — nothing is claimed either way. */}
-            {findingsPieces > 0 && (
+            {pieceIndexes.length > 0 && (
               <DataLine label={LABELS.findingsPiece} testId="served-findings-piece">
-                {findingsPieces}
-                {view.system.pieces.map((piece, i) =>
-                  piece.source === 'findings' ? (
-                    <Badge key={i} check={checks.pieces[i] ?? { status: 'reconstructed' }} />
-                  ) : null,
-                )}
+                {pieceIndexes.length}
+                {pieceIndexes.map((index) => (
+                  <Badge key={index} check={checks.pieces[index] ?? { status: 'reconstructed' }} />
+                ))}
               </DataLine>
             )}
             {view.system.pieces.length === 0 &&
@@ -722,10 +677,9 @@ function ServedReading({ snapshot, reading, onJumpTo }: {
             </DataLine>
             {/* WHICH strategy (agentfootprint 9.93.0), as the receipt says it:
                 a name, the label for its own `null`, or Not on record on a
-                receipt minted before the field existed. `graph.call` carries
-                the same value — one owner, `servedGraphAt` · `callNode`. */}
+                receipt minted before the field existed. Both views use the same receipt field. */}
             <DataLine label={LABELS.cacheStrategy} testId="served-strategy">
-              <CacheStrategy value={graph.call.cacheStrategy} />
+              <CacheStrategy value={cacheStrategy} />
             </DataLine>
           </>
         ) : (

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Time Lens reuses the displayed time rows when only the question or assessment changes. Each turn matches its recorded answers to readings in one pass.
+- Served builds its graph on first open and reuses it at the same replay stop.
 
 ## [0.85.0] - 2026-11-19
 
