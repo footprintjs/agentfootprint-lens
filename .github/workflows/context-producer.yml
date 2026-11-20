@@ -8,24 +8,6 @@ permissions:
   contents: read
 
 jobs:
-  published-context-shapes:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - run: npm ci --strict-peer-deps
-      - name: Read an indexed recording with the published AgentFootprint reader
-        env:
-          LENS_CONTEXT_SHAPE_PEER: '16.0.1'
-        run: |
-          npm install --no-save --package-lock=false --strict-peer-deps agentfootprint@16.0.1
-          npx --no-install vitest run test/context/contextValueShapes.test.tsx
-
   context-producer:
     runs-on: ubuntu-24.04
     timeout-minutes: 30

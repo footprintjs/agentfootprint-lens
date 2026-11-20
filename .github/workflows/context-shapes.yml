@@ -1,0 +1,32 @@
+name: Published Context shapes
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  published-context-shapes:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g npm@11.21.0
+      - run: npm ci --strict-peer-deps
+      - name: Read an indexed recording with the published AgentFootprint reader
+        env:
+          LENS_CONTEXT_SHAPE_PEER: '16.0.1'
+        run: |
+          # Resolve the producer in its own consumer tree. The stable Lens lock stays on 15.
+          runtime="$RUNNER_TEMP/shape-producer"
+          npm install --prefix "$runtime" --strict-peer-deps --ignore-scripts --no-package-lock "agentfootprint@$LENS_CONTEXT_SHAPE_PEER"
+          mv node_modules/agentfootprint "$RUNNER_TEMP/locked-producer"
+          ln -s "$runtime/node_modules/agentfootprint" node_modules/agentfootprint
+          npx --no-install vitest run test/context/contextValueShapes.test.tsx
