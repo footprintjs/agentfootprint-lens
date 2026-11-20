@@ -32,13 +32,14 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-### Migration: AgentFootprint 15, engine 14 and Foottrace 2.1
+### Runtime compatibility: AgentFootprint 15 and 16, engine 14 and Foottrace 2.1
 
-Update the runtime packages together: `agentfootprint ^15.0.0`,
+Update the runtime packages together: `agentfootprint ^15.0.0 || ^16.0.1`,
 `footprintjs ^14.0.0` and `foottrace ^2.1.0`. The committed development lock
 selects the published versions 15.0.0, 14.0.0 and 2.1.0. Node.js 22 or newer
 and React 18 or 19 remain required. Older saved recordings retain their
-existing readers, fixtures and goldens.
+existing readers, fixtures and goldens. For recorded Context types and array
+lengths, use AgentFootprint 16.0.1 or newer within major 16.
 
 Source development uses Explainable UI 2.2.0. The packed consumer tests cover
 2.2.0 on React 18 and 19 with Node.js 22 and 24. They also exercise older

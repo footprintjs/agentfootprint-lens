@@ -11,6 +11,8 @@ jobs:
   published-context-shapes:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    env:
+      LENS_CONTEXT_SHAPE_PEER: '16.0.1'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,9 +22,33 @@ jobs:
           node-version: 22
       - run: npm install -g npm@11.21.0
       - run: npm ci --strict-peer-deps
+      - name: Strictly install the packed Lens with the published AgentFootprint peer
+        run: |
+          pack="$RUNNER_TEMP/shape-pack"
+          consumer="$RUNNER_TEMP/shape-consumer"
+          mkdir -p "$pack" "$consumer"
+          npm run build
+          npm pack --ignore-scripts --pack-destination "$pack"
+          version="$(node -p 'require("./package.json").version')"
+          npm install --prefix "$consumer" --strict-peer-deps --ignore-scripts --no-package-lock \
+            "$pack/agentfootprint-lens-$version.tgz" "agentfootprint@$LENS_CONTEXT_SHAPE_PEER" \
+            footprintjs@14.0.0 foottrace@2.1.0 footprint-explainable-ui@2.2.0 \
+            react@18.3.1 react-dom@18.3.1
+          cd "$consumer"
+          npm ls agentfootprint-lens agentfootprint footprintjs foottrace --all
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { createRequire } from 'node:module';
+          import { contextShapeAt } from 'agentfootprint/observe';
+          import { projectContext } from 'agentfootprint-lens/context';
+
+          const require = createRequire(import.meta.url);
+          assert.equal(require('agentfootprint/package.json').version, process.env.LENS_CONTEXT_SHAPE_PEER);
+          assert.equal(typeof contextShapeAt, 'function');
+          assert.equal(typeof projectContext, 'function');
+          assert.equal(typeof require('agentfootprint-lens/context').projectContext, 'function');
+          JS
       - name: Read an indexed recording with the published AgentFootprint reader
-        env:
-          LENS_CONTEXT_SHAPE_PEER: '16.0.1'
         run: |
           # Resolve the producer in its own consumer tree. The stable Lens lock stays on 15.
           runtime="$RUNNER_TEMP/shape-producer"
