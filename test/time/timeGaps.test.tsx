@@ -81,6 +81,23 @@ describe('L1 — the three new row kinds and the period checks are folded', () =
     expect(call.sourceClocks).toEqual([sc]);
   });
 
+  it('keeps many interleaved source clocks in ledger order, isolated by turn, call and fold', () => {
+    const base = rowOf(S.checks!, 'source-clock');
+    const clocks = Array.from({ length: 2048 }, (_, index) => Object.freeze({
+      ...base, turn: 1, toolCallId: index % 2 === 0 ? 'a' : 'b', zone: `zone-${index}`,
+    }));
+    const later = Object.freeze({ ...clocks[0]!, turn: 2 });
+    const withoutClock = Object.freeze({ ...rowOf(S.confirmed!, 'call'), turn: 2, toolCallId: 'b' });
+    const ledger = Object.freeze([...clocks, later, withoutClock]);
+    const [first, second] = foldTimeRows(ledger)!.turns;
+    const [a, b] = first!.calls;
+    expect(a!.sourceClocks).toEqual(clocks.filter(row => row.toolCallId === 'a'));
+    expect(b!.sourceClocks).toEqual(clocks.filter(row => row.toolCallId === 'b'));
+    expect(second!.calls[0]!.sourceClocks).toEqual([later]);
+    expect(second!.calls[1]).not.toHaveProperty('sourceClocks');
+    expect(foldTimeRows(ledger)!.turns[0]!.calls[0]!.sourceClocks).not.toBe(a!.sourceClocks);
+  });
+
   it('the period row keeps its result checks as the record holds them', () => {
     const s = S.checks!;
     const calls = foldTimeRows(s.ledger, s.coverage)!.turns[0]!.calls;
@@ -235,6 +252,40 @@ describe('L2 — an open reading the person answered reads as settled by the per
     render(<TimeBand rows={ledger} />);
     expect(screen.getByTestId('time-reading')).toHaveAttribute('data-settled', '');
     expect(screen.getByTestId('time-answer')).toHaveAttribute('data-how', 'confirmed');
+  });
+
+  it('joins many readings in linear work and leaves the band alone when only the ask changes', () => {
+    const reading = rowOf(S.confirmed!, 'time-reading');
+    const answer = rowOf(S.confirmed!, 'time-answer');
+    const count = 64;
+    let mentionReads = 0;
+    const readings = Array.from({ length: count }, (_, mention) => ({ ...reading, mention }));
+    const answers = readings.map(({ mention }) => ({
+      ...answer,
+      get mention() { mentionReads++; return mention; },
+    }));
+    const rows = [
+      ...readings, ...answers,
+      { ...answer, mention: 1, how: 'edited', to: 'corrected end' },
+      { ...answer, mention: count, from: 'first unmatched' },
+      { ...answer, mention: count, from: 'second unmatched' },
+      { ...answer, turn: 2, mention: 1, from: 'other turn' },
+    ];
+    const { rerender } = render(<TimeView rows={rows} ask={older.ask.first} />);
+    const displayed = screen.getAllByTestId('time-reading');
+    expect(displayed).toHaveLength(count);
+    expect(displayed[0]).toHaveAttribute('data-settled', 'confirmed');
+    expect(displayed[1]).toHaveTextContent('corrected end');
+    expect(screen.getAllByTestId('time-answer').map((line) => line.textContent)).toEqual([
+      expect.stringContaining('first unmatched'),
+      expect.stringContaining('second unmatched'),
+      expect.stringContaining('other turn'),
+    ]);
+    expect.soft(mentionReads).toBeLessThanOrEqual(4 * count);
+    const initialReads = mentionReads;
+    rerender(<TimeView rows={rows} ask={older.ask.reasked} />);
+    expect(screen.getByTestId('time-ask-refused')).toBeInTheDocument();
+    expect(mentionReads).toBe(initialReads);
   });
 });
 
