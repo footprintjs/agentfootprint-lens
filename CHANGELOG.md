@@ -7,12 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Context uses the published AgentFootprint reader to show recorded types and array lengths at the replay cursor. Older recordings keep their existing value previews.
+
 ## [0.86.0] - 2026-11-20
 
 ### Changed
 
-- Accept AgentFootprint 16 starting at 16.0.1, alongside 15.
-- Context uses the published AgentFootprint reader to show recorded types and array lengths at the replay cursor. Older recordings keep their existing value previews.
+- Accept AgentFootprint 16 alongside 15.
 - Time Lens reuses the displayed time rows when only the question or assessment changes. Each turn matches its recorded answers to readings in one pass.
 
 ## [0.85.0] - 2026-11-19

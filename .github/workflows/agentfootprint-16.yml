@@ -1,0 +1,76 @@
+name: AgentFootprint 16 compatibility
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - .github/workflows/agentfootprint-16.yml
+
+permissions:
+  contents: read
+
+jobs:
+  agentfootprint-16:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      AGENTFOOTPRINT_VERSION: '16.0.1'
+      npm_config_fetch_retries: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g npm@11.21.0
+      - name: Install the alternate graph with the published AgentFootprint
+        run: |
+          git log -1 --format='Source %H, tree %T'
+          npm install --package-lock-only --ignore-scripts --strict-peer-deps --save-dev --save-exact \
+            --no-audit --no-fund "agentfootprint@$AGENTFOOTPRINT_VERSION"
+          npm ci --strict-peer-deps
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { createRequire } from 'node:module';
+
+          const require = createRequire(import.meta.url);
+          assert.equal(require('agentfootprint/package.json').version, process.env.AGENTFOOTPRINT_VERSION);
+          JS
+          npm ls agentfootprint footprintjs foottrace --all
+      - name: Run the full Lens suite on AgentFootprint 16
+        run: |
+          npm run test:contract:foottrace
+          npm run typecheck
+          npm run build
+          npm test
+          npm run fixtures:time:check
+          npm exec --no -- publint
+      - name: Restore the committed package and lock
+        if: always()
+        run: git restore -- package.json package-lock.json
+      - name: Strictly install the packed Lens in a fresh consumer
+        run: |
+          pack="$RUNNER_TEMP/lens-pack"
+          consumer="$RUNNER_TEMP/lens-consumer"
+          mkdir -p "$pack" "$consumer"
+          npm pack --ignore-scripts --pack-destination "$pack"
+          version="$(node -p 'require("./package.json").version')"
+          npm install --prefix "$consumer" --strict-peer-deps --ignore-scripts --no-package-lock \
+            "$pack/agentfootprint-lens-$version.tgz" "agentfootprint@$AGENTFOOTPRINT_VERSION" \
+            footprintjs@14.0.0 foottrace@2.1.0 footprint-explainable-ui@2.2.0 \
+            react@18.3.1 react-dom@18.3.1
+          cd "$consumer"
+          npm ls agentfootprint-lens agentfootprint footprintjs foottrace --all
+          node --input-type=module <<'JS'
+          import assert from 'node:assert/strict';
+          import { createRequire } from 'node:module';
+          import { projectContext } from 'agentfootprint-lens/context';
+
+          const require = createRequire(import.meta.url);
+          assert.equal(require('agentfootprint/package.json').version, process.env.AGENTFOOTPRINT_VERSION);
+          assert.equal(typeof projectContext, 'function');
+          assert.equal(typeof require('agentfootprint-lens/context').projectContext, 'function');
+          JS
