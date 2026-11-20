@@ -1,79 +1,66 @@
-/** A fact recorded about one state path. Segment arrays preserve literal dots in keys. */
+import * as observe from 'agentfootprint/observe';
+
+type ScalarKind = 'object' | 'string' | 'number' | 'boolean' | 'null';
+type RecordedShape = readonly [ScalarKind | 'unknown'] | readonly ['array', number];
+type Reader = (index: unknown, commitIdx: number, path: readonly string[]) => RecordedShape;
+
 export type ContextValueShape = { readonly path: readonly string[] } & (
   | { readonly type: 'array'; readonly arrayLength: number }
-  | { readonly type: 'object' | 'string' | 'number' | 'boolean' | 'null'; readonly arrayLength?: never }
+  | { readonly type: ScalarKind; readonly arrayLength?: never }
 );
 
-export interface ContextValueShapes {
-  get(path: readonly string[]): ContextValueShape | undefined;
-  values(): IterableIterator<ContextValueShape>;
-}
-
-/** A full Context view has both the value and the metadata. Suppress a stale
- * or contradictory fact using only the addressed path and the array length. */
-export function matchesFold(state: Readonly<Record<string, unknown>>, shape: ContextValueShape): boolean {
-  let value: unknown = state;
-  for (const segment of shape.path) {
-    if (value === null || typeof value !== 'object') return false;
-    const field = Object.getOwnPropertyDescriptor(value, segment);
-    if (!field || !('value' in field)) return false;
-    value = field.value;
+/** Only a fact consistent with the state that Context actually folded may be displayed. */
+function matchesFold(value: unknown, recorded: RecordedShape): boolean {
+  if (value === 'REDACTED' || value === '[REDACTED]') return false;
+  if (typeof value === 'number' && !Number.isFinite(value)) return false;
+  if (Array.isArray(value)) return recorded[0] === 'array' && recorded[1] === value.length;
+  if (value !== null && typeof value === 'object') {
+    const proto = Object.getPrototypeOf(value);
+    return recorded[0] === 'object' && (proto === null || proto === Object.prototype);
   }
-  if (Array.isArray(value)) return shape.type === 'array' && value.length === shape.arrayLength;
-  return shape.type === (value === null ? 'null' : typeof value);
+  return recorded[0] === (value === null ? 'null' : typeof value);
 }
 
-type Wire = { version?: unknown; initial?: unknown; changes?: unknown };
-
-function apply(entries: unknown, shapes: Map<string, ContextValueShape>): boolean {
-  if (!Array.isArray(entries)) return false;
-  for (const entry of entries) {
-    if (!Array.isArray(entry)) return false;
-    const [path, type, length] = entry;
-    if (!Array.isArray(path) || !path.length) return false;
-    for (const segment of path) if (typeof segment !== 'string') return false;
-    if (entry.length !== (type === 'array' ? 3 : 2)) return false;
-    const key = JSON.stringify(path);
-    if (type === 'deleted' || type === 'unknown') {
-      shapes.delete(key);
-      continue;
-    }
-    if (type === 'array') {
-      if (!Number.isSafeInteger(length) || length < 0 || length > 0xffffffff) return false;
-    } else if (type !== 'object' && type !== 'string' && type !== 'number' && type !== 'boolean' && type !== 'null') {
-      return false;
-    }
+/** Bind the producer's path reader to this publication and fold position. AgentFootprint 15
+ * has the observe entry point but lacks this export. A new live publication gets a new reader. */
+export function shapeReaderAt(snapshot: unknown, commitIdx: number) {
+  const index = (snapshot as { contextShapes?: unknown } | null)?.contextShapes;
+  const { contextShapeAt: read } = observe as { readonly contextShapeAt?: Reader };
+  if (index == null || typeof read !== 'function') return undefined;
+  return (path: readonly string[], value: unknown): ContextValueShape | undefined => {
+    const fact = read(index, commitIdx, path);
+    if (fact[0] === 'unknown' || !matchesFold(value, fact)) return undefined;
     const address = Object.freeze([...path]);
-    const fact = type === 'array' ? { path: address, type, arrayLength: length } : { path: address, type };
-    shapes.set(key, Object.freeze(fact));
-  }
-  return true;
+    return fact[0] === 'array'
+      ? Object.freeze({ path: address, type: fact[0], arrayLength: fact[1] })
+      : Object.freeze({ path: address, type: fact[0] });
+  };
 }
 
-/**
- * Recorded shapes at a root-log commit, or the initial shapes at -1.
- * This reads only the versioned metadata on this snapshot. A metadata-only
- * consumer can use it before fetching the corresponding values or events.
- * Absent/invalid metadata has no answer. A missing path also has no answer.
- */
-export function contextValueShapesAt(snapshot: unknown, commitIdx: number): ContextValueShapes | undefined {
-  const wire = (snapshot as { contextShapes?: Wire } | null)?.contextShapes;
-  if (wire?.version !== 1 || !Array.isArray(wire.changes) || !Number.isSafeInteger(commitIdx)) return undefined;
-  const shapes = new Map<string, ContextValueShape>();
-  if (!apply(wire.initial, shapes)) return undefined;
-  const frames = commitIdx < 0 ? [] : wire.changes;
-  let last = -1;
-  for (const frame of frames) {
-    if (!Array.isArray(frame)) return undefined;
-    const index = frame[0];
-    // A second frame at the cursor would make its facts ambiguous.
-    if (!Number.isSafeInteger(index) || index <= last) return undefined;
-    if (index > commitIdx) break;
-    if (frame.length !== 2 || !apply(frame[1], shapes)) return undefined;
-    last = index;
+/** Look up only the configured nested paths, without enumerating arrays or invoking getters. */
+export function nestedArrayShapes(
+  read: NonNullable<ReturnType<typeof shapeReaderAt>>,
+  state: Readonly<Record<string, unknown>>,
+  paths: readonly (readonly string[])[],
+): ReadonlyMap<string, ContextValueShape[]> {
+  const grouped = new Map<string, ContextValueShape[]>();
+  const seen = new Set<string>();
+  for (const path of paths) {
+    if (path.length < 2) continue;
+    const key = JSON.stringify(path);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    let value: unknown = state;
+    for (const segment of path) {
+      if (value === null || typeof value !== 'object') break;
+      value = Object.getOwnPropertyDescriptor(value, segment)?.value;
+    }
+    if (!Array.isArray(value)) continue;
+    const shape = read(path, value);
+    if (!shape) continue;
+    const group = grouped.get(path[0]);
+    if (group) group.push(shape);
+    else grouped.set(path[0], [shape]);
   }
-  return Object.freeze({
-    get: (path: readonly string[]) => shapes.get(JSON.stringify(path)),
-    values: () => shapes.values(),
-  });
+  return grouped;
 }

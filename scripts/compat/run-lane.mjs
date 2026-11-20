@@ -12,18 +12,16 @@ import { assertPublishedReceipt, assertRegistryLock, readPublishedAgent } from '
 import { assertWhyIdentity } from './why-identity.mjs';
 import { installBrowser } from './browser-install.mjs';
 import { assertNarrativeRejection, assertNarrativeRendererBytes, narrativeRenderer } from './narrative-renderers.mjs';
-import { inspectInputs, verifyPackedNativeLock, verifyNativeInstalled } from './source-inputs.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const flags = parseFlags(process.argv.slice(2),
-  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser', 'source-inputs', 'browser-provisioning']);
+  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser', 'browser-provisioning']);
 const browserStrategy = flags['browser-provisioning'] ?? 'network';
 assert.ok(['network', 'bundled'].includes(browserStrategy), 'Unknown browser provisioning strategy');
 if (flags['browser-provisioning'] !== undefined) assert.ok(flags['install-browser'] === 'yes' && flags.browser !== 'no',
   'An explicit browser provisioning strategy requires --install-browser yes and browser replay');
-const native = flags['source-inputs'] ? inspectInputs(resolve(flags['source-inputs'])) : null;
-const cohort = native ? native.cohort : readActiveCohort();
-const agentIdentity = native ? cohort.packages.agentfootprint : readPublishedAgent(cohort);
+const cohort = readActiveCohort();
+const agentIdentity = readPublishedAgent(cohort);
 const lane = laneContract(flags, cohort);
 assert.equal(process.versions.node.split('.')[0], lane.node, 'run this lane with its declared Node major');
 assert.ok(flags.artifacts && flags.evidence, '--artifacts and --evidence are required');
@@ -39,29 +37,23 @@ writeJson(join(evidence, 'verification.json'), report);
 async function step(name, run) {
   await run(); report.steps.push(name); writeJson(join(evidence, 'verification.json'), report);
 }
-function verifyConsumerLock(directory, packed) {
-  if (native) {
-    verifyPackedNativeLock(directory, JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')), native, packed);
-    return;
-  }
+function verifyConsumerLock(directory) {
   const lock = JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8'));
   for (const expected of Object.values(cohort.packages)) assertRegistryLock(lock, expected);
 }
-function install(directory, dependencies, label, packed) {
+function install(directory, dependencies, label) {
   const resolution = `${directory}-resolve`;
   mkdirSync(resolution);
   mkdirSync(directory); // A different fresh copy replays the generated lock.
   writeJson(join(resolution, 'package.json'), { name: `lens-${label}`, version: '1.0.0', private: true, dependencies });
-  if (native) inspectInputs(resolve(flags['source-inputs']));
   command('npm', ['install', '--package-lock-only', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
     { cwd: resolution, log: join(evidence, `${label}-resolve.log`) });
-  if (label === 'consumer') verifyConsumerLock(resolution, packed);
-  if (native) inspectInputs(resolve(flags['source-inputs']));
+  if (label === 'consumer') verifyConsumerLock(resolution);
   for (const name of ['package.json', 'package-lock.json']) copyFileSync(join(resolution, name), join(directory, name));
   command('npm', ['ci', '--strict-peer-deps', '--ignore-scripts', '--no-audit', '--no-fund'],
     { cwd: directory, log: join(evidence, `${label}-ci.log`) });
   command('npm', ['ls', '--all', '--json'], { cwd: directory, log: join(evidence, `${label}-tree.json`) });
-  if (label === 'consumer') verifyConsumerLock(directory, packed);
+  if (label === 'consumer') verifyConsumerLock(directory);
 }
 function checkTypes(consumer, stem, toolConsumer = consumer, verifyRejection) {
   const tsc = join(toolConsumer, 'node_modules/typescript/bin/tsc');
@@ -99,38 +91,25 @@ try {
   const agent = inspectArchive(join(artifacts, contract.agent.path), evidence,
     { ...agentIdentity, expectedSha: contract.agent.sha256 });
   assert.deepEqual(agent.files, contract.agent.files);
-  if (native) {
-    assert.equal(contract.agentSource.kind, cohort.kind);
-    assert.equal(contract.agentSource.qualification, 'NATIVE_SOURCE_READY');
-    assert.deepEqual(contract.agentSource.source, native.receipt.candidate.source);
-    assert.equal(contract.agentSource.archiveSha256, agent.sha256);
-    assert.equal(contract.agentSource.independentReviewSha256, native.receipt.independentReviewSha256);
-  }
-  const agentSource = native ? contract.agentSource
-    : assertPublishedReceipt(contract.agentSource, readFileSync(agent.path), agentIdentity);
+  const agentSource = assertPublishedReceipt(contract.agentSource, readFileSync(agent.path), agentIdentity);
   report.packages.agent = { sha256: agent.sha256, source: agentSource };
   const publishedPeers = {};
-  if (!native) {
-    for (const name of ['footprintjs', 'foottrace']) {
-      const expected = cohort.packages[name];
-      const { archive: declared, receipt } = contract.publishedPeers[name];
-      assert.equal(declared.path, expected.filename);
-      const archive = inspectArchive(join(artifacts, expected.filename), evidence,
-        { ...expected, expectedSha: declared.sha256 });
-      assertPublishedReceipt(receipt, readFileSync(archive.path), expected);
-      assert.deepEqual(archive.files, declared.files);
-      publishedPeers[name] = archive;
-      report.packages[name] = { sha256: archive.sha256, source: receipt };
-    }
+  for (const name of ['footprintjs', 'foottrace']) {
+    const expected = cohort.packages[name];
+    const { archive: declared, receipt } = contract.publishedPeers[name];
+    assert.equal(declared.path, expected.filename);
+    const archive = inspectArchive(join(artifacts, expected.filename), evidence,
+      { ...expected, expectedSha: declared.sha256 });
+    assertPublishedReceipt(receipt, readFileSync(archive.path), expected);
+    assert.deepEqual(archive.files, declared.files);
+    publishedPeers[name] = archive;
+    report.packages[name] = { sha256: archive.sha256, source: receipt };
   }
 
   function verifyRecordOwner(directory) {
-    if (native) verifyNativeInstalled(directory, native, { recordOnly: true });
-    else {
-      const modules = join(directory, 'node_modules');
-      assertSingleFoottrace(modules, cohort.pins.foottrace);
-      assertInstalled(join(modules, 'foottrace'), publishedPeers.foottrace.files, 'record-only Foottrace');
-    }
+    const modules = join(directory, 'node_modules');
+    assertSingleFoottrace(modules, cohort.pins.foottrace);
+    assertInstalled(join(modules, 'foottrace'), publishedPeers.foottrace.files, 'record-only Foottrace');
   }
 
   const narrativeIdentity = narrativeRenderer(lane.flow);
@@ -164,19 +143,14 @@ try {
   const consumer = join(evidence, 'consumer');
   await step('strict fresh peer install', () => install(consumer, {
     ...lane.peers, ...lane.types, ...tooling,
-    ...(native ? Object.fromEntries(Object.keys(cohort.pins).map(name => [name, `file:${native.archives[name].path}`])) : {}),
     'agentfootprint-lens': `file:${why.path}`, 'footprint-explainable-ui': `file:${flow.path}`,
-  }, 'consumer', { why, flow }));
+  }, 'consumer'));
   const whyInstalled = join(consumer, 'node_modules/agentfootprint-lens');
   const flowInstalled = join(consumer, 'node_modules/footprint-explainable-ui');
   function verifyBytes() {
     assertInstalled(whyInstalled, why.files, 'Why');
     assertInstalled(join(consumer, 'node_modules/agentfootprint'), agent.files, 'AgentFootprint');
     report.recordOwner = assertSingleFoottrace(join(consumer, 'node_modules'), cohort.pins.foottrace);
-    if (native) {
-      inspectInputs(resolve(flags['source-inputs']));
-      report.nativeOwners = verifyNativeInstalled(consumer, native);
-    }
     for (const [name, archive] of Object.entries(publishedPeers)) {
       assertInstalled(join(consumer, 'node_modules', name), archive.files, name);
       assert.equal(sha256(readFileSync(archive.path)), archive.sha256, `${name} archive changed during checks`);
@@ -190,9 +164,7 @@ try {
   await step('all five ESM/CJS doors, canonical owner, native recording, replay and SSR', () => {
     copyFileSync(join(root, 'scripts/check-packed-peers.mjs'), join(consumer, 'check-packed-peers.mjs'));
     copyFileSync(join(root, 'scripts/check-native-recording.mjs'), join(consumer, 'check-native-recording.mjs'));
-    const expectedCohort = native ? verifyPackedNativeLock(consumer,
-      JSON.parse(readFileSync(join(consumer, 'package.json'), 'utf8')), native, { why, flow }) : cohort;
-    writeJson(join(consumer, 'expected-cohort.json'), expectedCohort);
+    writeJson(join(consumer, 'expected-cohort.json'), cohort);
     command(process.execPath, ['check-packed-peers.mjs'], { cwd: consumer, log: join(evidence, 'runtime.log') });
     command(process.execPath, ['check-native-recording.mjs'], { cwd: consumer, log: join(evidence, 'native-recording.log') });
   });

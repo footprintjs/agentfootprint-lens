@@ -2170,6 +2170,23 @@ so instead of drawing an empty graph.
 / CLI view on the same primitives — see `ChangeNotifier`'s JSDoc for adapter
 snippets.
 
+To draw a Proof Map in a custom view, read the selected stop with
+`proofMapAt(context)` and pass the result to `layoutProofMap`. Both are in
+`agentfootprint-lens/core`. The layout gives each node its position and each
+edge its path. A stop with no recorded findings ledger yields `undefined`.
+
+For the application's declared Ontology map, `ontologyAt(context)` returns the
+terms, sources, holdings and relations at the selected stop. Use those lists
+directly or call `layoutOntology(fold)` to draw the chart. Both functions are
+available in `agentfootprint-lens/core`. A missing or malformed declaration
+yields `undefined`.
+
+For a custom story player, import `storyMarks` from `agentfootprint-lens/core`.
+Pass the trace and `contextAt(...).keys` for the selected stop. The returned
+array has one entry per beat. For a tool call, its chips show the recorded
+basis on the ask and its current standing on the return. A recording without
+ledger rows produces no chips.
+
 The cursor is headless too: `scrubAxisFor` builds the ruler, `openLensCursor`
 moves along it through Foottrace's `timeTravel()` port, `resolveNavigation`
 turns an address into a step with every rung named, and `stepForCommitIdx`

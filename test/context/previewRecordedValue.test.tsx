@@ -19,6 +19,20 @@ describe('collapsed recorded values', () => {
     }
   });
 
+  it('preserves live bigint precision in the preview, expanded value and JSON pane', () => {
+    const value = { count: -9007199254740993123n, padding: 'x'.repeat(180) };
+    const snapshot = { initialState: { sample: value }, commitLog: [] };
+    expect(previewRecordedValue({ count: value.count }).text).toBe('{"count":-9007199254740993123n}');
+    expect(previewRecordedValue(10n ** 5000n)).toEqual({ text: 'BigInt…', truncated: true });
+    render(<ContextView runner={snapshot} />);
+    expect(screen.getByTestId('context-value').textContent).toContain('-9007199254740993123n');
+    fireEvent.click(screen.getByTestId('context-value-toggle'));
+    const displayed = { count: '-9007199254740993123n', padding: value.padding };
+    expect(JSON.parse(screen.getByTestId('context-value-full').textContent!)).toEqual(displayed);
+    fireEvent.click(screen.getByTestId('context-mode-json'));
+    expect(JSON.parse(screen.getByTestId('context-json').textContent!)).toEqual({ sample: displayed });
+  });
+
   it('renders dates and boxed scalars in the same JSON form used for historical comparisons', () => {
     const foreign = runInNewContext('[new Date(0), new Date(NaN), new Number(Infinity), new Number(3), new Boolean(false), new String("é")]') as unknown[];
     const values = [new Date(0), new Date(NaN), Object('😀'), Object(1), Object(true), ...foreign];

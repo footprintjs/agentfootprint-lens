@@ -17,10 +17,8 @@ class RendererTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory(prefix='lens-renderer-fixture-')
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name)
-        fixture = Fixture(self.root)
-        manifest = encoded({'name': 'footprint-explainable-ui', 'version': '1.1.1',
-                            'scripts': {'postinstall': 'node dist/index.cjs'}})
-        fixture.members[0] = ('package/package.json', manifest, fixture.members[0][2])
+        fixture = Fixture()
+        manifest = fixture.members[0][1]
         self.tgz = fixture.tar_bytes()
         self.filename = 'footprint-explainable-ui-1.1.1.tgz'
         inspected = inspect_package(self.tgz, 'footprint-explainable-ui', '1.1.1')

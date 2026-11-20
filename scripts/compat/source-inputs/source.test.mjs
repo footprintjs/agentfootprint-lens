@@ -5,8 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { trackedSource } from './materialize.mjs';
-import { assertSourceClone } from '../source-inputs.mjs';
+import { assertSourceClone, bootstrap, trackedSource } from './materialize.mjs';
 
 test('an unrelated tracked source byte cannot be hidden by the temporary lock projection', t => {
   const root = mkdtempSync(join(tmpdir(), 'lens-native-source-'));
@@ -19,16 +18,28 @@ test('an unrelated tracked source byte cannot be hidden by the temporary lock pr
   writeFileSync(join(root, 'package-lock.json'), 'temporary lock');
   assertSourceClone(root, expected);
   writeFileSync(join(root, 'source.js'), 'unrelated mutation');
-  assert.throws(() => assertSourceClone(root, expected), /source changed during native proof/);
+  assert.throws(() => assertSourceClone(root, expected), /source changed during CONTROL proof/);
 });
 
 test('a desktop command refuses before using credentials or creating an input directory', t => {
   const root = mkdtempSync(join(tmpdir(), 'lens-native-desktop-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const facade = fileURLToPath(new URL('../source-inputs.mjs', import.meta.url));
-  assert.throws(() => execFileSync(process.execPath, [facade, 'fetch', '--out', join(root, 'input')],
+  assert.throws(() => execFileSync(process.execPath, [facade, 'fetch-renderer', '--out', join(root, 'input')],
     { env: { ...process.env, GITHUB_ACTIONS: 'false' }, stdio: 'pipe' }), error => {
     assert.match(error.stderr.toString(), /effectful source proof is hosted-only/); return true;
   });
   assert.equal(existsSync(join(root, 'input')), false);
+});
+
+test('the published CONTROL refuses the retired bootstrap target', () => {
+  assert.throws(() => bootstrap({ mode: 'target' }), /closed bootstrap role/);
+});
+
+test('the packed consumer refuses the retired candidate input flag', () => {
+  const runner = fileURLToPath(new URL('../run-lane.mjs', import.meta.url));
+  assert.throws(() => execFileSync(process.execPath, [runner, '--source-inputs', 'unused'], { stdio: 'pipe' }),
+    error => {
+      assert.match(error.stderr.toString(), /unknown flag: --source-inputs/); return true;
+    });
 });

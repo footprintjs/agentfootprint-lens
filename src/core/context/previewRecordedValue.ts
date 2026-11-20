@@ -4,8 +4,9 @@ import { recordedJsonScalar } from './recordedJsonScalar.js';
 const DISPLAY_LIMIT = 160;
 const PREFIX_LENGTH = 157;
 const SCAN_LIMIT = 256;
+const BIGINT_PREVIEW_LIMIT = 10n ** BigInt(DISPLAY_LIMIT);
 
-/** Even one-character entries take two characters each with separators. */
+/** Even a dense array of single-digit numbers needs two characters per entry with separators. */
 export function arrayExceedsPreview(length: number): boolean {
   return length * 2 + 1 > DISPLAY_LIMIT;
 }
@@ -43,6 +44,15 @@ export function previewRecordedValue(value: unknown): { text: string; truncated:
     if (typeof item === 'string') return quoted(item);
     if (item === null || typeof item === 'boolean') return append(String(item));
     if (typeof item === 'number') return append(String(item));
+    if (typeof item === 'bigint') {
+      // Converting an arbitrarily large integer to decimal can dominate a collapsed render.
+      if (item >= BIGINT_PREVIEW_LIMIT || item <= -BIGINT_PREVIEW_LIMIT) {
+        append('BigInt');
+        truncated = true;
+        return;
+      }
+      return append(`${item}n`);
+    }
     if (typeof item !== 'object') return;
     // Each nested container emits a delimiter before descending, so depth is
     // bounded by the character budget even for deeply nested or cyclic data.
@@ -63,7 +73,7 @@ export function previewRecordedValue(value: unknown): { text: string; truncated:
     if (truncated) return;
     let first = true;
     // Avoid a userland array of every key. Engines may still enumerate a wide
-    // object's names internally; we bound properties inspected and values read.
+    // object's names internally. The scan budget is shared across the whole value.
     for (const key in item) {
       if (truncated || ++scanned > SCAN_LIMIT) { truncated = true; break; }
       const entry = Object.getOwnPropertyDescriptor(item, key);

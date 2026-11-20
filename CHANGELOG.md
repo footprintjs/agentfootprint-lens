@@ -9,7 +9,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Context shows recorded types and array lengths at the replay cursor when AgentFootprint supplies them. Older recordings keep their existing value previews.
+- Time Lens reuses the displayed time rows when only the question or assessment changes. Each turn matches its recorded answers to readings in one pass.
+
+## [0.85.0] - 2026-11-19
+
+### Added
+
+- Custom story players can use `storyMarks` from `agentfootprint-lens/core`
+  to show the same recorded chips at a replay stop without loading React.
+- Custom views can draw the Ontology chart or list from the selected stop using
+  `ontologyAt` and `layoutOntology` from `agentfootprint-lens/core`.
+- Custom views can draw the same Proof Map as the built-in view using
+  `proofMapAt`, `foldProofMap` and `layoutProofMap` from `agentfootprint-lens/core`.
+- Custom views can read Reasoning cards and the recorded exchange from
+  `reasoningAt` in `agentfootprint-lens/core`. The Reasoning lens now prepares
+  the exchange when you first open it at a replay stop.
+- Custom views can use `foldFindings` from `agentfootprint-lens/core` to read the
+  same findings, conflicts and undeclared results as the Findings band at a replay stop.
+- Use `projectContext` and `ContextProjection` from `agentfootprint-lens/core` or
+  `agentfootprint-lens/context` to build a custom view from the same data as Context.
+  `createLensRenderStore` in `/core` batches recorder updates. On `LensRecorder`,
+  `hasSingleObservedSource()` checks source identity and `getObservedEventEvidence()`
+  supplies the event evidence for that source.
+
+### Changed
+
+- Why and Flow replay spend less time locating commentary and handoffs when
+  many stages in a recording have nested or missing event matches.
+- Coverage shows the first 12 declarations and the first 12 items in each
+  section. Open the remaining entries and page through them in recorded order.
+- The Trust boundaries section reads the recorded facts when you first open it
+  and reuses them when you reopen it on the same snapshot.
 - Use Explainable UI 2.2.0 for development and add it to the packed React 18 and 19 compatibility checks.
+- Context reads Why events from its recorder when the host omits `events`.
+  If the recorder mixes runs, Context explains why it withheld the events and
+  the projection reports `whyWithheld: 'mixed-sources'`. Call `recorder.clear()`
+  when starting a fresh run or pass the displayed run's `events` explicitly.
+
+### Fixed
+
+- Events arriving at a held cursor appear in Context. Long values show a
+  bounded preview and open in full on demand, including values containing BigInts.
 
 ## [0.84.2] - 2026-11-19
 

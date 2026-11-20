@@ -16,6 +16,16 @@ vi.mock('foottrace', async importOriginal => {
 });
 
 describe('Context projection', () => {
+  it('reports withheld event evidence only when the reader has no explicit events', () => {
+    const { snapshot, recorder } = load('flat-dynamic-tools');
+    const at = { runtimeStageId: '__root__#0', commitIdx: -1 };
+    expect(projectContext(snapshot, at)).not.toHaveProperty('whyWithheld');
+    expect(projectContext(snapshot, at, recorder.getObservedEventEvidence())).not.toHaveProperty('whyWithheld');
+    const mixed = { whyWithheld: 'mixed-sources' } as const;
+    expect(projectContext(snapshot, at, mixed)).toMatchObject({ why: [], whyWithheld: 'mixed-sources' });
+    expect(projectContext(snapshot, at, { ...mixed, events: [] })).not.toHaveProperty('whyWithheld');
+  });
+
   it('uses the fold anchor for the opening bookend and preserves an absent receipt and ledger', () => {
     const snapshot = { initialState: { seeded: 1 }, commitLog: [] };
     const at = { runtimeStageId: '__root__#0', commitIdx: 0, foldCommitIdx: -1 };
@@ -161,9 +171,11 @@ describe('Context projection', () => {
     });
     const runnerA = a.recorder.observedRunner()!;
     const cursor = lensCursorFrom(a.positions, a.positions.indexOf(stopsOf(a, 'llm-turn')[0]!), () => {});
+    const projected = () => projectContext(b.snapshot, cursor.at, a.recorder.getObservedEventEvidence());
     const pane = (runner: unknown) => <ContextView runner={runner} recorder={a.recorder} cursor={cursor} />;
     const view = render(pane(a.snapshot));
     expect(screen.getByTestId('context-why')).toBeTruthy();
+    expect(screen.queryByTestId('context-why-withheld')).toBeNull();
 
     act(() => a.recorder.detach());
     await waitFor(() => expect(screen.queryByTestId('context-why')).toBeNull());
@@ -176,6 +188,8 @@ describe('Context projection', () => {
     expect(screen.queryByTestId('context-why')).toBeNull();
     view.rerender(pane(b.snapshot));
     expect(screen.queryByTestId('context-why')).toBeNull();
+    expect(projected()).not.toHaveProperty('whyWithheld');
+    expect(screen.queryByTestId('context-why-withheld')).toBeNull();
     const priorCount = a.recorder.entryCount;
     const entry = b.recorder.getEntries().find(row => row.runtimeStageId === cursor.at.runtimeStageId)!;
     const replay = b.runner as { emit(event: typeof entry.event): void };
@@ -183,17 +197,40 @@ describe('Context projection', () => {
     expect(a.recorder.entryCount).toBe(priorCount + 1);
     view.rerender(pane(b.snapshot));
     expect(screen.queryByTestId('context-why')).toBeNull();
+    expect(projected()).toMatchObject({ why: [], whyWithheld: 'mixed-sources' });
+    await waitFor(() => expect(screen.getByTestId('context-why-withheld')).toHaveTextContent(/multiple runs/i));
+    expect(screen.getByTestId('context-why-withheld')).toHaveTextContent(/clear.*recorder.*events/i);
+    view.rerender(<ContextView runner={b.snapshot} recorder={a.recorder} cursor={cursor} events={[]} />);
+    expect(screen.queryByTestId('context-why-withheld')).toBeNull();
     view.rerender(<ContextView runner={b.snapshot} recorder={a.recorder} cursor={cursor} events={[entry]} />);
     expect(screen.getByTestId('context-why')).toBeTruthy();
     view.rerender(pane(b.snapshot));
     expect(screen.queryByTestId('context-why')).toBeNull();
 
+    const c = loadTampered('flat-dynamic-tools', packet => {
+      Object.assign(packet.snapshot, { runId: 'third-run' });
+    });
+    act(() => { a.recorder.observe(c.recorder.observedRunner()!); });
+    view.rerender(pane(c.snapshot));
+    expect(a.recorder.entryCount).toBe(priorCount + 1);
+    expect(a.recorder.getObservedEventEvidence()).toEqual({});
+    expect(screen.queryByTestId('context-why-withheld')).toBeNull();
+    expect(screen.queryByTestId('context-why')).toBeNull();
+
+    act(() => {
+      a.recorder.detach();
+      a.recorder.observe(runnerB);
+    });
+    expect(projected()).toHaveProperty('whyWithheld', 'mixed-sources');
+    view.rerender(pane(b.snapshot));
     act(() => {
       a.recorder.clear();
       replay.emit(entry.event);
     });
     await waitFor(() => expect(screen.getByTestId('context-why')).toBeTruthy());
     expect(a.recorder.entryCount).toBe(1);
+    expect(projected()).not.toHaveProperty('whyWithheld');
+    expect(screen.queryByTestId('context-why-withheld')).toBeNull();
     view.unmount();
     a.recorder.detach();
   });

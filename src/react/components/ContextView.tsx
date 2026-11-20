@@ -29,7 +29,7 @@
  */
 import React, { useMemo, useState } from 'react';
 
-import type { ContextAt, ContextKey, ContextProjection } from '../../core/context/contextAt.js';
+import type { ContextAt, ContextAtOptions, ContextKey, ContextProjection } from '../../core/context/contextAt.js';
 import type { ContextValueShape } from '../../core/context/contextValueShapes.js';
 import { arrayExceedsPreview, previewRecordedValue } from '../../core/context/previewRecordedValue.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
@@ -58,6 +58,8 @@ export const LABELS = Object.freeze({
   items: 'items',
   served: 'served',
   why: 'why',
+  mixedEvents: 'Hiding events from multiple runs.',
+  mixedEventsHelp: 'Clear the recorder or pass run-specific events.',
   epoch: 'epoch',
   system: 'system',
   tools: 'tools',
@@ -75,6 +77,8 @@ export const LABELS = Object.freeze({
 export { MILESTONE_AXIS } from '../hooks/useContextProjection.js';
 
 export interface ContextViewProps {
+  /** Pass the same nested paths selected for recording to show their verified array counts. */
+  readonly shapePaths?: ContextAtOptions['shapePaths'];
   /** The recording or a runner with `getLastSnapshot()` — the same input the Served tab takes. */
   readonly runner: unknown;
   /** THE cursor, when a host holds it. Absent: the view walks its own milestone axis. */
@@ -261,11 +265,16 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
 
 function ShapeLabel({ shape }: { readonly shape: ContextValueShape }): React.ReactElement {
   const nested = shape.path.length > 1;
-  return <div data-testid={nested ? 'context-array-shape' : 'context-value-shape'} style={dim}>
+  return <div style={dim} data-testid={nested ? 'context-array-shape' : 'context-value-shape'}>
     {nested && <>{shape.path.slice(1).join(' › ')} · </>}
     {shape.type}
-    {shape.arrayLength !== undefined && <> · {shape.arrayLength} {shape.arrayLength === 1 ? LABELS.item : LABELS.items}</>}
+    {shape.type === 'array' && <> · {shape.arrayLength} {shape.arrayLength === 1 ? LABELS.item : LABELS.items}</>}
   </div>;
+}
+
+/** Represent live bigint values as suffixed decimal strings in the on-demand JSON. */
+function formatContextJson(value: unknown, space?: number) {
+  return JSON.stringify(value, (_key, part: unknown) => typeof part === 'bigint' ? `${part}n` : part, space);
 }
 
 /** A value, shortened past 160 characters — and opened in place on a click,
@@ -273,12 +282,13 @@ function ShapeLabel({ shape }: { readonly shape: ContextValueShape }): React.Rea
 function ValueCell({ row }: { readonly row: ContextKey }): React.ReactElement {
   const [open, setOpen] = useState(false);
   const preview = useMemo(() => {
-    const large = arrayExceedsPreview(row.shape?.arrayLength ?? 0) ||
-      row.nestedArrays?.some(shape => arrayExceedsPreview(shape.arrayLength ?? 0));
-    return large ? undefined : previewRecordedValue(row.value);
+    if (arrayExceedsPreview(row.shape?.arrayLength ?? 0) ||
+        row.nestedArrays?.some(shape => arrayExceedsPreview(shape.arrayLength ?? 0))) return undefined;
+    return previewRecordedValue(row.value);
   }, [row]);
   const expandable = !preview || preview.truncated;
-  const full = useMemo(() => open && expandable ? JSON.stringify(row.value) : undefined, [open, expandable, row]);
+  const full = useMemo(() => open && expandable ? formatContextJson(row.value) : undefined,
+    [open, expandable, row]);
   if (!expandable) return <span>{preview.text}</span>;
   return (
     <span data-testid="context-value" data-open={open}>
@@ -300,7 +310,7 @@ function JsonPane({ context }: { readonly context: ContextAt }): React.ReactElem
   const full = useMemo(() => {
     const object: Record<string, unknown> = Object.create(null);
     for (const k of context.keys) object[k.path] = k.value;
-    return JSON.stringify(object, null, 2);
+    return formatContextJson(object, 2);
   }, [context]);
   return (
     <pre style={{ ...mono, ...pre }} data-testid="context-json">
@@ -343,7 +353,10 @@ function ServedLayer({
   );
 }
 
-function WhyBand({ context }: { readonly context: ContextAt }): React.ReactElement | null {
+function WhyBand({ context }: { readonly context: ContextProjection }): React.ReactElement | null {
+  if (context.whyWithheld === 'mixed-sources') {
+    return <div style={dim} data-testid="context-why-withheld">{LABELS.mixedEvents} {LABELS.mixedEventsHelp}</div>;
+  }
   if (context.why.length === 0) return null;
   return (
     <div style={band} data-testid="context-why">

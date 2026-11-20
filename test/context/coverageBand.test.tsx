@@ -20,7 +20,7 @@
 import React from 'react';
 import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { COVERAGE_BLOCK_HEADING } from 'agentfootprint';
 
 import { contextAt } from '../../src/core/context/contextAt.js';
@@ -304,33 +304,87 @@ describe('<CoverageBand> laws', () => {
     expect(screen.queryByLabelText('Previous step')).toBeNull();
   });
 
-  it('the fold at twelve: the first twelve listed, `+K more` on a native details that holds the rest — boundary and call alike', () => {
-    const checked = Array.from({ length: 15 }, (_, i) => ({ what: `ground ${i + 1}` }));
-    const row = { kind: 'ledger', toolName: 'wide', toolCallId: 'w1', iteration: 1, checked, notChecked: [], cannotCover: [] };
-    render(<CoverageRows rows={[row]} />);
+  it('mounts the first twelve items and pages the rest on demand for both the boundary and the call', async () => {
+    const checked = Array.from({ length: 38 }, (_, i) => ({ what: `ground ${i + 1}` }));
+    const row = { kind: 'ledger', toolName: 'wide', toolCallId: 'w1', iteration: 1, checked };
+    const { rerender } = render(<CoverageRows rows={[row]} />);
     for (const scope of [screen.getByTestId('coverage-boundary'), calls()[0]!]) {
       const section = sectionOf(scope, 'checked')!;
-      expect(section.getAttribute('data-count')).toBe('15');
       const more = within(section).getByTestId('coverage-more');
+      const paged = within(more);
+      const pageItems = () => paged.queryAllByTestId('coverage-what').map(el => el.textContent);
+      expect(paged.queryAllByTestId('coverage-what')).toHaveLength(0);
+      const summary = paged.getByLabelText('checked, +26 more');
       expect(more.tagName).toBe('DETAILS');
-      expect(more.getAttribute('data-count')).toBe('3');
-      expect(more.querySelector('summary')!.textContent).toBe(`+3 ${LABELS.more}`);
-      expect(within(more).getAllByTestId('coverage-item').map((li) => within(li).getByTestId('coverage-what').textContent)).toEqual([
-        'ground 13',
-        'ground 14',
-        'ground 15',
-      ]);
-      // Twelve in the open list — every item on the section is either there or behind the details.
-      const shown = within(section)
-        .getAllByTestId('coverage-item')
-        .filter((li) => !more.contains(li));
-      expect(shown).toHaveLength(12);
-      expect(shown.map((li) => within(li).getByTestId('coverage-what').textContent)).toEqual(checked.slice(0, 12).map((i) => i.what));
+      expect(summary.tagName).toBe('SUMMARY');
+      expect(summary.textContent).toBe('+26 more');
+      expect(itemsOf(section)).toEqual(checked.slice(0, 12));
+      expect(pageItems()).toEqual([]);
+
+      fireEvent.click(summary);
+      await waitFor(() => expect(pageItems()).toEqual(checked.slice(12, 24).map(item => item.what)));
+      const next = paged.getByRole('button', { name: 'Next page' });
+      next.focus();
+      fireEvent.click(next);
+      expect(next).toHaveFocus();
+      expect(pageItems()).toEqual(checked.slice(24, 36).map(item => item.what));
+      fireEvent.click(next);
+      expect(pageItems()).toEqual(['ground 37', 'ground 38']);
+      fireEvent.click(paged.getByRole('button', { name: 'Previous page' }));
+      expect(pageItems()).toEqual(checked.slice(24, 36).map(item => item.what));
+
+      fireEvent.click(summary);
+      await waitFor(() => expect(pageItems()).toEqual([]));
+      expect(itemsOf(section)).toEqual(checked.slice(0, 12));
     }
-    // Twelve exactly folds nothing.
-    cleanup();
-    render(<CoverageRows rows={[{ ...row, checked: checked.slice(0, 12) }]} />);
+    rerender(<CoverageRows rows={[{ ...row, checked: checked.slice(0, 12) }]} />);
     expect(screen.queryByTestId('coverage-more')).toBeNull();
+  });
+
+  it('keeps pages bounded across live appends, replay rewind, and a nested disclosure', async () => {
+    const rows = Array.from({ length: 43 }, (_, i) => ({
+      kind: 'ledger', toolName: `tool-${i + 1}`, iteration: i,
+      checked: Array.from({ length: 20 }, (_, j) => ({ what: `ground-${j + 1}` })),
+    }));
+    const { rerender } = render(<CoverageRows rows={rows.slice(0, 38)} step={0} />);
+    const root = screen.getByTestId('coverage-calls');
+    expect(calls()).toHaveLength(12);
+    const summary = within(root).getByLabelText('by call, +26 more');
+    const disclosure = summary.parentElement!;
+    const paged = within(disclosure);
+    const pageTools = () => paged.queryAllByTestId('coverage-call').map(el => el.getAttribute('data-tool'));
+    expect(screen.getAllByTestId('coverage-item')).toHaveLength(12 + 12 * 12);
+    fireEvent.click(summary);
+    await waitFor(() => expect(pageTools()).toEqual(rows.slice(12, 24).map(r => r.toolName)));
+
+    const nested = sectionOf(paged.getAllByTestId('coverage-call')[0]!, 'checked')!;
+    const nestedSummary = within(nested).getByLabelText('checked, +8 more');
+    fireEvent.click(nestedSummary);
+    await waitFor(() => expect(itemsOf(nested)).toHaveLength(20));
+    fireEvent.click(nestedSummary);
+    await waitFor(() => expect(itemsOf(nested)).toHaveLength(12));
+    expect(disclosure).toHaveAttribute('open');
+
+    const next = paged.getByRole('button', { name: 'Next page' });
+    fireEvent.click(next);
+    fireEvent.click(next);
+    expect(pageTools()).toEqual(['tool-37', 'tool-38']);
+    rerender(<CoverageRows rows={rows} step={1} />);
+    expect(pageTools()).toEqual(rows.slice(36).map(r => r.toolName));
+    rerender(<CoverageRows rows={rows.slice(0, 27)} step={0} />);
+    expect(pageTools()).toEqual(rows.slice(24, 27).map(r => r.toolName));
+    rerender(<CoverageRows rows={rows} step={1} />);
+    expect(pageTools()).toEqual(rows.slice(24, 36).map(r => r.toolName));
+
+    fireEvent.click(summary);
+    await waitFor(() => expect(calls()).toHaveLength(12));
+    fireEvent.click(summary);
+    await waitFor(() => expect(pageTools()).toEqual(rows.slice(24, 36).map(r => r.toolName)));
+    rerender(<CoverageRows rows={rows.slice(0, 10)} step={0} />);
+    expect(calls()).toHaveLength(10);
+    rerender(<CoverageRows rows={rows} step={1} />);
+    expect(calls()).toHaveLength(12);
+    expect(within(root).getByLabelText('by call, +31 more').parentElement).not.toHaveAttribute('open');
   });
 
   it('malformed rows are dropped one by one, malformed items inside a row likewise, and nothing crashes', () => {

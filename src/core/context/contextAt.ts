@@ -28,7 +28,7 @@
 import { pathSegments } from 'foottrace/paths';
 import { isCommitBundle, stateAt } from 'foottrace';
 import { sameRecordedValue } from './sameRecordedValue.js';
-import { contextValueShapesAt, matchesFold, type ContextValueShape } from './contextValueShapes.js';
+import { nestedArrayShapes, shapeReaderAt, type ContextValueShape } from './contextValueShapes.js';
 import type { FoldSource, FoldedState } from 'foottrace';
 
 import { foldCursorOf } from '../cursor/foldAt.js';
@@ -51,9 +51,7 @@ function readableRow(row: TraceRow | null): row is TraceRow {
 export interface ContextKey {
   readonly path: string;
   readonly value: unknown;
-  /** Shape recorded for this key at the folded commit. */
   readonly shape?: ContextValueShape;
-  /** Specifically recorded nested array paths, each with its own length. */
   readonly nestedArrays?: readonly ContextValueShape[];
   /** The stage that LAST wrote the key, from its trace row; absent = unattributed. */
   readonly wroteBy?: string;
@@ -100,6 +98,8 @@ export interface ContextAt {
 }
 
 export interface ContextAtOptions {
+  /** Additional exact paths to display when their array lengths were recorded. */
+  readonly shapePaths?: readonly (readonly string[])[];
   /** The previous stop on the reader's axis — enables `since` and `left`. */
   readonly previous?: ServedCursor;
   /** The recording's event stream, when the reader has one (a replay's `getEntries()`). */
@@ -246,20 +246,14 @@ function contextFromFold(
   const previousState = prior?.state;
   const written = prior && writtenBetween(log, folded, prior);
 
-  const shapes = folded.skipped?.length ? undefined : contextValueShapesAt(recording, folded.throughCommitIdx);
-  const nestedArrays = new Map<string, ContextValueShape[]>();
-  for (const shape of shapes?.values() ?? []) {
-    if (shape.path.length < 2 || shape.type !== 'array' || !matchesFold(folded.state, shape)) continue;
-    const key = shape.path[0];
-    const nested = nestedArrays.get(key);
-    if (nested) nested.push(shape);
-    else nestedArrays.set(key, [shape]);
-  }
+  const readShape = folded.skipped?.length ? undefined : shapeReaderAt(recording, folded.throughCommitIdx);
+  const nested = readShape && options.shapePaths?.length
+    ? nestedArrayShapes(readShape, folded.state, options.shapePaths) : undefined;
   const keys: ContextKey[] = [];
   for (const [path, value] of Object.entries(folded.state)) {
     const w = writers.get(path);
-    const shape = shapes?.get([path]);
-    const nested = nestedArrays.get(path);
+    const shape = readShape?.([path], value);
+    const nestedArrays = nested?.get(path);
     const since: ContextKey['since'] | undefined =
       previousState === undefined
         ? undefined
@@ -272,8 +266,8 @@ function contextFromFold(
       Object.freeze({
         path,
         value,
-        ...(shape && matchesFold(folded.state, shape) && { shape }),
-        ...(nested && { nestedArrays: Object.freeze(nested) }),
+        ...(shape && { shape }),
+        ...(nestedArrays && { nestedArrays: Object.freeze(nestedArrays) }),
         ...(w !== undefined
           ? {
               wroteBy: w.wroteBy,
@@ -321,6 +315,8 @@ function contextFromFold(
 
 /** All Context bands read one stop. Absent keys and missing receipts stay absent. */
 export interface ContextProjection extends ContextAt {
+  /** Available events were withheld because the recorder observed multiple sources. */
+  readonly whyWithheld?: 'mixed-sources';
   readonly served?: ServedGraphInput;
   readonly ledger?: {
     readonly rows: readonly unknown[];
@@ -334,7 +330,7 @@ export interface ContextProjection extends ContextAt {
 export function projectContext(
   snapshot: unknown,
   at: Parameters<typeof foldCursorOf>[0],
-  options: ContextAtOptions = {},
+  options: ContextAtOptions & Pick<ContextProjection, 'whyWithheld'> = {},
 ): ContextProjection {
   const cursor = foldCursorOf(at);
   const folded = foldAt(snapshot, cursor.commitIdx);
@@ -344,6 +340,7 @@ export function projectContext(
   const coverage = context.keys.find(key => key.path === 'coverageDeclared')?.value;
   return Object.freeze({
     ...context,
+    ...(options.events === undefined && options.whyWithheld === 'mixed-sources' && { whyWithheld: options.whyWithheld }),
     ...(served !== undefined && !('error' in folded) && {
       served: Object.freeze({ ...served, fold: foldFactsFrom(folded) }),
     }),

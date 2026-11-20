@@ -1,123 +1,142 @@
 import React from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
-import { contextValueShapesAt, projectContext } from '../../src/context/index.js';
+import { Agent } from 'agentfootprint';
+import * as observe from 'agentfootprint/observe';
+import { mock } from 'agentfootprint/providers';
+import producer from 'agentfootprint/package.json';
+import { contextAt, projectContext } from '../../src/context/index.js';
 import { lensCursorFrom } from '../../src/core/cursor/lensCursor.js';
 import * as formatter from '../../src/core/context/previewRecordedValue.js';
 import { ContextView } from '../../src/react/components/ContextView.js';
 
-const root = ['inventory'];
+const inventory = ['inventory'];
 const rows = ['inventory', 'rows'];
-const initial = [[root, 'object'], [rows, 'array', 90], [['a.b'], 'number']];
-const changes = [
-  [0, [[rows, 'array', 100]]],
-  [1, [[root, 'object'], [rows, 'deleted']]],
-  [2, [[root, 'unknown']]],
-];
-const values = (n: number) => Array.from({ length: n }, (_, i) => i);
-const snapshot = () => ({
-  initialState: { inventory: { rows: values(90) }, 'a.b': 5 },
-  commitLog: [{ stage: 'write', stageId: 'write', runtimeStageId: 'write#0', updates: {},
-    trace: [{ path: 'inventory', verb: 'set' }], overwrite: { inventory: { rows: values(100) } } }],
-  contextShapes: { version: 1, initial, changes },
-});
+const shapePaths = [rows];
+const items = (length: number) => Array.from({ length }, (_, i) => i);
+const initialState = { inventory: { rows: items(90) }, 'a.b': 5 };
+const commit = { stage: 'write', stageId: 'write', runtimeStageId: 'write#0', updates: {},
+  trace: [{ path: 'inventory', verb: 'set' }], overwrite: { inventory: { rows: items(100) } } };
+const initial = [[inventory, 'object'], [rows, 'array', 90], [['a.b'], 'number']];
+const changes = [[0, [[rows, 'array', 100]]]];
+const index = { version: 1, initial, changes };
+const snapshot = { initialState, commitLog: [commit], contextShapes: index };
+const start = { runtimeStageId: '__root__#0', commitIdx: -1 };
+const end = { runtimeStageId: 'write#0', commitIdx: 0 };
 const axis = [
   { kind: 'group-start' as const, depth: 0, commitIdx: 0, runtimeGroupId: '', runtimeStageId: '__root__#0', label: 'Start' },
   { kind: 'commit' as const, depth: 0, commitIdx: 0, runtimeGroupId: '', runtimeStageId: 'write#0', label: 'Write' },
 ];
+const cursor = (step: number) => lensCursorFrom(axis, step, () => {});
+const hasReader = typeof Reflect.get(observe, 'contextShapeAt') === 'function';
+const expectedProducer = process.env.LENS_CONTEXT_SHAPE_PEER;
 
-describe('recorded state shapes', () => {
-  it('reads metadata without loading state and honors the commit, path segments, tombstones and a new run', () => {
-    const record = { contextShapes: { version: 1, initial, changes },
-      get initialState(): unknown { throw Error('state touched'); },
-      get commitLog(): unknown { throw Error('log touched'); } };
-    const at = (idx: number) => contextValueShapesAt(record, idx)!;
-    expect(at(0).get(rows)).toEqual({ path: rows, type: 'array', arrayLength: 100 });
-    expect(at(-1).get(rows)?.arrayLength).toBe(90);
-    expect(at(1).get(rows)).toBeUndefined();
-    expect(at(1).get(root)?.type).toBe('object');
-    expect(at(2).get(root)).toBeUndefined();
-    expect(at(2).get(['a.b'])?.type).toBe('number');
-    expect(at(2).get(['a', 'b'])).toBeUndefined();
-    const next = { contextShapes: { version: 1, initial: [[rows, 'array', 1]], changes: [] } };
-    expect(contextValueShapesAt(next, -1)?.get(rows)?.arrayLength).toBe(1);
+describe('Context shape compatibility', () => {
+  it('can open, expand and rewind a recording with no shape metadata', () => {
+    const legacy = { initialState, commitLog: [commit] };
+    const pane = (step: number) => <ContextView runner={legacy} shapePaths={shapePaths} cursor={cursor(step)} />;
+    const view = render(pane(1));
+    expect(screen.queryByTestId('context-array-shape')).toBeNull();
+    fireEvent.click(screen.getByTestId('context-value-toggle'));
+    expect(JSON.parse(screen.getByTestId('context-value-full').textContent!)).toEqual(commit.overwrite.inventory);
+    view.rerender(pane(0));
+    expect(JSON.parse(screen.getByTestId('context-value-full').textContent!)).toEqual(initialState.inventory);
   });
 
-  it('rejects invalid metadata at the cursor without disclosing later facts', () => {
-    expect(contextValueShapesAt({}, 0)).toBeUndefined();
-    for (const entry of [[rows, 'array', -1], [rows, 'array', 0x100000000], [rows, 'string', 2], [[], 'null']]) {
-      const record = { contextShapes: { version: 1, initial, changes: [[1, [entry]]] } };
-      expect(contextValueShapesAt(record, 0)?.get(rows)?.arrayLength).toBe(90);
-      expect(contextValueShapesAt(record, 1)).toBeUndefined();
+  it.runIf(!hasReader)('still shows folded values when the installed peer cannot read an index', () => {
+    const result = projectContext(snapshot, end, { shapePaths });
+    expect(result.keys.find(key => key.path === 'inventory')).toMatchObject({
+      value: commit.overwrite.inventory,
+    });
+    for (const key of result.keys) {
+      expect(key).not.toHaveProperty('shape');
+      expect(key).not.toHaveProperty('nestedArrays');
     }
-    expect(contextValueShapesAt({ contextShapes: { version: 2, initial, changes } }, 0)).toBeUndefined();
+  });
+});
+
+// The published-producer job requires its exact package AND exercises every positive
+// case even if the reader disappears. A locked older peer exercises both fallbacks.
+describe.runIf(hasReader || expectedProducer !== undefined)('Context with the published shape reader', () => {
+  it('reads a shape from a recording produced by the installed AgentFootprint', async () => {
+    if (expectedProducer !== undefined) expect(producer.version).toBe(expectedProducer);
+    expect(hasReader).toBe(true);
+    const agent = Agent.create({ model: 'mock', provider: mock({ replies: [{ content: 'done' }] }) }).build();
+    const recorder = observe.recordRun(agent);
+    try {
+      await agent.run({ message: 'Check the history.' });
+      const saved = JSON.parse(JSON.stringify(recorder.toRecording()));
+      const history = contextAt(saved.snapshot, { runtimeStageId: '__root__#0', commitIdx: 0 })
+        .keys.find(key => key.path === 'history');
+      expect(history?.shape).toEqual({ path: ['history'], type: 'array', arrayLength: 1 });
+      expect(history?.value).toHaveLength(1);
+    } finally {
+      recorder.stop();
+    }
   });
 
-  it('rejects conflicting frames at the selected commit and at later stops', () => {
-    const record = { contextShapes: { version: 1, initial, changes: [
-      [0, [[rows, 'array', 3]]], [0, [[rows, 'array', 7]]],
-    ] } };
-    expect(contextValueShapesAt(record, 0)).toBeUndefined();
-    expect(contextValueShapesAt(record, 1)).toBeUndefined();
+  it('reads exact paths at the fold anchor and only displays requested nested arrays', () => {
+    const initialFold = projectContext(snapshot, { ...end, foldCommitIdx: -1 }, { shapePaths });
+    expect(initialFold.keys.find(key => key.path === 'a.b')?.shape).toEqual({ path: ['a.b'], type: 'number' });
+    const key = initialFold.keys.find(row => row.path === 'inventory')!;
+    expect(key.shape).toEqual({ path: inventory, type: 'object' });
+    expect(key.nestedArrays).toEqual([{ path: rows, type: 'array', arrayLength: 90 }]);
+    const finalFold = projectContext(snapshot, end, { shapePaths });
+    expect(finalFold.keys.find(row => row.path === 'inventory')?.nestedArrays)
+      .toEqual([{ path: rows, type: 'array', arrayLength: 100 }]);
+    expect(projectContext(snapshot, end).keys.find(row => row.path === 'inventory')).not.toHaveProperty('nestedArrays');
   });
 
-  it('leaves future payloads unread and reads no change frames at the initial stop', () => {
-    const future = [1];
-    Object.defineProperty(future, 1, { get() { throw Error('future payload touched'); } });
-    const frames = [changes[0], future];
-    const record = { contextShapes: { version: 1, initial, changes: frames } };
-    expect(contextValueShapesAt(record, 0)?.get(rows)?.arrayLength).toBe(100);
-    Object.defineProperty(frames, 0, { get() { throw Error('change frame touched'); } });
-    expect(contextValueShapesAt(record, -1)?.get(rows)?.arrayLength).toBe(90);
+  it('omits unknown, deleted, malformed, and contradictory shape facts while retaining the value', () => {
+    const variants = [
+      { version: 1, initial, changes: [[0, [[inventory, 'unknown'], [rows, 'deleted']]]] },
+      { version: 1, initial, changes: [[0, [[rows, 'array', -1]]]] },
+      { version: 1, initial, changes: [[0, [[inventory, 'null'], [rows, 'array', 99]]]] },
+    ];
+    for (const contextShapes of variants) {
+      const model = projectContext({ ...snapshot, contextShapes }, end, { shapePaths });
+      const key = model.keys.find(row => row.path === 'inventory')!;
+      expect(key.value).toEqual(commit.overwrite.inventory);
+      expect(key).not.toHaveProperty('shape');
+      expect(key).not.toHaveProperty('nestedArrays');
+    }
   });
 
-  it('shows empty and singleton arrays with their recorded counts', () => {
-    const source = { initialState: { queue: [] }, commitLog: [{
-      stage: 'write', stageId: 'write', runtimeStageId: 'write#0', updates: {},
-      trace: [{ path: 'queue', verb: 'set' }], overwrite: { queue: ['done'] },
-    }], contextShapes: { version: 1, initial: [[['queue'], 'array', 0]], changes: [
-      [0, [[['queue'], 'array', 1]]],
-    ] } };
-    const at = (step: number) => <ContextView runner={source} cursor={lensCursorFrom(axis, step, () => {})} />;
-    const view = render(at(0));
-    expect(screen.getByTestId('context-value-shape')).toHaveTextContent('array · 0 items');
-    view.rerender(at(1));
-    expect(screen.getByTestId('context-value-shape').textContent?.trim()).toBe('array · 1 item');
+  it('does not label a redacted placeholder using a stale string fact', () => {
+    const masked = { initialState: { secret: '' }, commitLog: [{ ...commit,
+      trace: [{ path: 'secret', verb: 'set' }], overwrite: { secret: 'REDACTED' }, redactedPaths: ['secret'],
+    }], contextShapes: { version: 1, initial: [[['secret'], 'string']], changes: [] } };
+    const result = projectContext(masked, end);
+    expect(result.redacted).toBe(true);
+    expect(result.keys[0].value).toBe('REDACTED');
+    expect(result.keys[0]).not.toHaveProperty('shape');
   });
 
-  it('refreshes metadata added to a live snapshot and suppresses facts that contradict its fold', () => {
-    const wire = { version: 1, initial, changes: [] as unknown[] };
-    const live = { contextShapes: wire };
-    expect(contextValueShapesAt(live, 0)?.get(rows)?.arrayLength).toBe(90);
-    wire.changes.push(changes[0]);
-    expect(contextValueShapesAt(live, 0)?.get(rows)?.arrayLength).toBe(100);
-    const bad = { ...snapshot(), contextShapes: { ...wire, initial: [[root, 'null'], [rows, 'array', 9]] } };
-    const model = projectContext(bad, { runtimeStageId: 'start', commitIdx: -1 });
-    expect(model.keys[0]).not.toHaveProperty('shape');
-    expect(model.keys[0]).not.toHaveProperty('nestedArrays');
+  it('reads a newly published live index and restores the previous count on rewind', () => {
+    const live = { ...snapshot, commitLog: [] as typeof commit[], contextShapes: { ...index, changes: [] as typeof changes } };
+    const runner = { getLastSnapshot: () => live };
+    const pane = (step: number) => <ContextView runner={runner} shapePaths={shapePaths} cursor={cursor(step)} />;
+    const view = render(pane(0));
+    expect(screen.getByTestId('context-array-shape')).toHaveTextContent('90 items');
+    live.commitLog.push(commit);
+    live.contextShapes.changes.push(...changes);
+    view.rerender(pane(1));
+    expect(screen.getByTestId('context-array-shape')).toHaveTextContent('100 items');
+    view.rerender(pane(0));
+    expect(screen.getByTestId('context-array-shape')).toHaveTextContent('90 items');
   });
 
-  it('uses the summary for a large collapsed value, follows replay, and formats full JSON on demand', () => {
-    const source = snapshot();
-    const renderAt = (stop: number) => <ContextView runner={source} cursor={lensCursorFrom(axis, stop, () => {})} />;
+  it('skips the large object preview until the user opens the full value', () => {
     const preview = vi.spyOn(formatter, 'previewRecordedValue');
     try {
-      const view = render(renderAt(0));
+      render(<ContextView runner={snapshot} shapePaths={shapePaths} cursor={cursor(0)} />);
       expect(screen.getByTestId('context-array-shape')).toHaveTextContent('rows · array · 90 items');
       expect(preview.mock.calls.some(([value]) => typeof value === 'object')).toBe(false);
-      view.rerender(renderAt(1));
-      expect(screen.getByTestId('context-array-shape')).toHaveTextContent('100 items');
+      expect(screen.queryByTestId('context-value-full')).toBeNull();
       fireEvent.click(screen.getByTestId('context-value-toggle'));
-      expect(JSON.parse(screen.getByTestId('context-value-full').textContent!)).toEqual({ rows: values(100) });
-      view.rerender(renderAt(0));
-      expect(screen.getByTestId('context-array-shape')).toHaveTextContent('90 items');
-      fireEvent.click(screen.getByTestId('context-mode-json'));
-      expect(JSON.parse(screen.getByTestId('context-json').textContent!)).toEqual(source.initialState);
-      const legacy = { initialState: source.initialState, commitLog: source.commitLog };
-      view.rerender(<ContextView runner={legacy} cursor={lensCursorFrom(axis, 0, () => {})} />);
-      fireEvent.click(screen.getByTestId('context-mode-keys'));
-      expect(screen.queryByTestId('context-array-shape')).toBeNull();
-      expect(screen.getByTestId('context-value-toggle')).toBeInTheDocument();
-    } finally { preview.mockRestore(); }
+      expect(JSON.parse(screen.getByTestId('context-value-full').textContent!)).toEqual(initialState.inventory);
+    } finally {
+      preview.mockRestore();
+    }
   });
 });
