@@ -29,8 +29,9 @@
  */
 import React, { useMemo, useState } from 'react';
 
-import type { ContextAt, ContextKey, ContextProjection } from '../../core/context/contextAt.js';
-import { previewRecordedValue } from '../../core/context/previewRecordedValue.js';
+import type { ContextAt, ContextAtOptions, ContextKey, ContextProjection } from '../../core/context/contextAt.js';
+import type { ContextValueShape } from '../../core/context/contextValueShapes.js';
+import { arrayExceedsPreview, previewRecordedValue } from '../../core/context/previewRecordedValue.js';
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
 import type { ServedCursor } from '../../core/served/types.js';
@@ -53,6 +54,8 @@ export const LABELS = Object.freeze({
   left: 'left',
   unattributed: 'unattributed',
   rows: 'rows',
+  item: 'item',
+  items: 'items',
   served: 'served',
   why: 'why',
   mixedEvents: 'Hiding events from multiple runs.',
@@ -74,6 +77,8 @@ export const LABELS = Object.freeze({
 export { MILESTONE_AXIS } from '../hooks/useContextProjection.js';
 
 export interface ContextViewProps {
+  /** Pass the same nested paths selected for recording to show their verified array counts. */
+  readonly shapePaths?: ContextAtOptions['shapePaths'];
   /** The recording or a runner with `getLastSnapshot()` — the same input the Served tab takes. */
   readonly runner: unknown;
   /** THE cursor, when a host holds it. Absent: the view walks its own milestone axis. */
@@ -249,10 +254,22 @@ function KeyRow({ k }: { readonly k: ContextKey }): React.ReactElement {
         )}
       </td>
       <td style={{ ...cell, ...mono }}>
+        {k.shape && <ShapeLabel shape={k.shape} />}
+        {k.nestedArrays?.slice(0, 2).map(shape => <ShapeLabel key={JSON.stringify(shape.path)} shape={shape} />)}
+        {k.nestedArrays && k.nestedArrays.length > 2 && <span style={dim}>+{k.nestedArrays.length - 2}…</span>}
         <ValueCell row={k} />
       </td>
     </tr>
   );
+}
+
+function ShapeLabel({ shape }: { readonly shape: ContextValueShape }): React.ReactElement {
+  const nested = shape.path.length > 1;
+  return <div style={dim} data-testid={nested ? 'context-array-shape' : 'context-value-shape'}>
+    {nested && <>{shape.path.slice(1).join(' › ')} · </>}
+    {shape.type}
+    {shape.type === 'array' && <> · {shape.arrayLength} {shape.arrayLength === 1 ? LABELS.item : LABELS.items}</>}
+  </div>;
 }
 
 /** Represent live bigint values as suffixed decimal strings in the on-demand JSON. */
@@ -264,10 +281,15 @@ function formatContextJson(value: unknown, space?: number) {
  *  so a system prompt or a tool schema is readable where it sits. */
 function ValueCell({ row }: { readonly row: ContextKey }): React.ReactElement {
   const [open, setOpen] = useState(false);
-  const preview = useMemo(() => previewRecordedValue(row.value), [row]);
-  const full = useMemo(() => open && preview.truncated ? formatContextJson(row.value) : undefined,
-    [open, preview, row]);
-  if (!preview.truncated) return <span>{preview.text}</span>;
+  const preview = useMemo(() => {
+    if (arrayExceedsPreview(row.shape?.arrayLength ?? 0) ||
+        row.nestedArrays?.some(shape => arrayExceedsPreview(shape.arrayLength ?? 0))) return undefined;
+    return previewRecordedValue(row.value);
+  }, [row]);
+  const expandable = !preview || preview.truncated;
+  const full = useMemo(() => open && expandable ? formatContextJson(row.value) : undefined,
+    [open, expandable, row]);
+  if (!expandable) return <span>{preview.text}</span>;
   return (
     <span data-testid="context-value" data-open={open}>
       {open ? (
@@ -275,7 +297,7 @@ function ValueCell({ row }: { readonly row: ContextKey }): React.ReactElement {
           {full}
         </pre>
       ) : (
-        <span>{preview.text}</span>
+        <span>{preview?.text}</span>
       )}{' '}
       <button type="button" style={btn} onClick={() => setOpen(!open)} data-testid="context-value-toggle">
         {open ? LABELS.less : LABELS.more}

@@ -149,3 +149,4 @@ export {
   type ContextKey,
   type ContextServed,
 } from '../core/context/contextAt.js';
+export type { ContextValueShape } from '../core/context/contextValueShapes.js';
