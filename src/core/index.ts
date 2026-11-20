@@ -299,6 +299,7 @@ export {
   type ContextKey,
   type ContextServed,
 } from "./context/contextAt.js";
+export type { ContextValueShape } from "./context/contextValueShapes.js";
 export { foldFindings, type FindingsFold } from "./context/findings.js";
 export { reasoningAt, type ReasoningAt } from "./context/reasoningAt.js";
 export {

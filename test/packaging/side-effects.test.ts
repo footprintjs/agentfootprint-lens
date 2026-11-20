@@ -219,11 +219,32 @@ describe.skipIf(!built)('sideEffects: false is true of the built package', () =>
     expect(sheetImports.length).toBeGreaterThanOrEqual(1);
   });
 
-  it('the /observe door is never a namespace import, and is loaded by import() where the button needs it', () => {
+  it('only the optional Context shape reader accesses the static /observe namespace; the button stays lazy', () => {
     const modules = reachableModules();
     const texts = modules.map((m) => [m, readFileSync(join(dist, m), 'utf8')] as const);
-    const namespaceImports = texts.filter(([, t]) => /import \* as \w+ from "agentfootprint\/observe"/.test(t));
-    expect(namespaceImports.map(([m]) => m)).toEqual([]);
+    for (const [file, text] of texts) {
+      const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, ts.ScriptKind.JS);
+      for (const statement of source.statements) {
+        if (!ts.isImportDeclaration(statement) || !ts.isStringLiteral(statement.moduleSpecifier) ||
+            statement.moduleSpecifier.text !== 'agentfootprint/observe') continue;
+        const binding = statement.importClause?.namedBindings;
+        if (!binding || !ts.isNamespaceImport(binding)) continue;
+        // Passing the namespace or looking up a computed property pulls the agent runtime
+        // into browser bundles. The one optional property keeps native ESM compatible with 15.
+        const alias = binding.name;
+        function visit(node: ts.Node): void {
+          if (ts.isIdentifier(node) && node.text === alias.text && node !== alias) {
+            const parent = node.parent;
+            const bindingPattern = ts.isVariableDeclaration(parent) && parent.initializer === node &&
+              ts.isObjectBindingPattern(parent.name) ? parent.name : undefined;
+            expect(bindingPattern?.elements.map(element => element.propertyName?.getText(source)),
+              `${file}: ${parent.getText(source)}`).toEqual(['contextShapeAt']);
+          }
+          ts.forEachChild(node, visit);
+        }
+        visit(source);
+      }
+    }
     const dynamic = texts.filter(([, t]) => /import\(\s*"agentfootprint\/observe"\s*\)/.test(t));
     expect(dynamic.map(([m]) => m)).toHaveLength(1);
   });

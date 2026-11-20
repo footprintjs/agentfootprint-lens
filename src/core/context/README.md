@@ -75,6 +75,27 @@ band explains how to recover. Call `recorder.clear()` when starting a fresh
 run, or pass the displayed run's own `events` explicitly. An explicit list,
 including an empty one, takes precedence and omits `whyWithheld`.
 
+### Recorded types and array lengths
+
+With AgentFootprint 16, each Context key can include a `shape` at the selected
+commit. A recorded array count must agree with the replayed value. Older recordings,
+redacted or missing facts, and skipped commits retain the ordinary value preview.
+Large arrays with a verified count open their full JSON on demand.
+
+To show a nested array, pass the same exact paths you selected when recording.
+Lens reads those paths without searching the payload. A dot in a key remains literal.
+
+```tsx
+const shapePaths = [['inventory', 'rows']];
+const context = projectContext(snapshot, cursor.at, { shapePaths });
+// The inventory key can now include nestedArrays with the recorded rows count.
+<ContextView runner={snapshot} cursor={cursor} shapePaths={shapePaths} />
+```
+
+For a metadata-only lookup, AgentFootprint 16 exports
+`contextShapeAt(snapshot.contextShapes, commitIdx, path)` from
+`agentfootprint/observe`. Commit `-1` selects the initial state.
+
 ## 0.54.0 — the served row is rendered, not just badged
 
 `<ContextView>` mounts `<ServedTab runner cursor>` (the Why Lens's own Served
