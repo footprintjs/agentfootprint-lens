@@ -228,6 +228,10 @@ function declaredPeriods(coverage: readonly unknown[] | undefined): Map<string, 
 
 // ─── The fold ─────────────────────────────────────────────────────────────
 
+type CallDraft = {
+  -readonly [K in keyof TimeCall]: K extends 'sourceClocks' ? SourceClockRow[] : TimeCall[K];
+};
+
 interface TurnDraft {
   turn: number;
   clock?: ClockRow;
@@ -235,7 +239,7 @@ interface TurnDraft {
   readings: TimeReadingRow[];
   answers: TimeAnswerRow[];
   derived: TimeDerivedRow[];
-  calls: Map<string, { -readonly [K in keyof TimeCall]: TimeCall[K] }>;
+  calls: Map<string, CallDraft>;
 }
 
 /**
@@ -328,7 +332,7 @@ export function foldTimeRows(
         const sc = sourceClockOf(row);
         if (sc === undefined) continue;
         const c = callOf(t(), row);
-        c.sourceClocks = [...(c.sourceClocks ?? []), sc];
+        (c.sourceClocks ??= []).push(sc);
         break;
       }
       default:
@@ -367,6 +371,19 @@ export function answerOfReading(
     if (a.mention === reading.mention) return a;
   }
   return undefined;
+}
+
+/** Join all readings in a turn at once. Unmatched answers keep their recorded order. */
+export function answersForTurn(turn: Pick<TimeTurn, 'readings' | 'answers'>) {
+  const byMention = new Map<number | undefined, TimeAnswerRow | undefined>();
+  for (const reading of turn.readings) byMention.set(reading.mention, undefined);
+  const unmatched: TimeAnswerRow[] = [];
+  for (const answer of turn.answers) {
+    const mention = answer.mention;
+    if (byMention.has(mention)) byMention.set(mention, answer);
+    else unmatched.push(answer);
+  }
+  return { byMention, unmatched };
 }
 
 // ─── Asked → sent → read ──────────────────────────────────────────────────

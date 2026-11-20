@@ -55,7 +55,7 @@ import type {
   TimeReadingRowShape as TimeReadingRow,
 } from '../../core/time/shapes.js';
 import {
-  answerOfReading,
+  answersForTurn,
   foldTimeRows,
   readOf,
   sentOf,
@@ -64,6 +64,7 @@ import {
   type CallSent,
   type PeriodRowShape,
   type TimeCall,
+  type TimeFold,
   type TimeTurn,
 } from '../../core/time/timeRows.js';
 
@@ -76,10 +77,19 @@ export interface TimeBandProps {
   readonly coverage?: readonly unknown[];
 }
 
-export function TimeBand(props: TimeBandProps): React.ReactElement | null {
-  const { rows, coverage } = props;
-  const fold = useMemo(() => foldTimeRows(rows, coverage), [rows, coverage]);
-  if (fold === undefined) return null;
+export function TimeBand({ rows, coverage }: TimeBandProps): React.ReactElement | null {
+  return useTimeBand(rows, coverage);
+}
+
+/** Preserve the rendered band while another section changes at the same stop. */
+export function useTimeBand(rows: readonly unknown[], coverage?: readonly unknown[]): React.ReactElement | null {
+  return useMemo(() => {
+    const fold = foldTimeRows(rows, coverage);
+    return fold === undefined ? null : <TimeBandRows fold={fold} />;
+  }, [rows, coverage]);
+}
+
+function TimeBandRows({ fold }: { readonly fold: TimeFold }): React.ReactElement {
   return (
     <div style={band} data-testid="time-band" data-rows={fold.rows}>
       <span style={dim}>
@@ -93,10 +103,7 @@ export function TimeBand(props: TimeBandProps): React.ReactElement | null {
 }
 
 function Turn({ turn }: { readonly turn: TimeTurn }): React.ReactElement {
-  // An answer whose mention no reading row of the turn carries is still the
-  // record's — printed on its own line, never dropped.
-  const mentions = new Set(turn.readings.map((r) => r.mention));
-  const loose = turn.answers.filter((a) => !mentions.has(a.mention));
+  const { byMention, unmatched } = answersForTurn(turn);
   return (
     <div data-testid="time-turn" data-turn={turn.turn}>
       <span style={dim}>
@@ -131,9 +138,9 @@ function Turn({ turn }: { readonly turn: TimeTurn }): React.ReactElement {
           </li>
         ))}
         {turn.readings.map((r, i) => (
-          <Reading key={`m${i}`} reading={r} answer={answerOfReading(turn, r)} />
+          <Reading key={`m${i}`} reading={r} answer={byMention.get(r.mention)} />
         ))}
-        {loose.map((a, i) => (
+        {unmatched.map((a, i) => (
           <li key={`a${i}`} style={mono} data-testid="time-answer" data-how={a.how}>
             <Answered answer={a} />
           </li>

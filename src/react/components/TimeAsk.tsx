@@ -15,7 +15,7 @@
 import React, { useMemo } from 'react';
 
 import { LABELS } from '../../core/time/labels.js';
-import { timeAskOf } from '../../core/time/timeAsk.js';
+import { timeAskOf, type TimeAsk } from '../../core/time/timeAsk.js';
 import { band, dim, Field, Flag, list, mono, Word } from './TimeBand.js';
 
 export interface TimeAskRowsProps {
@@ -25,14 +25,21 @@ export interface TimeAskRowsProps {
 
 const valueText = (v: unknown): string => (typeof v === 'string' ? v : JSON.stringify(v) ?? String(v));
 
-export function TimeAskRows({ ask }: TimeAskRowsProps): React.ReactElement | null {
-  const result = useMemo(() => {
-    try { return { view: timeAskOf(ask), unavailable: false }; }
-    catch { return { view: undefined, unavailable: true }; }
+export function useTimeAsk(ask: unknown): TimeAsk | 'unavailable' | undefined {
+  return useMemo(() => {
+    if (ask === undefined) return undefined;
+    try { return timeAskOf(ask); }
+    catch { return 'unavailable'; }
   }, [ask]);
-  if (result.unavailable) return <div role="alert" data-testid="time-ask-unavailable">{LABELS.askUnavailable}</div>;
-  const view = result.view;
-  if (view === undefined) return null;
+}
+
+export function TimeAskRows({ ask }: TimeAskRowsProps): React.ReactElement | null {
+  const view = useTimeAsk(ask);
+  return view === undefined ? null : <TimeAskContent view={view} />;
+}
+
+export function TimeAskContent({ view }: { readonly view: TimeAsk | 'unavailable' }): React.ReactElement {
+  if (view === 'unavailable') return <div role="alert" data-testid="time-ask-unavailable">{LABELS.askUnavailable}</div>;
   return (
     <div style={band} data-testid="time-ask" data-request-id={view.requestId ?? ''}>
       <span style={dim}>{LABELS.ask}</span>

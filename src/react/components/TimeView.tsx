@@ -32,11 +32,9 @@
 import React, { useMemo } from 'react';
 
 import { LABELS } from '../../core/time/labels.js';
-import { timeAskOf } from '../../core/time/timeAsk.js';
-import { foldTimeRows } from '../../core/time/timeRows.js';
 import { timeStandingOf, type TimeStanding as TimeStandingValue } from '../../core/time/timeStanding.js';
-import { TimeAskRows } from './TimeAsk.js';
-import { band, dim, Field, list, mono, TimeBand, Word } from './TimeBand.js';
+import { TimeAskContent, useTimeAsk } from './TimeAsk.js';
+import { band, dim, Field, list, mono, useTimeBand, Word } from './TimeBand.js';
 
 export interface TimeViewProps {
   /** The findings ledger (`findingsLedger`, `agent.findings()`) — the time rows and the period rows. */
@@ -55,20 +53,15 @@ export interface TimeViewProps {
 export function TimeView(props: TimeViewProps): React.ReactElement | null {
   const { rows, coverage, ask, assessment } = props;
   const ledger = useMemo(() => rows ?? [], [rows]);
-  const hasBand = useMemo(() => foldTimeRows(ledger, coverage) !== undefined, [ledger, coverage]);
-  const hasAsk = useMemo(() => {
-    if (ask === undefined) return false;
-    try { return timeAskOf(ask) !== undefined; }
-    // A failed projection must reach TimeAskRows' named gap, never disappear or throw.
-    catch { return true; }
-  }, [ask]);
+  const timeBand = useTimeBand(ledger, coverage);
+  const timeAsk = useTimeAsk(ask);
   const standing = useMemo(() => timeStandingOf(assessment, ledger), [assessment, ledger]);
-  if (!hasBand && !hasAsk && standing === undefined) return null;
+  if (timeBand === null && timeAsk === undefined && standing === undefined) return null;
   return (
     <div style={view} data-testid="time-view">
       {standing !== undefined && <TimeStandingRows standing={standing} />}
-      {hasAsk && <TimeAskRows ask={ask} />}
-      {hasBand && <TimeBand rows={ledger} {...(coverage !== undefined ? { coverage } : {})} />}
+      {timeAsk !== undefined && <TimeAskContent view={timeAsk} />}
+      {timeBand}
     </div>
   );
 }
