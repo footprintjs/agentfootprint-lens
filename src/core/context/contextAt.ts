@@ -246,11 +246,15 @@ function contextFromFold(
   const previousState = prior?.state;
   const written = prior && writtenBetween(log, folded, prior);
 
-  const readShape = folded.skipped?.length ? undefined : shapeReaderAt(recording, folded.throughCommitIdx);
+  const entries = Object.entries(folded.state);
+  const lookups = entries.length + (options.shapePaths?.length ?? 0);
+  const readShape = folded.skipped?.length
+    ? undefined
+    : shapeReaderAt(recording, folded.throughCommitIdx, lookups);
   const nested = readShape && options.shapePaths?.length
     ? nestedArrayShapes(readShape, folded.state, options.shapePaths) : undefined;
   const keys: ContextKey[] = [];
-  for (const [path, value] of Object.entries(folded.state)) {
+  for (const [path, value] of entries) {
     const w = writers.get(path);
     const shape = readShape?.([path], value);
     const nestedArrays = nested?.get(path);

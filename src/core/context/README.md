@@ -77,9 +77,11 @@ including an empty one, takes precedence and omits `whyWithheld`.
 
 ### Recorded types and array lengths
 
-With AgentFootprint 16, each Context key can include a `shape` at the selected
-commit. A recorded array count must agree with the replayed value. Older recordings,
-redacted or missing facts, and skipped commits retain the ordinary value preview.
+With the published AgentFootprint shape reader, each Context key can include a
+`shape` at the selected commit. A recorded array count must agree with the replayed
+value. Older recordings, redacted or missing facts, and skipped commits retain the
+ordinary value preview. Context also keeps that preview for the whole stop when
+the recorded index and requested paths would exceed its shape lookup budget.
 Large arrays with a verified count open their full JSON on demand.
 
 To show a nested array, pass the same exact paths you selected when recording.

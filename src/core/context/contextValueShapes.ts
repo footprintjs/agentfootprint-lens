@@ -1,4 +1,5 @@
 import * as observe from 'agentfootprint/observe';
+import { fitsContextShapeBudget } from './contextShapeBudget.js';
 
 type ScalarKind = 'object' | 'string' | 'number' | 'boolean' | 'null';
 type RecordedShape = readonly [ScalarKind | 'unknown'] | readonly ['array', number];
@@ -23,10 +24,10 @@ function matchesFold(value: unknown, recorded: RecordedShape): boolean {
 
 /** Bind the producer's path reader to this publication and fold position. AgentFootprint 15
  * has the observe entry point but lacks this export. A new live publication gets a new reader. */
-export function shapeReaderAt(snapshot: unknown, commitIdx: number) {
+export function shapeReaderAt(snapshot: unknown, commitIdx: number, lookups: number) {
   const index = (snapshot as { contextShapes?: unknown } | null)?.contextShapes;
   const { contextShapeAt: read } = observe as { readonly contextShapeAt?: Reader };
-  if (index == null || typeof read !== 'function') return undefined;
+  if (typeof read !== 'function' || !fitsContextShapeBudget(index, commitIdx, lookups)) return undefined;
   return (path: readonly string[], value: unknown): ContextValueShape | undefined => {
     const fact = read(index, commitIdx, path);
     if (fact[0] === 'unknown' || !matchesFold(value, fact)) return undefined;

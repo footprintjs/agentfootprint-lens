@@ -75,6 +75,49 @@ describe.runIf(hasReader || expectedProducer !== undefined)('Context with the pu
     }
   });
 
+  it.each([256, 1024, 4096, 8192])('bounds recorded index work for %i Context fields', (width) => {
+    const fields = Array.from({ length: width }, (_, i) => [`field${i}`, i] as const);
+    const initial = fields.map(([key]) => [[key], 'number']);
+    const traverse = vi.spyOn(initial, Symbol.iterator);
+    const model = projectContext({
+      initialState: Object.fromEntries(fields), commitLog: [],
+      contextShapes: { version: 1, initial, changes: [] },
+    }, start);
+    expect(model.keys.map(key => key.value)).toEqual(fields.map(([, value]) => value));
+    const admitted = width === 256;
+    expect(traverse).toHaveBeenCalledTimes(admitted ? width : 0);
+    expect(model.keys.filter(key => key.shape)).toHaveLength(admitted ? width : 0);
+  });
+
+  it('bounds initial full-scan and applicable change history without affecting the fold', () => {
+    const keys = Object.fromEntries(Array.from({ length: 63 }, (_, i) => [`field${i}`, i]));
+    const rows = Array.from({ length: 16_384 }, (_, i) => ({ number: i, text: String(i) }));
+    const values = { ...keys, rows };
+    const shallow = [...Object.keys(keys).map(key => [[key], 'number']), [['rows'], 'array', rows.length]];
+    const deep = rows.flatMap((_, i) => {
+      const location = ['rows', String(i)];
+      return [[location, 'object'], [[...location, 'number'], 'number'], [[...location, 'text'], 'string']];
+    });
+    const full = [...shallow, ...deep];
+    const scan = vi.spyOn(full, Symbol.iterator);
+    const atStart = projectContext({
+      initialState: values, commitLog: [], contextShapes: { version: 1, initial: full, changes: [] },
+    }, start);
+    expect(scan).not.toHaveBeenCalled();
+    expect(atStart.keys.find(key => key.path === 'rows')).toEqual({ path: 'rows', value: rows });
+
+    const initial = vi.spyOn(shallow, Symbol.iterator);
+    const recording = {
+      initialState: values, commitLog: [{ ...commit, trace: [], overwrite: values }],
+      contextShapes: { version: 1, initial: shallow, changes: [[0, deep]] },
+    };
+    expect(projectContext(recording, end).keys.find(key => key.path === 'rows')?.shape).toBeUndefined();
+    expect(initial).not.toHaveBeenCalled();
+    expect(projectContext(recording, start).keys.find(key => key.path === 'rows')?.shape)
+      .toEqual({ path: ['rows'], type: 'array', arrayLength: rows.length });
+    expect(initial).toHaveBeenCalledTimes(Object.keys(values).length);
+  });
+
   it('reads exact paths at the fold anchor and only displays requested nested arrays', () => {
     const initialFold = projectContext(snapshot, { ...end, foldCommitIdx: -1 }, { shapePaths });
     expect(initialFold.keys.find(key => key.path === 'a.b')?.shape).toEqual({ path: ['a.b'], type: 'number' });

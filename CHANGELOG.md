@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Context uses the published AgentFootprint reader to show recorded types and array lengths at the replay cursor. Older recordings keep their existing value previews.
+- Context uses the published AgentFootprint reader to show recorded types and array lengths at the replay cursor. Older recordings and stops with too much shape metadata for the lookup budget keep the ordinary value previews.
 
 ## [0.86.0] - 2026-11-20
 
