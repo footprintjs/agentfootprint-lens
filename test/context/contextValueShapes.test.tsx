@@ -118,6 +118,58 @@ describe.runIf(hasReader || expectedProducer !== undefined)('Context with the pu
     expect(initial).toHaveBeenCalledTimes(Object.keys(values).length);
   });
 
+  const fields = Object.fromEntries(
+    Array.from({ length: 256 }, (_, index) => [`field${index}`, index]),
+  );
+  const state = { ...fields, inventory: { rows: [1] } };
+  const shapes = [
+    ...Object.keys(fields).map(key => [[key], 'number']),
+    [['inventory'], 'object'],
+    [['inventory', 'rows'], 'array', 1],
+  ];
+
+  function bundle(position: number, overwrite: Record<string, unknown> = {}) {
+    return {
+      stage: 'write', stageId: 'write', runtimeStageId: `write#${position}`,
+      updates: {}, trace: [], overwrite,
+    };
+  }
+
+  it('charges future frame headers at a selected noninitial stop', () => {
+    const frames = Array.from({ length: 3_300 }, (_, index) => {
+      const value = index % 2 ? 0 : 'value';
+      return { value, shape: [[['field0'], typeof value]] };
+    });
+    const recording = {
+      initialState: state,
+      commitLog: [bundle(0), ...frames.map(({ value }, index) => bundle(index + 1, { field0: value }))],
+      contextShapes: {
+        version: 1, initial: shapes, changes: frames.map(({ shape }, index) => [index + 1, shape]),
+      },
+    };
+    const current = projectContext(recording, { runtimeStageId: 'write#0', commitIdx: 0 });
+    expect(current.keys.find(row => row.path === 'field0')?.value).toBe(0);
+    expect(current.keys.some(row => row.shape)).toBe(false);
+    const rewind = projectContext(recording, start, { shapePaths: [['inventory', 'rows']] });
+    expect(rewind.keys.find(row => row.path === 'inventory')?.nestedArrays?.[0].arrayLength).toBe(1);
+  });
+
+  it('charges configured paths alongside top-level keys', () => {
+    const recording = {
+      initialState: state, commitLog: [],
+      contextShapes: { version: 1, initial: shapes, changes: [] },
+    };
+    const shapePaths = [
+      ['inventory', 'rows'],
+      ...Array.from({ length: 1_100 }, (_, index) => ['inventory', `unknown${index}`]),
+    ];
+    const admitted = projectContext(recording, start, { shapePaths: [['inventory', 'rows']] });
+    expect(admitted.keys.find(row => row.path === 'inventory')?.nestedArrays?.[0].arrayLength).toBe(1);
+    const bounded = projectContext(recording, start, { shapePaths });
+    expect(bounded.keys.find(row => row.path === 'inventory')?.value).toEqual({ rows: [1] });
+    expect(bounded.keys.some(row => row.shape || row.nestedArrays)).toBe(false);
+  });
+
   it('reads exact paths at the fold anchor and only displays requested nested arrays', () => {
     const initialFold = projectContext(snapshot, { ...end, foldCommitIdx: -1 }, { shapePaths });
     expect(initialFold.keys.find(key => key.path === 'a.b')?.shape).toEqual({ path: ['a.b'], type: 'number' });
