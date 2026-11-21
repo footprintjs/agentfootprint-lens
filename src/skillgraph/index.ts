@@ -36,6 +36,7 @@ export {
 export type { SkillLens } from '../react/skillgraph/lens.js';
 
 // The headless selectors behind it.
+export { prepareSkillGraph, type SkillGraphReading } from '../core/selectors/prepareSkillGraph.js';
 export {
   selectSkillRoute,
   type SelectSkillRouteArgs,
