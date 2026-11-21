@@ -38,7 +38,8 @@ Update the runtime packages together: `agentfootprint ^15.0.0 || ^16.0.0`,
 `footprintjs ^14.0.0` and `foottrace ^2.1.0`. The committed development lock
 selects the published versions 15.0.0, 14.0.0 and 2.1.0. Node.js 22 or newer
 and React 18 or 19 remain required. Older saved recordings retain their
-existing readers, fixtures and goldens.
+existing readers, fixtures and goldens. For recorded Context types and array
+lengths, use AgentFootprint 16.0.1 or newer within major 16.
 
 The AgentFootprint 16 compatibility check runs the full Lens test suite with
 16.0.1 and verifies a strict install of the packed package.

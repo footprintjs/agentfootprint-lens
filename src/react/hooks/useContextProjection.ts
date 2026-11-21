@@ -16,6 +16,7 @@ export const MILESTONE_AXIS: readonly string[] = Object.freeze([
 ]);
 
 interface Options {
+  readonly shapePaths?: readonly (readonly string[])[];
   readonly runner: unknown;
   readonly recorder?: LensRecorder;
   readonly shared?: SharedCursor;
@@ -34,7 +35,7 @@ function runIdOf(snapshot: unknown): string | undefined {
   return typeof id === 'string' && id.length > 0 ? id : undefined;
 }
 
-export function useContextProjection({ runner, recorder, shared, cursor: supplied, previous, events }: Options) {
+export function useContextProjection({ runner, recorder, shared, cursor: supplied, previous, events, shapePaths }: Options) {
   const ownAxis = supplied === undefined;
   const readEvents = events === undefined;
   // Independent runners advance on the host's render. A directly observed
@@ -79,9 +80,10 @@ export function useContextProjection({ runner, recorder, shared, cursor: supplie
   const previousCommit = previous?.commitIdx ?? (prior && foldCommitIdxOf(prior));
   const { runtimeStageId, commitIdx, foldCommitIdx } = cursor.at;
   const context = useMemo(() => projectContext(snapshot, { runtimeStageId, commitIdx, foldCommitIdx }, {
+    shapePaths,
     previous: previousStage !== undefined && previousCommit !== undefined
       ? { runtimeStageId: previousStage, commitIdx: previousCommit } : undefined,
     ...(events === undefined ? published?.evidence : { events }),
-  }), [snapshot, logKey, published, runtimeStageId, commitIdx, foldCommitIdx, previousStage, previousCommit, events]);
+  }), [snapshot, logKey, published, runtimeStageId, commitIdx, foldCommitIdx, previousStage, previousCommit, events, shapePaths]);
   return { context, snapshot, cursor, mover: ownAxis && cursor.total > 0 && cursor.at.step >= 0 };
 }
