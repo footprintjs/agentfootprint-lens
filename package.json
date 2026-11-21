@@ -1,6 +1,6 @@
 {
   "name": "agentfootprint-lens",
-  "version": "0.85.0",
+  "version": "0.87.0",
   "description": "Why Lens: React components for inspecting recorded agentfootprint prompts, tool calls, context and decisions.",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -150,7 +150,7 @@
   },
   "peerDependencies": {
     "@xyflow/react": "^12.0.0",
-    "agentfootprint": "^15.0.0",
+    "agentfootprint": "^15.0.0 || ^16.0.0",
     "footprint-explainable-ui": ">=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0",
     "footprintjs": "^14.0.0",
     "foottrace": "^2.1.0",

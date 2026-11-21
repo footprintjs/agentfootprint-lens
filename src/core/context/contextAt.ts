@@ -28,6 +28,7 @@
 import { pathSegments } from 'foottrace/paths';
 import { isCommitBundle, stateAt } from 'foottrace';
 import { sameRecordedValue } from './sameRecordedValue.js';
+import { nestedArrayShapes, shapeReaderAt, type ContextValueShape } from './contextValueShapes.js';
 import type { FoldSource, FoldedState } from 'foottrace';
 
 import { foldCursorOf } from '../cursor/foldAt.js';
@@ -50,6 +51,8 @@ function readableRow(row: TraceRow | null): row is TraceRow {
 export interface ContextKey {
   readonly path: string;
   readonly value: unknown;
+  readonly shape?: ContextValueShape;
+  readonly nestedArrays?: readonly ContextValueShape[];
   /** The stage that LAST wrote the key, from its trace row; absent = unattributed. */
   readonly wroteBy?: string;
   /** The commit index of that last write. */
@@ -95,6 +98,8 @@ export interface ContextAt {
 }
 
 export interface ContextAtOptions {
+  /** Additional exact paths to display when their array lengths were recorded. */
+  readonly shapePaths?: readonly (readonly string[])[];
   /** The previous stop on the reader's axis — enables `since` and `left`. */
   readonly previous?: ServedCursor;
   /** The recording's event stream, when the reader has one (a replay's `getEntries()`). */
@@ -241,9 +246,18 @@ function contextFromFold(
   const previousState = prior?.state;
   const written = prior && writtenBetween(log, folded, prior);
 
+  const entries = Object.entries(folded.state);
+  const lookups = entries.length + (options.shapePaths?.length ?? 0);
+  const readShape = folded.skipped?.length
+    ? undefined
+    : shapeReaderAt(recording, folded.throughCommitIdx, lookups);
+  const nested = readShape && options.shapePaths?.length
+    ? nestedArrayShapes(readShape, folded.state, options.shapePaths) : undefined;
   const keys: ContextKey[] = [];
-  for (const [path, value] of Object.entries(folded.state)) {
+  for (const [path, value] of entries) {
     const w = writers.get(path);
+    const shape = readShape?.([path], value);
+    const nestedArrays = nested?.get(path);
     const since: ContextKey['since'] | undefined =
       previousState === undefined
         ? undefined
@@ -256,6 +270,8 @@ function contextFromFold(
       Object.freeze({
         path,
         value,
+        ...(shape && { shape }),
+        ...(nestedArrays && { nestedArrays: Object.freeze(nestedArrays) }),
         ...(w !== undefined
           ? {
               wroteBy: w.wroteBy,

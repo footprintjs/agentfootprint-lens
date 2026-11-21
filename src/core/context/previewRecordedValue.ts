@@ -6,6 +6,11 @@ const PREFIX_LENGTH = 157;
 const SCAN_LIMIT = 256;
 const BIGINT_PREVIEW_LIMIT = 10n ** BigInt(DISPLAY_LIMIT);
 
+/** Even a dense array of single-digit numbers needs two characters per entry with separators. */
+export function arrayExceedsPreview(length: number): boolean {
+  return length * 2 + 1 > DISPLAY_LIMIT;
+}
+
 const escapes: Readonly<Record<string, string>> = {
   '"': '\\"', '\\': '\\\\', '\b': '\\b', '\f': '\\f', '\n': '\\n', '\r': '\\r', '\t': '\\t',
 };
