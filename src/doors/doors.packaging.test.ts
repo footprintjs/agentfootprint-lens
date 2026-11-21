@@ -41,6 +41,7 @@ const WHY_EXPORTS = [
 
 const SKILLGRAPH_EXPORTS = [
   'SkillGraphDebugger',
+  'prepareSkillGraph',
   'selectSkillRoute',
   'selectSkillBeats',
   'selectSkillBeatAt',

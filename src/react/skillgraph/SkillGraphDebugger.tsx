@@ -81,20 +81,11 @@ import React, { useMemo, useRef, useState } from 'react';
 
 import type { LensCursor } from '../../core/cursor/lensCursor.js';
 import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
-import { stepForRuntimeStageId } from '../../core/group/stepForRuntimeStageId.js';
 import type { SharedCursor } from '../useSharedCursor.js';
 import type { LensRecorder } from '../../core/LensRecorder.js';
-import {
-  selectSkillBeatAt,
-  selectSkillBeats,
-  type SkillBeat,
-} from '../../core/selectors/selectSkillBeats.js';
-import { selectSkillFrameContext } from '../../core/selectors/selectSkillFrameContext.js';
+import { prepareSkillGraph } from '../../core/selectors/prepareSkillGraph.js';
 import { selectSkillRoute, type SkillRoute } from '../../core/selectors/selectSkillRoute.js';
-import {
-  selectSkillTopology,
-  type DeclaredEdgeInput,
-} from '../../core/selectors/selectSkillTopology.js';
+import type { DeclaredEdgeInput } from '../../core/selectors/selectSkillTopology.js';
 import { DoorRefusalCard } from '../components/DoorRefusalCard.js';
 import {
   REFUSAL_GO_TO,
@@ -328,80 +319,20 @@ export function SkillGraphDebugger({
     [routeProp, vettedRecorder, version],
   );
 
-  const beats = useMemo(
-    () => (route !== undefined ? selectSkillBeats({ route }) : []),
-    [route],
-  );
-  const activeBeat = useMemo(
-    () => selectSkillBeatAt(beats, address, kindHere),
-    [beats, address, kindHere],
-  );
+  const projection = useMemo(() => route && prepareSkillGraph(route), [route]);
+  const reading = useMemo(() => projection?.at(address, kindHere, declaredEdges),
+    [projection, address, kindHere, declaredEdges]);
+  const beats = projection?.beats ?? [];
+  const activeBeat = reading?.beat;
   const activeIndex = activeBeat?.index;
-  // The turn's routing verdict for the beat in view, joined on `turnIndex` —
-  // the one field SkillBeat and SkillTurnStart both carry. A join on a shared
-  // key, never an assumption about which turn a beat sits next to.
-  const activeTurnStart = useMemo(
-    () =>
-      activeBeat === undefined || route === undefined
-        ? undefined
-        : route.turns.find((t) => t.turnIndex === activeBeat.turnIndex),
-    [route, activeBeat],
-  );
-
-  const topology = useMemo(
-    () =>
-      route !== undefined
-        ? selectSkillTopology({
-            route,
-            ...(activeBeat !== undefined ? { beat: activeBeat } : {}),
-            ...(declaredEdges !== undefined ? { declaredEdges } : {}),
-          })
-        : undefined,
-    [route, activeBeat, declaredEdges],
-  );
-
-  // Pairing a beat with the call it prepared needs the step graph; a host that
-  // passed only a pre-folded route has none, and the panel says so.
+  const readFrame = reading?.frameContext;
   const frameContext = useMemo(() => {
-    if (vettedRecorder === undefined || activeBeat === undefined) return undefined;
-    const next = beats[activeBeat.index + 1];
-    return selectSkillFrameContext({
-      graph: vettedRecorder.getStepGraph(),
-      beat: activeBeat,
-      ...(next !== undefined ? { nextBeat: next } : {}),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vettedRecorder, version, activeBeat, beats]);
-
-  /** Skills the cursor stood in at some beat — the clickable ones. */
-  const jumpable = useMemo(() => {
-    const ids = new Set<string>();
-    for (const b of beats) {
-      if (b.cursorSkillId !== undefined && b.runtimeStageId !== undefined) ids.add(b.cursorSkillId);
-    }
-    return ids;
-  }, [beats]);
-
-  /**
-   * What the shipped transport scrubs. The host's axis when it gave us one —
-   * the same numbers its own `<TimeTravel>` shows — otherwise this view's
-   * routing stops. In BOTH cases the position is DERIVED (from the host's
-   * `step`, or from where the cursor resolved) and a scrub reports a move
-   * back out; nothing is stored here.
-   */
-  // The snap stops, derived here when a host hands `shared` and no
-  // `snapSteps`: each beat's stage placed on the commit axis — the same
-  // projection a host used to compute for the transport, now the view's own.
-  const ownSnapSteps = useMemo<readonly number[] | undefined>(() => {
-    if (sharedAxis === undefined || snapSteps !== undefined) return undefined;
-    const stops = new Set<number>();
-    for (const beat of beats) {
-      if (beat.runtimeStageId === undefined) continue;
-      const at = stepForRuntimeStageId(sharedAxis, beat.runtimeStageId);
-      if (at >= 0) stops.add(at);
-    }
-    return stops.size === 0 ? undefined : [...stops].sort((a, b) => a - b);
-  }, [sharedAxis, snapSteps, beats]);
+    if (lens !== 'developer' || !activeBeat || !vettedRecorder) return undefined;
+    return readFrame?.(vettedRecorder.getStepGraph());
+  }, [lens, activeBeat, readFrame, vettedRecorder, version]);
+  const ownSnapSteps = useMemo(() =>
+    sharedAxis !== undefined && snapSteps === undefined ? projection?.snapSteps(sharedAxis) : undefined,
+    [projection, sharedAxis, snapSteps]);
   const snaps = snapSteps ?? ownSnapSteps;
   const hostAxis = hostStep !== undefined && hostTotal !== undefined && hostTotal > 0;
   const transport: BeatTransport = {
@@ -426,13 +357,8 @@ export function SkillGraphDebugger({
 
   /** Filter the ONE cursor to a skill's next span, wrapping to its first. */
   const jumpToSkill = (skillId: string): void => {
-    const spans = beats.filter(
-      (b) => b.cursorSkillId === skillId && b.runtimeStageId !== undefined,
-    );
-    if (spans.length === 0) return;
-    const from = activeIndex ?? -1;
-    const next = spans.find((b) => b.index > from) ?? spans[0];
-    if (next?.runtimeStageId !== undefined) jump?.(next.runtimeStageId);
+    const id = projection?.nextVisit(skillId, activeIndex);
+    if (id !== undefined) jump?.(id);
   };
 
   const shell: React.CSSProperties = {
@@ -465,7 +391,7 @@ export function SkillGraphDebugger({
     );
   }
 
-  if (route === undefined) {
+  if (route === undefined || projection === undefined || reading === undefined) {
     return (
       <div className={className} style={shell} data-testid="skill-graph-debugger">
         <Header lens={lens} onPick={pickLens} subtitle="no recording was supplied" />
@@ -523,18 +449,16 @@ export function SkillGraphDebugger({
           }}
         >
           <div style={{ flex: 1, minHeight: 0 }}>
-            {topology !== undefined && (
-              <SkillTopologyCanvas
-                topology={topology}
-                lens={lens}
-                jumpable={jumpable}
-                onPickSkill={jumpToSkill}
-              />
-            )}
+            <SkillTopologyCanvas
+              topology={reading.topology}
+              lens={lens}
+              jumpable={projection.jumpableSkillIds}
+              onPickSkill={jumpToSkill}
+            />
           </div>
           <RouteDecisionCard
             {...(activeBeat !== undefined ? { beat: activeBeat } : {})}
-            {...(activeTurnStart !== undefined ? { turnStart: activeTurnStart } : {})}
+            {...(reading.turnStart !== undefined ? { turnStart: reading.turnStart } : {})}
             lens={lens}
           />
         </section>
