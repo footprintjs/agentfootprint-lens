@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Served builds its graph on first open and reuses it at the same replay stop.
+
 ## [0.87.0] - 2026-11-20
 
 ### Changed

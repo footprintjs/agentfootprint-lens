@@ -23,7 +23,7 @@ import '@testing-library/jest-dom/vitest';
 import { afterEach, describe, expect, it } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 
-import { answerOfReading, foldTimeRows, spellMs } from '../../src/core/time/timeRows.js';
+import { answerOfReading, answersForTurn, foldTimeRows, spellMs } from '../../src/core/time/timeRows.js';
 import { timeStandingOf } from '../../src/core/time/timeStanding.js';
 import { LABELS } from '../../src/core/time/labels.js';
 import { TimeBand } from '../../src/react/components/TimeBand.js';
@@ -252,6 +252,23 @@ describe('L2 — an open reading the person answered reads as settled by the per
     render(<TimeBand rows={ledger} />);
     expect(screen.getByTestId('time-reading')).toHaveAttribute('data-settled', '');
     expect(screen.getByTestId('time-answer')).toHaveAttribute('data-how', 'confirmed');
+  });
+
+  it('does not match a reading and an answer that both lack a mention', () => {
+    const turn = foldTimeRows(S.confirmed!.ledger)!.turns[0]!;
+    const reading = { ...turn.readings[0]!, mention: undefined };
+    const first = { ...turn.answers[0]!, mention: 0 };
+    const latest = { ...first, how: 'edited' as const };
+    const withoutMention = { ...first, mention: undefined } as unknown as typeof first;
+    const unrelated = { ...first, mention: 3 };
+    const { byMention, unmatched } = answersForTurn({
+      readings: [reading, { ...reading, mention: 0 }],
+      answers: [first, withoutMention, latest, unrelated],
+    });
+
+    expect(byMention.has(undefined)).toBe(false);
+    expect(byMention.get(0)).toBe(latest);
+    expect(unmatched).toEqual([withoutMention, unrelated]);
   });
 
   it('joins many readings in linear work and leaves the band alone when only the ask changes', () => {

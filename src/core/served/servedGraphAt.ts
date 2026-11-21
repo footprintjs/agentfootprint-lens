@@ -50,7 +50,7 @@ import {
 } from 'agentfootprint';
 
 import { FOLD_FACT_KEYS, type FoldFactKey, type FoldFacts } from './foldFactsAt.js';
-import { carriesCacheStrategy } from './receiptShape.js';
+import { cacheStrategyOf } from './receiptShape.js';
 import type { SincePrevious } from './sincePrevious.js';
 import type { FieldCheck, ServedFieldStatus, ServedRow } from './types.js';
 import type { ServedVerification } from './verify.js';
@@ -565,6 +565,7 @@ function withheldNodes(input: ServedGraphInput): readonly WithheldNode[] {
 function callNode(input: ServedGraphInput, edges: readonly ServedEdge[]): CallNode {
   const { row, checks } = input;
   const basis = row.view.basis;
+  const cacheStrategy = cacheStrategyOf(row.receipt);
   return Object.freeze({
     epoch: row.epoch,
     callRuntimeStageId: row.callRuntimeStageId,
@@ -575,9 +576,7 @@ function callNode(input: ServedGraphInput, edges: readonly ServedEdge[]): CallNo
     basisStatus: (basis !== undefined ? 'reconstructed' : 'not-on-record') as ServedFieldStatus,
     // Present only where the receipt SAYS — a string or null. A receipt
     // without the key (pre-9.93.0) leaves it absent: "cannot say".
-    ...(row.receipt !== undefined && carriesCacheStrategy(row.receipt)
-      ? { cacheStrategy: row.receipt.cache.strategy }
-      : {}),
+    ...(cacheStrategy !== undefined ? { cacheStrategy } : {}),
     ...(row.receiptCause !== undefined ? { receiptCause: row.receiptCause } : {}),
     damaged: checks.damaged || edges.some((e) => e.check.status === 'damaged'),
   });

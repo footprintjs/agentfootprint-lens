@@ -376,7 +376,9 @@ export function answerOfReading(
 /** Join all readings in a turn at once. Unmatched answers keep their recorded order. */
 export function answersForTurn(turn: Pick<TimeTurn, 'readings' | 'answers'>) {
   const byMention = new Map<number | undefined, TimeAnswerRow | undefined>();
-  for (const reading of turn.readings) byMention.set(reading.mention, undefined);
+  for (const reading of turn.readings) {
+    if (reading.mention !== undefined) byMention.set(reading.mention, undefined);
+  }
   const unmatched: TimeAnswerRow[] = [];
   for (const answer of turn.answers) {
     const mention = answer.mention;
