@@ -21,7 +21,7 @@ it('keeps event ordinals when call identifiers, times, and stage addresses repea
   expect(result.events.slice(-2).map(row => row.address.eventIndex)).toEqual([13, 14]);
   expect(result.events.some(row => row.type === assessed)).toBe(false);
   const final = readTurnEvents(recording, 1, undefined, 100);
-  expect(final.status === 'ready' && final.events.at(-1)?.type).toBe(turnEnd);
+  expect(final.status === 'ready' && final.events[final.events.length - 1]?.type).toBe(turnEnd);
 });
 
 it('isolates a selected invocation from a child and a later recorded turn', () => {
