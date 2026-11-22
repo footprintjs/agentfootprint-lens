@@ -3,7 +3,7 @@
  * "what applications are running on powerstore SHPSTRPLPCL003").
  *
  * What is pinned: every row and every line of the account is drawn, in the
- * library's order, as the library's own text; the one-liner carries its tone
+ * STAND order, as the library's own text; the one-liner carries its tone
  * as a border AND a word; the "said by" chip lands on each recorded line by
  * the library's pairing rule; items are bullets under their line; a declared
  * label is strong with its own voucher; and the pane works on the account
@@ -18,25 +18,25 @@ import { PlainWords, PLAIN_WORDS_LABELS as LABELS } from '../../src/react/index.
 import { saidByOf, linesOf } from '../../src/react/components/plainWordsLayout.js';
 import { loadReply, tamperedReply } from './helpers.js';
 
-const ROW_ORDER = ['asked', 'understood', 'checked', 'not-checked', 'found', 'how-sure', 'anything-wrong'];
+const ROW_ORDER = ['asked', 'understood', 'found', 'checked', 'not-checked', 'how-sure', 'anything-wrong'];
 
 describe('<PlainWords> — the real account (fixture A)', () => {
   const { account, shown } = loadReply('A');
 
-  it('draws the seven rows, in the library order, headed by the library headings', () => {
+  it('draws the seven rows in STAND order with the library headings', () => {
     render(<PlainWords account={account} shown={shown} />);
     const rows = screen.getAllByTestId('plain-row');
     expect(rows.map((r) => r.dataset.row)).toEqual(ROW_ORDER);
     expect(screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent)).toEqual([
       'You asked',
       'It understood',
+      'It found',
       'It checked',
       'It did not check',
-      'It found',
       'How sure',
       'Anything wrong',
     ]);
-    expect(account.rows.map((r) => r.heading.text)).toEqual(
+    expect(ROW_ORDER.map((id) => account.rows.find((row) => row.id === id)!.heading.text)).toEqual(
       screen.getAllByRole('heading', { level: 3 }).map((h) => h.textContent),
     );
   });
@@ -44,8 +44,8 @@ describe('<PlainWords> — the real account (fixture A)', () => {
   it('draws every line of every row as the library wrote it — none dropped, none added', () => {
     render(<PlainWords account={account} shown={shown} />);
     const rows = screen.getAllByTestId('plain-row');
-    account.rows.forEach((row, i) => {
-      const drawn = within(rows[i]!)
+    account.rows.forEach((row) => {
+      const drawn = within(rows.find((el) => el.dataset.row === row.id)!)
         .getAllByTestId('plain-line-text')
         .map((el) => el.textContent);
       expect(drawn, row.id).toEqual(row.lines.map((l) => l.text));
@@ -78,12 +78,12 @@ describe('<PlainWords> — the real account (fixture A)', () => {
   it('a "said by" chip on every recorded line, from the row chips, by the library rule', () => {
     render(<PlainWords account={account} shown={shown} />);
     const rows = screen.getAllByTestId('plain-row');
-    account.rows.forEach((row, i) => {
+    account.rows.forEach((row) => {
       const pairing = saidByOf(row);
       // The library's rule held on every row of the real account — no fallback.
       expect(pairing.byLine.size, row.id).toBe(row.lines.filter((l) => l.status === 'recorded').length);
       const groups = linesOf(row);
-      const lineEls = within(rows[i]!).getAllByTestId('plain-line');
+      const lineEls = within(rows.find((el) => el.dataset.row === row.id)!).getAllByTestId('plain-line');
       groups.forEach((g, n) => {
         const own = [...lineEls[n]!.children].flatMap((el) =>
           el.classList.contains('lens-plain-chips') ? [...el.querySelectorAll('[data-mark="said-by"]')] : [],
@@ -196,7 +196,8 @@ describe('<PlainWords> — the library alone (fixture A0, no app declarations)',
     render(<PlainWords account={account} shown={shown} />);
     expect(screen.getAllByTestId('plain-row')).toHaveLength(7);
     const drawn = screen.getAllByTestId('plain-line-text').map((el) => el.textContent);
-    expect(drawn).toEqual([account.summary.sentence.text, ...account.rows.flatMap((r) => r.lines.map((l) => l.text))]);
+    const lines = ROW_ORDER.flatMap((id) => account.rows.find((row) => row.id === id)!.lines.map((l) => l.text));
+    expect(drawn).toEqual([account.summary.sentence.text, ...lines]);
     expect(document.querySelector('strong.lens-plain-label')).toBeNull();
     expect(screen.getByTestId('plain-one-liner').dataset.tone).toBe(account.summary.tone);
   });

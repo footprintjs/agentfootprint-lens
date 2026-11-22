@@ -7,20 +7,24 @@ import { PlainWords } from './PlainWords.js';
 import { loadReply, tamperedReply } from '../../../test/plain-words/helpers.js';
 
 describe('<PlainWords> — STAND reader order', () => {
-  it('heads the unchanged row order State, Assess, Trace, Name, Decide', () => {
+  it('shows State, Trace, Assess, Name, Decide while preserving the original account', () => {
     const { account, shown } = loadReply();
+    const originalRows = JSON.stringify(account.rows);
     render(<PlainWords account={account} shown={shown} />);
     expect(screen.getAllByTestId('plain-stand-heading').map((h) => h.textContent)).toEqual([
-      'State', 'Assess', 'Trace', 'Name', 'Decide',
+      'State', 'Trace', 'Assess', 'Name', 'Decide',
     ]);
     const rows = screen.getAllByTestId('plain-row');
-    expect(rows.map((r) => r.dataset.row)).toEqual(account.rows.map((r) => r.id));
+    const expected = ['asked', 'understood', 'found', 'checked', 'not-checked', 'how-sure', 'anything-wrong'];
+    const recorded = expected.map((id) => account.rows.find((row) => row.id === id)!);
+    expect(rows.map((r) => r.dataset.row)).toEqual(expected);
     expect(rows.map((r) => within(r).getByRole('heading', { level: 3 }).textContent)).toEqual(
-      account.rows.map((r) => r.heading.text),
+      recorded.map((r) => r.heading.text),
     );
     expect(screen.getAllByTestId('plain-line-text').map((el) => el.textContent)).toEqual([
-      account.summary.sentence.text, ...account.rows.flatMap((r) => r.lines.map((l) => l.text)),
+      account.summary.sentence.text, ...recorded.flatMap((r) => r.lines.map((l) => l.text)),
     ]);
+    expect(JSON.stringify(account.rows)).toBe(originalRows);
     expect(rows[0]!.compareDocumentPosition(screen.getByTestId('plain-one-liner')) & Node.DOCUMENT_POSITION_PRECEDING).toBeTruthy();
   });
 
@@ -31,10 +35,8 @@ describe('<PlainWords> — STAND reader order', () => {
   ])('heads %s as %s while keeping its sentences and evidence', (id, heading) => {
     const { account, shown } = loadReply();
     render(<PlainWords account={account} shown={shown} />);
-    const row = screen.getAllByTestId('plain-row').find((el) => el.dataset.row === id)!;
-    let previous = row.previousElementSibling;
-    while (previous !== null && previous.tagName !== 'H2') previous = previous.previousElementSibling;
-    expect(previous).toHaveTextContent(heading);
+    const stage = screen.getByRole('region', { name: heading });
+    const row = within(stage).getAllByTestId('plain-row').find((el) => el.dataset.row === id)!;
     const recorded = account.rows.find((entry) => entry.id === id)!;
     expect(within(row).getAllByTestId('plain-line-text').map((el) => el.textContent)).toEqual(
       recorded.lines.map((line) => line.text),
@@ -66,10 +68,10 @@ describe('<PlainWords> — STAND reader order', () => {
     render(<PlainWords account={reply.account} shown={reply.shown} />);
     const rows = screen.getAllByTestId('plain-row');
     expect(rows).toHaveLength(reply.account.rows.length);
-    expect(rows[1]).toHaveAttribute('data-row', id);
-    expect(within(rows[1]!).getAllByTestId('plain-line-text').map((el) => el.textContent)).toEqual(
+    const unfamiliar = rows.find((row) => row.dataset.row === id)!;
+    expect(within(unfamiliar).getAllByTestId('plain-line-text').map((el) => el.textContent)).toEqual(
       reply.account.rows[1]!.lines.map((line) => line.text),
     );
-    expect(within(rows[1]!).getAllByTestId('plain-evidence')).toHaveLength(reply.account.rows[1]!.lines.length);
+    expect(within(unfamiliar).getAllByTestId('plain-evidence')).toHaveLength(reply.account.rows[1]!.lines.length);
   });
 });

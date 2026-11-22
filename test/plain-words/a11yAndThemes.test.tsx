@@ -43,7 +43,7 @@ describe('<PlainWords> accessibility', () => {
     render(<PlainWords account={account} shown={shown} />);
     expect(screen.getAllByRole('heading', { level: 2 })).toHaveLength(6);
     expect(screen.getAllByTestId('plain-stand-heading').map((el) => el.textContent)).toEqual([
-      'State', 'Assess', 'Trace', 'Name', 'Decide',
+      'State', 'Trace', 'Assess', 'Name', 'Decide',
     ]);
     expect(screen.getByRole('heading', { level: 2, name: /In one line/ })).toHaveTextContent(LABELS.inOneLine);
     const h3 = screen.getAllByRole('heading', { level: 3 });

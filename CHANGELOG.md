@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Served builds its graph on first open and reuses it at the same replay stop.
 
+### Fixed
+
+- Explain groups its recorded rows in STAND order: State, Trace, Assess, Name, Decide. Section headings follow the app's Lens theme.
+
 ## [0.87.0] - 2026-11-20
 
 ### Changed
