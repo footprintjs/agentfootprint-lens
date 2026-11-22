@@ -47,6 +47,28 @@ function recorderFor(file = 'skill-route-refusal.json'): LensRecorder {
 }
 
 describe('<SkillGraphDebugger> — the graph at the cursor', () => {
+  it('reads the step graph only for visible developer frame details', () => {
+    const recorder = recorderFor();
+    const graphReads = vi.spyOn(recorder, 'getStepGraph');
+    const { rerender } = render(
+      <SkillGraphDebugger recorder={recorder} cursorRuntimeStageId={AT_PICK} lens="product" />,
+    );
+    expect(screen.getByTestId('narrative-rail')).toBeTruthy();
+    expect(graphReads).not.toHaveBeenCalled();
+
+    rerender(<SkillGraphDebugger recorder={recorder} cursorRuntimeStageId={AT_PICK} lens="developer" />);
+    expect(screen.getByTestId('frame-facts')).toBeTruthy();
+    expect(graphReads).toHaveBeenCalledTimes(1);
+    // A different execution step still shows the very same routing beat.
+    rerender(<SkillGraphDebugger recorder={recorder} cursorRuntimeStageId="call-llm#60" lens="developer" />);
+    expect(graphReads).toHaveBeenCalledTimes(1);
+    rerender(<SkillGraphDebugger recorder={recorder} cursorRuntimeStageId="call-llm#60"
+      declaredEdges={[{ from: 'triage', to: 'inventory' }]} />);
+    expect(graphReads).toHaveBeenCalledTimes(1);
+    rerender(<SkillGraphDebugger recorder={recorder} cursorRuntimeStageId="__root__#0" cursorKind="group-start" />);
+    expect(graphReads).toHaveBeenCalledTimes(1);
+  });
+
   it('paints every skill with the state it is in at this beat', () => {
     render(
       <SkillGraphDebugger recorder={recorderFor()} cursorRuntimeStageId={AT_ENTRY} height={600} />,

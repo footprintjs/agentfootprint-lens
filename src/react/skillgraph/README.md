@@ -30,6 +30,36 @@ of the cursor ignored the request.
 
 ## Where the data comes from
 
+Custom views can prepare the same debugger reading in plain TypeScript.
+Prepare once for each new routing record, then reuse it as the cursor moves.
+For live data, the existing render store batches recorder notifications and
+shares a prepared projection across its subscribers.
+
+```ts
+import { createLensRenderStore, prepareSkillGraph, selectSkillRoute } from 'agentfootprint-lens/core';
+
+const store = createLensRenderStore(recorder, source => ({
+  graph: prepareSkillGraph(selectSkillRoute({ log: source.selectEventLog() })),
+  steps: source.getStepGraph(), // Omit this for a topology-only view.
+}));
+
+function renderStop() {
+  const { graph, steps } = store.getSnapshot();
+  const stop = graph.at(cursor.at.runtimeStageId, cursor.at.kind);
+  drawTopology(stop.topology);
+  if (framePanelOpen && stop.beat) drawFrame(stop.frameContext(steps));
+}
+
+const unsubscribe = store.subscribe(renderStop);
+renderStop(); // Also call when the host moves its cursor.
+// On unmount, call unsubscribe().
+```
+
+`nextVisit(skillId, afterBeatIndex)` returns the next recorded address for
+that skill and wraps to its first visit. Let the host cursor resolve that
+address before moving. `snapSteps(positions)` returns the debugger’s stops on
+the host axis. Treat the supplied route and declared edges as immutable.
+
 Components are thin; every derivation is a pure selector in `src/core/selectors`:
 
 | selector | answers |
