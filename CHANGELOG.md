@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.88.0] - 2026-11-23
+
 ### Added
 
 - Custom Skill Graph views can use `prepareSkillGraph` from `agentfootprint-lens/core` or `/skillgraph` to read the same replay stops, topology and next visits as the debugger. The debugger reads frame context when the developer view needs it.
