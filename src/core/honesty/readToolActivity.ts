@@ -58,7 +58,6 @@ function requested(event: RecordedTurnEvent): HonestyToolActivity {
 }
 
 function endedAt(event: RecordedTurnEvent, start?: HonestyToolActivity): HonestyToolActivity {
-  if (start?.outcome === 'kept-out') return start;
   const addresses = { ...start, end: event.address };
   if (skippedBeforeExecution(event.payload)) {
     return { ...addresses, execution: 'not-run', outcome: 'skipped',
@@ -89,18 +88,13 @@ function deniedResult(event: RecordedTurnEvent): boolean {
 }
 
 function withLedger(row: HonestyToolActivity, key: string, ledger: ToolLedger): HonestyToolActivity {
-  if (row.outcome === 'kept-out') return row;
   const settlement = ledger.settlements.get(key);
   const proof = ledger.address;
-  if (settlement?.withheld === true) {
-    return {
-      ...(row.request !== undefined && { request: row.request }),
-      ...(row.end !== undefined && { end: row.end }),
-      proof,
-      execution: 'ran',
-      outcome: 'kept-out',
-      sentence: 'A result was kept out by a rule.',
-    };
+  if (settlement?.withheld === true) return withheld({ ...row, proof }, 'ran');
+  if (row.outcome === 'kept-out') {
+    const proved = ledger.entered.has(key) || settlement?.execution === 'returned' ||
+      settlement?.execution === 'returned-unserved' || settlement?.execution === 'threw';
+    return proved && row.execution !== 'ran' ? withheld({ ...row, proof }, 'ran') : row;
   }
   if (row.execution === 'not-run') return row;
   if (settlement?.execution === 'not-entered') {
@@ -132,69 +126,109 @@ function withLedger(row: HonestyToolActivity, key: string, ledger: ToolLedger): 
   return { ...row, proof, execution: 'ran', sentence: 'The recording says the tool ran.' };
 }
 
-/** Pair requests and outcomes by recorded identity, leaving ambiguous legacy IDs unjoined. */
+interface CallPart {
+  readonly event: RecordedTurnEvent;
+  readonly role: 'start' | 'end' | 'denial';
+}
+
+interface CallGroup {
+  readonly parts: CallPart[];
+  readonly occurrence?: string;
+  readonly legacy?: string;
+}
+
+function legacyBracket(event: RecordedTurnEvent): string | undefined {
+  const id = identifier(own(event.payload, 'toolCallId'));
+  const stage = identifier(event.address.runtimeStageId);
+  return id === undefined || stage === undefined || stage === 'unknown#0'
+    ? undefined : JSON.stringify([stage, id]);
+}
+
+function namesAgree(start: RecordedTurnEvent, end: RecordedTurnEvent): boolean {
+  const before = identifier(own(start.payload, 'toolName'));
+  const after = identifier(own(end.payload, 'toolName'));
+  return before === undefined || after === undefined || before === after;
+}
+
+function withheld(
+  addresses: Pick<HonestyToolActivity, 'request' | 'end' | 'proof'>,
+  execution: Execution = 'not-recorded',
+): HonestyToolActivity {
+  return {
+    ...(addresses.request !== undefined && { request: addresses.request }),
+    ...(addresses.end !== undefined && { end: addresses.end }),
+    ...(addresses.proof !== undefined && { proof: addresses.proof }),
+    execution,
+    outcome: 'kept-out',
+    sentence: 'A result was kept out by a rule.',
+  };
+}
+
+function standalone(part: CallPart): HonestyToolActivity {
+  if (part.role === 'denial') return withheld({ end: part.event.address });
+  return part.role === 'start' ? requested(part.event) : endedAt(part.event);
+}
+
+function paired(group: CallGroup): HonestyToolActivity | undefined {
+  const starts = group.parts.filter(part => part.role === 'start');
+  const ends = group.parts.filter(part => part.role === 'end');
+  const [start] = starts;
+  const [end] = ends;
+  const denial = group.parts.find(part => part.role === 'denial');
+  // A reused legacy identifier with multiple starts or ends cannot prove the
+  // next bracket, even if only one request is still open at this prefix.
+  if (starts.length > 1 || ends.length > 1 ||
+      (start !== undefined && end !== undefined &&
+        (start.event.address.eventIndex >= end.event.address.eventIndex || !namesAgree(start.event, end.event)))) return;
+  const request = start === undefined ? undefined : requested(start.event);
+  const settled = end === undefined ? request : endedAt(end.event, request);
+  if (denial === undefined) return settled;
+  return withheld({
+    request: request?.request,
+    end: settled?.end ?? denial.event.address,
+  }, settled?.execution === 'ran' ? 'ran' : 'not-recorded');
+}
+
+/** Pair only exact recorded occurrences or unambiguous legacy stage brackets. */
 export function readToolActivity(events: readonly RecordedTurnEvent[], ledger?: ToolLedger): readonly HonestyToolActivity[] {
+  const groups = new Map<string, CallGroup>();
+  const blockedLegacy = new Set<string>();
   const rows: HonestyToolActivity[] = [];
-  const pending = new Map<string, Set<number>>();
-  const keysAt = new Map<number, string[]>();
-  const occurrences = new Map<string, Set<number>>();
   for (const event of events) {
-    const denied = deniedResult(event);
-    if (event.type !== started && event.type !== ended && !denied) continue;
+    const role = event.type === started ? 'start' :
+      event.type === ended ? 'end' : deniedResult(event) ? 'denial' : undefined;
+    if (role === undefined) continue;
+    const part: CallPart = { event, role };
     const occurrence = readCallOccurrence(event.payload);
-    const id = identifier(own(event.payload, 'toolCallId'));
-    const occurrenceKey = typeof occurrence === 'string' ? `occurrence:${occurrence}` : undefined;
-    const legacyKey = id === undefined || occurrence === null ? undefined : `call:${id}`;
-    if (event.type === started) {
-      const index = rows.length;
-      rows.push(requested(event));
-      const keys = [occurrenceKey, legacyKey].filter((key): key is string => key !== undefined);
-      for (const key of keys) {
-        const open = pending.get(key) ?? new Set<number>();
-        open.add(index);
-        pending.set(key, open);
-      }
-      keysAt.set(index, keys);
-      if (typeof occurrence === 'string') rememberOccurrence(occurrence, index);
+    const legacy = legacyBracket(event);
+    if (occurrence !== undefined && legacy !== undefined) blockedLegacy.add(legacy);
+    const groupKey = typeof occurrence === 'string' ? `occurrence:${occurrence}` :
+      occurrence === undefined && legacy !== undefined ? `legacy:${legacy}` : undefined;
+    if (groupKey === undefined) {
+      rows.push(standalone(part));
       continue;
     }
-
-    const key = occurrenceKey ?? legacyKey;
-    const open = key === undefined ? undefined : pending.get(key);
-    const index = open?.size === 1 ? open.values().next().value : undefined;
-    const request = index === undefined ? undefined : rows[index];
-    if (denied) {
-      const withheld: HonestyToolActivity = {
-        ...(request?.request !== undefined && { request: request.request }),
-        end: event.address,
-        execution: 'not-recorded',
-        outcome: 'kept-out',
-        sentence: 'A result was kept out by a rule.',
-      };
-      if (index === undefined) rows.push(withheld);
-      else rows[index] = withheld;
-      continue;
-    }
-
-    const result = endedAt(event, request);
-    if (typeof occurrence === 'string') rememberOccurrence(occurrence, index ?? rows.length);
-    if (index === undefined) rows.push(result);
-    else {
-      rows[index] = result;
-      for (const key of keysAt.get(index) ?? []) pending.get(key)?.delete(index);
+    const group = groups.get(groupKey);
+    if (group === undefined) {
+      groups.set(groupKey, {
+        parts: [part],
+        ...(typeof occurrence === 'string' ? { occurrence } : { legacy }),
+      });
+    } else {
+      group.parts.push(part);
     }
   }
-  if (ledger !== undefined) {
-    for (const [key, indexes] of occurrences) {
-      const index = indexes.size === 1 ? indexes.values().next().value : undefined;
-      if (index !== undefined) rows[index] = withLedger(rows[index]!, key, ledger);
+
+  for (const group of groups.values()) {
+    const joined = group.legacy !== undefined && blockedLegacy.has(group.legacy) ? undefined : paired(group);
+    if (joined === undefined) {
+      for (const part of group.parts) rows.push(standalone(part));
+    } else {
+      rows.push(ledger !== undefined && group.occurrence !== undefined
+        ? withLedger(joined, group.occurrence, ledger)
+        : joined);
     }
   }
-  return rows;
-
-  function rememberOccurrence(key: string, index: number): void {
-    const indexes = occurrences.get(key) ?? new Set<number>();
-    indexes.add(index);
-    occurrences.set(key, indexes);
-  }
+  const order = (row: HonestyToolActivity) => row.request?.eventIndex ?? row.end?.eventIndex ?? Infinity;
+  return rows.sort((left, right) => order(left) - order(right));
 }

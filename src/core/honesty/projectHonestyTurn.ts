@@ -1,6 +1,6 @@
 /// <reference lib="es2022.intl" />
 
-import { own } from '../cursor/sourcePosition.js';
+import { object, own } from '../cursor/sourcePosition.js';
 import { readStanding, type HonestyStanding } from './readStanding.js';
 import { readToolActivity, type HonestyToolActivity } from './readToolActivity.js';
 import { readToolLedger } from './readToolLedger.js';
@@ -153,6 +153,23 @@ function contextRows(events: readonly RecordedTurnEvent[]): HonestyStepRow[] {
   }));
 }
 
+function heldResponseText(recording: unknown, value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  if (value !== '[REDACTED]' && value !== 'REDACTED') return value;
+  const snapshot = own(object(recording), 'snapshot');
+  if (snapshot === undefined || snapshot === null) return value;
+  const recorders = own(object(snapshot), 'recorders');
+  if (!Array.isArray(recorders)) return value;
+  const length = own(recorders, 'length');
+  if (typeof length !== 'number' || length > 64) return undefined;
+  for (let index = 0; index < length; index++) {
+    const recorder = own(recorders, String(index));
+    if (recorder !== null && typeof recorder === 'object' &&
+      own(recorder, 'id') === 'agentfootprint.redaction') return undefined;
+  }
+  return value;
+}
+
 /** What a recording says about one answer. No replay execution or model calls. */
 export function projectHonestyTurn(recording: unknown, selection: HonestyTurnSelection): HonestyTurn {
   const read = readTurnEvents(recording, selection.startEventIndex, selection.throughEventIndex, maxEvents);
@@ -169,8 +186,8 @@ export function projectHonestyTurn(recording: unknown, selection: HonestyTurnSel
       unavailable[standing.status] : { state: standing.standing, title: standing.title, sentence: standing.sentence };
     const checked = standing.status === 'recorded' && standing.checks.some(check => check.ran > 0);
     const rawAnswer = terminal !== undefined && !refused ? own(terminal.payload, 'finalContent') : undefined;
-    const answer = typeof rawAnswer === 'string' ? rawAnswer : '';
-    const sentences = sentencesOf(answer, checked);
+    const answer = heldResponseText(recording, rawAnswer);
+    const sentences = sentencesOf(answer ?? '', checked);
     if (sentences === undefined) return unavailableTurn(unavailable['too-long']);
 
     const activity = readToolActivity(events, readToolLedger(recording, last?.address));
@@ -184,7 +201,9 @@ export function projectHonestyTurn(recording: unknown, selection: HonestyTurnSel
       address: standing.address,
     }));
     const decision = terminal === undefined ? [] : [{
-      text: refused ? unavailable.withheld.sentence : 'The response was recorded. Delivery was not confirmed.',
+      text: refused ? unavailable.withheld.sentence : answer !== undefined
+        ? 'The response was recorded. Delivery was not confirmed.'
+        : 'The response text is unavailable in this record.',
       address: terminal.address,
     }];
     return {

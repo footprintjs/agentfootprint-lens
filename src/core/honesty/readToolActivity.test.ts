@@ -65,7 +65,8 @@ it('projects identical bytes for different denied results and denial text', () =
   expect(known[0]).toMatchObject({
     outcome: 'kept-out',
     sentence: 'A result was kept out by a rule.',
-    end: { eventIndex: 2 },
+    execution: 'ran',
+    end: { eventIndex: 3 },
   });
   expect(known[0]?.name).toBeUndefined();
 });

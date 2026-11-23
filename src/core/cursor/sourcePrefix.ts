@@ -1,5 +1,6 @@
 import { stateAt, type FoldSource, type FoldedState } from 'foottrace';
 import { readSourcePosition, object, own, id, path, samePath, type SourcePosition } from './sourcePosition.js';
+import { admitFoldSource } from './admitFoldSource.js';
 export { readSourcePosition, type SourcePosition } from './sourcePosition.js';
 
 
@@ -82,7 +83,10 @@ export function resolveSourcePrefix(snapshot: unknown, value: unknown): SourcePr
       } else {
         // Prefix validation happens before the engine fold: stateAt legitimately
         // clamps other callers, but this source address is exact and must not.
-        const source: FoldSource = Object.freeze({ commitLog: Object.freeze(prefix), initialState: initialState as Record<string, unknown> });
+        const source = admitFoldSource(initialState, prefix);
+        if (source === undefined) {
+          return Object.freeze({ status: 'available', position, state: stateUnavailable('damaged-values') });
+        }
         try {
           const folded = stateAt(source, position.committedThroughIdx);
           state = folded.throughCommitIdx !== position.committedThroughIdx || (folded.skipped?.length ?? 0) > 0

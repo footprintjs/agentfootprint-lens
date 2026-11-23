@@ -6,3 +6,6 @@ These recordings were produced by AgentFootprint 16.0.0 with scripted replies fr
 - `schema-retry.json.gz` contains 41 events. The schema rejects a string amount and the next model call supplies a number. The standing is `not-assessed`. The first draft, recorded retry and second model call have separate event addresses.
 
 Use the recording as projection input and the separate assessment as a fixture expectation. Both archives are copied byte for byte from the STAND example captures.
+
+
+`mounted-17.json.gz` comes from the published 17.0.0 producer with a mock provider. A parent Agent runs a child inside its memory flow. Both turns share a native run ID. The child and parent terminal responses remain visible. `mounted-served-17.json.gz` records the same fixture under a producer policy. Model-start payloads and the final response values are withheld while terminal coordinates stay visible.
