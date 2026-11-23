@@ -117,6 +117,7 @@ export {
   type SkillTopologyEdge,
   type SkillTopologyNode,
 } from './selectSkillTopology.js';
+export { prepareSkillGraph, type SkillGraphReading } from './prepareSkillGraph.js';
 // What reached the model on ONE beat: the beat's own Evaluate stage paired
 // with the LLM call it prepared, filtered through `selectContextEngineeringInjections`.
 export {
