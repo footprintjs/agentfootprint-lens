@@ -150,10 +150,10 @@
   },
   "peerDependencies": {
     "@xyflow/react": "^12.0.0",
-    "agentfootprint": "^15.0.0 || ^16.0.0",
+    "agentfootprint": "^15.0.0 || ^16.0.0 || ^17.0.0",
     "footprint-explainable-ui": ">=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0",
     "footprintjs": "^14.0.0",
-    "foottrace": "^2.1.0",
+    "foottrace": "^2.3.2",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0"
   },
@@ -172,7 +172,7 @@
     "agentfootprint": "15.0.0",
     "footprint-explainable-ui": "2.2.0",
     "footprintjs": "14.0.0",
-    "foottrace": "2.1.0",
+    "foottrace": "2.3.2",
     "jsdom": "^29.0.2",
     "publint": "^0.3.0",
     "react": "^18.3.1",

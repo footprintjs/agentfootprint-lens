@@ -32,7 +32,7 @@ jobs:
           version="$(node -p 'require("./package.json").version')"
           npm install --prefix "$consumer" --strict-peer-deps --ignore-scripts --no-package-lock \
             "$pack/agentfootprint-lens-$version.tgz" "agentfootprint@$LENS_CONTEXT_SHAPE_PEER" \
-            footprintjs@14.0.0 foottrace@2.1.0 footprint-explainable-ui@2.2.0 \
+            footprintjs@14.0.0 foottrace@2.3.2 footprint-explainable-ui@2.2.0 \
             react@18.3.1 react-dom@18.3.1
           cd "$consumer"
           npm ls agentfootprint-lens agentfootprint footprintjs foottrace --all
