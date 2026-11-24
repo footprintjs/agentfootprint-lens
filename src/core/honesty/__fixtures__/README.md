@@ -9,3 +9,7 @@ Use the recording as projection input and the separate assessment as a fixture e
 
 
 `mounted-17.json.gz` comes from the published 17.0.0 producer with a mock provider. A parent Agent runs a child inside its memory flow. Both turns share a native run ID. The child and parent terminal responses remain visible. `mounted-served-17.json.gz` records the same fixture under a producer policy. Model-start payloads and the final response values are withheld while terminal coordinates stay visible.
+
+`inventory-17.json.gz` is a saved run from the published AgentFootprint 17.0.0 package. A local mock provider requests two fixture tools. Inventory lookup declares an omitted archive and its reason, Archive lookup throws a classified network failure, and the answer stops at the recorded output limit. The fixture makes no network or live provider call.
+
+`code-runner-17.json.gz` also uses the published 17.0.0 package. A fake code-runner backend returns an unsuccessful exit with clipped fixture output. It does not execute the supplied text. The panel reads the failure and retained output counts without rendering either stream.
