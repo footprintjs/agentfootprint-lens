@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `projectHonestyTurn` reads the recorded answer standing, sentence evidence status and five Honesty Lens steps at an exact event position.
 
+### Fixed
+
+- Explain groups its recorded rows in STAND order: State, Trace, Assess, Name, Decide. Section headings follow the app's Lens theme.
+
 ## [0.88.0] - 2026-11-23
 
 ### Added
@@ -21,10 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Accept AgentFootprint 17 alongside 15 and 16. If your app pins Foottrace, update it to 2.3.2 or newer within major 2.
 - Served builds its graph on first open and reuses it at the same replay stop.
-
-### Fixed
-
-- Explain groups its recorded rows in STAND order: State, Trace, Assess, Name, Decide. Section headings follow the app's Lens theme.
 
 ## [0.87.0] - 2026-11-20
 
