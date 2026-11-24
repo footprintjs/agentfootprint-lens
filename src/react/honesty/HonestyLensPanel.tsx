@@ -5,6 +5,8 @@ import type { HonestyReasonEvidence } from '../../core/honesty/readReasonRows.js
 import type { HonestyEventAddress } from '../../core/honesty/readTurnEvents.js';
 
 export interface HonestyLensPanelProps {
+  /** Stable identity of the selected turn across updates. Include the recording identity. */
+  readonly turnKey: string;
   readonly turn: HonestyTurn;
   readonly onInspect?: (evidence: HonestyReasonEvidence | { readonly address: HonestyEventAddress }) => void;
 }
@@ -32,9 +34,15 @@ const sentenceStyle: CSSProperties = {
   cursor: 'pointer',
 };
 
-export function HonestyLensPanel({ turn, onInspect }: HonestyLensPanelProps) {
+export function HonestyLensPanel({ turnKey, ...props }: HonestyLensPanelProps) {
+  return <SelectedTurnPanel key={turnKey} {...props} />;
+}
+
+function SelectedTurnPanel({ turn, onInspect }: Omit<HonestyLensPanelProps, 'turnKey'>) {
   const id = useId();
-  const [open, setOpen] = useState(turn.trust.state === 'not-sure' || turn.trust.state === 'ask');
+  const opensByDefault = turn.trust.state === 'not-sure' || turn.trust.state === 'ask';
+  const [openChoice, setOpenChoice] = useState<boolean>();
+  const open = openChoice ?? opensByDefault;
   const [selected, setSelected] = useState<HonestyStep['id']>('N');
   const [sentence, setSentence] = useState<number>();
   const [preview, setPreview] = useState<number>();
@@ -74,12 +82,12 @@ export function HonestyLensPanel({ turn, onInspect }: HonestyLensPanelProps) {
     <section aria-label="Honesty Lens" style={panelStyle} onKeyDown={event => {
       if (event.key === 'Escape' && open) {
         event.stopPropagation();
-        setOpen(false);
+        setOpenChoice(false);
         event.currentTarget.querySelector('button')?.focus();
       }
     }}>
       <p><strong>{turn.trust.title}</strong> {turn.trust.sentence}</p>
-      <button type="button" aria-controls={id} aria-expanded={open} onClick={() => setOpen(value => !value)}>
+      <button type="button" aria-controls={id} aria-expanded={open} onClick={() => setOpenChoice(choice => !(choice ?? opensByDefault))}>
         Check this answer
       </button>
       <div id={id} hidden={!open}>

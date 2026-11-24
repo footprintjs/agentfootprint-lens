@@ -35,9 +35,13 @@ it('keeps denied response reasons out of the panel', () => {
   expect(projectHonestyTurn(record, { startEventIndex: 1 }).reasons).toEqual([]);
 });
 
-it('reads an actual AgentFootprint 17 recording without printing the thrown error', () => {
+function inventoryRecordingJson(): string {
   const fixture = new URL('./__fixtures__/inventory-17.json.gz', import.meta.url);
-  const record = JSON.parse(gunzipSync(readFileSync(fixture)).toString('utf8')).recording;
+  return gunzipSync(readFileSync(fixture)).toString('utf8');
+}
+
+it('reads an actual AgentFootprint 17 recording without printing the thrown error', () => {
+  const record = JSON.parse(inventoryRecordingJson()).recording;
   const start = record.events.findIndex((event: { type: string }) =>
     event.type === 'agentfootprint.agent.turn_start');
   const result = projectHonestyTurn(record, { startEventIndex: start });
@@ -61,6 +65,28 @@ it('reads an actual AgentFootprint 17 recording without printing the thrown erro
       evidence: { witnesses: [expect.objectContaining({ key: 'llmLatestStopReason' })] },
     });
   }
+});
+
+it('keeps reason rows identical when only withheld recorded detail differs', () => {
+  const json = inventoryRecordingJson();
+  const alternate = json.replace(/Archived stock/g, 'Different withheld detail');
+  expect(alternate).not.toBe(json);
+  const first = JSON.parse(json).recording;
+  const second = JSON.parse(alternate).recording;
+  const selection = {
+    startEventIndex: first.events.findIndex((event: { type: string }) =>
+      event.type === 'agentfootprint.agent.turn_start'),
+  };
+  const admitted = projectHonestyTurn(first, selection).reasons;
+  expect(admitted.length).toBeGreaterThan(0);
+
+  first.snapshot.stateValuesWithheld = true;
+  second.snapshot.stateValuesWithheld = true;
+  const withheld = projectHonestyTurn(first, selection).reasons;
+  expect(withheld).toEqual(admitted.map(({ text, evidence: { address, reasonIndex } }) => ({
+    text, evidence: { address, reasonIndex },
+  })));
+  expect(withheld).toEqual(projectHonestyTurn(second, selection).reasons);
 });
 
 it('joins library counts only to the selected turn’s witnessed rows', () => {
