@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { gunzipSync } from 'node:zlib';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import type { SourcePosition } from '../../core/cursor/sourcePosition.js';
 import type { SharedCursorTarget } from '../../core/cursor/sharedCursor.js';
 import { projectHonestyTurn, type HonestyTurn } from '../../core/honesty/projectHonestyTurn.js';
@@ -151,4 +151,26 @@ it('restores focus to disclosure when the invoking reason disappears', () => {
   rerender(<Host turn={{ ...selected, reasons: [] }} />);
   fireEvent.click(screen.getByRole('button', { name: 'Back to answer' }));
   expect(screen.getByRole('button', { name: 'Check this answer' })).toHaveFocus();
+});
+
+it('falls back to disclosure when the mounted invoker cannot take focus', () => {
+  const scroller = document.createElement('div');
+  document.body.append(scroller);
+  scroller.scrollTop = 510;
+  scroller.scrollLeft = 35;
+  try {
+    render(<Host scroller={scroller} />);
+    const inspect = screen.getByRole('button', { name: /Inspect this step/ });
+    fireEvent.click(inspect);
+    inspect.style.display = 'none';
+    // JSDOM does not model the browser declining focus when layout hides a button.
+    vi.spyOn(inspect, 'focus').mockImplementation(() => {});
+    scroller.scrollTop = 0;
+    scroller.scrollLeft = 0;
+    fireEvent.click(screen.getByRole('button', { name: 'Back to answer' }));
+    expect(screen.getByRole('button', { name: 'Check this answer' })).toHaveFocus();
+    expect([scroller.scrollTop, scroller.scrollLeft]).toEqual([510, 35]);
+  } finally {
+    scroller.remove();
+  }
 });

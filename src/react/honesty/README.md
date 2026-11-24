@@ -17,13 +17,17 @@ and focus carry through updates to that turn. Sentence buttons open
 
 ## Inspect and return
 
-Use `HonestyLensRoundTrip` from `agentfootprint-lens/react` when the answer and
+Use `HonestyLensRoundTrip` from `agentfootprint-lens` when the answer and
 the evidence view share a cursor. Pass the controller from `useSharedCursor`
 and render the host's Why or Flow view with that same controller. The renderer
 also receives the admitted event address. Supply `getAnswerScroller` when a
 nested host owns scrolling.
 
 ```tsx
+import { HonestyLensRoundTrip, useSharedCursor } from 'agentfootprint-lens';
+
+const shared = useSharedCursor(recorder);
+
 <HonestyLensRoundTrip
   turnKey={turnKey}
   turn={turn}

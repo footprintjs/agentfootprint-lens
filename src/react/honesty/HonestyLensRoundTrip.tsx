@@ -43,9 +43,12 @@ function TurnRoundTrip({ cursor, renderEvidence, getAnswerScroller, ...panel }: 
       return;
     }
     const { trigger } = visit;
-    const stillVisible = trigger !== null && answer.current?.contains(trigger)
-      && !trigger.disabled && trigger.closest('[hidden]') === null;
-    (stillVisible ? trigger : answer.current?.querySelector('button'))?.focus({ preventScroll: true });
+    if (trigger !== null && answer.current?.contains(trigger) && !trigger.disabled) {
+      trigger.focus({ preventScroll: true });
+    }
+    if (trigger === null || trigger.ownerDocument.activeElement !== trigger) {
+      answer.current?.querySelector('button')?.focus({ preventScroll: true });
+    }
     if (visit.scroll?.element.isConnected) {
       visit.scroll.element.scrollTop = visit.scroll.top;
       visit.scroll.element.scrollLeft = visit.scroll.left;
