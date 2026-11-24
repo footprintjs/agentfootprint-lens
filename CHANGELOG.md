@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `projectHonestyTurn` reads the recorded answer standing, sentence evidence status and five Honesty Lens steps at an exact event position.
+
 ## [0.88.0] - 2026-11-23
 
 ### Added
