@@ -4,7 +4,8 @@ import { object, own } from '../cursor/sourcePosition.js';
 import { readResponse } from './readResponse.js';
 import { readStanding, type HonestyStanding } from './readStanding.js';
 import { readToolActivity, type HonestyToolActivity } from './readToolActivity.js';
-import { readToolLedger } from './readToolLedger.js';
+import { readHonestyState, readToolLedger } from './readToolLedger.js';
+import { readReasonRows, type HonestyReasonRow } from './readReasonRows.js';
 import { readTurnEvents, type HonestyEventAddress, type RecordedTurnEvent } from './readTurnEvents.js';
 
 const turnEnd = 'agentfootprint.agent.turn_end';
@@ -50,6 +51,7 @@ export interface HonestyTrustLine {
 export interface HonestyTurn {
   readonly trust: HonestyTrustLine;
   readonly sentences: readonly HonestySentence[];
+  readonly reasons: readonly HonestyReasonRow[];
   readonly steps: readonly HonestyStep[];
 }
 
@@ -87,7 +89,7 @@ function step(id: HonestyStep['id'], rows: readonly HonestyStepRow[] = [], fallb
 }
 
 function unavailableTurn(trust: HonestyTrustLine): HonestyTurn {
-  return { trust, sentences: [], steps: order.map(id => step(id, [], trust.sentence)) };
+  return { trust, sentences: [], reasons: [], steps: order.map(id => step(id, [], trust.sentence)) };
 }
 
 function sentencesOf(answer: string, checked: boolean): HonestySentence[] | undefined {
@@ -174,7 +176,9 @@ export function projectHonestyTurn(recording: unknown, selection: HonestyTurnSel
     const sentences = sentencesOf(answer.kind === 'text' ? answer.text : '', checked);
     if (sentences === undefined) return unavailableTurn(unavailable['too-long']);
 
-    const activity = readToolActivity(events, readToolLedger(recording, last?.address));
+    const state = readHonestyState(recording, last?.address);
+    const reasons = refused ? [] : readReasonRows(standing, terminal, recording, state);
+    const activity = readToolActivity(events, readToolLedger(state, last?.address));
     const tools = activity.map(row => ({
       text: row.name === undefined ? row.sentence : `${row.name}. ${row.sentence}`,
       address: row.proof ?? row.end ?? row.request,
@@ -195,6 +199,7 @@ export function projectHonestyTurn(recording: unknown, selection: HonestyTurnSel
     return {
       trust,
       sentences,
+      reasons,
       steps: [
         step('D', decision),
         step('N', [{ text: trust.sentence, ...(standing.status === 'recorded' && { address: standing.address }) }]),

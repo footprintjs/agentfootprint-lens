@@ -32,6 +32,7 @@ export {
   type HonestyStepRow,
   type HonestySentence,
 } from './honesty/projectHonestyTurn.js';
+export type { HonestyReasonEvidence, HonestyReasonRow } from './honesty/readReasonRows.js';
 export type { HonestyEventAddress } from './honesty/readTurnEvents.js';
 export type { HonestyToolActivity } from './honesty/readToolActivity.js';
 export { readSourcePosition, resolveSourcePrefix } from './cursor/sourcePrefix.js';

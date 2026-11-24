@@ -48,6 +48,7 @@ export {
 // the record, a `LensCursor` per axis, and a bridge for the older
 // step + report contract so lenses migrate one at a time.
 export { useSharedCursor, type SharedAxis, type SharedCursor, type SourceAwareSharedCursor, type SharedCursorOptions } from "./useSharedCursor.js";
+export { HonestyLensPanel, type HonestyLensPanelProps } from './honesty/HonestyLensPanel.js';
 export { TrustBoundaryView, type TrustBoundaryViewProps } from './TrustBoundaryView.js';
 // Where the engineer view stops being two columns and starts stacking them.
 export {
