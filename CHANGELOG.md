@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.89.0] - 2026-11-24
+
 ### Added
 
 - `HonestyLensPanel` shows recorded answer standing and links individual reasons to their evidence. Selecting a different turn starts with its own disclosure state.
