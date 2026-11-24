@@ -116,18 +116,45 @@ it('shows both actual mounted and root answers during rewind', () => {
   expect(read(1)).toEqual(['Root answer.']);
 });
 
-it('treats placeholder response text as unavailable only under a recorded policy', () => {
+it.each(['[REDACTED]', 'REDACTED'])('interprets %s only with matching-run recorder evidence', marker => {
   const events = [
     event(turnStart, { turnIndex: 0 }),
-    event(turnEnd, { turnIndex: 0, finalContent: '[REDACTED]' }),
+    event(turnEnd, { turnIndex: 0, finalContent: marker }),
   ];
   const selected = { startEventIndex: 0 };
-  expect(projectHonestyTurn({ events }, selected).sentences[0]?.text).toBe('[REDACTED]');
+  expect(projectHonestyTurn({ events, snapshot: { runId: 'same', recorders: [] } }, selected)
+    .sentences[0]?.text).toBe(marker);
   const served = projectHonestyTurn({
-    events, snapshot: { recorders: [{ id: 'agentfootprint.redaction' }] },
+    events, snapshot: { runId: 'same', recorders: [{ id: 'agentfootprint.redaction' }] },
   }, selected);
   expect(served.sentences).toEqual([]);
   expect(served.steps[0]?.rows[0]?.text).toBe('The response text is unavailable in this record.');
+  const missing = projectHonestyTurn({ events }, selected);
+  expect(missing.sentences).toEqual([]);
+  expect(missing.steps[0]?.rows[0]?.text).toBe('The record cannot distinguish this response from a redaction marker.');
+});
+
+it.each([false, true])('does not use the latest run redaction policy for an earlier answer (served last: %s)', servedLast => {
+  const plainURL = new URL('./__fixtures__/mounted-17.json.gz', import.meta.url);
+  const servedURL = new URL('./__fixtures__/mounted-served-17.json.gz', import.meta.url);
+  const plain = JSON.parse(gunzipSync(readFileSync(plainURL)).toString('utf8')).recording;
+  const served = JSON.parse(gunzipSync(readFileSync(servedURL)).toString('utf8')).recording;
+  const first = servedLast ? plain : served;
+  const second = servedLast ? served : plain;
+  expect(first.snapshot.runId).not.toBe(second.snapshot.runId);
+
+  // Retain native run metadata and give the first root terminal the same
+  // wire text for the two cases: a literal answer or a masked finalContent.
+  const firstEvents = first.events.map((entry: { type: string; payload: unknown; meta: object }, ordinal: number) =>
+    ordinal === 30 ? { ...entry, payload: { turnIndex: 0, finalContent: '[REDACTED]' } } : entry);
+  const projection = projectHonestyTurn({
+    events: [...firstEvents, ...second.events], snapshot: second.snapshot,
+  }, { startEventIndex: 1 });
+  expect(projection.sentences).toEqual([]);
+  expect(projection.steps[0]?.rows[0]).toMatchObject({
+    text: 'The record cannot distinguish this response from a redaction marker.',
+    address: { eventIndex: 30 },
+  });
 });
 
 it('retains distinct terminal locations in an actual served recording', () => {

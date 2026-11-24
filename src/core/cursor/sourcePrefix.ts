@@ -40,6 +40,22 @@ function stateUnavailable(
  * emitter-stage lookup, an enclosing mount's commit index, or a current-log fallback.
  */
 export function resolveSourcePrefix(snapshot: unknown, value: unknown): SourcePrefixResolution {
+  return resolvePrefix(snapshot, value, (initialState, commitLog) => Object.freeze({
+    initialState: initialState as Record<string, unknown>,
+    commitLog: Object.freeze(commitLog),
+  }));
+}
+
+/** Honesty projects saved facts. Refuse non-plain values before its fold can read them. */
+export function resolveAdmittedSourcePrefix(snapshot: unknown, value: unknown): SourcePrefixResolution {
+  return resolvePrefix(snapshot, value, admitFoldSource);
+}
+
+function resolvePrefix(
+  snapshot: unknown,
+  value: unknown,
+  sourceOf: (initialState: object, commits: readonly unknown[]) => FoldSource | undefined,
+): SourcePrefixResolution {
   const position = readSourcePosition(value);
   if (position === undefined) return unavailable(value === undefined ? 'missing-position' : 'invalid-position');
   try {
@@ -83,7 +99,7 @@ export function resolveSourcePrefix(snapshot: unknown, value: unknown): SourcePr
       } else {
         // Prefix validation happens before the engine fold: stateAt legitimately
         // clamps other callers, but this source address is exact and must not.
-        const source = admitFoldSource(initialState, prefix);
+        const source = sourceOf(initialState, prefix);
         if (source === undefined) {
           return Object.freeze({ status: 'available', position, state: stateUnavailable('damaged-values') });
         }

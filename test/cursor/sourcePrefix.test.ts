@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { stateAt } from 'foottrace';
+import { flowChart, FlowChartExecutor } from 'footprintjs';
 
 import { readSourcePosition, resolveSourcePrefix } from '../../src/core/cursor/sourcePrefix.js';
 
@@ -24,6 +25,34 @@ describe('source-prefix resolution', () => {
     expect(result.state.folded).toEqual(stateAt(snap, 0));
     expect(result.state.folded.state).toEqual({ value: 11 });
     expect(result.state.folded.throughCommitIdx).toBe(0);
+  });
+
+  it('keeps native structured-clone values in the base and commit', async () => {
+    const chart = flowChart<{ committed?: Date; value?: number }>('Write', scope => {
+      scope.committed = new Date(2000);
+      scope.value = 11;
+    }, 'write').build();
+    const executor = new FlowChartExecutor(chart, {
+      initialContext: { seeded: new Date(1000), value: 10 },
+    });
+    await executor.run();
+    const snap = executor.getSnapshot();
+    expect(snap.logAddress).toBeDefined();
+    expect(snap.initialState).toMatchObject({ seeded: new Date(1000), value: 10 });
+    const coordinate = (committedThroughIdx: number) => ({
+      engineRunId: snap.runId, ...snap.logAddress, committedThroughIdx,
+    });
+    for (const index of [-1, snap.commitLog.length - 1]) {
+      const result = resolveSourcePrefix(snap, coordinate(index));
+      expect(result.status).toBe('available');
+      if (result.status !== 'available') throw new Error('missing prefix');
+      expect(result.state).toMatchObject({
+        status: 'available',
+        folded: { state: index < 0
+          ? { seeded: new Date(1000), value: 10 }
+          : { seeded: new Date(1000), committed: new Date(2000), value: 11 } },
+      });
+    }
   });
 
   it('keeps -1 as the recorded base even on a later run leg', () => {

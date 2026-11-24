@@ -16,3 +16,8 @@ The trust line quotes the standing's meaning from the recorded assessment and di
 Each step returns at most five rows and the number of remaining rows. Addressed rows retain their original event ordinal and any recorded source position. Sentence marks describe the absence of a recorded sentence-level link. Paragraph spacing survives splitting. A completed response alone carries no delivery confirmation.
 
 The reader refuses a recording over 50,000 events or an answer over 131,072 UTF-16 units or 4,096 sentences. It reads saved data without calls, browser state or React. The two [producer fixtures](__fixtures__/README.md) exercise a coverage gap and a schema retry.
+
+The tool ledger admits detached plain recording values before folding. The shared
+cursor keeps native structured-clone state. The response reader resolves a
+redaction marker using the selected run's snapshot and leaves it ambiguous when
+that run's recorder evidence is missing.

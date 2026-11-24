@@ -17,7 +17,7 @@ export interface RecordedTurnEvent {
 }
 
 export type RecordedTurnRead =
-  | { readonly status: 'ready'; readonly events: readonly RecordedTurnEvent[] }
+  | { readonly status: 'ready'; readonly runId: string; readonly events: readonly RecordedTurnEvent[] }
   | { readonly status: 'before-turn' | 'not-collected' | 'too-long' | 'unreadable' };
 
 function optionalPath(value: unknown): readonly string[] {
@@ -145,7 +145,7 @@ export function readTurnEvents(
       });
       if (type === turnEndType) break;
     }
-    return { status: 'ready', events };
+    return { status: 'ready', runId, events };
   } catch {
     return { status: 'unreadable' };
   }

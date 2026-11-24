@@ -1,5 +1,5 @@
 import { object, own } from '../cursor/sourcePosition.js';
-import { resolveSourcePrefix } from '../cursor/sourcePrefix.js';
+import { resolveAdmittedSourcePrefix } from '../cursor/sourcePrefix.js';
 import { readCallOccurrence } from './callOccurrence.js';
 import type { HonestyEventAddress } from './readTurnEvents.js';
 
@@ -59,7 +59,7 @@ export function readToolLedger(recording: unknown, address: HonestyEventAddress 
   const position = address?.sourcePosition;
   if (address === undefined || position === undefined || position.committedThroughIdx > maxCommitIndex) return;
   try {
-    const prefix = resolveSourcePrefix(own(object(recording), 'snapshot'), position);
+    const prefix = resolveAdmittedSourcePrefix(own(object(recording), 'snapshot'), position);
     if (prefix.status !== 'available' || prefix.state.status !== 'available') return;
     const state = prefix.state.folded.state;
     const entered = new Set<string>();
