@@ -9,10 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `projectHonestyTurn` reads the recorded answer standing, sentence evidence status and five Honesty Lens steps at an exact event position.
+
+## [0.88.0] - 2026-11-23
+
+### Added
+
 - Custom Skill Graph views can use `prepareSkillGraph` from `agentfootprint-lens/core` or `/skillgraph` to read the same replay stops, topology and next visits as the debugger. The debugger reads frame context when the developer view needs it.
 
 ### Changed
 
+- Accept AgentFootprint 17 alongside 15 and 16. If your app pins Foottrace, update it to 2.3.2 or newer within major 2.
 - Served builds its graph on first open and reuses it at the same replay stop.
 
 ### Fixed

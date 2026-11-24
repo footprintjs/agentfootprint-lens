@@ -23,6 +23,17 @@ export * from "./types.js";
 export { createLensRenderStore, type LensRenderStoreOptions } from "./stores/lensRenderStore.js";
 export { readTrustBoundaries } from './trustBoundaries/index.js';
 export type { TrustBoundariesRead, TrustBoundaryCapture, TrustBoundaryCounters, TrustBoundaryFact, TrustSourcePosition } from './trustBoundaries/index.js';
+export {
+  projectHonestyTurn,
+  type HonestyTurnSelection,
+  type HonestyTurn,
+  type HonestyTrustLine,
+  type HonestyStep,
+  type HonestyStepRow,
+  type HonestySentence,
+} from './honesty/projectHonestyTurn.js';
+export type { HonestyEventAddress } from './honesty/readTurnEvents.js';
+export type { HonestyToolActivity } from './honesty/readToolActivity.js';
 export { readSourcePosition, resolveSourcePrefix } from './cursor/sourcePrefix.js';
 export type { SourcePosition, SourcePrefixState, SourcePrefixResolution } from './cursor/sourcePrefix.js';
 export { cursorForTarget } from './cursor/sharedCursor.js';
