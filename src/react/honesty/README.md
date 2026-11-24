@@ -14,3 +14,27 @@ Known and consistent turns start folded. “Not sure” and “Ask” open on
 until the reader opens or closes the panel. After that, the reader's choice
 and focus carry through updates to that turn. Sentence buttons open
 “What was checked” and keep the recorded evidence note. All output is rendered as text.
+
+## Inspect and return
+
+Use `HonestyLensRoundTrip` from `agentfootprint-lens/react` when the answer and
+the evidence view share a cursor. Pass the controller from `useSharedCursor`
+and render the host's Why or Flow view with that same controller. The renderer
+also receives the admitted event address. Supply `getAnswerScroller` when a
+nested host owns scrolling.
+
+```tsx
+<HonestyLensRoundTrip
+  turnKey={turnKey}
+  turn={turn}
+  cursor={shared}
+  renderEvidence={(address) => <RecordedEvidence shared={shared} address={address} />}
+/>
+```
+
+Inspect opens when the saved address resolves to an exact source prefix.
+An event without a position leaves the answer open and reports that the
+position is unavailable. Back restores the answer's step, sentence, scroll
+and focus. If the shared cursor moved during inspection, Back keeps the
+new position and offers “Return to original step”. Keep the key stable for
+the same recording and turn. A different key discards the prior return point.
