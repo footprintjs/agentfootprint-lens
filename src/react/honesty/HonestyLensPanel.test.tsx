@@ -43,3 +43,11 @@ it('opens a known answer on request and keeps navigation local until inspect', (
   expect(expand).toHaveAttribute('aria-expanded', 'false');
   expect(onInspect).not.toHaveBeenCalled();
 });
+
+it('wraps unbroken recorded reason details', () => {
+  const detail = 'inventoryReference'.repeat(24);
+  render(<HonestyLensPanel turn={{ ...turn, reasons: [{ ...turn.reasons[0], details: [detail] }] }} />);
+  const panel = screen.getByRole('region', { name: 'Honesty Lens' });
+  expect(within(panel).getByText(detail)).toBeVisible();
+  expect(panel).toHaveStyle({ overflowWrap: 'anywhere' });
+});

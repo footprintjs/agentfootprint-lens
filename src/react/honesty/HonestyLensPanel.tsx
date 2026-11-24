@@ -17,6 +17,7 @@ const panelStyle: CSSProperties = {
   color: T.textPrimary,
   fontFamily: T.fontSans,
   lineHeight: 1.5,
+  overflowWrap: 'anywhere',
 };
 const controls: CSSProperties = { display: 'flex', flexWrap: 'wrap', gap: '0.375rem' };
 const sentenceStyle: CSSProperties = {
