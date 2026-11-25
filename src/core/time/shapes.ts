@@ -55,10 +55,16 @@ export interface ClockOnResumeRowShape {
   readonly kept: ClockValuesShape;
 }
 
-/** `CallDrift` — a look-back call's dispatch drift. */
+/**
+ * `CallDrift` — a look-back call's dispatch drift. `covered` (agentfootprint
+ * 18.0.0): a confirmed look-back in a length-only form was lengthened at
+ * dispatch to still reach the window's start; `sent` is what the source reads
+ * with it if its clock agrees.
+ */
 export type CallDriftShape =
   | { readonly byMs: number; readonly outcome: 'redrawn'; readonly form: number }
-  | { readonly byMs: number; readonly outcome: 'shifted' };
+  | { readonly byMs: number; readonly outcome: 'shifted' }
+  | { readonly byMs: number; readonly outcome: 'covered'; readonly form: number; readonly sent: TimeRangeShape };
 
 /** `CallRow` — one dispatched call's wall-clock moment. */
 export interface CallRowShape {
@@ -94,6 +100,8 @@ export interface CallWindowRowShape {
   readonly sent?: TimeRangeShape;
   readonly differs?: { readonly extra: readonly TimeRangeShape[] };
   readonly trimmedByTool?: true;
+  /** A confirmed look-back in a length-only form, lengthened at dispatch (agentfootprint 18.0.0). */
+  readonly coversAtDispatch?: true;
   readonly partlyBeyondRetention?: true;
   readonly refused?: string;
   readonly argument?: string;

@@ -12,6 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `HonestyLensPanel` shows recorded answer standing and links individual reasons to their evidence. Selecting a different turn starts with its own disclosure state.
 - `HonestyLensRoundTrip` opens an exact evidence position through the shared cursor and restores the answer view on Back.
 - `projectHonestyTurn` reads the recorded answer standing, sentence evidence status and five Honesty Lens steps at an exact event position.
+- The Time band shows an AgentFootprint 18 `covered` dispatch drift with its form and the range the source reads, and marks a window the library lengthens at dispatch.
+
+### Changed
+
+- Accept AgentFootprint 18 alongside 15, 16 and 17.
 
 ## [0.88.0] - 2026-11-23
 

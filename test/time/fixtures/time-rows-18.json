@@ -1,0 +1,144 @@
+{
+  "generatedWith": "agentfootprint@18.0.0",
+  "covered": {
+    "ledger": [
+      {
+        "kind": "clock",
+        "turn": 1,
+        "iteration": 1,
+        "now": "2026-10-09T15:40:00Z",
+        "nowSource": "app",
+        "zone": "America/Los_Angeles",
+        "zoneSource": "builder",
+        "window": {
+          "from": "2026-10-09T14:00:00Z",
+          "to": "2026-10-09T15:00:00Z",
+          "endpoint": {
+            "cutoff": "2026-10-09T15:00:00Z",
+            "end": "exclusive",
+            "precision": "second"
+          },
+          "source": "control"
+        }
+      },
+      {
+        "kind": "argument",
+        "turn": 1,
+        "toolCallId": "c1",
+        "toolName": "search_logs",
+        "iteration": 1,
+        "argument": "window",
+        "rule": "assume",
+        "period": true,
+        "source": "app",
+        "value": "100m",
+        "appSource": "time.window",
+        "callOccurrenceKey": [
+          451623531,
+          768897004,
+          1824918027,
+          151036029,
+          0
+        ]
+      },
+      {
+        "kind": "call-window",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "search_logs",
+        "how": "filled",
+        "form": 0,
+        "asked": {
+          "from": "2026-10-09T14:00:00Z",
+          "to": "2026-10-09T15:00:00Z"
+        },
+        "person": {
+          "from": "2026-10-09T14:00:00Z",
+          "to": "2026-10-09T15:00:00Z",
+          "source": "control",
+          "endpoint": {
+            "cutoff": "2026-10-09T15:00:00Z",
+            "end": "exclusive",
+            "precision": "second"
+          }
+        },
+        "coversAtDispatch": true,
+        "callOccurrenceKey": [
+          451623531,
+          768897004,
+          1824918027,
+          151036029,
+          0
+        ]
+      },
+      {
+        "kind": "call",
+        "turn": 1,
+        "iteration": 1,
+        "toolCallId": "c1",
+        "toolName": "search_logs",
+        "dispatchedAt": "2026-10-09T16:10:00.000Z",
+        "drift": {
+          "byMs": 1800000,
+          "outcome": "covered",
+          "form": 0,
+          "sent": {
+            "from": "2026-10-09T14:00:00Z",
+            "to": "2026-10-09T16:10:00.001Z"
+          }
+        },
+        "callOccurrenceKey": [
+          451623531,
+          768897004,
+          1824918027,
+          151036029,
+          0
+        ]
+      },
+      {
+        "kind": "period",
+        "turn": 1,
+        "toolCallId": "c1",
+        "callOccurrenceKey": [
+          451623531,
+          768897004,
+          1824918027,
+          151036029,
+          0
+        ],
+        "toolName": "search_logs",
+        "iteration": 1,
+        "verdict": "undeclared",
+        "argument": "window",
+        "differs": {
+          "against": "asked",
+          "asked": {
+            "from": "2026-10-09T14:00:00Z",
+            "to": "2026-10-09T15:00:00Z"
+          },
+          "endpoint": {
+            "cutoff": "2026-10-09T15:00:00Z",
+            "end": "exclusive",
+            "precision": "second"
+          },
+          "read": [
+            {
+              "from": "2026-10-09T14:00:00Z",
+              "to": "2026-10-09T16:10:00.001Z"
+            }
+          ],
+          "source": "sent",
+          "missing": [],
+          "extra": [
+            {
+              "from": "2026-10-09T15:00:00Z",
+              "to": "2026-10-09T16:10:00.001Z"
+            }
+          ]
+        }
+      }
+    ],
+    "coverage": []
+  }
+}
