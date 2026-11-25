@@ -25,9 +25,22 @@ test('a desktop command refuses before using credentials or creating an input di
   const root = mkdtempSync(join(tmpdir(), 'lens-native-desktop-'));
   t.after(() => rmSync(root, { recursive: true, force: true }));
   const facade = fileURLToPath(new URL('../source-inputs.mjs', import.meta.url));
-  assert.throws(() => execFileSync(process.execPath, [facade, 'fetch-renderer', '--out', join(root, 'input')],
+  assert.throws(() => execFileSync(process.execPath, [facade, 'gates', '--evidence', join(root, 'input')],
     { env: { ...process.env, GITHUB_ACTIONS: 'false' }, stdio: 'pipe' }), error => {
     assert.match(error.stderr.toString(), /effectful source proof is hosted-only/); return true;
+  });
+  assert.equal(existsSync(join(root, 'input')), false);
+});
+
+test('the retired renderer download is an unknown action, even on a hosted runner', t => {
+  const root = mkdtempSync(join(tmpdir(), 'lens-native-retired-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  const facade = fileURLToPath(new URL('../source-inputs.mjs', import.meta.url));
+  const env = { ...process.env, GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'footprintjs/agentfootprint-lens' };
+  delete env.GH_TOKEN;
+  assert.throws(() => execFileSync(process.execPath, [facade, 'fetch-renderer', '--out', join(root, 'input')],
+    { env, stdio: 'pipe' }), error => {
+    assert.match(error.stderr.toString(), /unknown source input action/); return true;
   });
   assert.equal(existsSync(join(root, 'input')), false);
 });

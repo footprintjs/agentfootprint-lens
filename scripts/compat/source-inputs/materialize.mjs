@@ -2,8 +2,7 @@ import assert from 'node:assert/strict';
 import { lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { assertEvidenceOutsideRepository, assertSingleFoottrace, lazyRenderer, sha256 } from '../contract.mjs';
-import { command, writeJson } from '../process.mjs';
-import { readJson } from './archives.mjs';
+import { command, readJson, writeJson } from '../process.mjs';
 
 export const commentaryControl = Object.freeze({
   agentfootprint: '14.7.2',

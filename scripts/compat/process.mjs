@@ -38,6 +38,8 @@ export function inspectArchive(filename, parent, { name, version, expectedSha } 
     files: hashFiles(packageDir), manifest };
 }
 
+export const readJson = filename => JSON.parse(readFileSync(filename, 'utf8'));
+
 export function writeJson(filename, value) {
   writeFileSync(filename, JSON.stringify(value, null, 2) + '\n');
 }

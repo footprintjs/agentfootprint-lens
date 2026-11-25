@@ -1,6 +1,5 @@
 import { join } from 'node:path';
-import { command, writeJson } from '../process.mjs';
-import { readJson } from './archives.mjs';
+import { command, readJson, writeJson } from '../process.mjs';
 import { verifyBootstrap } from './materialize.mjs';
 
 export function runGates(evidence) {
