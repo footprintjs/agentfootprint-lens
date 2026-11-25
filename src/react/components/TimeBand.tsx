@@ -57,6 +57,7 @@ import type {
 import {
   answersForTurn,
   foldTimeRows,
+  isRangeShape,
   readOf,
   sentOf,
   spellMs,
@@ -351,10 +352,19 @@ function Call({ call }: { readonly call: TimeCall }): React.ReactElement {
             data-by-ms={call.dispatch.drift.byMs}
           >
             <code>{spellMs(call.dispatch.drift.byMs)}</code> <Word>{call.dispatch.drift.outcome}</Word>
-            {call.dispatch.drift.outcome === 'redrawn' && (
+            {(call.dispatch.drift.outcome === 'redrawn' || call.dispatch.drift.outcome === 'covered') && (
               <>
                 {' · '}
                 {LABELS.form} {call.dispatch.drift.form}
+              </>
+            )}
+            {call.dispatch.drift.outcome === 'covered' && isRangeShape(call.dispatch.drift.sent) && (
+              <>
+                {' · '}
+                {LABELS.sent}{' '}
+                <span data-testid="time-drift-sent">
+                  <Range range={call.dispatch.drift.sent} />
+                </span>
               </>
             )}
           </span>
@@ -506,6 +516,14 @@ function WindowLines({
           <>
             {' · '}
             <Word>{LABELS.rounded}</Word>
+          </>
+        )}
+        {w.coversAtDispatch === true && (
+          <>
+            {' · '}
+            <span data-testid="time-covers-at-dispatch">
+              <Word>{LABELS.coversAtDispatch}</Word>
+            </span>
           </>
         )}
         {w.why !== undefined && (
