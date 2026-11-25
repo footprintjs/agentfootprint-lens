@@ -1,5 +1,5 @@
 // Why follows this checkout's release metadata. Only the external Flow
-// candidate is frozen; a normal Why version bump must not stale the matrix.
+// renderers are frozen; a normal Why version bump must not stale the matrix.
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
