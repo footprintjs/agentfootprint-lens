@@ -13,18 +13,9 @@ jobs:
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    permissions:
-      contents: read
-      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        with:
-          repository: footprintjs/explainable-ui
-          ref: 0af1a2d0d21edb0a86fb447b4c032c1f3d896412
-          path: flow-candidate
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -34,8 +25,6 @@ jobs:
       - run: npm install -g npm@11.21.0
       - name: Exercise the registry, renderer and published CONTROL helpers
         run: node --test scripts/compat/*.test.mjs scripts/compat/source-inputs/*.test.mjs
-      - name: Exercise the bounded hostile archive controls without installing packages
-        run: python3 -B -m unittest discover -s scripts/compat/source-inputs/archive_data -t scripts/compat/source-inputs -p '*_test.py' -v
       - run: npm ci --strict-peer-deps
       - run: npm run test:contract:foottrace
       - run: npm run typecheck
@@ -52,20 +41,14 @@ jobs:
             ${{ runner.temp }}/published-evidence/*.json
             ${{ runner.temp }}/published-evidence/*.log
           if-no-files-found: error
-      - name: Read the independently reviewed renderer original
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: node scripts/compat/source-inputs.mjs fetch-renderer --out "$RUNNER_TEMP/renderer-inputs"
-      - name: Pack one Lens archive and bind it to stable AgentFootprint and the renderer original
+      - name: Pack one Lens archive and bind it to the stable registry cohort
         run: |
           mkdir -p compat-artifacts
           why_archive="$(node scripts/compat/why-identity.mjs)"
           npm pack --ignore-scripts --pack-destination compat-artifacts
           npm exec --no -- attw "compat-artifacts/$why_archive"
           node scripts/compat/prepare-artifacts.mjs \
-            --why-tar "compat-artifacts/$why_archive" \
-            --flow-source flow-candidate --out compat-artifacts \
-            --renderer-inputs "$RUNNER_TEMP/renderer-inputs" \
+            --why-tar "compat-artifacts/$why_archive" --out compat-artifacts \
             --published-evidence "$RUNNER_TEMP/published-evidence"
       - uses: actions/upload-artifact@v4
         with:
@@ -92,8 +75,6 @@ jobs:
       - run: npm install -g npm@11.21.0
       - name: Exercise the registry, renderer and published CONTROL helpers
         run: node --test scripts/compat/*.test.mjs scripts/compat/source-inputs/*.test.mjs
-      - name: Exercise the bounded hostile archive controls without installing packages
-        run: python3 -B -m unittest discover -s scripts/compat/source-inputs/archive_data -t scripts/compat/source-inputs -p '*_test.py' -v
       - uses: actions/download-artifact@v4
         with:
           name: compatibility-archives
@@ -164,7 +145,9 @@ jobs:
           if-no-files-found: warn
 
   # Retire historical installed runtime cohorts. Keep historical record DATA
-  # fixtures in the whole suite, plus public renderer floor/current/candidate.
+  # fixtures in the whole suite, plus the public renderer floor and current
+  # releases. Every renderer is a registry archive checked by its pinned
+  # integrity; the 2.0.0 lanes also run the vendored /record corpus.
   peer-matrix:
     needs: test
     runs-on: ubuntu-24.04
@@ -179,19 +162,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        flow: ["0.34.0", "0.38.0", "candidate", "1.0.1", "2.0.0", "2.1.0", "2.2.0"]
+        flow: ["0.34.0", "0.38.0", "1.0.1", "2.0.0", "2.1.0", "2.2.0"]
         react: ["18", "19"]
         node: [22, 24]
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
-      - uses: actions/checkout@v4
-        if: matrix.flow == 'candidate'
-        with:
-          repository: footprintjs/explainable-ui
-          ref: 0af1a2d0d21edb0a86fb447b4c032c1f3d896412
-          path: flow-candidate
           persist-credentials: false
       - uses: actions/setup-node@v4
         with:
@@ -208,7 +184,7 @@ jobs:
           node scripts/compat/run-lane.mjs --kind native --flow "${{ matrix.flow }}" \
             --react "${{ matrix.react }}" --node "${{ matrix.node }}" \
             --artifacts compat-artifacts --evidence "$RUNNER_TEMP/compat-evidence" \
-            --flow-source flow-candidate --install-browser yes --browser-provisioning bundled
+            --install-browser yes --browser-provisioning bundled
       - uses: actions/upload-artifact@v4
         if: always()
         with:

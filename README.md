@@ -106,8 +106,8 @@ package scan must show one Foottrace 1.11.1 owner.
 
 Both Nodes run the whole Lens suite, including historical saved-record data,
 approval-fixture generation, helpers, typechecking, build and packaging checks.
-One Lens archive feeds renderer 0.34.0, 0.38.0, the exact reviewed 1.1.1
-source candidate, published 1.0.1 and published 2.0.0, each with React 18/19 on Node 22/24. The four
+One Lens archive feeds the published renderers 0.34.0, 0.38.0, 1.0.1, 2.0.0, 2.1.0
+and 2.2.0, each with React 18/19 on Node 22/24. The four
 1.0.1 lanes additionally exercise the packed lazy-source exports, native exact
 child admission and declarations. A strict declaration fixture passes the full engine
 narrative, including an attempt entry, directly to the 2.0.0 renderer. The same
@@ -115,8 +115,9 @@ fixture must fail at that argument on 0.38.0.
 Every packed consumer resolves the exact stable cohort and checks its strict lock
 and installed bytes against the three original registry archives. Public ESM/CommonJS doors,
 strict NodeNext/Bundler declarations, mock-agent recording/replay and Chromium
-rendering remain covered. Candidate `/record` isolation and browser checks
-remain separate.
+rendering remain covered. The 2.0.0 lanes also run the separate `/record`
+isolation and browser checks on the saved Flow/HCI corpus vendored in
+`scripts/compat/record-fixtures/`.
 
 Each matrix job consumes the same Lens archive and the same stable registry
 identities. Consumer evidence lives outside the source checkout to avoid inheriting
@@ -126,11 +127,9 @@ isolated consumer fixture then performs a normal strict resolution and a fresh
 tarball. Those generated fixture locks contain a CI-local Lens archive path:
 they are non-portable evidence, not the repository's committed source lock.
 
-The renderer candidate is the original UI64 producer archive, pinned by source,
-run, provider ZIP and tarball digest. Its dependency-security ZIP has thirteen
-members; its generated audit lock is not a committed source lock. The consumer
-never rebuilds or repacks the UI source. Version1.1.1 here identifies these
-unpublished original bytes, not the registry1.1.1 package.
+Every renderer is the published registry archive, checked by its pinned
+integrity where one is pinned. No check reads an artifact from another
+repository's CI. The consumer never rebuilds or repacks the UI source.
 Archives, source-lock digests, consumer locks, logs, dependency trees and browser
 evidence remain available on failed runs. Browser builds use Vite without
 aliases, externals or stubs.
