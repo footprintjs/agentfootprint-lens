@@ -7,13 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.89.0] - 2026-11-24
+## [0.89.0] - 2026-11-25
 
 ### Added
 
 - `HonestyLensPanel` shows recorded answer standing and links individual reasons to their evidence. Selecting a different turn starts with its own disclosure state.
 - `HonestyLensRoundTrip` opens an exact evidence position through the shared cursor and restores the answer view on Back.
 - `projectHonestyTurn` reads the recorded answer standing, sentence evidence status and five Honesty Lens steps at an exact event position.
+- The Time band shows an AgentFootprint 18 `covered` dispatch drift with its form and the range the source reads, and marks a window the library lengthens at dispatch.
+
+### Changed
+
+- Accept AgentFootprint 18 alongside 15, 16 and 17.
+
+### Tests
+
+- The compatibility matrix no longer reads a renderer from another repository's CI artifact. That artifact expired after seven days and blocked every pull request. The `/record` viewer checks now run against the published `footprint-explainable-ui@2.0.0`, which is checked by its pinned registry integrity. The saved Flow and HCI records they use are copied into this repository and pinned by SHA256. A new guard test fails if a check reads an Actions artifact from another run or repository again. The retired lane's binding to one pre-release CI run, and the dependency-security audit evidence that came with it, are no longer checked.
 
 ## [0.88.0] - 2026-11-23
 

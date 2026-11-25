@@ -5,17 +5,18 @@ import { createHash } from 'node:crypto';
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { assertEvidenceOutsideRepository, assertInstalled, assertLazyRendererIntegrity, assertRecordIsolation, assertSingleFoottrace, candidate, lazyRenderer, installedPackageNames, readActiveCohort,
+import { assertEvidenceOutsideRepository, assertInstalled, assertLazyRendererIntegrity, assertRecordIsolation, assertSingleFoottrace, lazyRenderer, installedPackageNames, readActiveCohort,
   laneContract, parseFlags, sha256, tooling } from './contract.mjs';
 import { command, inspectArchive, writeJson } from './process.mjs';
 import { assertPublishedReceipt, assertRegistryLock, readPublishedAgent } from './published-proof.mjs';
 import { assertWhyIdentity } from './why-identity.mjs';
 import { installBrowser } from './browser-install.mjs';
 import { assertNarrativeRejection, assertNarrativeRendererBytes, narrativeRenderer } from './narrative-renderers.mjs';
+import { readRecordFixtures, recordRenderer } from './record-renderer.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const flags = parseFlags(process.argv.slice(2),
-  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'flow-source', 'browser', 'install-browser', 'browser-provisioning']);
+  ['kind', 'flow', 'react', 'node', 'artifacts', 'evidence', 'browser', 'install-browser', 'browser-provisioning']);
 const browserStrategy = flags['browser-provisioning'] ?? 'network';
 assert.ok(['network', 'bundled'].includes(browserStrategy), 'Unknown browser provisioning strategy');
 if (flags['browser-provisioning'] !== undefined) assert.ok(flags['install-browser'] === 'yes' && flags.browser !== 'no',
@@ -74,7 +75,6 @@ function checkTypes(consumer, stem, toolConsumer = consumer, verifyRejection) {
 try {
   const contract = JSON.parse(readFileSync(join(artifacts, 'contract.json'), 'utf8'));
   const whyIdentity = assertWhyIdentity(contract);
-  assert.deepEqual(contract.candidate, candidate);
   assert.deepEqual(contract.cohort, cohort, 'artifact cohort must match this manifest and committed lock');
   if (process.env.GITHUB_RUN_ID) {
     assert.equal(contract.source.workflowRun, process.env.GITHUB_RUN_ID,
@@ -82,7 +82,6 @@ try {
     assert.equal(contract.source.workflowAttempt, process.env.GITHUB_RUN_ATTEMPT);
     assert.equal(contract.source.whyCommit, process.env.GITHUB_SHA, 'Why archive source does not match this checked commit');
   }
-  assert.equal(contract.flow.path, `footprint-explainable-ui-${candidate.version}.tgz`);
   const why = inspectArchive(join(artifacts, whyIdentity.filename), evidence,
     { ...whyIdentity, expectedSha: contract.why.sha256 });
   assert.deepEqual(why.files, contract.why.files);
@@ -112,34 +111,30 @@ try {
     assertInstalled(join(modules, 'foottrace'), publishedPeers.foottrace.files, 'record-only Foottrace');
   }
 
+  // Every renderer is the published registry archive; the pinned ones are
+  // checked by SRI, SHA1, SHA256 and size before any install.
   const narrativeIdentity = narrativeRenderer(lane.flow);
-  let flow;
-  if (lane.flow === 'candidate') {
-    flow = inspectArchive(join(artifacts, contract.flow.path), evidence,
-      { name: 'footprint-explainable-ui', version: candidate.version, expectedSha: candidate.sha256 });
-    assert.deepEqual(flow.files, contract.flow.files);
-  } else {
-    const packed = JSON.parse(command('npm', ['pack', narrativeIdentity?.tarball ?? `footprint-explainable-ui@${lane.flow}`, '--ignore-scripts',
-      '--json', '--pack-destination', evidence], { cwd: evidence, log: join(evidence, 'published-flow-pack.log') }));
-    assert.equal(packed.length, 1);
-    const archive = join(evidence, `footprint-explainable-ui-${lane.flow}.tgz`);
-    assert.equal(packed[0].filename, `footprint-explainable-ui-${lane.flow}.tgz`);
-    if (narrativeIdentity) {
-      assert.equal(packed[0].integrity, narrativeIdentity.integrity, 'published renderer pack SRI');
-      assert.equal(packed[0].shasum, narrativeIdentity.shasum, 'published renderer pack SHA1');
-      assertNarrativeRendererBytes(narrativeIdentity, readFileSync(archive));
-      report.narrativeRenderer = narrativeIdentity;
-    }
-    flow = inspectArchive(archive, evidence, { name: 'footprint-explainable-ui', version: lane.flow,
-      expectedSha: narrativeIdentity?.sha256 });
-    if (lane.flow === lazyRenderer.version) {
-      assertLazyRendererIntegrity(packed[0].integrity,
-        `sha512-${createHash('sha512').update(readFileSync(flow.path)).digest('base64')}`);
-      report.lazyRenderer = lazyRenderer;
-    }
+  const recordLane = lane.flow === recordRenderer.version;
+  const packed = JSON.parse(command('npm', ['pack', narrativeIdentity?.tarball ?? `footprint-explainable-ui@${lane.flow}`, '--ignore-scripts',
+    '--json', '--pack-destination', evidence], { cwd: evidence, log: join(evidence, 'published-flow-pack.log') }));
+  assert.equal(packed.length, 1);
+  const flowArchive = join(evidence, `footprint-explainable-ui-${lane.flow}.tgz`);
+  assert.equal(packed[0].filename, `footprint-explainable-ui-${lane.flow}.tgz`);
+  if (narrativeIdentity) {
+    assert.equal(packed[0].integrity, narrativeIdentity.integrity, 'published renderer pack SRI');
+    assert.equal(packed[0].shasum, narrativeIdentity.shasum, 'published renderer pack SHA1');
+    assertNarrativeRendererBytes(narrativeIdentity, readFileSync(flowArchive));
+    report.narrativeRenderer = narrativeIdentity;
+  }
+  const flow = inspectArchive(flowArchive, evidence, { name: 'footprint-explainable-ui', version: lane.flow,
+    expectedSha: narrativeIdentity?.sha256 });
+  if (lane.flow === lazyRenderer.version) {
+    assertLazyRendererIntegrity(packed[0].integrity,
+      `sha512-${createHash('sha512').update(readFileSync(flow.path)).digest('base64')}`);
+    report.lazyRenderer = lazyRenderer;
   }
   report.packages.flow = { sha256: flow.sha256, files: flow.files };
-  writeJson(join(evidence, 'archive-proof.json'), { ...report.packages, candidate: lane.flow === 'candidate' ? candidate : null });
+  writeJson(join(evidence, 'archive-proof.json'), { ...report.packages, recordRenderer: recordLane ? recordRenderer : null });
   const consumer = join(evidence, 'consumer');
   await step('strict fresh peer install', () => install(consumer, {
     ...lane.peers, ...lane.types, ...tooling,
@@ -199,9 +194,8 @@ try {
 
   let recordConsumer;
   let recordOnly;
-  if (lane.flow === 'candidate') {
-    assert.ok(flags['flow-source'], 'candidate lanes need --flow-source for immutable recorded fixtures');
-    assert.equal(command('git', ['rev-parse', 'HEAD'], { cwd: flags['flow-source'] }).trim(), candidate.commit);
+  if (recordLane) {
+    const fixtures = readRecordFixtures();
     recordOnly = join(evidence, 'record-only');
     await step('separate normal record-only install has no engines or graph peers', () => {
       install(recordOnly, {
@@ -215,20 +209,12 @@ try {
       assertInstalled(join(recordOnly, 'node_modules/footprint-explainable-ui'), flow.files, 'record-only Flow');
     });
     await step('record-only ESM/CJS public viewer and literal saved-record expectations', () => {
-      const fixtures = join(resolve(flags['flow-source']), 'pilots/record-lens');
-      for (const filename of ['flow.json', 'hci.json']) {
-        const path = join(fixtures, 'fixtures', filename);
-        const expected = filename === 'flow.json'
-          ? '6220e9422696028c8ad6f4243bc1c3caa33152a62ca6dcbdf54a17c5bd0259b1'
-          : 'fc287b4e0c4e955e2d0ec6b1145971e020e829238e0e77bdd0e39d0f614ceee8';
-        assert.equal(sha256(readFileSync(path)), expected, `immutable ${filename} changed`);
-        copyFileSync(path, join(recordOnly, filename));
+      // The vendored corpus and its expectations, each checked by its pinned SHA256.
+      readRecordFixtures(fixtures);
+      for (const [filename, digest] of Object.entries(recordRenderer.fixtures)) {
+        copyFileSync(join(fixtures, filename), join(recordOnly, filename));
+        assert.equal(sha256(readFileSync(join(recordOnly, filename))), digest, `copied ${filename} changed`);
       }
-      const runtimeFile = 'pilots/record-lens/runtime-fixtures.cjs';
-      assert.equal(readFileSync(join(flags['flow-source'], runtimeFile), 'utf8'),
-        command('git', ['show', `${candidate.commit}:${runtimeFile}`], { cwd: flags['flow-source'] }),
-        'reuse the exact reviewed renderer saved-record expectations, not an edited substitute');
-      copyFileSync(join(flags['flow-source'], runtimeFile), join(recordOnly, 'runtime-fixtures.cjs'));
       const source = `import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
@@ -271,12 +257,11 @@ for (const [format, load] of [['ESM', (name) => import(name)], ['CJS', (name) =>
         PLAYWRIGHT_CHROMIUM_EXPECTED_VERSION: receipt.browserVersion,
       };
     });
-    await step('actual installed-package browser replay, cursor, theme and candidate records', () => {
+    await step('actual installed-package browser replay, cursor, theme and saved records', () => {
       const args = [join(root, 'scripts/check-compat-browser.mjs'), '--consumer', consumer,
         '--evidence', join(evidence, 'browser'), '--lane', lane.id, '--flow-version', flow.version,
         '--archive-proof', join(evidence, 'archive-proof.json')];
-      if (recordConsumer) args.push('--record-consumer', recordConsumer, '--record-fixtures',
-        join(resolve(flags['flow-source']), 'pilots/record-lens/fixtures'));
+      if (recordConsumer) args.push('--record-consumer', recordConsumer, '--record-fixtures', readRecordFixtures());
       command(process.execPath, args, { cwd: consumer, env: browserEnvironment, log: join(evidence, 'browser.log'), timeout: 180_000 });
     });
   }

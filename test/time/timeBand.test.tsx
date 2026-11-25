@@ -15,11 +15,14 @@ import { foldTimeRows, spellMs } from '../../src/core/time/timeRows.js';
 import { LABELS } from '../../src/core/time/labels.js';
 import { TimeBand } from '../../src/react/components/TimeBand.js';
 import fixtures from './fixtures/time-rows.json';
+import fixtures18 from './fixtures/time-rows-18.json';
 
 afterEach(cleanup);
 
 type Scenario = { readonly ledger: readonly Record<string, unknown>[]; readonly coverage: readonly unknown[] };
 const S = fixtures as unknown as Record<string, Scenario>;
+/** The covered scenario, frozen from agentfootprint 18.0.0 (`generate.ts --covered`). */
+const covered18 = fixtures18 as unknown as { readonly generatedWith: string; readonly covered?: Scenario };
 const rowOf = (s: Scenario, kind: string, i = 0) => s.ledger.filter((r) => r.kind === kind)[i]!;
 const mount = (s: Scenario) => render(<TimeBand rows={s.ledger} coverage={s.coverage} />);
 const callEl = (id: string) =>
@@ -155,6 +158,47 @@ describe('the call row', () => {
     cleanup();
     mount(S.controlWindow!);
     expect(screen.queryByTestId('time-drift')).toBeNull();
+  });
+
+  it('a covered drift (agentfootprint 18): the form and the range the source reads, beside the fill’s own flag', () => {
+    const s = covered18.covered!;
+    const w = rowOf(s, 'call-window') as { toolCallId: string; coversAtDispatch?: true };
+    const c = rowOf(s, 'call') as {
+      toolCallId: string;
+      drift: { byMs: number; outcome: string; form: number; sent: { from: string; to: string } };
+    };
+    expect(covered18.generatedWith).toBe('agentfootprint@18.0.0');
+    expect(w.coversAtDispatch).toBe(true);
+    expect(c.drift.outcome).toBe('covered');
+
+    const call = foldTimeRows(s.ledger)!.turns[0]!.calls.find((x) => x.toolCallId === c.toolCallId)!;
+    expect(call.dispatch?.drift).toEqual(c.drift);
+    expect(call.window?.coversAtDispatch).toBe(true);
+
+    mount(s);
+    const el = callEl(c.toolCallId);
+    const d = within(el).getByTestId('time-drift');
+    expect(d).toHaveAttribute('data-outcome', 'covered');
+    expect(d).toHaveAttribute('data-by-ms', String(c.drift.byMs));
+    expect(d).toHaveTextContent(spellMs(c.drift.byMs));
+    expect(d).toHaveTextContent(`${LABELS.form} ${c.drift.form}`);
+    expect(within(d).getByTestId('time-drift-sent')).toHaveTextContent(`[${c.drift.sent.from}, ${c.drift.sent.to})`);
+    expect(within(el).getByTestId('time-covers-at-dispatch')).toHaveTextContent(LABELS.coversAtDispatch);
+    cleanup();
+    mount(S.drift!);
+    expect(screen.queryByTestId('time-drift-sent')).toBeNull();
+    expect(screen.queryByTestId('time-covers-at-dispatch')).toBeNull();
+  });
+
+  it('a covered drift whose `sent` is not a range prints the outcome and passes the range over', () => {
+    const s = covered18.covered!;
+    const ledger = s.ledger.map((r) =>
+      r.kind === 'call' ? { ...r, drift: { ...(r.drift as object), sent: 'soon' } } : r,
+    );
+    mount({ ...s, ledger });
+    const d = screen.getByTestId('time-drift');
+    expect(d).toHaveAttribute('data-outcome', 'covered');
+    expect(screen.queryByTestId('time-drift-sent')).toBeNull();
   });
 
   it('spells a drift as the record’s number, exactly', () => {

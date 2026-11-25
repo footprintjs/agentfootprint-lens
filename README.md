@@ -32,17 +32,18 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-### Runtime peers: AgentFootprint 15–17, FootPrint 14 and Foottrace 2.3.2
+### Runtime peers: AgentFootprint 15–18, FootPrint 14 and Foottrace 2.3.2
 
-Update the runtime packages together: `agentfootprint ^15.0.0 || ^16.0.0 || ^17.0.0`,
+Update the runtime packages together: `agentfootprint ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0`,
 `footprintjs ^14.0.0` and `foottrace ^2.3.2`. The committed development lock
 selects the published versions 15.0.0, 14.0.0 and 2.3.2. Node.js 22 or newer
 and React 18 or 19 remain required. Older saved recordings retain their
 existing readers, fixtures and goldens. For recorded Context types and array
 lengths, use AgentFootprint 16.0.1 or a newer supported release.
 
-The AgentFootprint 16 compatibility check runs the full Lens test suite with
-16.0.1 and verifies a strict install of the packed package.
+The newer AgentFootprint compatibility check runs the full Lens test suite with
+16.0.1 and with 18.0.0, and verifies a strict install of the packed package
+with each.
 
 Source development uses Explainable UI 2.2.0. The packed consumer tests cover
 2.2.0 on React 18 and 19 with Node.js 22 and 24. They also exercise older
@@ -106,8 +107,8 @@ package scan must show one Foottrace 1.11.1 owner.
 
 Both Nodes run the whole Lens suite, including historical saved-record data,
 approval-fixture generation, helpers, typechecking, build and packaging checks.
-One Lens archive feeds renderer 0.34.0, 0.38.0, the exact reviewed 1.1.1
-source candidate, published 1.0.1 and published 2.0.0, each with React 18/19 on Node 22/24. The four
+One Lens archive feeds the published renderers 0.34.0, 0.38.0, 1.0.1, 2.0.0, 2.1.0
+and 2.2.0, each with React 18/19 on Node 22/24. The four
 1.0.1 lanes additionally exercise the packed lazy-source exports, native exact
 child admission and declarations. A strict declaration fixture passes the full engine
 narrative, including an attempt entry, directly to the 2.0.0 renderer. The same
@@ -115,8 +116,9 @@ fixture must fail at that argument on 0.38.0.
 Every packed consumer resolves the exact stable cohort and checks its strict lock
 and installed bytes against the three original registry archives. Public ESM/CommonJS doors,
 strict NodeNext/Bundler declarations, mock-agent recording/replay and Chromium
-rendering remain covered. Candidate `/record` isolation and browser checks
-remain separate.
+rendering remain covered. The 2.0.0 lanes also run the separate `/record`
+isolation and browser checks on the saved Flow/HCI corpus vendored in
+`scripts/compat/record-fixtures/`.
 
 Each matrix job consumes the same Lens archive and the same stable registry
 identities. Consumer evidence lives outside the source checkout to avoid inheriting
@@ -126,11 +128,9 @@ isolated consumer fixture then performs a normal strict resolution and a fresh
 tarball. Those generated fixture locks contain a CI-local Lens archive path:
 they are non-portable evidence, not the repository's committed source lock.
 
-The renderer candidate is the original UI64 producer archive, pinned by source,
-run, provider ZIP and tarball digest. Its dependency-security ZIP has thirteen
-members; its generated audit lock is not a committed source lock. The consumer
-never rebuilds or repacks the UI source. Version1.1.1 here identifies these
-unpublished original bytes, not the registry1.1.1 package.
+Every renderer is the published registry archive, checked by its pinned
+integrity where one is pinned. No check reads an artifact from another
+repository's CI. The consumer never rebuilds or repacks the UI source.
 Archives, source-lock digests, consumer locks, logs, dependency trees and browser
 evidence remain available on failed runs. Browser builds use Vite without
 aliases, externals or stubs.

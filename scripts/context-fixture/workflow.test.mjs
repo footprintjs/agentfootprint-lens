@@ -6,9 +6,10 @@ const source = readFileSync(new URL('../../.github/workflows/context-producer.ym
 test('the historical producer proof stays separate from the stable registry cohort', () => {
   const registry = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.doesNotMatch(registry, /repository: footprintjs\/(?:agentfootprint|foottrace)(?:\s|$)/);
-  // Target jobs install the stable lock, and the renderer is the only
-  // original fetched outside the registry. The AF14 CONTROL is separate.
-  assert.match(registry, /source-inputs\.mjs fetch-renderer\b/);
+  // Target jobs install the stable lock, and every renderer comes from the
+  // registry. Nothing is fetched from another repository's CI. The AF14
+  // CONTROL is separate.
+  assert.doesNotMatch(registry, /fetch-renderer|repository: footprintjs\/explainable-ui/);
   assert.equal((registry.match(/run: npm ci --strict-peer-deps/g) ?? []).length, 2);
   assert.equal((registry.match(/published-proof\.mjs --out/g) ?? []).length, 2);
   assert.doesNotMatch(registry, /bootstrap --mode target|--source-inputs compat-artifacts/);
