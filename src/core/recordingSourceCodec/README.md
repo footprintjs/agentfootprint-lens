@@ -49,6 +49,21 @@ existing JSON owner's 200,000-node, 64 MiB string/key and depth-100 budget. Thes
 are refusal limits, not silent truncation or a claim to accept 200,000 table rows.
 The viewer's separate 64 concurrent child cache does not cap manifest length.
 
+A sequence of stages is not depth. The execution tree nests one JSON level per
+executed stage through `next`, so depth 100 used to cap a run's length. At the
+tree's two places only, named by their full schema path in `fields.ts`
+(`recording.snapshot.executionTree` in a root DTO, `treeContext.stageContexts`
+in a child unit; `ROOT_TREE` and `CHILD_TREE`), the owner reads stage nodes with
+an explicit stack. Depth counts inside one stage and one level per `children`
+step; `next` adds none. Every stage, array and value still spends the one node
+budget. A path of more than `MAX_STAGE_CHAIN` (1,000) stages from the tree's root,
+along `next` and `children`, is refused as `recording-limit`. A key named `next`
+anywhere else, or a tree copied to another place, keeps depth 100. So an owned
+reply nests at most about 1,100 JSON levels, which JSON text, `structuredClone`
+and `postMessage` carry on Node 22 (they fail near 2,000);
+`stageChainSerialization.test.ts` pins that on the deepest admitted root and
+child replies.
+
 Tests use the recorded native turn (25 exact root units), actual nested native
 FlowChart execution, repeated mounts with stale aliases, resumed log identities,
 getter/cycle/class/sparse input, immutable ownership and exact refusal bounds.
