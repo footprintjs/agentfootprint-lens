@@ -46,7 +46,9 @@ that same shared cursor only after exact admission. TrustBoundaryView accepts
 the same optional source to load an exact cold source-prefix log on request.
 
 The codec caps JSON work, bytes, depth and manifest size; native source admission
-has its own limits. Missing or ambiguous legacy child units refuse the lazy lane
+has its own limits. In an execution tree a sequence of stages does not count as
+depth: a run is capped at 1,000 stages on one path (`recording-limit`), and
+depth 100 still applies inside each stage and to every other value. Missing or ambiguous legacy child units refuse the lazy lane
 and can use a separately authenticated full-recording fallback. The root's event
 log is still replayed once in full. This feature does not virtualize arbitrary
 tables, move parsing off-thread, or make backend storage range-readable: a host

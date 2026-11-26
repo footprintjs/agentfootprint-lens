@@ -66,9 +66,14 @@ export function extractAgentLegend(spec: SpecNode): readonly AgentLegendEntry[] 
   const visited = new WeakSet<SpecNode>();
   const result: AgentLegendEntry[] = [];
 
-  const walk = (node: SpecNode | undefined): void => {
-    if (!node) return;
-    if (visited.has(node)) return;
+  // An explicit stack, not recursion: a spec built from a long run's
+  // boundaries chains its steps by `next`, one link per step. Popping `next`
+  // first, then `children`, then `subflowStructure` keeps the recursive order.
+  const pending: (SpecNode | undefined)[] = [spec];
+  while (pending.length) {
+    const node = pending.pop();
+    if (!node) continue;
+    if (visited.has(node)) continue;
     visited.add(node);
 
     const parsed = parseRoleFromDescription(node.description);
@@ -86,11 +91,9 @@ export function extractAgentLegend(spec: SpecNode): readonly AgentLegendEntry[] 
       }
     }
 
-    if (node.next) walk(node.next);
-    if (node.children) for (const c of node.children) walk(c);
-    if (node.subflowStructure) walk(node.subflowStructure);
-  };
-
-  walk(spec);
+    pending.push(node.subflowStructure);
+    if (node.children) for (let i = node.children.length - 1; i >= 0; i--) pending.push(node.children[i]);
+    pending.push(node.next);
+  }
   return result;
 }

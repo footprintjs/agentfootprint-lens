@@ -229,6 +229,22 @@ describe('extractAgentLegend — security', () => {
     expect(() => extractAgentLegend(spec)).not.toThrow();
     expect(extractAgentLegend(spec)).toHaveLength(1);
   });
+
+  it('walks a next chain far longer than the call stack with a loop', () => {
+    let spec: SpecNode = agentNode('Leaf');
+    for (let i = 0; i < 50_000; i++) spec = { name: `step${i}`, description: '', next: spec };
+    expect(extractAgentLegend(spec).map(entry => entry.name)).toEqual(['Leaf']);
+  });
+
+  it('keeps the recursive order: the node, its next chain, then children, then its subflow', () => {
+    const spec: SpecNode = {
+      ...agentNode('A'),
+      next: { ...agentNode('B'), children: [agentNode('C')] },
+      children: [{ ...agentNode('D'), next: agentNode('E') }, agentNode('F')],
+      subflowStructure: { ...agentNode('G'), next: agentNode('H') },
+    };
+    expect(extractAgentLegend(spec).map(entry => entry.name)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']);
+  });
 });
 
 // ─── 6. PERFORMANCE ────────────────────────────────────────────────

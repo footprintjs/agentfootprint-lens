@@ -1,5 +1,5 @@
 import { buildRuntimeStageId, isExecutionKey, parseRuntimeStageId } from 'foottrace';
-import { presentationBudget } from '../recordedContext/ownJson.js';
+import { presentationBudget, stageTreesAt, type OwnedPlace } from '../recordedContext/ownJson.js';
 import { ContextPresentationError } from '../recordedContext/types.js';
 import type { RecordedInvocation, RecordingSourceRead } from './types.js';
 
@@ -51,7 +51,15 @@ export function runtime(value: unknown, reason: Reason): string {
     buildRuntimeStageId(parsed.stageId, parsed.executionIndex, parsed.subflowPath) !== id) return refuse(reason);
   return id;
 }
-export function own<T>(value: unknown): T { return presentationBudget().own(value) as T; }
+/**
+ * Where this codec's own DTOs hold an execution tree, by the full schema path
+ * from the owned value's root, never by a key's name: the root reply's
+ * `recording.snapshot.executionTree` and a child unit's
+ * `treeContext.stageContexts`. Only there does `next` add no depth.
+ */
+export const ROOT_TREE: OwnedPlace = /* @__PURE__ */ stageTreesAt(['recording', 'snapshot', 'executionTree']);
+export const CHILD_TREE: OwnedPlace = /* @__PURE__ */ stageTreesAt(['treeContext', 'stageContexts']);
+export function own<T>(value: unknown, places?: OwnedPlace): T { return presentationBudget().own(value, places) as T; }
 /** Opaque array address key, not a native ID parser and never a toJSON call. */
 export function pathKey(path: readonly string[]): string {
   let key = '';
