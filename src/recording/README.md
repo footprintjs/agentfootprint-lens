@@ -13,7 +13,12 @@ artifact store or fabricated child payload is needed.
    A recording saved in parts may store an invocation's sub-flow payloads with
    it; pass the reader's `payloads` through as the reply's `payloads` member
    (`{ result, payloads }`). Lens shows a payload marked as living with its
-   invocation as "not loaded" until a reply carries it. Lens also calls the
+   invocation as "not loaded" until a reply carries it. With AgentFootprint 19's
+   `openSavedRecording`, the root DTO is `{ schema, recording: (await
+   saved.readRoot()).recording, invocations: saved.invocations.map(i => ({
+   invocationPath: i.path, mountRuntimeStageId: i.key, subflowId: i.subflowId,
+   runId: saved.snapshotRunId })) }` and the child reply is
+   `readInvocation(key)`'s `{ result, payloads }`. Lens also calls the
    same child read to fetch only those payloads (it keeps the payloads and
    drops the result), so expect child reads beyond the person's own drills.
    Keep normal authorization, ownership, expiry and body-size checks around
