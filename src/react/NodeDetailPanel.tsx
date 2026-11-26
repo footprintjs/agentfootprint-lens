@@ -32,6 +32,7 @@ import type { DisplayStep } from '../core/toolStepDisplay.js';
 import {
   isWithheld, payloadNotice, ROW_ONLY_PAYLOADS, type PayloadHolder, type PayloadWant, type StepPayload, type StepPayloadReader,
 } from '../core/subflowPayloads/index.js';
+import { useHeldPayloads } from './recordingSource/useStepPayloads.js';
 
 /** The most child invocations one panel asks for at once (three model calls' slots). */
 export const MAX_DETAIL_LOADS = 9;
@@ -124,14 +125,7 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
   // Ask for the children whose payloads this panel shows (the step's own
   // sub-flow invocation, the slot invocations of each shown model call): the
   // first MAX_DETAIL_LOADS in display order; the rest say "not loaded yet".
-  const wanted = payloads.wanted(shownPayloads(node, relatedNodes), MAX_DETAIL_LOADS);
-  const wantedKey = wanted.join('\u0000');
-  React.useEffect(() => {
-    if (wanted.length === 0 || onNeedPayloads === undefined) return undefined;
-    return onNeedPayloads(wanted) ?? undefined;
-    // The key names the exact set; the array identity changes every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantedKey, onNeedPayloads]);
+  useHeldPayloads(payloads.wanted(shownPayloads(node, relatedNodes), MAX_DETAIL_LOADS), onNeedPayloads);
   // A DRILLED subflow's internal stage: no StepNode (subflow-scoped), but we
   // still show its name + what it does so every stage you scrub onto has detail.
   if (!node && internalStage) {

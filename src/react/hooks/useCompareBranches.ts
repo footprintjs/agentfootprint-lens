@@ -45,11 +45,12 @@
  *   the next mutation in LensSnapshotRecorder).
  */
 
-import { useEffect, useMemo } from 'react';
+import { useMemo } from 'react';
 import type { SpecNode } from '../../core/buildSpecTreeFromBoundary.js';
 import type { StepGraph, StepNode } from 'agentfootprint/observe';
 import { parseRoleFromDescription } from '../../core/utils/parseRoleFromDescription.js';
 import { ROW_ONLY_PAYLOADS, type PayloadHolder, type StepPayload, type StepPayloadReader } from '../../core/subflowPayloads/index.js';
+import { useHeldPayloads } from '../recordingSource/useStepPayloads.js';
 
 /** The most slot invocations the compare view holds at once (three branches' slots). */
 export const MAX_COMPARE_LOADS = 9;
@@ -243,14 +244,7 @@ export function useCompareBranches(
     return branches.map((b) => buildColumn(b, stepGraph, reader));
   }, [currentSpec, stepGraph, reader]);
   // The last three slot invocations per branch, once each, at most MAX_COMPARE_LOADS.
-  const wanted = built === null ? [] : reader.wanted(built.flatMap(b => b.holders.map(holder => [holder, 'exit'] as const)), MAX_COMPARE_LOADS);
-  const wantedKey = wanted.join('\u0000');
-  const request = payloads?.request;
-  useEffect(() => {
-    if (wanted.length === 0 || request === undefined) return undefined;
-    return request(wanted) ?? undefined;
-    // The key names the exact set; the array identity changes every render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wantedKey, request]);
+  useHeldPayloads(built === null ? [] : reader.wanted(built.flatMap(b => b.holders.map(holder => [holder, 'exit'] as const)), MAX_COMPARE_LOADS),
+    payloads?.request);
   return useMemo(() => (built === null ? null : built.map(b => b.column)), [built]);
 }

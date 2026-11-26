@@ -4,7 +4,7 @@ import { observeRecordingWithSnapshot, type RecordedSnapshot, type Recording } f
 import { structureGraphFromRunner } from '../../core/collapser/structureGraphFromRunner.js';
 import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
 import { readRecordingSourceRoot, type RecordedInvocation, type RecordedSubflowReply } from '../../core/recordingSourceCodec/index.js';
-import { createPayloadCache, MAX_CACHED_PAYLOADS, splitReply } from './payloadCache.js';
+import { createPayloadCache, MAX_CACHED_PAYLOADS, replyBelongsTo, splitReply } from './payloadCache.js';
 import type { RuntimeOverlay } from 'footprint-explainable-ui/flowchart';
 import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
 import type { LensRecordingLoad, LensRecordingSource, LensRecordingSourceSnapshot } from './types.js';
@@ -48,15 +48,38 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
   // Boundary payloads, by mount runtime id, in this package's own bounded
   // store: read for views without spending the renderer's set of loaded
   // children, and kept from every explicit child reply too.
+  const capacity = options.maxCachedPayloads ?? MAX_CACHED_PAYLOADS;
+  if (!Number.isSafeInteger(capacity) || capacity < 1) {
+    observed.recorder.detach();
+    throw new Error('maxCachedPayloads must be a whole number of at least 1.');
+  }
   const payloads = createPayloadCache({
-    capacity: options.maxCachedPayloads ?? MAX_CACHED_PAYLOADS,
+    capacity,
     read: (request, signal) => options.loadSubflow(request, { signal }),
     changed: () => publish(),
   });
+  // An explicit drill's payloads wait until the renderer admits that child,
+  // and are kept only from the requested invocation's own reply.
+  const drilled = new Map<string, ReturnType<typeof splitReply>['payloads']>();
   const admitReply = (selected: RecordedInvocation, reply: unknown): unknown => {
     const split = splitReply(reply);
-    payloads.put(selected.mountRuntimeStageId, split.payloads);
+    if (replyBelongsTo(reply, selected)) drilled.set(selected.mountRuntimeStageId, split.payloads);
+    else drilled.delete(selected.mountRuntimeStageId);
     return split.forward;
+  };
+  let batching = false;
+  /** Keep each drilled child's payloads once the renderer admitted it; drop them if it refused. */
+  const settleDrills = (states: ReadonlyMap<string, SubflowLoadState>) => {
+    if (!drilled.size) return;
+    const status = new Map([...states.values()].map(state => [state.request.mountRuntimeStageId, state.status]));
+    batching = true;
+    try {
+      for (const [id, held] of [...drilled]) {
+        const now = status.get(id);
+        if (now === 'ready') { drilled.delete(id); payloads.put(id, held); }
+        else if (now !== 'loading' && now !== 'preparing') drilled.delete(id);
+      }
+    } finally { batching = false; }
   };
   const readNarrative = native.narrativeFromSnapshot;
   let source: RecordingSource;
@@ -108,7 +131,7 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
   let snapshot: LensRecordingSourceSnapshot = compose();
   const notify = () => { for (const listener of [...listeners]) { try { listener(); } catch { /* A presenter cannot corrupt native publication. */ } } };
   function publish() {
-    if (disposed) return;
+    if (disposed || batching) return;
     snapshot = compose(); notify();
   }
   const off = source.subscribe(() => {
@@ -121,6 +144,7 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
       currentSnapshot = overlayChildren(loaderSnapshot);
       recording = Object.freeze({ ...root.recording, snapshot: currentSnapshot });
     }
+    settleDrills(next.scopes);
     snapshot = compose();
     if (changed) observed.recorder.refreshReplaySnapshot();
     notify();
@@ -230,7 +254,7 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
     getGraph: path => source.getGraph(path),
     dispose() {
       if (disposed) return;
-      disposed = true; off(); source.dispose(); observed.recorder.detach(); listeners.clear(); axes.clear(); overlays.clear(); payloads.dispose();
+      disposed = true; off(); source.dispose(); observed.recorder.detach(); listeners.clear(); axes.clear(); overlays.clear(); payloads.dispose(); drilled.clear();
     },
   };
   return controller;

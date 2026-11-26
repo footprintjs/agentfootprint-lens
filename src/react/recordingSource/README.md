@@ -28,7 +28,17 @@ of loaded children (`maxCachedSubflows`, at most 64) stays for the person's own
 drills. A view holds what it shows with a signal: a held entry is never
 evicted, a read nobody holds is cancelled, and at most `maxCachedPayloads`
 (default `MAX_CACHED_PAYLOADS`, 64) entries stay once no view holds them. A
-failed read stays failed (and is shown so) while it is kept. Payloads from an
-explicit child load's reply go into the same store. `useStepPayloads` turns the
+failed read stays failed (and is shown so) while it is kept. A payload is kept
+only from the requested invocation's own reply (`payloadCache.ts ·
+replyBelongsTo`: its result's `subflowId`, and its log address's last mount
+when it has one); another invocation's reply is a failed read. Payloads from an
+explicit child load's reply go into the same store once the renderer admits
+that child, never when it refuses it. A view (`useHeldPayloads`) holds its new
+set before it releases the old, and the store waits one task before it cancels
+an unheld read, so a read two views share, or a StrictMode double effect, is
+never cancelled and restarted. A payload read fetches the host's whole child
+reply to keep only its payloads (no payloads-only route exists); a signal that
+never aborts holds its payloads for as long as the source lives.
+`maxCachedPayloads` must be a whole number of at least 1. `useStepPayloads` turns the
 base row's marks and that store into the one payload reader
 (`core/subflowPayloads`) and holds the invocations a view shows.

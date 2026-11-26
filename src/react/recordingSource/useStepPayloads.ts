@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import {
   readPayloadMarks, stepPayloadReader, type InvocationPayloadLoad, type StepPayloadReader,
 } from '../../core/subflowPayloads/index.js';
@@ -17,6 +17,33 @@ export interface StepPayloads {
 }
 
 const NO_LOADS = new Map<string, InvocationPayloadLoad>();
+
+/**
+ * Hold `wanted` (mount runtime ids) through `request` while a view shows them.
+ * When the set changes, the new set is held BEFORE the old one is released, so
+ * a read both sets share keeps its hold and is never cancelled and restarted.
+ * Everything is released on unmount.
+ */
+export function useHeldPayloads(
+  wanted: readonly string[],
+  request: ((invocations: readonly string[]) => (() => void) | void) | undefined,
+): void {
+  const key = wanted.join('\u0000');
+  const held = useRef<(() => void) | undefined>(undefined);
+  useEffect(() => {
+    const next = wanted.length > 0 && request !== undefined ? request(wanted) ?? undefined : undefined;
+    const previous = held.current;
+    held.current = next;
+    previous?.();
+    // The key names the exact set; the array identity changes every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key, request]);
+  useEffect(() => () => {
+    const last = held.current;
+    held.current = undefined;
+    last?.();
+  }, []);
+}
 const NOTHING = () => {};
 
 /**

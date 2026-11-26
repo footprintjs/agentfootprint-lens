@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { RecordedInvocation } from '../../core/recordingSourceCodec/index.js';
-import { createPayloadCache, MAX_CACHED_PAYLOADS, splitReply } from './payloadCache.js';
+import { createPayloadCache, MAX_CACHED_PAYLOADS, replyBelongsTo, splitReply } from './payloadCache.js';
 
 const request = (id: string): RecordedInvocation => ({ invocationPath: [id], mountRuntimeStageId: id, subflowId: id.split('#')[0]! });
-const reply = (id: string) => ({ result: { big: 'dropped' }, payloads: { exit: { status: 'ready', value: `exit of ${id}` } } });
+const reply = (id: string) => ({ result: { subflowId: id.split('#')[0], big: 'dropped' }, payloads: { exit: { status: 'ready', value: `exit of ${id}` } } });
 type Read = (r: RecordedInvocation, signal: AbortSignal) => unknown;
 function cache(capacity = 2, read: ReturnType<typeof vi.fn<Read>> = vi.fn<Read>(async r => reply(r.mountRuntimeStageId))) {
   const changed = vi.fn();
@@ -27,7 +27,7 @@ describe('the payload store: payloads apart from the renderer’s loaded childre
   it('records a failed or malformed read as failed, and does not read it again while it is kept', async () => {
     const read = vi.fn<Read>(async r => {
       if (r.mountRuntimeStageId === 'bad#1') throw new Error('host refused');
-      return { result: 1, payloads: { entry: { status: 'ready' } } };
+      return { result: { subflowId: 'odd' }, payloads: { entry: { status: 'ready' } } };
     });
     const { store } = cache(4, read);
     await expect(store.want(request('bad#1'))).resolves.toBeUndefined();
@@ -46,9 +46,12 @@ describe('the payload store: payloads apart from the renderer’s loaded childre
     const first = new AbortController(), second = new AbortController();
     void store.want(request('a#1'), first.signal); void store.want(request('a#1'), second.signal);
     await flush();
-    first.abort();
+    first.abort(); await flush();
     expect(signals[0]!.aborted).toBe(false);
     second.abort();
+    // The cancel waits one task, so a hold in the same commit keeps the read.
+    expect(signals[0]!.aborted).toBe(false);
+    await flush();
     expect(signals[0]!.aborted).toBe(true);
     expect(store.view().reads.size + store.view().ready.size).toBe(0);
     release(); await flush();
@@ -57,7 +60,7 @@ describe('the payload store: payloads apart from the renderer’s loaded childre
     const held = new AbortController();
     for (const id of ['x#1', 'y#2', 'z#3']) await store.want(request(id), held.signal);
     expect([...store.view().ready.keys()]).toEqual(['x#1', 'y#2', 'z#3']);
-    held.abort();
+    held.abort(); await flush();
     // Unheld, only `capacity` (1) stay: the most recently wanted.
     expect([...store.view().ready.keys()]).toEqual(['z#3']);
   });
@@ -66,7 +69,7 @@ describe('the payload store: payloads apart from the renderer’s loaded childre
     const { store, read } = cache(2);
     for (const id of ['a#1', 'b#2']) await store.want(request(id));
     await store.want(request('a#1'));
-    await store.want(request('c#3'));
+    await store.want(request('c#3')); await flush();
     expect([...store.view().ready.keys()].sort()).toEqual(['a#1', 'c#3']);
     await store.want(request('b#2'));
     expect(read).toHaveBeenCalledTimes(4);
@@ -88,6 +91,53 @@ describe('the payload store: payloads apart from the renderer’s loaded childre
     store.dispose();
     expect(seen!.aborted).toBe(true);
     expect(store.view().ready.size + store.view().reads.size).toBe(0);
+  });
+});
+
+describe('the store keeps a held read across a release and re-hold in one commit, and checks whose reply it is', () => {
+  it('keeps a read that is released and held again before the next task (StrictMode, a re-render)', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const read = vi.fn<Read>(async r => { await gate; return reply(r.mountRuntimeStageId); });
+    const { store } = cache(2, read);
+    const first = new AbortController();
+    void store.want(request('a#1'), first.signal);
+    first.abort();
+    const again = new AbortController();
+    void store.want(request('a#1'), again.signal);
+    await flush(); release(); await flush();
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(store.view().ready.has('a#1')).toBe(true);
+  });
+
+  it('fails a read whose reply is another invocation’s, and never keeps its payloads', async () => {
+    const read = vi.fn<Read>(async r => (r.mountRuntimeStageId === 'x#1'
+      ? { result: { subflowId: 'y' }, payloads: { exit: { status: 'ready', value: 'y’s exit' } } }
+      : r.mountRuntimeStageId === 'm#2'
+        ? { result: { subflowId: 'm', treeContext: { logAddress: { logRunId: 'r', drillPath: ['other#7'] } } }, payloads: { exit: { status: 'ready', value: 'other' } } }
+        : { payloads: { exit: { status: 'ready', value: 'no result' } } }));
+    const { store } = cache(4, read);
+    for (const id of ['x#1', 'm#2', 'n#3']) await store.want(request(id));
+    expect([...store.view().reads]).toEqual([['x#1', 'error'], ['m#2', 'error'], ['n#3', 'error']]);
+    expect(store.view().ready.size).toBe(0);
+  });
+});
+
+describe('replyBelongsTo — the requested invocation’s own reply', () => {
+  it('checks the result’s subflow id and, when present, that its log address ends at the mount', () => {
+    const r = request('sf-plan#4');
+    expect(replyBelongsTo({ result: { subflowId: 'sf-plan' } }, r)).toBe(true);
+    expect(replyBelongsTo({ result: { subflowId: 'sf-plan', treeContext: { logAddress: { logRunId: 'x', drillPath: ['sf-plan#4'] } } } }, r)).toBe(true);
+    expect(replyBelongsTo({ result: { subflowId: 'sf-plan', treeContext: { logAddress: { logRunId: 'x', drillPath: ['sf-plan#5'] } } } }, r)).toBe(false);
+    expect(replyBelongsTo({ result: { subflowId: 'sf-plan', treeContext: { logAddress: { logRunId: 'x', drillPath: [] } } } }, r)).toBe(false);
+    expect(replyBelongsTo({ result: { subflowId: 'other' } }, r)).toBe(false);
+    expect(replyBelongsTo({ result: 'text' }, r)).toBe(false);
+    expect(replyBelongsTo({}, r)).toBe(false);
+    let calls = 0;
+    const getter = { result: {} as Record<string, unknown> };
+    Object.defineProperty(getter.result, 'subflowId', { enumerable: true, get() { calls++; return 'sf-plan'; } });
+    expect(replyBelongsTo(getter, r)).toBe(false);
+    expect(calls).toBe(0);
   });
 });
 

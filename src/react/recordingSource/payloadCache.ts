@@ -17,9 +17,14 @@ export interface PayloadCacheView {
  * renderer's set of loaded children (which stays the person's, for explicit
  * drills). A view holds the invocations it shows with a signal: while held an
  * entry is never evicted, and a read in flight that nobody holds any more is
- * cancelled. At most `capacity` entries are kept once no view holds them,
- * least recently wanted first out. Only admitted payloads are kept: the
- * child's result is dropped as soon as its payloads are read.
+ * cancelled. The cancel (and any eviction) waits one task, so a view that
+ * lets go and holds the same invocation again in one commit (React's
+ * StrictMode, or a re-render) keeps the read instead of restarting it. At most
+ * `capacity` entries are kept once no view holds them, least recently wanted
+ * first out. Only admitted payloads are kept, and only from a reply that is
+ * the requested invocation's own: the child's result is dropped as soon as its
+ * payloads are read. A read held through a signal that never aborts is held
+ * for as long as the store lives.
  */
 export interface PayloadCache {
   /** Hold `request`'s payloads until `signal` aborts (or, with no signal, until they settle). Never rejects: the outcome is in `view()`. */
@@ -58,12 +63,16 @@ export function createPayloadCache(options: {
   const release = (id: string, entry: Entry) => {
     entry.leases--;
     if (disposed || entries.get(id) !== entry || entry.leases > 0) return;
-    if (entry.status === 'loading') {
-      // Nobody shows it any more: cancel the read rather than fill the store.
-      entry.fetch?.abort();
-      entries.delete(id);
-    } else trim();
-    options.changed();
+    // Wait one task: a hold of the same invocation in this commit keeps it.
+    setTimeout(() => {
+      if (disposed || entries.get(id) !== entry || entry.leases > 0) return;
+      if (entry.status === 'loading') {
+        // Nobody shows it any more: cancel the read rather than fill the store.
+        entry.fetch?.abort();
+        entries.delete(id);
+      } else trim();
+      options.changed();
+    }, 0);
   };
   const settle = (id: string, entry: Entry, status: 'ready' | 'error', payloads: RecordedInvocationPayloads | null) => {
     if (disposed || entries.get(id) !== entry || entry.status !== 'loading') return;
@@ -79,7 +88,8 @@ export function createPayloadCache(options: {
       .then(reply => {
         let payloads: RecordedInvocationPayloads | null;
         // A malformed `payloads` member fails the read; it is never kept in part.
-        try { payloads = admit(reply); } catch { settle(id, entry, 'error', null); return; }
+        // So does a reply that is another invocation's: its payloads are never kept under this one.
+        try { payloads = admit(reply, request); } catch { settle(id, entry, 'error', null); return; }
         settle(id, entry, 'ready', payloads);
       }, () => {
         // A cancelled read is not a failure: its entry is already gone.
@@ -128,9 +138,38 @@ export function createPayloadCache(options: {
   };
 }
 
-/** The payloads a reply carried; a malformed member fails the read. */
-function admit(reply: unknown): RecordedInvocationPayloads | null {
+/** The payloads a reply carried for `request`; a malformed member or another invocation's reply fails the read. */
+function admit(reply: unknown, request: RecordedInvocation): RecordedInvocationPayloads | null {
+  if (!replyBelongsTo(reply, request)) throw new Error('The reply is not the requested invocation\'s.');
   return splitReply(reply).payloads;
+}
+
+/** An own data property, never read through an accessor. */
+function own(value: object, key: string): unknown {
+  const descriptor = Object.getOwnPropertyDescriptor(value, key);
+  return descriptor !== undefined && 'value' in descriptor ? descriptor.value : undefined;
+}
+function plain(value: unknown): value is object {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * Whether a child reply is the requested invocation's own, before its payloads
+ * are kept: its `result` is a plain record of the requested `subflowId`, and
+ * when it carries `treeContext.logAddress`, that address's drill path ends at
+ * the requested mount (as the codec's child read checks it).
+ */
+export function replyBelongsTo(reply: unknown, request: RecordedInvocation): boolean {
+  if (!plain(reply)) return false;
+  const result = own(reply, 'result');
+  if (!plain(result) || own(result, 'subflowId') !== request.subflowId) return false;
+  const context = own(result, 'treeContext');
+  const address = plain(context) ? own(context, 'logAddress') : undefined;
+  if (address === undefined) return true;
+  const path = plain(address) ? own(address, 'drillPath') : undefined;
+  return Array.isArray(path) && path.length > 0 && path[path.length - 1] === request.mountRuntimeStageId;
 }
 
 /**

@@ -23,7 +23,7 @@ import { NodeDetailPanel } from '../NodeDetailPanel.js';
 import { useCompareBranches } from '../hooks/useCompareBranches.js';
 import { CompareBranchesPanel } from '../components/CompareBranchesPanel.js';
 import { createLensRecordingSource } from './controller.js';
-import { useStepPayloads } from './useStepPayloads.js';
+import { useHeldPayloads, useStepPayloads } from './useStepPayloads.js';
 import { Lens } from '../Lens.js';
 import { useSharedCursor } from '../useSharedCursor.js';
 import { noBookmarkStore } from '../../core/bookmarks/index.js';
@@ -47,6 +47,7 @@ function open(form: Form, override?: (payloads: RecordedInvocationPayloads) => R
 const held = (opened: { source: { getSnapshot(): { subflowPayloads?: ReadonlyMap<string, unknown> } } }) =>
   opened.source.getSnapshot().subflowPayloads?.size ?? 0;
 const calls = (graph: StepGraph) => graph.nodes.filter(node => node.slotBoundaries?.messages);
+const html = (element: React.ReactElement) => { const shown = render(element); const out = shown.container.innerHTML; shown.unmount(); return out; };
 const modelCall = (graph: StepGraph): StepNode => graph.nodes.find(node => node.slotBoundaries?.messages)!;
 const slotIds = (step: StepNode) => [step.slotBoundaries!.systemPrompt!, step.slotBoundaries!.messages!, step.slotBoundaries!.tools!]
   .map(slot => slot.runtimeStageId);
@@ -246,8 +247,12 @@ describe('copy for an LLM: every step', () => {
     const { recording } = withPayloadsMoved(recordedTurn());
     const observed = observeRecording(recording, { debug: false });
     try {
-      const moved = buildLLMText({ recorder: observed.recorder, stepGraph: graph(step()) });
-      expect(moved).toBe(buildLLMText({ recorder: observed.recorder, stepGraph: graph(step()), snapshot: recording.snapshot }));
+      // A real moved invocation of the turn, with no reader and no snapshot: the recorder's own runner supplies the marks.
+      const engine = step({ id: 'sf-injection-engine#1', runtimeStageId: 'sf-injection-engine#1', label: 'Injection Engine' });
+      const moved = buildLLMText({ recorder: observed.recorder, stepGraph: graph(engine) });
+      expect(moved).toContain('**Boundary input** (inputMapper result): Not loaded: it is stored with its sub-flow invocation, which this view cannot load.');
+      expect(moved).toContain('- Step 1 (`sf-injection-engine#1`), output: Not loaded:');
+      expect(buildLLMText({ recorder: observed.recorder, stepGraph: graph(engine), snapshot: recording.snapshot })).toBe(moved);
     } finally { observed.recorder.detach(); }
     const nullInRow = buildLLMText({ recorder, stepGraph: graph(step({ entryPayload: null })) });
     expect(nullInRow).toContain('**Boundary input** (inputMapper result):\n```json\nnull\n```');
@@ -389,6 +394,126 @@ describe('useStepPayloads — holding payload reads', () => {
   });
 });
 
+function gated(recording: Json, moved: ReadonlyMap<string, { entry?: unknown; exit?: unknown }>) {
+  let open!: () => void;
+  const gate = new Promise<void>(resolve => { open = resolve; });
+  const signals: AbortSignal[] = [];
+  const loadSubflow = vi.fn(async (request: RecordedInvocation, options: { readonly signal: AbortSignal }) => {
+    signals.push(options.signal);
+    await gate;
+    return childReply(recording, request, moved);
+  });
+  return { loadSubflow, signals, open: () => open() };
+}
+
+describe('moving between views makes exactly the reads they need', () => {
+  it('keeps the reads two views share, cancels the rest, and reads each new one once', async () => {
+    const turn = recordedTurn(), { recording, moved } = withPayloadsMoved(turn);
+    const projected = projectRecordingSource(recording); if (projected.status !== 'ready') throw new Error('refused');
+    const host = gated(recording, moved);
+    const source = createLensRecordingSource({ root: projected.value, loadSubflow: host.loadSubflow });
+    const row = open('row');
+    try {
+      const graph = (source.observed.runner as unknown as { enable: { flowchart(): { getSnapshot(): StepGraph } } }).enable.flowchart().getSnapshot();
+      const [one, two, three] = calls(graph);
+      const shown = render(<Detail source={source} related={[one!, two!]} />);
+      await waitFor(() => expect(host.loadSubflow).toHaveBeenCalledTimes(6));
+      // Re-render the same view, then move to a view sharing call 2's three slots.
+      for (let i = 0; i < 5; i++) shown.rerender(<Detail source={source} related={[one!, two!]} />);
+      shown.rerender(<Detail source={source} related={[two!, three!]} />);
+      for (let i = 0; i < 5; i++) shown.rerender(<Detail source={source} related={[two!, three!]} />);
+      await waitFor(() => expect(host.loadSubflow).toHaveBeenCalledTimes(9));
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(host.loadSubflow).toHaveBeenCalledTimes(9);
+      const readOf = (id: string) => host.loadSubflow.mock.calls.filter(([request]) => request.mountRuntimeStageId === id).length;
+      for (const id of [...slotIds(one!), ...slotIds(two!), ...slotIds(three!)]) expect(readOf(id)).toBe(1);
+      const signalOf = (id: string) => host.signals[host.loadSubflow.mock.calls.findIndex(([request]) => request.mountRuntimeStageId === id)]!;
+      expect(slotIds(one!).map(id => signalOf(id).aborted)).toEqual([true, true, true]);
+      expect([...slotIds(two!), ...slotIds(three!)].map(id => signalOf(id).aborted)).toEqual(Array(6).fill(false));
+      host.open();
+      const [, rowTwo, rowThree] = calls(row.graph);
+      const rowText = html(<Detail source={row.source} related={[rowTwo!, rowThree!]} />);
+      await waitFor(() => expect(shown.container.innerHTML).toBe(rowText));
+      shown.unmount();
+    } finally { source.dispose(); row.source.dispose(); }
+  });
+
+  it('makes no duplicate read under React StrictMode’s double effect', async () => {
+    const turn = recordedTurn(), { recording, moved } = withPayloadsMoved(turn);
+    const projected = projectRecordingSource(recording); if (projected.status !== 'ready') throw new Error('refused');
+    const host = gated(recording, moved);
+    const source = createLensRecordingSource({ root: projected.value, loadSubflow: host.loadSubflow });
+    try {
+      const graph = (source.observed.runner as unknown as { enable: { flowchart(): { getSnapshot(): StepGraph } } }).enable.flowchart().getSnapshot();
+      const step = modelCall(graph);
+      const shown = render(<React.StrictMode><Detail source={source} related={[step]} /></React.StrictMode>);
+      await new Promise(resolve => setTimeout(resolve, 20));
+      expect(host.loadSubflow.mock.calls.map(([request]) => request.mountRuntimeStageId)).toEqual(slotIds(step));
+      expect(host.signals.map(signal => signal.aborted)).toEqual([false, false, false]);
+      host.open();
+      await waitFor(() => expect(held({ source })).toBe(3));
+      expect(host.loadSubflow).toHaveBeenCalledTimes(3);
+      shown.unmount();
+    } finally { source.dispose(); }
+  });
+});
+
+describe('useHeldPayloads — hold the new set, then release the old', () => {
+  it('holds a changed set before releasing the previous one, and releases the last on unmount', () => {
+    const log: string[] = [];
+    const request = (ids: readonly string[]) => { log.push(`hold ${ids.join(',')}`); return () => { log.push(`release ${ids.join(',')}`); }; };
+    const { rerender, unmount } = renderHook(({ wanted }: { wanted: readonly string[] }) => useHeldPayloads(wanted, request),
+      { initialProps: { wanted: ['a#1', 'b#2'] } });
+    rerender({ wanted: ['a#1', 'b#2'] });
+    rerender({ wanted: ['b#2', 'c#3'] });
+    rerender({ wanted: [] });
+    unmount();
+    expect(log).toEqual(['hold a#1,b#2', 'hold b#2,c#3', 'release a#1,b#2', 'release b#2,c#3']);
+  });
+});
+
+describe('the payload store size option', () => {
+  it('refuses a capacity that is not a whole number of at least 1', () => {
+    const projected = projectRecordingSource(recordedTurn()); if (projected.status !== 'ready') throw new Error('refused');
+    for (const maxCachedPayloads of [0, -1, 1.5, Number.NaN, Number.POSITIVE_INFINITY])
+      expect(() => createLensRecordingSource({ root: projected.value, loadSubflow: async () => ({ result: 1 }), maxCachedPayloads }))
+        .toThrow('maxCachedPayloads must be a whole number of at least 1.');
+    createLensRecordingSource({ root: projected.value, loadSubflow: async () => ({ result: 1 }), maxCachedPayloads: 1 }).dispose();
+  });
+});
+
+describe('a payload is kept only from the requested invocation’s own reply', () => {
+  it('shows "could not be loaded" when a host answers one invocation with another’s reply', async () => {
+    const turn = recordedTurn(), { recording, moved } = withPayloadsMoved(turn);
+    const projected = projectRecordingSource(recording); if (projected.status !== 'ready') throw new Error('refused');
+    const graph0 = open('moved'), step = modelCall(graph0.graph); graph0.source.dispose();
+    const messages = step.slotBoundaries!.messages!.runtimeStageId, system = step.slotBoundaries!.systemPrompt!.runtimeStageId;
+    const wrong = projected.value.invocations.find(value => value.mountRuntimeStageId === system)!;
+    const source = createLensRecordingSource({ root: projected.value,
+      loadSubflow: async request => childReply(recording, request.mountRuntimeStageId === messages ? wrong : request, moved) });
+    try {
+      render(<Detail source={source} related={[step]} />);
+      await waitFor(() => expect(source.getSnapshot().payloadReads!.get(messages)).toBe('error'));
+      await waitFor(() => expect(screen.getAllByRole('status').map(node => node.textContent))
+        .toEqual(['Not loaded: its sub-flow invocation could not be loaded.']));
+      expect(source.getSnapshot().subflowPayloads!.has(messages)).toBe(false);
+    } finally { source.dispose(); }
+  });
+
+  it('keeps no payloads from a drill whose result the renderer refuses', async () => {
+    const turn = recordedTurn(), { recording, moved } = withPayloadsMoved(turn);
+    const projected = projectRecordingSource(recording); if (projected.status !== 'ready') throw new Error('refused');
+    const request = projected.value.invocations[0]!;
+    const source = createLensRecordingSource({ root: projected.value,
+      loadSubflow: async exact => ({ result: { subflowId: exact.subflowId }, payloads: childReply(recording, exact, moved).payloads }) });
+    try {
+      await expect(source.load(request)).rejects.toThrow();
+      expect(source.getSnapshot().loads.map(load => load.status)).toEqual(['error']);
+      expect(source.getSnapshot().subflowPayloads!.has(request.mountRuntimeStageId)).toBe(false);
+    } finally { source.dispose(); }
+  });
+});
+
 describe('payload reads never use up the renderer’s limit on loaded children', () => {
   it('reads every model call’s payloads on a recording with more invocations than any limit, then the person’s drills still load', async () => {
     const moved = open('moved', undefined, true, { maxCachedSubflows: 4, maxCachedPayloads: 4 });
@@ -411,7 +536,7 @@ describe('payload reads never use up the renderer’s limit on loaded children',
       expect(screen.queryAllByText(/could not be loaded|Unavailable/)).toEqual([]);
       for (const notice of screen.queryAllByRole('status')) expect(notice.textContent).toBe('Not loaded yet. It is stored with its sub-flow invocation.');
       end.unmount();
-      expect(held(moved)).toBe(4);
+      await waitFor(() => expect(held(moved)).toBe(4));
       expect(moved.source.getSnapshot().loads).toEqual([]);
       // The renderer's four are all still the person's.
       const drills = moved.invocations.slice(0, 4);

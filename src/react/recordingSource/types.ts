@@ -38,7 +38,11 @@ export interface LensRecordingSource {
    * read, without loading the child into the renderer (whose set of loaded
    * children stays for explicit drills). Held until `signal` aborts; a read
    * nobody holds is cancelled. Never rejects for a failed read: the outcome
-   * is in `subflowPayloads` / `payloadReads`.
+   * is in `subflowPayloads` / `payloadReads`. A signal that never aborts holds
+   * the payloads for as long as the source lives. Each read fetches the host's
+   * whole child reply and keeps only its payloads, and only when the reply is
+   * this invocation's own (its result's `subflowId`, and its log address when
+   * it has one); any other reply is a failed read.
    */
   loadPayloads?(request: RecordedInvocation, options?: { readonly signal?: AbortSignal }): Promise<void>;
   /** Input index is local to the recorded scope (native TraceWalk coordinates).
