@@ -51,6 +51,9 @@ import type { StepGraph, StepNode } from 'agentfootprint/observe';
 import { parseRoleFromDescription } from '../../core/utils/parseRoleFromDescription.js';
 import { ROW_ONLY_PAYLOADS, type PayloadHolder, type StepPayload, type StepPayloadReader } from '../../core/subflowPayloads/index.js';
 
+/** The most slot invocations the compare view holds at once (three branches' slots). */
+export const MAX_COMPARE_LOADS = 9;
+
 /** Where one column section's slot exit payload is. */
 export type BranchSectionState = { readonly state: 'recorded' | 'none' } | Extract<StepPayload, { state: 'not-loaded' | 'unavailable' }>;
 
@@ -230,7 +233,7 @@ function buildColumn(
 export function useCompareBranches(
   currentSpec: SpecNode | undefined,
   stepGraph: StepGraph | undefined,
-  payloads?: { readonly reader: StepPayloadReader; readonly request?: (invocations: readonly string[]) => void },
+  payloads?: { readonly reader: StepPayloadReader; readonly request?: (invocations: readonly string[]) => (() => void) | void },
 ): readonly BranchColumn[] | null {
   const reader = payloads?.reader ?? ROW_ONLY_PAYLOADS;
   const built = useMemo(() => {
@@ -239,14 +242,15 @@ export function useCompareBranches(
     const branches = currentSpec.children ?? [];
     return branches.map((b) => buildColumn(b, stepGraph, reader));
   }, [currentSpec, stepGraph, reader]);
-  // The last three slot invocations per branch, once each.
-  const needed = built === null ? [] : reader.needed(built.flatMap(b => b.holders.map(holder => [holder, 'exit'] as const)));
-  const neededKey = needed.join('\u0000');
+  // The last three slot invocations per branch, once each, at most MAX_COMPARE_LOADS.
+  const wanted = built === null ? [] : reader.wanted(built.flatMap(b => b.holders.map(holder => [holder, 'exit'] as const)), MAX_COMPARE_LOADS);
+  const wantedKey = wanted.join('\u0000');
   const request = payloads?.request;
   useEffect(() => {
-    if (needed.length > 0) request?.(needed);
+    if (wanted.length === 0 || request === undefined) return undefined;
+    return request(wanted) ?? undefined;
     // The key names the exact set; the array identity changes every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neededKey, request]);
+  }, [wantedKey, request]);
   return useMemo(() => (built === null ? null : built.map(b => b.column)), [built]);
 }

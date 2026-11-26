@@ -25,9 +25,14 @@ the detail panel, compare-branches and the LLM copy:
 
 Only `none` may be shown as "none recorded" or lead to "in progress".
 `notice.ts · payloadNotice` is the one sentence for the other two.
-`needed(shown, limit)` names the invocations a view should ask for, in display
-order, once each; with a limit, the first `limit` marked invocations count
-whether loaded or not, so the asked-for set stays bounded across renders.
+`wanted(shown, limit)` names the invocations a view holds while it shows them:
+the marked payloads among those shown, in display order, once each, loaded or
+not; with a limit, only the first `limit`, so the held set stays bounded.
 
-`ROW_ONLY_PAYLOADS` is the reader with no marks: every payload is what the row
-holds, which is what every view did before payloads could move.
+`ROW_ONLY_PAYLOADS` is the reader with no row marks: every payload is what the
+step holds, which is what every view did before payloads could move (a mark the
+step graph itself carries still reads as not loaded). `buildLLMText` does not
+use it by default: with no reader it reads the run's own row marks.
+
+Known limit: a related card past the first nine held invocations says "not
+loaded yet" until the view shows fewer; there is no per-card load control.

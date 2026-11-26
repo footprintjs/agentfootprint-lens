@@ -38,7 +38,8 @@ import type { AgentInstance } from "./selectors/types.js";
 import { STORED_TOOL_RESULT_LABEL } from './toolResultLabels.js';
 import type { DisplayStep } from './toolStepDisplay.js';
 import { compactNarration, contextPayloads, printRecordedContext, type RecordedContextView } from './recordedContext.js';
-import { isWithheld, payloadNotice, ROW_ONLY_PAYLOADS, type PayloadSide, type StepPayload, type StepPayloadReader } from './subflowPayloads/index.js';
+import { isWithheld, payloadNotice, readPayloadMarks, stepPayloadReader, type PayloadSide, type StepPayload, type StepPayloadReader } from './subflowPayloads/index.js';
+import { snapshotOfRunner } from './utils/snapshotOfRunner.js';
 
 export interface BuildLLMTextArgs {
   /** Producer-decoded context: dictionary once, recorded call changes and compact narration. */
@@ -62,12 +63,19 @@ export interface BuildLLMTextArgs {
    *  the paste alone. */
   readonly viewState?: ViewStateSnapshot;
   /**
-   * Where each step's boundary payloads are. A payload stored with its
-   * sub-flow invocation and not loaded is written as "not loaded" (and listed
-   * under "Payloads not loaded"), never left out as if none was recorded.
-   * Default: the row only.
+   * Where each step's boundary payloads are, with any loaded children
+   * (`stepPayloadReader` from `agentfootprint-lens/core`). A payload stored
+   * with its sub-flow invocation and not loaded is written as such and listed
+   * under "Payloads not loaded", never left out as if none was recorded.
+   * Default: the base row's marks only (from `snapshot`), so every moved
+   * payload is written as not loaded.
    */
   readonly payloads?: StepPayloadReader;
+  /**
+   * The run's snapshot, read for the base row's marks when `payloads` is not
+   * given. Default: the recorder's observed runner's last snapshot.
+   */
+  readonly snapshot?: unknown;
 }
 
 /** Snapshot of the Lens render state at copy time. All fields optional
@@ -112,8 +120,12 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
     appName = "Chatbot",
     viewState,
     context,
-    payloads: where = ROW_ONLY_PAYLOADS,
+    payloads: supplied,
   } = args;
+  // Without a reader, the row's own marks still say which payloads moved.
+  const where = supplied ?? stepPayloadReader({
+    marks: readPayloadMarks(args.snapshot !== undefined ? args.snapshot : snapshotOfRunner(recorder.observedRunner?.())),
+  });
   const summary = recorder.selectSummary();
   const log = recorder.selectEventLog();
   // The exported builder also accepts the host's original (unprojected) graph.
@@ -244,8 +256,8 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
     if (withheld.length > 0) {
       sections.push("\n# Payloads not loaded\n");
       sections.push(
-        "These boundary payloads are stored with their sub-flow invocations and were not loaded when this copy was made. " +
-          "They are not empty: open each step to load it, then copy again.\n",
+        "These boundary payloads are stored with their sub-flow invocations. Their content is not in this copy; " +
+          "each line says what is known.\n",
       );
       sections.push(...withheld);
     }

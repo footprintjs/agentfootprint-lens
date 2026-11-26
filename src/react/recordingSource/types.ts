@@ -17,11 +17,14 @@ export interface LensRecordingSourceSnapshot {
   readonly invocations: readonly RecordedInvocation[];
   readonly loads: readonly LensRecordingLoad[];
   /**
-   * By mount runtime id, for each child whose load is ready: the boundary
-   * payloads its reply carried (`{ result, payloads }`), or `null` when the
-   * reply carried none (payloads in the base row, or an older host route).
+   * By mount runtime id: the boundary payloads a child reply carried
+   * (`{ result, payloads }`), or `null` when the reply carried none (payloads
+   * in the base row, or an older host route). Kept in the source's own
+   * bounded store, from payload reads and from explicit child loads alike.
    */
-  readonly subflowPayloads: ReadonlyMap<string, RecordedInvocationPayloads | null>;
+  readonly subflowPayloads?: ReadonlyMap<string, RecordedInvocationPayloads | null>;
+  /** Payload reads in flight, or failed (a failed read is not retried while a view shows it). */
+  readonly payloadReads?: ReadonlyMap<string, 'loading' | 'error'>;
 }
 
 /** Data ownership only. The host's existing SharedCursor remains the position owner. */
@@ -30,6 +33,14 @@ export interface LensRecordingSource {
   getSnapshot(): LensRecordingSourceSnapshot;
   subscribe(listener: () => void): () => void;
   load(request: RecordedInvocation, options?: { readonly signal?: AbortSignal }): Promise<void>;
+  /**
+   * Read only this invocation's boundary payloads through the host's child
+   * read, without loading the child into the renderer (whose set of loaded
+   * children stays for explicit drills). Held until `signal` aborts; a read
+   * nobody holds is cancelled. Never rejects for a failed read: the outcome
+   * is in `subflowPayloads` / `payloadReads`.
+   */
+  loadPayloads?(request: RecordedInvocation, options?: { readonly signal?: AbortSignal }): Promise<void>;
   /** Input index is local to the recorded scope (native TraceWalk coordinates).
    * The result is an exact address on Lens's existing step axis, never nearest. */
   resolveAddress(address: CursorAddress, options?: { readonly signal?: AbortSignal }): Promise<CursorAddress | undefined>;

@@ -59,10 +59,10 @@ export interface StepPayloadReader {
   read(holder: PayloadHolder | undefined, side: PayloadSide): StepPayload;
   /**
    * The invocations (mount runtime ids) of these shown payloads that live
-   * with their invocation and have not been asked for yet, in order, once
-   * each. With `limit`, only the first `limit` distinct such invocations count,
-   * loaded or not, so a view asks for the same bounded set however often it
-   * renders; the rest stay "not loaded yet".
+   * with their invocation, in display order, once each, loaded or not: what a
+   * view holds while it shows them. With `limit`, the first `limit` only, so
+   * the held set stays bounded however much a view shows; the rest stay
+   * "not loaded yet".
    */
-  needed(shown: readonly PayloadWant[], limit?: number): readonly string[];
+  wanted(shown: readonly PayloadWant[], limit?: number): readonly string[];
 }

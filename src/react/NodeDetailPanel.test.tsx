@@ -515,7 +515,7 @@ describe('NodeDetailPanel — a payload stored with its invocation is never show
   it('says "not loaded" for both sides and asks for the step’s own child once', () => {
     const asked: (readonly string[])[] = [];
     render(<NodeDetailPanel node={step} payloads={stepPayloadReader({ marks: marks('subflow.entry', 'subflow.exit'), loadable })}
-      onNeedPayloads={ids => asked.push(ids)} />);
+      onNeedPayloads={ids => { asked.push(ids); }} />);
     expect(screen.getAllByRole('status').map(node => node.textContent)).toEqual(
       Array(2).fill('Not loaded yet. It is stored with its sub-flow invocation.'));
     expect(screen.queryByText(/no input recorded|no output recorded|In progress/)).toBeNull();

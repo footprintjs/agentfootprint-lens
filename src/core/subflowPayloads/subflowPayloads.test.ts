@@ -68,25 +68,30 @@ describe('stepPayloadReader — one reading of a boundary payload', () => {
     expect(reader.read({ exitPayloadWith: 'invocation' }, 'exit')).toEqual({ state: 'not-loaded', invocation: '', why: 'no-source' });
   });
 
-  it('asks only for invocations not asked for yet, once each, for the shown sides', () => {
+  it('names the invocations a view holds: marked payloads on the shown sides, once each, loaded or not', () => {
     const slot = { runtimeStageId: 'slot#2' };
     const reader = stepPayloadReader({ marks, loadable: new Set(['sf#1', 'slot#2']),
-      loads: new Map([['slot#2', { status: 'loading' as const }]]) });
-    expect(reader.needed([[step, 'entry'], [step, 'exit'], [step, 'entry'], [slot, 'exit'], [undefined, 'exit']])).toEqual(['sf#1']);
-    const fresh = stepPayloadReader({ marks, loadable: new Set(['sf#1', 'slot#2']) });
-    expect(fresh.needed([[slot, 'entry']])).toEqual([]);
-    expect(fresh.needed([[slot, 'exit']])).toEqual(['slot#2']);
-    expect(fresh.needed([[{ runtimeStageId: 'sf#1', entryPayload: 1, exitPayload: 2 }, 'entry']])).toEqual([]);
+      loads: new Map([['slot#2', { status: 'ready' as const, payloads: null }]]) });
+    expect(reader.wanted([[step, 'entry'], [step, 'exit'], [step, 'entry'], [slot, 'exit'], [undefined, 'exit']])).toEqual(['sf#1', 'slot#2']);
+    expect(reader.wanted([[slot, 'entry']])).toEqual([]);
+    expect(reader.wanted([[{ runtimeStageId: 'sf#1', entryPayload: 1, exitPayload: 2 }, 'entry']])).toEqual([]);
+    expect(reader.wanted([[{ runtimeStageId: 'other#9' }, 'exit']])).toEqual([]);
   });
 
-  it('counts the first `limit` marked invocations whether loaded or not, so the asked-for set stays bounded', () => {
+  it('holds only the first `limit` marked invocations, whatever their state, so the held set stays bounded', () => {
     const many = readPayloadMarks(row(Array.from({ length: 5 }, (_, i) => moved('subflow.exit', `s#${i}`))));
     const holders = Array.from({ length: 5 }, (_, i) => [{ runtimeStageId: `s#${i}` }, 'exit'] as const);
-    const loadable = new Set(holders.map(([holder]) => holder.runtimeStageId));
-    expect(stepPayloadReader({ marks: many, loadable }).needed(holders, 2)).toEqual(['s#0', 's#1']);
     const loads = new Map([['s#0', { status: 'ready' as const, payloads: null }], ['s#1', { status: 'loading' as const }]]);
-    expect(stepPayloadReader({ marks: many, loadable, loads }).needed(holders, 2)).toEqual([]);
-    expect(stepPayloadReader({ marks: many, loadable, loads }).needed(holders, 3)).toEqual(['s#2']);
+    expect(stepPayloadReader({ marks: many, loads }).wanted(holders, 2)).toEqual(['s#0', 's#1']);
+    expect(stepPayloadReader({ marks: many, loads }).wanted(holders, 3)).toEqual(['s#0', 's#1', 's#2']);
+    expect(stepPayloadReader({ marks: many }).wanted(holders)).toHaveLength(5);
+  });
+
+  it('reads a recorded null as recorded, in the row and from a loaded child', () => {
+    expect(ROW_ONLY_PAYLOADS.read({ runtimeStageId: 'sf#1', entryPayload: null }, 'entry')).toEqual({ state: 'recorded', value: null });
+    expect(stepPayloadReader({ marks }).read({ runtimeStageId: 'sf#1', exitPayload: null }, 'exit')).toEqual({ state: 'recorded', value: null });
+    expect(stepPayloadReader({ marks, loads: new Map([['sf#1', { status: 'ready' as const, payloads: { exit: { status: 'ready' as const, value: null } } }]]) })
+      .read(step, 'exit')).toEqual({ state: 'recorded', value: null });
   });
 
   it('gives each withheld state its own sentence, never an empty or in-progress one', () => {

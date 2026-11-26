@@ -13,7 +13,9 @@ artifact store or fabricated child payload is needed.
    A recording saved in parts may store an invocation's sub-flow payloads with
    it; pass the reader's `payloads` through as the reply's `payloads` member
    (`{ result, payloads }`). Lens shows a payload marked as living with its
-   invocation as "not loaded" until a reply carries it.
+   invocation as "not loaded" until a reply carries it. Lens also calls the
+   same child read to fetch only those payloads (it keeps the payloads and
+   drops the result), so expect child reads beyond the person's own drills.
    Keep normal authorization, ownership, expiry and body-size checks around
    both reads. Unavailable is a closed reason, never a partial success.
 3. In the browser, create one `createLensRecordingSource({root: httpDto,

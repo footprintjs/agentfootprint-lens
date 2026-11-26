@@ -16,10 +16,19 @@ scope never reads as the previous one, and loading completion does not move
 that address. Exact recorded invocation choices disambiguate repeated mounts.
 
 A child reply may carry `payloads` (the invocation's sub-flow entry and exit
-payloads, when the recording stores them with it). The controller admits that
-member with the codec, keeps it by mount runtime id, and hands the renderer the
-rest of the reply unchanged; a reply without it is forwarded untouched. The
-snapshot's `subflowPayloads` serves them only for a child whose load is ready.
-`useStepPayloads` turns the base row's marks, the loads and those payloads into
-the one payload reader (`core/subflowPayloads`) and asks the source for the
-children a view shows.
+payloads, when the recording stores them with it). The controller takes that
+member out, admits it with the codec, and hands the renderer the rest of the
+reply unchanged; a reply without it (or with `payloads: undefined`) is
+forwarded untouched.
+
+Views read payloads apart from the renderer: `loadPayloads` calls the host's
+`loadSubflow` directly and keeps only the admitted payloads in this package's
+own store (`payloadCache.ts`), never the result, so the renderer's limited set
+of loaded children (`maxCachedSubflows`, at most 64) stays for the person's own
+drills. A view holds what it shows with a signal: a held entry is never
+evicted, a read nobody holds is cancelled, and at most `maxCachedPayloads`
+(default `MAX_CACHED_PAYLOADS`, 64) entries stay once no view holds them. A
+failed read stays failed (and is shown so) while it is kept. Payloads from an
+explicit child load's reply go into the same store. `useStepPayloads` turns the
+base row's marks and that store into the one payload reader
+(`core/subflowPayloads`) and holds the invocations a view shows.

@@ -32,7 +32,8 @@ truncated replacement. Getters, coercion and `toJSON` are not invoked.
 `reply.ts · readRecordingSubflowPayloads` admits a child reply's optional
 `payloads` member (the base-part design's child reply): `{ entry?, exit? }`,
 at least one side, each `{ status: 'ready', value }` or `{ status:
-'unavailable', reason }`. Values are copied and frozen under one budget with the
+'unavailable', reason }` (a code: lower-case letters, digits and hyphens, at
+most 64, so it cannot forge lines in a copy). Values are copied and frozen under one budget with the
 ordinary depth limit of 100; any other shape refuses the whole member. The
 server codec's own `readRecordingSubflow` reads a whole recording, whose
 payloads stay in the base row, so it never adds `payloads`.

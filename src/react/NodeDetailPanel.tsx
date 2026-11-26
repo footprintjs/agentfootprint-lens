@@ -100,8 +100,11 @@ export interface NodeDetailPanelProps {
    * what the step carries), the reading before payloads could move.
    */
   readonly payloads?: StepPayloadReader;
-  /** Asked for the child invocations (mount runtime ids) whose payloads the panel shows but has not got. */
-  readonly onNeedPayloads?: (invocations: readonly string[]) => void;
+  /**
+   * Asked to hold the child invocations (mount runtime ids) whose payloads the
+   * panel shows; the returned release is called when the panel shows others.
+   */
+  readonly onNeedPayloads?: (invocations: readonly string[]) => (() => void) | void;
 }
 
 export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
@@ -121,13 +124,14 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
   // Ask for the children whose payloads this panel shows (the step's own
   // sub-flow invocation, the slot invocations of each shown model call): the
   // first MAX_DETAIL_LOADS in display order; the rest say "not loaded yet".
-  const needed = payloads.needed(shownPayloads(node, relatedNodes), MAX_DETAIL_LOADS);
-  const neededKey = needed.join('\u0000');
+  const wanted = payloads.wanted(shownPayloads(node, relatedNodes), MAX_DETAIL_LOADS);
+  const wantedKey = wanted.join('\u0000');
   React.useEffect(() => {
-    if (needed.length > 0) onNeedPayloads?.(needed);
+    if (wanted.length === 0 || onNeedPayloads === undefined) return undefined;
+    return onNeedPayloads(wanted) ?? undefined;
     // The key names the exact set; the array identity changes every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [neededKey, onNeedPayloads]);
+  }, [wantedKey, onNeedPayloads]);
   // A DRILLED subflow's internal stage: no StepNode (subflow-scoped), but we
   // still show its name + what it does so every stage you scrub onto has detail.
   if (!node && internalStage) {
@@ -310,7 +314,7 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
           </div>
         )}
         {!isSubflow && !isTopologyHelper && (
-          <ReActStepBody node={node} payloads={payloads} />
+          <ReActStepBody node={node} />
         )}
 
         {/* Cursor-scoped "all related" section — surfaces every StepNode
@@ -564,22 +568,23 @@ function shownPayload(payload: StepPayload): { payload?: unknown; withheld?: Ext
 
 /**
  * Every payload the panel shows, in display order: a sub-flow step's input and
- * output, and a model call's slot exits (a slot's entry is never shown).
+ * output, and the slot exits of each related model-call card (a slot's entry
+ * is never shown, and the primary model-call body shows no slots).
  */
 function shownPayloads(node: StepNode | undefined, related: readonly StepNode[] | undefined): PayloadWant[] {
   const out: PayloadWant[] = [];
-  const add = (step: StepNode) => {
+  const add = (step: StepNode, primary: boolean) => {
     if (step.kind === 'subflow') out.push([step, 'entry'], [step, 'exit']);
-    for (const [, slot] of slotsOf(step)) out.push([slot, 'exit']);
+    if (!primary) for (const [, slot] of slotsOf(step)) out.push([slot, 'exit']);
   };
-  if (node !== undefined) add(node);
-  for (const step of related ?? []) if (step.kind !== 'fork-branch' && step.kind !== 'decision-branch') add(step);
+  if (node !== undefined) add(node, true);
+  for (const step of related ?? []) if (step.kind !== 'fork-branch' && step.kind !== 'decision-branch') add(step, false);
   return out;
 }
 
 // ── ReAct step body (user→llm / llm→tool / tool→llm / llm→user) ────────
 
-const ReActStepBody: React.FC<{ node: StepNode; payloads: StepPayloadReader }> = ({ node, payloads }) => {
+const ReActStepBody: React.FC<{ node: StepNode }> = ({ node }) => {
   // Compute the duration only when both endpoints are recorded — avoids
   // showing a `+139ms` t-start with no companion t-end (always-present
   // start offsets were noise per the user feedback: "no update, don't
@@ -622,14 +627,6 @@ const ReActStepBody: React.FC<{ node: StepNode; payloads: StepPayloadReader }> =
       {ioSections.map((s) => (
         <PayloadSection key={s.label} label={s.label} payload={s.payload} emptyHint="(none)" />
       ))}
-      {/* A model call's composed slots, from up to three slot invocations.
-          A slot whose exit was not recorded is left out, as in the cards. */}
-      {slotsOf(node).map(([label, slot]) => {
-        const exit = payloads.read(slot, 'exit');
-        return exit.state === 'none' ? null : (
-          <PayloadSection key={label} label={label} {...shownPayload(exit)} emptyHint="(none recorded)" />
-        );
-      })}
     </>
   );
 };

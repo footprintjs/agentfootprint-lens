@@ -50,15 +50,13 @@ export function stepPayloadReader(input: StepPayloadReaderInput = {}): StepPaylo
   };
   return {
     read,
-    needed(shown, limit = Infinity) {
-      const counted = new Set<string>(), out: string[] = [];
+    wanted(shown, limit = Infinity) {
+      const out: string[] = [];
       for (const [holder, side] of shown) {
         const key = holder?.runtimeStageId;
-        if (holder === undefined || typeof key !== 'string' || !isMarked(holder, side) || counted.has(key)) continue;
-        if (counted.size >= limit) return out;
-        counted.add(key);
-        const payload = read(holder, side);
-        if (payload.state === 'not-loaded' && payload.why === 'not-requested') out.push(key);
+        if (holder === undefined || typeof key !== 'string' || !isMarked(holder, side) || out.includes(key)) continue;
+        if (out.length >= limit) return out;
+        out.push(key);
       }
       return out;
     },
@@ -76,5 +74,5 @@ const rowOnlyReader = (): StepPayloadReader => (rowOnly ??= stepPayloadReader())
  */
 export const ROW_ONLY_PAYLOADS: StepPayloadReader = {
   read: (holder, side) => rowOnlyReader().read(holder, side),
-  needed: (shown, limit) => rowOnlyReader().needed(shown, limit),
+  wanted: (shown, limit) => rowOnlyReader().wanted(shown, limit),
 };
