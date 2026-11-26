@@ -6,6 +6,8 @@ import { buildRuntimeStageId } from 'foottrace';
 import { flowChart, FlowChartExecutor } from 'footprintjs';
 import { projectRecordingSource, readRecordingSourceRoot, readRecordingSubflow } from './index.js';
 import type { RecordingSourceRead, RecordingSourceRoot } from './types.js';
+import { MAX_STAGE_CHAIN } from '../recordedContext/ownJson.js';
+import { chainLength, lastStage, nested, stageChainRecording } from '../../../test/fixtures/stageChain.js';
 
 type Json = Record<string, any>;
 const ready = <T>(read: RecordingSourceRead<T>): T => {
@@ -211,5 +213,52 @@ describe('native recording source codec', () => {
   it('refuses a mismatched provided unit identity instead of treating it as legacy support', () => {
     const input = recording(); input.snapshot.subflowResults[rid('worker', 1)].subflowId = 'different-recorded-scope';
     expect(projectRecordingSource(input)).toEqual({ status: 'unavailable', reason: 'invalid-recording' });
+  });
+});
+
+describe('a sequence of stages is not depth (tree places only)', () => {
+  it('admits a real 1,000-stage root tree and a 1,000-stage child tree, and refuses 1,001 of either', async () => {
+    expect(MAX_STAGE_CHAIN).toBe(1_000);
+    const input = await stageChainRecording(MAX_STAGE_CHAIN);
+    const root = ready(projectRecordingSource(input));
+    expect(chainLength(root.recording.snapshot!.executionTree)).toBe(MAX_STAGE_CHAIN);
+    expect(JSON.stringify(root.recording.snapshot!.executionTree)).toBe(JSON.stringify(input.snapshot.executionTree));
+    const wire = ready(readRecordingSourceRoot(JSON.parse(JSON.stringify(root))));
+    expect(wire).toEqual(root);
+    const result = ready(readRecordingSubflow(input, descriptor(root))).result as Json;
+    expect(chainLength(result.treeContext.stageContexts)).toBe(MAX_STAGE_CHAIN);
+    expect(JSON.stringify(result)).toBe(JSON.stringify(input.snapshot.subflowResults[descriptor(root).mountRuntimeStageId]));
+
+    const long = await stageChainRecording(MAX_STAGE_CHAIN + 1);
+    expect(projectRecordingSource(long)).toEqual({ status: 'unavailable', reason: 'recording-limit' });
+    // The child cap is the child's own: a 1,000-stage root with a 1,001-stage child.
+    const mixed = await stageChainRecording(MAX_STAGE_CHAIN);
+    lastStage(mixed.snapshot.subflowResults['sf-child#1'].treeContext.stageContexts).next = { id: 'extra', runtimeStageId: rid('extra', 5000) };
+    const mixedRoot = ready(projectRecordingSource(mixed));
+    expect(readRecordingSubflow(mixed, descriptor(mixedRoot))).toEqual({ status: 'unavailable', reason: 'recording-limit' });
+    // A wire root whose tree grew past the cap is refused at admission, not by a stack overflow.
+    const grown = JSON.parse(JSON.stringify(root)); lastStage(grown.recording.snapshot.executionTree).next = { id: 'extra', runtimeStageId: rid('extra', 5000) };
+    expect(readRecordingSourceRoot(grown)).toEqual({ status: 'unavailable', reason: 'recording-limit' });
+  });
+
+  it('still refuses a hostile value 101 levels deep along a key named next, beside an admitted long tree', async () => {
+    const input = await stageChainRecording(200);
+    expect(projectRecordingSource(input).status).toBe('ready');
+    for (const place of ['events', 'marker'] as const) {
+      const hostile = await stageChainRecording(200); hostile[place] = [nested(100)];
+      expect(projectRecordingSource(hostile)).toEqual({ status: 'unavailable', reason: 'recording-limit' });
+    }
+    // Inside a stage, at the tree's end: a value is a value, whatever its keys are called.
+    const inStage = await stageChainRecording(200);
+    lastStage(inStage.snapshot.executionTree).stageWrites = { cursor: nested(100) };
+    expect(projectRecordingSource(inStage)).toEqual({ status: 'unavailable', reason: 'recording-limit' });
+    const inChild = await stageChainRecording(200), d = descriptor(ready(projectRecordingSource(inChild)));
+    lastStage(inChild.snapshot.subflowResults[d.mountRuntimeStageId].treeContext.stageContexts).stageWrites = { cursor: nested(100) };
+    expect(readRecordingSubflow(inChild, d)).toEqual({ status: 'unavailable', reason: 'recording-limit' });
+    // The child's tree place is `treeContext.stageContexts` only; the same chain elsewhere in the unit keeps depth 100.
+    const elsewhere = await stageChainRecording(200), e = descriptor(ready(projectRecordingSource(elsewhere)));
+    const unit = elsewhere.snapshot.subflowResults[e.mountRuntimeStageId];
+    unit.treeContext.globalContext.copy = JSON.parse(JSON.stringify(unit.treeContext.stageContexts));
+    expect(readRecordingSubflow(elsewhere, e)).toEqual({ status: 'unavailable', reason: 'recording-limit' });
   });
 });

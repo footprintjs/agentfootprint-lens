@@ -19,6 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A long run no longer fails to open as a lazy recording because its stages were counted as nesting depth. The recording codec now reads the execution tree (`recording.snapshot.executionTree` in the root reply, `treeContext.stageContexts` in a child reply) with a loop: depth counts inside one stage and one level per `children` step, and `next` adds none. Every other value keeps the depth limit of 100, including a value with a key named `next`. A tree with more than 1,000 stages on one path is refused as `recording-limit`, so every admitted reply can still be sent as JSON, cloned and posted on Node 22. Before, a root reply from an agent turn of about 9 model calls was refused as `recording-limit`.
+- The agent legend and the declared-tag reader walk a long `next` chain with a loop instead of recursion.
 - A related step card no longer fails to render when a slot boundary has no recorded exit payload; that slot is left out.
 
 ## [0.89.0] - 2026-11-25

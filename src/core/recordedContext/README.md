@@ -14,7 +14,10 @@ are retained. Source event indexes are pre-filter indexes, not offsets into
 the decoded event array. Native run/mount/call coordinates identify calls.
 
 `ownJson.ts` detaches presentation data without invoking getters, with one
-64 MiB string/key budget, 200,000 nodes and depth 100 across call metadata and dictionary values. Native
+64 MiB string/key budget, 200,000 nodes and depth 100 across call metadata and dictionary values.
+Its callers here pass no places, so every value keeps depth 100. The recording
+source codec alone names exact execution-tree places, where a stage's `next`
+adds no depth and a path is capped at `MAX_STAGE_CHAIN` stages instead. Native
 model-input evidence uses a separate shared JSON budget with the same caps;
 payload formatting bounds its ownership and comparison work separately.
 At most 10,000 calls and 100,000 unique pieces are accepted. A missing value,
