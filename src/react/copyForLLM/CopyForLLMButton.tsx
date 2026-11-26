@@ -22,7 +22,9 @@ export const CopyForLLMButton: React.FC<{
    *  for diagnosing slider-sync / focus / drill bugs from the paste
    *  alone. */
   viewState?: import("../../core/copyForLLM.js").ViewStateSnapshot;
-}> = ({ recorder, stepGraph, humanizer, appName, viewState }) => {
+  /** Where each step's boundary payloads are; a payload not loaded is written as such. */
+  payloads?: import("../../core/subflowPayloads/index.js").StepPayloadReader;
+}> = ({ recorder, stepGraph, humanizer, appName, viewState, payloads }) => {
   const [copied, setCopied] = useState(false);
   const context = useRecordedContext();
   const [failed, setFailed] = useState(false);
@@ -38,6 +40,7 @@ export const CopyForLLMButton: React.FC<{
       humanizer,
       appName,
       ...(viewState ? { viewState } : {}),
+      ...(payloads ? { payloads } : {}),
       });
     } catch {
       // A refused presentation must never copy a partial or misleading run.

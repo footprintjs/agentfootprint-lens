@@ -1,7 +1,8 @@
 import type { RecordingSourceRead, RecordingSourceRoot } from './types.js';
 import { entries, field, invocation, MAX_INVOCATIONS, own, pathKey, record, refuse, SOURCE_SCHEMA, unavailable } from './fields.js';
 import { completeUnit, indexNativeRecording, nativeRoot, scopeMounts, strippedRoot } from './nativeIndex.js';
-export type { RecordedInvocation, RecordingSourceRead, RecordingSourceRoot } from './types.js';
+export type { RecordedInvocation, RecordedInvocationPayloads, RecordedPayloadSlot, RecordedSubflowReply, RecordingSourceRead, RecordingSourceRoot } from './types.js';
+export { readRecordingSubflowPayloads } from './reply.js';
 
 /** Detached root plus exact native invocation addresses; child payloads remain in storage. */
 export function projectRecordingSource(input: unknown): RecordingSourceRead<RecordingSourceRoot> {

@@ -3,14 +3,19 @@ import type { RecordingSource, RecordingSourceOptions, SubflowLoadState } from '
 import { observeRecordingWithSnapshot, type RecordedSnapshot, type Recording } from '../../core/observeRecording.js';
 import { structureGraphFromRunner } from '../../core/collapser/structureGraphFromRunner.js';
 import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
-import { readRecordingSourceRoot, type RecordedInvocation } from '../../core/recordingSourceCodec/index.js';
+import { readRecordingSourceRoot, readRecordingSubflowPayloads, type RecordedInvocation, type RecordedInvocationPayloads, type RecordedSubflowReply } from '../../core/recordingSourceCodec/index.js';
 import type { RuntimeOverlay } from 'footprint-explainable-ui/flowchart';
 import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
 import type { LensRecordingLoad, LensRecordingSource, LensRecordingSourceSnapshot } from './types.js';
 
 export interface LensRecordingSourceOptions {
   readonly root: unknown;
-  readonly loadSubflow: (request: RecordedInvocation, options: { readonly signal: AbortSignal }) => { readonly result: unknown } | Promise<{ readonly result: unknown }>;
+  /**
+   * The host's child read. A reply may carry `payloads` (the invocation's
+   * boundary payloads, when the recording stores them with it); Lens admits
+   * and keeps them, and hands the rest of the reply to the renderer unchanged.
+   */
+  readonly loadSubflow: (request: RecordedInvocation, options: { readonly signal: AbortSignal }) => RecordedSubflowReply | Promise<RecordedSubflowReply>;
   readonly prepareSubflow?: RecordingSourceOptions['prepareSubflow'];
   readonly maxCachedSubflows?: number;
 }
@@ -34,6 +39,14 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
     Object.freeze({ ...base, ...(loaded.subflowResults !== undefined && { subflowResults: loaded.subflowResults }) });
   const observed = observeRecordingWithSnapshot(root.recording, { debug: false }, () => currentSnapshot);
   const graph = observed.runner === undefined ? { nodes: [], edges: [] } : structureGraphFromRunner(observed.runner);
+  // Payloads a child reply carried, by mount runtime id. Served only for a
+  // child whose load is ready; pruned when the renderer drops the child.
+  const replies = new Map<string, RecordedInvocationPayloads | null>();
+  const admitReply = (selected: RecordedInvocation, reply: unknown): unknown => {
+    const split = splitReply(reply);
+    replies.set(selected.mountRuntimeStageId, split.payloads);
+    return split.forward;
+  };
   const readNarrative = native.narrativeFromSnapshot;
   let source: RecordingSource;
   try {
@@ -53,7 +66,9 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
           && value.invocationPath.length === request.invocationPath.length
           && value.invocationPath.every((id, index) => id === request.invocationPath[index]));
         if (selected === undefined) throw new Error('The recorded invocation is unavailable.');
-        return options.loadSubflow(selected, interest);
+        const answer: unknown = options.loadSubflow(selected, interest);
+        return (isThenable(answer) ? Promise.resolve(answer).then(reply => admitReply(selected, reply))
+          : admitReply(selected, answer)) as ReturnType<NonNullable<RecordingSourceOptions['loadSubflow']>>;
       },
       ...(options.prepareSubflow !== undefined && { prepareSubflow: options.prepareSubflow }),
       ...(options.maxCachedSubflows !== undefined && { maxCachedSubflows: options.maxCachedSubflows }),
@@ -74,8 +89,18 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
     [...states.values()].map(value => Object.freeze({ request: value.request, status: value.status,
       ...(value.status === 'error' && { message: value.message }) })),
   );
+  const readPayloads = (states: ReadonlyMap<string, SubflowLoadState>): ReadonlyMap<string, RecordedInvocationPayloads | null> => {
+    const held = new Set<string>(), ready = new Map<string, RecordedInvocationPayloads | null>();
+    for (const state of states.values()) {
+      held.add(state.request.mountRuntimeStageId);
+      const payloads = replies.get(state.request.mountRuntimeStageId);
+      if (state.status === 'ready' && payloads !== undefined) ready.set(state.request.mountRuntimeStageId, payloads);
+    }
+    for (const key of [...replies.keys()]) if (!held.has(key)) replies.delete(key);
+    return ready;
+  };
   let snapshot: LensRecordingSourceSnapshot = Object.freeze({ revision: source.getSnapshot().revision, recording,
-    invocations: root.invocations, loads: readLoads(source.getSnapshot().scopes) });
+    invocations: root.invocations, loads: readLoads(source.getSnapshot().scopes), subflowPayloads: readPayloads(source.getSnapshot().scopes) });
   const off = source.subscribe(() => {
     if (disposed) return;
     const next = source.getSnapshot();
@@ -86,7 +111,8 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
       currentSnapshot = overlayChildren(loaderSnapshot);
       recording = Object.freeze({ ...root.recording, snapshot: currentSnapshot });
     }
-    snapshot = Object.freeze({ revision: next.revision, recording, invocations: root.invocations, loads: readLoads(next.scopes) });
+    snapshot = Object.freeze({ revision: next.revision, recording, invocations: root.invocations, loads: readLoads(next.scopes),
+      subflowPayloads: readPayloads(next.scopes) });
     if (changed) observed.recorder.refreshReplaySnapshot();
     for (const listener of [...listeners]) { try { listener(); } catch { /* A presenter cannot corrupt native publication. */ } }
   });
@@ -187,8 +213,32 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
     getGraph: path => source.getGraph(path),
     dispose() {
       if (disposed) return;
-      disposed = true; off(); source.dispose(); observed.recorder.detach(); listeners.clear(); axes.clear(); overlays.clear();
+      disposed = true; off(); source.dispose(); observed.recorder.detach(); listeners.clear(); axes.clear(); overlays.clear(); replies.clear();
     },
   };
   return controller;
+}
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (typeof value === 'object' || typeof value === 'function') && value !== null
+    && typeof (value as { readonly then?: unknown }).then === 'function';
+}
+
+/**
+ * Take a reply's `payloads` member out and admit it; everything else goes to
+ * the renderer exactly as the host returned it, so a reply without `payloads`
+ * is today's reply, untouched. Own descriptors are copied, never read through.
+ * @internal Exported for its tests; not on a package door.
+ */
+export function splitReply(reply: unknown): { readonly forward: unknown; readonly payloads: RecordedInvocationPayloads | null } {
+  if (typeof reply !== 'object' || reply === null || Array.isArray(reply)) return { forward: reply, payloads: null };
+  const member = Object.getOwnPropertyDescriptor(reply, 'payloads');
+  if (member === undefined) return { forward: reply, payloads: null };
+  if (!('value' in member)) throw new Error('The recorded invocation reply could not be read.');
+  const read = readRecordingSubflowPayloads(member.value);
+  if (read.status !== 'ready') throw new Error('The recorded invocation reply could not be read.');
+  const forward = Object.create(Object.getPrototypeOf(reply)) as object;
+  for (const key of Reflect.ownKeys(reply)) if (key !== 'payloads')
+    Object.defineProperty(forward, key, Object.getOwnPropertyDescriptor(reply, key)!);
+  return { forward, payloads: read.value };
 }

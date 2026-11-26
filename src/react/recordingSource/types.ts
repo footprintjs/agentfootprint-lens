@@ -1,6 +1,6 @@
 import type { TraceGraph, RuntimeOverlay } from 'footprint-explainable-ui/flowchart';
 import type { ObservedRecording, Recording } from '../../core/observeRecording.js';
-import type { RecordedInvocation } from '../../core/recordingSourceCodec/index.js';
+import type { RecordedInvocation, RecordedInvocationPayloads } from '../../core/recordingSourceCodec/index.js';
 import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
 import type { CursorAddress } from '../../core/cursor/sharedCursor.js';
 
@@ -16,6 +16,12 @@ export interface LensRecordingSourceSnapshot {
   readonly recording: Recording;
   readonly invocations: readonly RecordedInvocation[];
   readonly loads: readonly LensRecordingLoad[];
+  /**
+   * By mount runtime id, for each child whose load is ready: the boundary
+   * payloads its reply carried (`{ result, payloads }`), or `null` when the
+   * reply carried none (payloads in the base row, or an older host route).
+   */
+  readonly subflowPayloads: ReadonlyMap<string, RecordedInvocationPayloads | null>;
 }
 
 /** Data ownership only. The host's existing SharedCursor remains the position owner. */

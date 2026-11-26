@@ -38,6 +38,7 @@ import type { AgentInstance } from "./selectors/types.js";
 import { STORED_TOOL_RESULT_LABEL } from './toolResultLabels.js';
 import type { DisplayStep } from './toolStepDisplay.js';
 import { compactNarration, contextPayloads, printRecordedContext, type RecordedContextView } from './recordedContext.js';
+import { isWithheld, payloadNotice, ROW_ONLY_PAYLOADS, type PayloadSide, type StepPayload, type StepPayloadReader } from './subflowPayloads/index.js';
 
 export interface BuildLLMTextArgs {
   /** Producer-decoded context: dictionary once, recorded call changes and compact narration. */
@@ -60,6 +61,13 @@ export interface BuildLLMTextArgs {
    *  reviewer) can diagnose slider-sync / focus / drill issues from
    *  the paste alone. */
   readonly viewState?: ViewStateSnapshot;
+  /**
+   * Where each step's boundary payloads are. A payload stored with its
+   * sub-flow invocation and not loaded is written as "not loaded" (and listed
+   * under "Payloads not loaded"), never left out as if none was recorded.
+   * Default: the row only.
+   */
+  readonly payloads?: StepPayloadReader;
 }
 
 /** Snapshot of the Lens render state at copy time. All fields optional
@@ -104,6 +112,7 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
     appName = "Chatbot",
     viewState,
     context,
+    payloads: where = ROW_ONLY_PAYLOADS,
   } = args;
   const summary = recorder.selectSummary();
   const log = recorder.selectEventLog();
@@ -227,9 +236,19 @@ export function buildLLMText(args: BuildLLMTextArgs): string {
     const annotationSteps = context !== undefined ? new Map<string, string>() : undefined;
     const payloads = context !== undefined ? contextPayloads(context) : undefined;
     if (payloads) sections.push('Payload views below use ⟦context "id"⟧ only for exact dictionary matches.');
+    const withheld: string[] = [];
     stepGraph.nodes.forEach((n, i) => {
-      sections.push(formatStep(i + 1, n, agents, annotationSteps, payloads));
+      sections.push(formatStep(i + 1, n, agents, annotationSteps, payloads, where, withheld));
     });
+    // Say exactly which steps' inputs and outputs this copy does not hold.
+    if (withheld.length > 0) {
+      sections.push("\n# Payloads not loaded\n");
+      sections.push(
+        "These boundary payloads are stored with their sub-flow invocations and were not loaded when this copy was made. " +
+          "They are not empty: open each step to load it, then copy again.\n",
+      );
+      sections.push(...withheld);
+    }
   }
 
   // ── 4. Commentary (humanized per-event lines) ────────────────
@@ -318,8 +337,10 @@ function formatStep(
   index: number,
   n: DisplayStep,
   agents: readonly AgentInstance[],
-  annotationSteps?: Map<string, string>,
-  payloads?: ReturnType<typeof contextPayloads>,
+  annotationSteps: Map<string, string> | undefined,
+  payloads: ReturnType<typeof contextPayloads> | undefined,
+  where: StepPayloadReader,
+  withheld: string[],
 ): string {
   const lines: string[] = [];
   const headerSuffix =
@@ -348,18 +369,21 @@ function formatStep(
 
   // Per-kind payload sections — same set of fields the right-pane
   // NodeDetailPanel renders.
-  if (n.entryPayload !== undefined) {
-    lines.push("\n**Boundary input** (inputMapper result):");
-    lines.push(payloads ? "```text" : "```json");
-    lines.push(payloads ? payloads.format(compactBoundaryPayload(n.entryPayload)) : safeJson(compactBoundaryPayload(n.entryPayload)));
-    lines.push("```");
-  }
-  if (n.exitPayload !== undefined) {
-    lines.push("\n**Boundary output** (outputMapper result):");
-    lines.push(payloads ? "```text" : "```json");
-    lines.push(payloads ? payloads.format(compactBoundaryPayload(n.exitPayload)) : safeJson(compactBoundaryPayload(n.exitPayload)));
-    lines.push("```");
-  }
+  const boundary = (side: PayloadSide, heading: string): void => {
+    const payload: StepPayload = where.read(n, side);
+    if (payload.state === 'recorded') {
+      lines.push(`\n${heading}:`);
+      lines.push(payloads ? "```text" : "```json");
+      lines.push(payloads ? payloads.format(compactBoundaryPayload(payload.value)) : safeJson(compactBoundaryPayload(payload.value)));
+      lines.push("```");
+    } else if (isWithheld(payload)) {
+      const notice = payloadNotice(payload);
+      lines.push(`\n${heading}: ${notice}`);
+      withheld.push(`- Step ${index} (\`${n.runtimeStageId ?? n.id}\`), ${side === 'entry' ? 'input' : 'output'}: ${notice}`);
+    }
+  };
+  boundary('entry', '**Boundary input** (inputMapper result)');
+  boundary('exit', '**Boundary output** (outputMapper result)');
   if (n.assistantText) {
     const heading = n.kind === "llm->user" ? "Final answer" : "LLM's reasoning";
     lines.push(`\n**${heading}:**`);

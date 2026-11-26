@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A lazy recording's child reply may carry `payloads`: the invocation's sub-flow entry and exit payloads, when a saved recording stores them with the invocation instead of in its base row. Each side is `{ status: 'ready', value }` or `{ status: 'unavailable', reason }`. Lens admits this member, keeps it beside the loaded child and passes the rest of the reply to the renderer unchanged. The snapshot's new `subflowPayloads` field serves the payloads for each child whose load is ready. The reply type is exported as `RecordedSubflowReply` from `agentfootprint-lens/recording`.
+- A model-call step's own detail shows its composed system prompt, messages and tools, as its card among related steps already did.
+
+### Changed
+
+- The step detail panel, the "Copy for LLM" text and the compare-branches columns read both kinds of recording: payloads in the base row (today's and every older recording) and payloads marked `payloadWith: 'invocation'`. A marked payload is loaded through the existing child request: a sub-flow step's own child, or up to three slot children for a model call, with at most nine children per panel. Until it loads, it reads "not loaded" (with why), or "unavailable" with its reason for that payload only, and never "none recorded" or "in progress". The LLM copy lists every step whose input or output it does not hold under "Payloads not loaded".
+
+### Fixed
+
+- A related step card no longer fails to render when a slot boundary has no recorded exit payload; that slot is left out.
+
 ## [0.89.0] - 2026-11-25
 
 ### Added

@@ -169,6 +169,7 @@ export const LENS_STYLESHEET = `
 .lens-compare-branches__section { color: ${T.textSecondary}; }
 .lens-compare-branches__status { font-family: ${T.fontMono}; font-size: 11px; }
 .lens-compare-branches__error { color: ${T.error}; }
+.lens-compare-branches__notice { color: ${T.textSecondary}; font-style: italic; margin: 0; }
 .lens-compare-branches__footer { color: ${T.textMuted}; font-size: 11px; }
 
 /* ── Cross-subflow chip ───────────────────────────────────────────── */
