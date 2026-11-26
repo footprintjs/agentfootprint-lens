@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Accept AgentFootprint 19 alongside 15, 16, 17 and 18. A recording that 19 saves in parts (index format 2, with sub-flow payloads stored with their invocations) reads through the lazy source when the host passes `readInvocation`'s reply through as the child reply. 19's default `writeTracking: 'summary'` puts write markers in the execution tree; no Lens view reads those values, and explainable-ui's views read memory from the commit log.
+
+### Tests
+
+- A real AgentFootprint 19.0.0 turn, filed in both layouts and read back with `openSavedRecording`, is committed as `test/recording/fixtures/saved-turn-19.json.gz` with its generator (`npm run fixtures:recording`, with 19 installed). Through the lazy source, the parts recording's detail panel, related cards, Run · end view and Copy for LLM text equal the whole recording's once its payloads are read, and no view shows a write marker as a value. The newer-AgentFootprint workflow also runs on 19.0.0.
+
 ## [0.90.0] - 2026-11-26
 
 ### Added

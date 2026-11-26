@@ -36,3 +36,27 @@ use it by default: with no reader it reads the run's own row marks.
 
 Known limit: a related card past the first nine held invocations says "not
 loaded yet" until the view shows fewer; there is no per-card load control.
+
+Known limit: whose mark it is. AgentFootprint 19's cut lists the rows it marked
+in the parts index (`subflowPayloads.rows`, positions in `snapshot.recorders`),
+and keeps any row that already held a `payloadWith` whole, as the recording's
+own data. The base alone cannot tell the two apart, and the lazy root reply
+does not carry the index, so `readPayloadMarks` reads the mark on every
+`BoundaryEvents` row. An app recorder that writes these exact names on its own
+row would then read "not loaded", and, once its invocation is read (the reply
+has no `payloads`), "not sent": never a wrong value. Follow-up, in this order:
+(1) a viewer release whose root codec admits an optional fourth root field,
+`payloadRows: number[]` (strictly ascending, each a `BoundaryEvents` row of
+that root), and whose marks are read only from those rows when it is present;
+(2) the host's root route passes `index.subflowPayloads.rows` as `payloadRows`.
+Today's `readRecordingSourceRoot` refuses any fourth key, so the host must not
+send it before (1) is released.
+
+Write markers: AgentFootprint 19 agents default to `writeTracking: 'summary'`,
+so a recording's execution tree holds `{ __writeSummary, type, size, preview? }`
+markers in `stageWrites`. No view in this package reads `stageWrites` values:
+payloads come from the boundary row and the child replies, written keys from the
+commit log. explainable-ui's `toVisualizationSnapshots` reads a stage's memory
+from its commit bundle, and falls back to `stageWrites` only for a stage with
+no bundle; a real 19 turn has none, which `test/recording/savedTurn19.test.tsx`
+pins.

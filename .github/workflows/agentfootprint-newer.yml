@@ -8,6 +8,7 @@ on:
       - package-lock.json
       - src/core/time/**
       - test/time/**
+      - test/recording/**
       - .github/workflows/agentfootprint-newer.yml
 
 permissions:
@@ -23,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        agentfootprint: ['16.0.1', '18.0.0']
+        agentfootprint: ['16.0.1', '18.0.0', '19.0.0']
     env:
       AGENTFOOTPRINT_VERSION: ${{ matrix.agentfootprint }}
       npm_config_fetch_retries: '0'
