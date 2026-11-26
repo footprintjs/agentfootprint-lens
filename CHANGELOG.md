@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.90.0] - 2026-11-26
+
 ### Added
 
 - A lazy recording's child reply may carry `payloads`: the invocation's sub-flow entry and exit payloads, when a saved recording stores them with the invocation instead of in its base row. Each side is `{ status: 'ready', value }` or `{ status: 'unavailable', reason }`, where `reason` is a code (lower-case letters, digits and hyphens). Lens admits this member and passes the rest of the reply to the renderer unchanged; `payloads: undefined` reads as no payloads. The reply type is exported as `RecordedSubflowReply` from `agentfootprint-lens/recording`.
