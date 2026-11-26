@@ -21,6 +21,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import type { StepNode } from 'agentfootprint/observe';
 import { NodeDetailPanel } from './NodeDetailPanel.js';
+import { readPayloadMarks, stepPayloadReader } from '../core/subflowPayloads/index.js';
 
 it('keeps stored result rows distinct from evidence of model input', () => {
   const node = mkNode({ id: 'stored-result', kind: 'tool->llm',
@@ -500,5 +501,55 @@ describe('NodeDetailPanel — pattern 10: drilled internal stage (no StepNode)',
     // The StepNode's label wins; the internalStage card is not shown.
     expect(screen.getByText('LLM Call')).toBeDefined();
     expect(screen.queryByText(/runs inside the subflow's own scope/)).toBeNull();
+  });
+});
+
+// ─── Payloads stored with their sub-flow invocation ───────────────────────
+
+describe('NodeDetailPanel — a payload stored with its invocation is never shown as empty or in progress', () => {
+  const step = mkNode({ id: 'sf-plan#4', kind: 'subflow', runtimeStageId: 'sf-plan#4', primitiveKind: 'LLMCall', label: 'Plan' });
+  const marks = (...types: string[]) => readPayloadMarks({ recorders: [{ name: 'BoundaryEvents',
+    data: types.map(type => ({ type, runtimeStageId: 'sf-plan#4', payloadWith: 'invocation' })) }] });
+  const loadable = new Set(['sf-plan#4']);
+
+  it('says "not loaded" for both sides and asks for the step’s own child once', () => {
+    const asked: (readonly string[])[] = [];
+    render(<NodeDetailPanel node={step} payloads={stepPayloadReader({ marks: marks('subflow.entry', 'subflow.exit'), loadable })}
+      onNeedPayloads={ids => { asked.push(ids); }} />);
+    expect(screen.getAllByRole('status').map(node => node.textContent)).toEqual(
+      Array(2).fill('Not loaded yet. It is stored with its sub-flow invocation.'));
+    expect(screen.queryByText(/no input recorded|no output recorded|In progress/)).toBeNull();
+    expect(asked).toEqual([['sf-plan#4']]);
+  });
+
+  it('keeps "in progress" for an entry with no exit recorded, moved or not, and never for a moved exit', () => {
+    const { unmount } = render(<NodeDetailPanel node={step} payloads={stepPayloadReader({ marks: marks('subflow.entry'), loadable })} />);
+    expect(screen.getByText('In progress — this step has not finished yet.')).toBeDefined();
+    unmount();
+    render(<NodeDetailPanel node={{ ...step, entryPayload: { ask: 'plan' } }}
+      payloads={stepPayloadReader({ marks: marks('subflow.exit'), loadable, loads: new Map([['sf-plan#4', { status: 'loading' as const }]]) })} />);
+    expect(screen.getByRole('status').textContent).toBe('Loading. It is stored with its sub-flow invocation.');
+    expect(screen.queryByText(/In progress/)).toBeNull();
+  });
+
+  it('shows a loaded child’s payloads as the row would, and an unavailable side’s reason for that side only', () => {
+    const inRow = render(<NodeDetailPanel node={{ ...step, entryPayload: { ask: 'plan' }, exitPayload: { plan: 'done' } }} />);
+    const rowText = inRow.container.textContent; inRow.unmount();
+    const loaded = render(<NodeDetailPanel node={step} payloads={stepPayloadReader({ marks: marks('subflow.entry', 'subflow.exit'), loadable,
+      loads: new Map([['sf-plan#4', { status: 'ready' as const, payloads: {
+        entry: { status: 'ready' as const, value: { ask: 'plan' } }, exit: { status: 'ready' as const, value: { plan: 'done' } } } }]]) })} />);
+    expect(loaded.container.textContent).toBe(rowText); loaded.unmount();
+    render(<NodeDetailPanel node={step} payloads={stepPayloadReader({ marks: marks('subflow.entry', 'subflow.exit'), loadable,
+      loads: new Map([['sf-plan#4', { status: 'ready' as const, payloads: {
+        entry: { status: 'ready' as const, value: { ask: 'plan' } }, exit: { status: 'unavailable' as const, reason: 'too-large' } } }]]) })} />);
+    expect(screen.getByText(/"ask": "plan"/)).toBeDefined();
+    expect(screen.getByRole('status').textContent).toBe('Unavailable: too-large. It is stored with its sub-flow invocation, which could not supply it.');
+  });
+
+  it('reads exactly as before for a recording whose payloads stay in the row (no marks)', () => {
+    render(<NodeDetailPanel node={step} payloads={stepPayloadReader({ marks: marks(), loadable })} />);
+    expect(screen.getByText('(no input recorded for this step)')).toBeDefined();
+    expect(screen.getByText('(no output recorded for this step)')).toBeDefined();
+    expect(screen.queryAllByRole('status')).toEqual([]);
   });
 });

@@ -14,3 +14,31 @@ newer. Its data-only codec is on `/recording`, with no React or renderer runtime
 The host's existing SharedCursor remains the only address owner. A pending
 scope never reads as the previous one, and loading completion does not move
 that address. Exact recorded invocation choices disambiguate repeated mounts.
+
+A child reply may carry `payloads` (the invocation's sub-flow entry and exit
+payloads, when the recording stores them with it). The controller takes that
+member out, admits it with the codec, and hands the renderer the rest of the
+reply unchanged; a reply without it (or with `payloads: undefined`) is
+forwarded untouched.
+
+Views read payloads apart from the renderer: `loadPayloads` calls the host's
+`loadSubflow` directly and keeps only the admitted payloads in this package's
+own store (`payloadCache.ts`), never the result, so the renderer's limited set
+of loaded children (`maxCachedSubflows`, at most 64) stays for the person's own
+drills. A view holds what it shows with a signal: a held entry is never
+evicted, a read nobody holds is cancelled, and at most `maxCachedPayloads`
+(default `MAX_CACHED_PAYLOADS`, 64) entries stay once no view holds them. A
+failed read stays failed (and is shown so) while it is kept. A payload is kept
+only from the requested invocation's own reply (`payloadCache.ts ·
+replyBelongsTo`: its result's `subflowId`, and its log address's last mount
+when it has one); another invocation's reply is a failed read. Payloads from an
+explicit child load's reply go into the same store once the renderer admits
+that child, never when it refuses it. A view (`useHeldPayloads`) holds its new
+set before it releases the old, and the store waits one task before it cancels
+an unheld read, so a read two views share, or a StrictMode double effect, is
+never cancelled and restarted. A payload read fetches the host's whole child
+reply to keep only its payloads (no payloads-only route exists); a signal that
+never aborts holds its payloads for as long as the source lives.
+`maxCachedPayloads` must be a whole number of at least 1. `useStepPayloads` turns the
+base row's marks and that store into the one payload reader
+(`core/subflowPayloads`) and holds the invocations a view shows.

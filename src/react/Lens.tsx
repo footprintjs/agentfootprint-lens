@@ -58,6 +58,7 @@ import type { LensRecordingSource } from './recordingSource/types.js';
 import { useLensSource } from './recordingSource/useLensSource.js';
 import { RecordingSourceView } from './recordingSource/RecordingSourceView.js';
 import { useRecordingSource } from './recordingSource/useRecordingSource.js';
+import { useStepPayloads, type StepPayloads } from './recordingSource/useStepPayloads.js';
 import type { CursorAddress } from '../core/cursor/sharedCursor.js';
 import { useLensNavigator, type LensNavigator } from "./useLensNavigator.js";
 import { useNarrowRow } from "./narrowLayout.js";
@@ -779,6 +780,9 @@ const StageLens: React.FC<LensProps> = ({
   const logKey = snapshotLogKey(freshSnapshot);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- `freshSnapshot` is keyed by `logKey` on purpose
   const runSnapshot = useMemo(() => freshSnapshot, [lensRunner, logKey]);
+  // Where each step's boundary payloads are: in the base row, or with their
+  // sub-flow invocations (loaded on demand through the lazy source).
+  const stepPayloads = useStepPayloads(recordingSource, runSnapshot);
   // DECLARED TAGS (0.48.0). The legend lists what the chart CAN produce (its
   // structure) and what the run DID hit (`bundle.tags`); a pick rebuilds the
   // positions through footprintjs 9.21's `tagStops(names)` — a different LIST
@@ -1039,6 +1043,7 @@ const StageLens: React.FC<LensProps> = ({
       granularity={granularity}
       tagPicker={{ legend, picked: pickedTags, onPick: setPickedTags }}
       bookmarks={sidecar}
+      stepPayloads={stepPayloads}
       {...(slots ? { slots } : {})}
       {...(toolChoice ? { toolChoice: toolChoiceData } : {})}
     />,
@@ -1230,6 +1235,8 @@ const EngineerView: React.FC<{
   sourceOverlay?: import('footprint-explainable-ui/flowchart').RuntimeOverlay;
   sourceSubflowId?: string;
   onNavigateRecordingAddress?: (address: CursorAddress, options?: { readonly signal?: AbortSignal }) => Promise<boolean>;
+  /** Where each step's boundary payloads are, and how to ask for the children that hold them. */
+  stepPayloads?: StepPayloads;
   onDrillInto: (path: readonly string[]) => void;
   onDrillTo: (path: readonly string[]) => void;
   /** Per-commit sync map — read for commentary cutoff resolution. */
@@ -1294,6 +1301,7 @@ const EngineerView: React.FC<{
   sourceOverlay,
   sourceSubflowId,
   onNavigateRecordingAddress,
+  stepPayloads,
   onDrillInto,
   onDrillTo,
   syncMap,
@@ -1704,6 +1712,7 @@ const EngineerView: React.FC<{
         <CopyForLLMButton
           recorder={recorder}
           {...(stepGraph ? { stepGraph } : {})}
+          {...(stepPayloads ? { payloads: stepPayloads.reader } : {})}
           humanizer={humanizer}
           appName={appName}
           viewState={{
@@ -2133,6 +2142,7 @@ const EngineerView: React.FC<{
                       <>
                         <NodeDetailPanel
                           hideEmptyState
+                          {...(stepPayloads ? { payloads: stepPayloads.reader, onNeedPayloads: stepPayloads.request } : {})}
                           {...(cursorFocusedNode ? { node: cursorFocusedNode } : {})}
                           relatedNodes={cursorRelatedNodes}
                           cursorRuntimeStageId={cursorRuntimeStageId}

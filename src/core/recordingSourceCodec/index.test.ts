@@ -6,7 +6,8 @@ import { buildRuntimeStageId } from 'foottrace';
 import { flowChart, FlowChartExecutor } from 'footprintjs';
 import { projectRecordingSource, readRecordingSourceRoot, readRecordingSubflow } from './index.js';
 import type { RecordingSourceRead, RecordingSourceRoot } from './types.js';
-import { MAX_STAGE_CHAIN } from '../recordedContext/ownJson.js';
+import { MAX_STAGE_CHAIN, stageTreesAt } from '../recordedContext/ownJson.js';
+import { CHILD_TREE, ROOT_TREE } from './fields.js';
 import { chainLength, lastStage, nested, stageChainRecording } from '../../../test/fixtures/stageChain.js';
 
 type Json = Record<string, any>;
@@ -239,6 +240,14 @@ describe('a sequence of stages is not depth (tree places only)', () => {
     // A wire root whose tree grew past the cap is refused at admission, not by a stack overflow.
     const grown = JSON.parse(JSON.stringify(root)); lastStage(grown.recording.snapshot.executionTree).next = { id: 'extra', runtimeStageId: rid('extra', 5000) };
     expect(readRecordingSourceRoot(grown)).toEqual({ status: 'unavailable', reason: 'recording-limit' });
+  });
+
+  it('names exactly two tree places, and a child unit’s own executionTree key is not one', async () => {
+    expect(ROOT_TREE).toEqual(stageTreesAt(['recording', 'snapshot', 'executionTree']));
+    expect(CHILD_TREE).toEqual(stageTreesAt(['treeContext', 'stageContexts']));
+    const input = await stageChainRecording(200), d = descriptor(ready(projectRecordingSource(input)));
+    input.snapshot.subflowResults[d.mountRuntimeStageId].executionTree = nested(101);
+    expect(readRecordingSubflow(input, d)).toEqual({ status: 'unavailable', reason: 'recording-limit' });
   });
 
   it('still refuses a hostile value 101 levels deep along a key named next, beside an admitted long tree', async () => {

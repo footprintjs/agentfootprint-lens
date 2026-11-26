@@ -17,6 +17,11 @@
  *     payloads; we render a short note explaining why.
  *   - In-progress / paused subflows → entry only, exit shows
  *     "(in progress)" — matches the BoundaryRecorder semantics.
+ *   - A payload stored with its sub-flow invocation (a saved recording's
+ *     base part moves it there) is "not loaded" or "unavailable (reason)"
+ *     until its child arrives, never "none recorded" or "in progress". The
+ *     panel asks for the children it shows: a sub-flow step's own and a
+ *     model-call step's slot invocations (at most three per step).
  */
 
 import React from 'react';
@@ -24,6 +29,13 @@ import type { StepNode } from 'agentfootprint/observe';
 import { T } from './theme/index.js';
 import { ioSectionsFor } from '../core/nodeIoSections.js';
 import type { DisplayStep } from '../core/toolStepDisplay.js';
+import {
+  isWithheld, payloadNotice, ROW_ONLY_PAYLOADS, type PayloadHolder, type PayloadWant, type StepPayload, type StepPayloadReader,
+} from '../core/subflowPayloads/index.js';
+import { useHeldPayloads } from './recordingSource/useStepPayloads.js';
+
+/** The most child invocations one panel asks for at once (three model calls' slots). */
+export const MAX_DETAIL_LOADS = 9;
 
 export interface NodeDetailPanelProps {
   /** The selected step node, or undefined when nothing is selected. */
@@ -84,6 +96,16 @@ export interface NodeDetailPanelProps {
   readonly hideEmptyState?: boolean;
   /** Optional close handler — when provided, renders an `×` close button. */
   readonly onClose?: () => void;
+  /**
+   * Where each boundary payload is. Default: the row only (every payload is
+   * what the step carries), the reading before payloads could move.
+   */
+  readonly payloads?: StepPayloadReader;
+  /**
+   * Asked to hold the child invocations (mount runtime ids) whose payloads the
+   * panel shows; the returned release is called when the panel shows others.
+   */
+  readonly onNeedPayloads?: (invocations: readonly string[]) => (() => void) | void;
 }
 
 export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
@@ -97,7 +119,13 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
   internalStage,
   hideEmptyState,
   onClose,
+  payloads = ROW_ONLY_PAYLOADS,
+  onNeedPayloads,
 }) => {
+  // Ask for the children whose payloads this panel shows (the step's own
+  // sub-flow invocation, the slot invocations of each shown model call): the
+  // first MAX_DETAIL_LOADS in display order; the rest say "not loaded yet".
+  useHeldPayloads(payloads.wanted(shownPayloads(node, relatedNodes), MAX_DETAIL_LOADS), onNeedPayloads);
   // A DRILLED subflow's internal stage: no StepNode (subflow-scoped), but we
   // still show its name + what it does so every stage you scrub onto has detail.
   if (!node && internalStage) {
@@ -199,7 +227,7 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
             {!showRunError && rootPhase === 'end' && runOutput !== undefined && (
               <PayloadSection label="Final answer" payload={runOutput} emptyHint="(no output recorded)" />
             )}
-            {hasRelated && <RelatedStepsSection nodes={relatedNodes!} />}
+            {hasRelated && <RelatedStepsSection nodes={relatedNodes!} payloads={payloads} />}
           </div>
         </div>
       );
@@ -220,6 +248,8 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
 
   const isSubflow = node.kind === 'subflow';
   const isTopologyHelper = node.kind === 'fork-branch' || node.kind === 'decision-branch';
+  const entry = payloads.read(node, 'entry');
+  const exit = payloads.read(node, 'exit');
 
   return (
     <div style={panelStyle}>
@@ -253,14 +283,17 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
           <>
             <PayloadSection
               label={inputLabelFor(node)}
-              payload={node.entryPayload}
+              {...shownPayload(entry)}
               emptyHint="(no input recorded for this step)"
             />
             <PayloadSection
               label={outputLabelFor(node)}
-              payload={node.exitPayload}
+              {...shownPayload(exit)}
               emptyHint={
-                node.entryPayload && !node.exitPayload
+                // Today's rule (an entry and no exit), with a payload stored
+                // with its invocation counted as present. A withheld exit
+                // never reaches this hint: it is "not loaded", not pending.
+                isPresent(entry) && !isPresent(exit)
                   ? 'In progress — this step has not finished yet.'
                   : '(no output recorded for this step)'
               }
@@ -285,7 +318,7 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
             entry/exit payloads. Filters out fork/decision topology
             helpers since they never carry useful per-step data. */}
         {relatedNodes && relatedNodes.length > 0 && (
-          <RelatedStepsSection nodes={relatedNodes} />
+          <RelatedStepsSection nodes={relatedNodes} payloads={payloads} />
         )}
       </div>
     </div>
@@ -303,7 +336,8 @@ export const NodeDetailPanel: React.FC<NodeDetailPanelProps> = ({
 
 const RelatedStepsSection: React.FC<{
   nodes: readonly StepNode[];
-}> = ({ nodes }) => {
+  payloads: StepPayloadReader;
+}> = ({ nodes, payloads: reader }) => {
   const renderable = nodes.filter(
     (n) => n.kind !== 'fork-branch' && n.kind !== 'decision-branch',
   );
@@ -315,14 +349,14 @@ const RelatedStepsSection: React.FC<{
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
         {renderable.map((n) => (
-          <RelatedStepCard key={n.id} node={n} />
+          <RelatedStepCard key={n.id} node={n} payloads={reader} />
         ))}
       </div>
     </div>
   );
 };
 
-const RelatedStepCard: React.FC<{ node: DisplayStep }> = ({ node }) => {
+const RelatedStepCard: React.FC<{ node: DisplayStep; payloads: StepPayloadReader }> = ({ node, payloads: reader }) => {
   // Compact title: kind + label so a reader can see "user→llm · call-llm"
   // at a glance and decide whether to expand the payload.
   const title = node.label && node.label !== node.kind
@@ -348,34 +382,18 @@ const RelatedStepCard: React.FC<{ node: DisplayStep }> = ({ node }) => {
   // over a generic "dump whatever's there" since each has a clear
   // user-facing label.
   const payloads: Array<{ label: string; value: unknown }> = [];
+  // A payload stored with its invocation and not shown: said, never dropped.
+  const withheld: Array<{ label: string; payload: Extract<StepPayload, { state: 'not-loaded' | 'unavailable' }> }> = [];
+  const add = (label: string, payload: StepPayload) => {
+    if (payload.state === 'recorded') payloads.push({ label, value: payload.value });
+    else if (isWithheld(payload)) withheld.push({ label, payload });
+  };
   if (node.kind === 'subflow') {
-    if (node.entryPayload !== undefined) {
-      payloads.push({ label: inputLabelFor(node), value: node.entryPayload });
-    }
-    if (node.exitPayload !== undefined) {
-      payloads.push({ label: outputLabelFor(node), value: node.exitPayload });
-    }
+    add(inputLabelFor(node), reader.read(node, 'entry'));
+    add(outputLabelFor(node), reader.read(node, 'exit'));
   }
-  if (node.slotBoundaries) {
-    if (node.slotBoundaries.systemPrompt) {
-      payloads.push({
-        label: 'System prompt (composed)',
-        value: node.slotBoundaries.systemPrompt.exitPayload,
-      });
-    }
-    if (node.slotBoundaries.messages) {
-      payloads.push({
-        label: 'Messages (composed)',
-        value: node.slotBoundaries.messages.exitPayload,
-      });
-    }
-    if (node.slotBoundaries.tools) {
-      payloads.push({
-        label: 'Tools (composed)',
-        value: node.slotBoundaries.tools.exitPayload,
-      });
-    }
-  }
+  // A slot with no recorded exit is left out, as an absent slot is.
+  for (const [label, slot] of slotsOf(node)) add(label, reader.read(slot, 'exit'));
   if (node.assistantText) {
     const label =
       node.kind === 'llm->user'
@@ -396,7 +414,7 @@ const RelatedStepCard: React.FC<{ node: DisplayStep }> = ({ node }) => {
   const hasInjections = (node.injections ?? []).some(
     (inj) => !BASELINE_SOURCES.has(inj.source),
   );
-  const hasContent = rows.length > 0 || payloads.length > 0 || hasInjections;
+  const hasContent = rows.length > 0 || payloads.length > 0 || withheld.length > 0 || hasInjections;
 
   return (
     <div style={sectionStyle}>
@@ -415,6 +433,12 @@ const RelatedStepCard: React.FC<{ node: DisplayStep }> = ({ node }) => {
         <div key={p.label} style={{ borderTop: `1px solid ${T.border}` }}>
           <div style={{ ...sectionLabelStyle, padding: '4px 8px' }}>{p.label}</div>
           <pre style={preStyle}>{prettyPrint(p.value)}</pre>
+        </div>
+      ))}
+      {withheld.map((p) => (
+        <div key={p.label} style={{ borderTop: `1px solid ${T.border}` }}>
+          <div style={{ ...sectionLabelStyle, padding: '4px 8px' }}>{p.label}</div>
+          <div role="status" style={emptyHintStyle}>{payloadNotice(p.payload)}</div>
         </div>
       ))}
       {!hasContent && (
@@ -488,12 +512,11 @@ function outputLabelFor(node: StepNode): string {
 const PayloadSection: React.FC<{
   label: string;
   payload?: unknown;
+  /** Set when the payload is stored with its invocation and not shown; replaces the empty hint. */
+  withheld?: Extract<StepPayload, { state: 'not-loaded' | 'unavailable' }>;
   emptyHint: string;
-}> = ({ label, payload, emptyHint }) => {
-  const hasPayload =
-    payload !== undefined &&
-    payload !== null &&
-    !(typeof payload === 'object' && Object.keys(payload as object).length === 0);
+}> = ({ label, payload, withheld, emptyHint }) => {
+  const hasPayload = hasValue(payload);
   return (
     <div style={sectionStyle}>
       <div style={sectionHeaderStyle}>
@@ -501,12 +524,57 @@ const PayloadSection: React.FC<{
       </div>
       {hasPayload ? (
         <pre style={preStyle}>{prettyPrint(payload)}</pre>
+      ) : withheld !== undefined ? (
+        <div role="status" style={emptyHintStyle}>{payloadNotice(withheld)}</div>
       ) : (
         <div style={emptyHintStyle}>{emptyHint}</div>
       )}
     </div>
   );
 };
+
+/** A payload the section can print: not empty, not null, not `{}` (today's rule). */
+function hasValue(payload: unknown): boolean {
+  return payload !== undefined && payload !== null
+    && !(typeof payload === 'object' && Object.keys(payload as object).length === 0);
+}
+
+/** A model-call step's slot boundaries, in display order, with their labels. */
+function slotsOf(step: StepNode): readonly (readonly [string, PayloadHolder])[] {
+  const bounds = step.slotBoundaries;
+  const out: (readonly [string, PayloadHolder])[] = [];
+  if (bounds?.systemPrompt) out.push(['System prompt (composed)', bounds.systemPrompt]);
+  if (bounds?.messages) out.push(['Messages (composed)', bounds.messages]);
+  if (bounds?.tools) out.push(['Tools (composed)', bounds.tools]);
+  return out;
+}
+
+/** A recorded truthy value, or one stored with its invocation. */
+function isPresent(payload: StepPayload): boolean {
+  return payload.state === 'recorded' ? Boolean(payload.value) : payload.state !== 'none';
+}
+
+/** A resolved payload as the section's props. */
+function shownPayload(payload: StepPayload): { payload?: unknown; withheld?: Extract<StepPayload, { state: 'not-loaded' | 'unavailable' }> } {
+  if (payload.state === 'recorded') return { payload: payload.value };
+  return isWithheld(payload) ? { withheld: payload } : {};
+}
+
+/**
+ * Every payload the panel shows, in display order: a sub-flow step's input and
+ * output, and the slot exits of each related model-call card (a slot's entry
+ * is never shown, and the primary model-call body shows no slots).
+ */
+function shownPayloads(node: StepNode | undefined, related: readonly StepNode[] | undefined): PayloadWant[] {
+  const out: PayloadWant[] = [];
+  const add = (step: StepNode, primary: boolean) => {
+    if (step.kind === 'subflow') out.push([step, 'entry'], [step, 'exit']);
+    if (!primary) for (const [, slot] of slotsOf(step)) out.push([slot, 'exit']);
+  };
+  if (node !== undefined) add(node, true);
+  for (const step of related ?? []) if (step.kind !== 'fork-branch' && step.kind !== 'decision-branch') add(step, false);
+  return out;
+}
 
 // ── ReAct step body (user→llm / llm→tool / tool→llm / llm→user) ────────
 

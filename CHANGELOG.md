@@ -7,10 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- A lazy recording's child reply may carry `payloads`: the invocation's sub-flow entry and exit payloads, when a saved recording stores them with the invocation instead of in its base row. Each side is `{ status: 'ready', value }` or `{ status: 'unavailable', reason }`, where `reason` is a code (lower-case letters, digits and hyphens). Lens admits this member and passes the rest of the reply to the renderer unchanged; `payloads: undefined` reads as no payloads. The reply type is exported as `RecordedSubflowReply` from `agentfootprint-lens/recording`.
+- The lazy source reads those payloads with `loadPayloads(request, { signal })`, through the host's own `loadSubflow`, and keeps only the admitted payloads (never the child's result) in its own store: held while a view shows them, at most `maxCachedPayloads` (default 64) once none does, and a read nobody holds any more is cancelled (a view holds its new set before releasing the old, so a read two views share is never restarted). A payload is kept only from the requested invocation's own reply, and an explicit drill's payloads only once the renderer admits that child; any other reply shows "could not be loaded". `maxCachedPayloads` must be a whole number of at least 1. These reads never enter the renderer's set of loaded children, which stays for the person's own drills. The snapshot's new `subflowPayloads` and `payloadReads` fields show what is held, in flight and failed; a failed read is shown as failed and not retried while a view shows it.
+- `agentfootprint-lens/core` exports `stepPayloadReader`, `readPayloadMarks`, `payloadNotice` and their types, so a caller of `buildLLMText` can pass the payloads it has loaded (`payloads`), or the run's snapshot whose marks it should read (`snapshot`).
+
+### Changed
+
+- The step detail panel and the "Copy for LLM" text read both kinds of recording: payloads in the base row (today's and every older recording, which render exactly as before) and payloads marked `payloadWith: 'invocation'`. The detail panel reads a sub-flow step's own payloads and the slot payloads of each model-call card it shows, for at most nine invocations per panel. Until a payload is read it says "not loaded" (and why: not yet, loading, could not be loaded, not sent by the host, or not loadable here), or "unavailable" with its reason, for that payload only, and never "none recorded" or "in progress". `buildLLMText` with no `payloads` reads the marks of the run's base row, so it writes every moved payload as not loaded instead of leaving it out, and lists those steps under "Payloads not loaded".
+
 ### Fixed
 
 - A long run no longer fails to open as a lazy recording because its stages were counted as nesting depth. The recording codec now reads the execution tree (`recording.snapshot.executionTree` in the root reply, `treeContext.stageContexts` in a child reply) with a loop: depth counts inside one stage and one level per `children` step, and `next` adds none. Every other value keeps the depth limit of 100, including a value with a key named `next`. A tree with more than 1,000 stages on one path is refused as `recording-limit`, so every admitted reply can still be sent as JSON, cloned and posted on Node 22. Before, a root reply from an agent turn of about 9 model calls was refused as `recording-limit`.
 - The agent legend and the declared-tag reader walk a long `next` chain with a loop instead of recursion.
+- A related step card no longer fails to render when a slot boundary has no recorded exit payload; that slot is left out.
 
 ## [0.89.0] - 2026-11-25
 

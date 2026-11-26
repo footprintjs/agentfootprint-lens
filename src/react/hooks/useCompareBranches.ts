@@ -19,12 +19,19 @@
  *     - tokenCount     = SUM of `tokens.in` / `tokens.out` across the
  *                        branch's LLM steps
  *     - status         = derived from the branch subflow's exit state
- *     - systemPrompt   = last `slotUpdated === 'system-prompt'` step's
- *                        rendered slot exitPayload as text
- *     - messages       = last `slotUpdated === 'messages'` step's
- *                        exitPayload as an array of {role, content}
- *     - tools          = last `slotUpdated === 'tools'` step's
- *                        exitPayload as an array of {name, description}
+ *     - systemPrompt   = the branch's last system-prompt slot exit
+ *                        payload as text
+ *     - messages       = the last messages slot exit as an array of
+ *                        {role, content}
+ *     - tools          = the last tools slot exit as an array of
+ *                        {name, description}
+ *
+ *   A slot exit is read from the last model-call step's `slotBoundaries`
+ *   (where agentfootprint puts it), else from the last step whose
+ *   `slotUpdated` names that slot and carries `exitPayload` itself. When
+ *   the recording stores slot payloads with their slot invocations, the hook
+ *   asks for those children (the last three per branch) and each section says
+ *   which payload is not loaded or unavailable, never that it is empty.
  *
  *   Payload shapes are duck-typed defensively — Lens v0.1 doesn't pin
  *   them to a strict schema since they vary by adapter. Anything that
@@ -42,6 +49,14 @@ import { useMemo } from 'react';
 import type { SpecNode } from '../../core/buildSpecTreeFromBoundary.js';
 import type { StepGraph, StepNode } from 'agentfootprint/observe';
 import { parseRoleFromDescription } from '../../core/utils/parseRoleFromDescription.js';
+import { ROW_ONLY_PAYLOADS, type PayloadHolder, type StepPayload, type StepPayloadReader } from '../../core/subflowPayloads/index.js';
+import { useHeldPayloads } from '../recordingSource/useStepPayloads.js';
+
+/** The most slot invocations the compare view holds at once (three branches' slots). */
+export const MAX_COMPARE_LOADS = 9;
+
+/** Where one column section's slot exit payload is. */
+export type BranchSectionState = { readonly state: 'recorded' | 'none' } | Extract<StepPayload, { state: 'not-loaded' | 'unavailable' }>;
 
 export interface BranchColumn {
   readonly branchId: string;
@@ -53,6 +68,12 @@ export interface BranchColumn {
   readonly tokenCount: { readonly input: number; readonly output: number };
   readonly status: 'running' | 'ok' | 'failed';
   readonly errorMessage?: string;
+  /** Whether each slot section was shown, recorded none, or is withheld (not loaded or unavailable). Set by `useCompareBranches`. */
+  readonly sections?: {
+    readonly systemPrompt: BranchSectionState;
+    readonly messages: BranchSectionState;
+    readonly tools: BranchSectionState;
+  };
 }
 
 function asMessages(payload: unknown): readonly { role: string; content: string }[] {
@@ -121,6 +142,25 @@ function lastBySlot(
   return undefined;
 }
 
+/** The branch's last exit holder for one slot. */
+function slotSource(
+  steps: readonly StepNode[],
+  slot: 'system-prompt' | 'messages' | 'tools',
+  prop: 'systemPrompt' | 'messages' | 'tools',
+): PayloadHolder | undefined {
+  for (let i = steps.length - 1; i >= 0; i--) {
+    const bound = steps[i]!.slotBoundaries?.[prop];
+    if (bound) return bound;
+  }
+  const legacy = lastBySlot(steps, slot);
+  return legacy && { ...(legacy.runtimeStageId !== undefined && { runtimeStageId: legacy.runtimeStageId }),
+    exitPayload: (legacy as { exitPayload?: unknown }).exitPayload };
+}
+
+function sectionState(payload: StepPayload): BranchSectionState {
+  return payload.state === 'recorded' || payload.state === 'none' ? { state: payload.state } : payload;
+}
+
 function deriveStatus(branchSubflow: StepNode | undefined): 'running' | 'ok' | 'failed' {
   if (!branchSubflow) return 'running';
   if (branchSubflow.endOffsetMs === undefined) return 'running';
@@ -132,7 +172,8 @@ function deriveStatus(branchSubflow: StepNode | undefined): 'running' | 'ok' | '
 function buildColumn(
   branch: SpecNode,
   stepGraph: StepGraph,
-): BranchColumn {
+  reader: StepPayloadReader,
+): { column: BranchColumn; holders: readonly (PayloadHolder | undefined)[] } {
   const branchId = branch.subflowId ?? branch.name;
   const branchName = branch.subflowName ?? branch.name;
   const steps = stepsInBranch(stepGraph, branchId);
@@ -162,30 +203,48 @@ function buildColumn(
     }
   }
 
-  const sysStep = lastBySlot(steps, 'system-prompt');
-  const msgStep = lastBySlot(steps, 'messages');
-  const toolStep = lastBySlot(steps, 'tools');
+  const holders = [
+    slotSource(steps, 'system-prompt', 'systemPrompt'),
+    slotSource(steps, 'messages', 'messages'),
+    slotSource(steps, 'tools', 'tools'),
+  ] as const;
+  const [sys, msg, tool] = holders.map(holder => reader.read(holder, 'exit')) as [StepPayload, StepPayload, StepPayload];
+  const valueOf = (payload: StepPayload) => (payload.state === 'recorded' ? payload.value : undefined);
 
   return {
-    branchId,
-    branchName,
-    systemPrompt: asText(sysStep && (sysStep as { exitPayload?: unknown }).exitPayload),
-    messages: asMessages(msgStep && (msgStep as { exitPayload?: unknown }).exitPayload),
-    tools: asTools(toolStep && (toolStep as { exitPayload?: unknown }).exitPayload),
-    response,
-    tokenCount: { input: inputTokens, output: outputTokens },
-    status: deriveStatus(branchSubflowStep),
+    holders,
+    column: {
+      branchId,
+      branchName,
+      systemPrompt: asText(valueOf(sys)),
+      messages: asMessages(valueOf(msg)),
+      tools: asTools(valueOf(tool)),
+      response,
+      tokenCount: { input: inputTokens, output: outputTokens },
+      status: deriveStatus(branchSubflowStep),
+      sections: { systemPrompt: sectionState(sys), messages: sectionState(msg), tools: sectionState(tool) },
+    },
   };
 }
 
+/**
+ * @param payloads where slot payloads are (`useStepPayloads`), and how to ask
+ *   for the slot invocations a column needs. Default: the row only.
+ */
 export function useCompareBranches(
   currentSpec: SpecNode | undefined,
   stepGraph: StepGraph | undefined,
+  payloads?: { readonly reader: StepPayloadReader; readonly request?: (invocations: readonly string[]) => (() => void) | void },
 ): readonly BranchColumn[] | null {
-  return useMemo(() => {
+  const reader = payloads?.reader ?? ROW_ONLY_PAYLOADS;
+  const built = useMemo(() => {
     if (!currentSpec || !stepGraph) return null;
     if (!isParallelFork(currentSpec)) return null;
     const branches = currentSpec.children ?? [];
-    return branches.map((b) => buildColumn(b, stepGraph));
-  }, [currentSpec, stepGraph]);
+    return branches.map((b) => buildColumn(b, stepGraph, reader));
+  }, [currentSpec, stepGraph, reader]);
+  // The last three slot invocations per branch, once each, at most MAX_COMPARE_LOADS.
+  useHeldPayloads(built === null ? [] : reader.wanted(built.flatMap(b => b.holders.map(holder => [holder, 'exit'] as const)), MAX_COMPARE_LOADS),
+    payloads?.request);
+  return useMemo(() => (built === null ? null : built.map(b => b.column)), [built]);
 }
