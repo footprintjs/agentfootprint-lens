@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 jobs:
-  test:
+  compatibility-pack:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -29,8 +29,6 @@ jobs:
       - run: npm run test:contract:foottrace
       - run: npm run typecheck
       - run: npm run build
-      - run: npm test
-      - run: npm run fixtures:time:check
       - run: npm exec --no -- publint
       - name: Verify registry bytes, committed lock and installed packages
         run: node scripts/compat/published-proof.mjs --out "$RUNNER_TEMP/published-evidence" --lock package-lock.json
@@ -59,8 +57,37 @@ jobs:
             compat-artifacts/*.log
           if-no-files-found: error
 
+  test-22-suite:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g npm@11.21.0
+      - run: npm ci --strict-peer-deps
+      - run: npm run build
+      - run: npm test
+      - run: npm run fixtures:time:check
+
+  # Keep the existing check name and require both halves of the former job.
+  test:
+    needs: [compatibility-pack, test-22-suite]
+    if: always()
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Require both Node 22 jobs
+        env:
+          PACK_RESULT: ${{ needs.compatibility-pack.result }}
+          SUITE_RESULT: ${{ needs.test-22-suite.result }}
+        run: test "$PACK_RESULT" = success && test "$SUITE_RESULT" = success
+
   test-24:
-    needs: test
+    needs: compatibility-pack
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -149,7 +176,7 @@ jobs:
   # releases. Every renderer is a registry archive checked by its pinned
   # integrity; the 2.0.0 lanes also run the vendored /record corpus.
   peer-matrix:
-    needs: test
+    needs: compatibility-pack
     runs-on: ubuntu-24.04
     # Official image supplies browsers + native libraries once; every lane still
     # proves its exact installed driver/binary and performs the full replay.
