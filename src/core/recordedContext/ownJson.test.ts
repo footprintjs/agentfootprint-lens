@@ -108,6 +108,39 @@ describe('the JSON owner: a sequence of stages is not depth', () => {
     expect(refusal(() => own(dto({ id: 'root', next: 'not a stage', children: null })))).toBe('admitted');
   });
 
+  it('walks a tree only at the exact path: a key off the trie leaves it for good', () => {
+    const CHILD = stageTreesAt(['treeContext', 'stageContexts']);
+    const deep = chain(500, index => ({ id: `s${index}` }));
+    expect(refusal(() => own(dto(deep)))).toBe('admitted');
+    expect(refusal(() => own({ treeContext: { stageContexts: deep } }, CHILD))).toBe('admitted');
+    // Look-alikes: a key that is not on the trie, then the place's own keys below it.
+    expect(refusal(() => own({ recording: { snapshot: { sharedState: { executionTree: deep } } } }))).toBe('presentation-limit');
+    expect(refusal(() => own({ recording: { events: { snapshot: { executionTree: deep } } } }))).toBe('presentation-limit');
+    expect(refusal(() => own({ treeContext: { globalContext: { stageContexts: deep } } }, CHILD))).toBe('presentation-limit');
+  });
+
+  it('owns a stage’s non-stage children elements and an array-valued next as ordinary values, one level deeper', () => {
+    const arrays = (levels: number): unknown => {
+      let value: unknown = 'leaf';
+      for (let i = 0; i < levels; i++) value = [value];
+      return value;
+    };
+    // Root stage at depth 3, its children array at 4, each element at 5: 95 nested arrays fit, 96 do not.
+    expect(refusal(() => own(dto({ id: 'root', children: [arrays(95)] })))).toBe('admitted');
+    expect(refusal(() => own(dto({ id: 'root', children: [arrays(96)] })))).toBe('presentation-limit');
+    // An array `next` is a value at depth 4, never a stage: 96 nested arrays fit, 97 do not.
+    const listed = dto({ id: 'root', next: [chain(2)] });
+    expect(JSON.stringify(own(listed))).toBe(JSON.stringify(listed));
+    expect(refusal(() => own(dto({ id: 'root', next: arrays(96) })))).toBe('admitted');
+    expect(refusal(() => own(dto({ id: 'root', next: arrays(97) })))).toBe('presentation-limit');
+  });
+
+  it('charges key bytes to the one string budget, at a tree place as everywhere', () => {
+    const key = 'k'.repeat(64 * 1024 * 1024 + 1);
+    expect(refusal(() => presentationBudget().own({ [key]: 1 }))).toBe('presentation-limit');
+    expect(refusal(() => own(dto({ id: 'root', [key]: 1 })))).toBe('presentation-limit');
+  });
+
   it('builds places by exact path and refuses a place inside another', () => {
     expect(() => stageTreesAt([])).toThrow();
     expect(() => stageTreesAt(['a'], ['a', 'b'])).toThrow();

@@ -64,6 +64,20 @@ and `postMessage` carry on Node 22 (they fail near 2,000);
 `stageChainSerialization.test.ts` pins that on the deepest admitted root and
 child replies.
 
+Known limits of these bounds:
+- The carrying margin was measured at an empty stack. On Node 22.16,
+  `structuredClone` of a `next` chain works up to about 1,882 levels there, but
+  a 1,100-level reply fails once about 3,640 frames are already on the call
+  stack (about 5,171 on Node 24.21). `JSON.stringify` carries 2,000 levels even
+  with 4,000 frames in use. Clone or post an admitted reply from a shallow
+  stack, such as an async handler.
+- Keys count against the 64 MiB string budget as UTF-8 bytes, as string values
+  do, at a tree place as everywhere else; this was already the rule before the
+  tree places, and is now tested.
+- A stage node shared by two places of one tree (only possible for an
+  in-memory value, never for JSON) is refused; the plain walk used to admit it
+  within depth 100.
+
 Tests use the recorded native turn (25 exact root units), actual nested native
 FlowChart execution, repeated mounts with stale aliases, resumed log identities,
 getter/cycle/class/sparse input, immutable ownership and exact refusal bounds.
