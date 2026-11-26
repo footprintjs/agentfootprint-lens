@@ -163,6 +163,7 @@ if (process.argv.includes('--layout')) {
     { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })) as unknown;
   const parts = run('parts') as { invocations: readonly unknown[]; index: { format: string } };
   const fixture = json({ agentfootprint: version, parts, whole: run('whole') });
-  writeFileSync(join(here, 'saved-turn-19.json.gz'), gzipSync(JSON.stringify(fixture), { level: 9 }));
+  const output = process.env.LENS_RECORDING_FIXTURE ?? join(here, 'saved-turn-19.json.gz');
+  writeFileSync(output, gzipSync(JSON.stringify(fixture), { level: 9 }));
   console.log(`agentfootprint ${version}: ${parts.invocations.length} invocations, index ${parts.index.format}`);
 }

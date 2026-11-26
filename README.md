@@ -32,9 +32,9 @@ agentfootprint = **2 primitives (LLM, Agent) + 3 compositions (Sequence, Paralle
 npm install agentfootprint agentfootprint-lens footprintjs foottrace
 ```
 
-### Runtime peers: AgentFootprint 15–19, FootPrint 14 and Foottrace 2.3.2
+### Runtime peers: AgentFootprint 15–20, FootPrint 14 and Foottrace 2.3.2
 
-Update the runtime packages together: `agentfootprint ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0`,
+Update the runtime packages together: `agentfootprint ^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0`,
 `footprintjs ^14.0.0` and `foottrace ^2.3.2`. The committed development lock
 selects the published versions 15.0.0, 14.0.0 and 2.3.2. Node.js 22 or newer
 and React 18 or 19 remain required. Older saved recordings retain their
@@ -42,8 +42,8 @@ existing readers, fixtures and goldens. For recorded Context types and array
 lengths, use AgentFootprint 16.0.1 or a newer supported release.
 
 The newer AgentFootprint compatibility check runs the full Lens test suite with
-16.0.1, 18.0.0 and 19.0.0, and verifies a strict install of the packed package
-with each. A recording that AgentFootprint 19 saved in parts (index format 2,
+16.0.1, 18.0.0, 19.0.0 and 20.0.0, and verifies a strict install of the packed
+package with each. AgentFootprint 20 requires FootPrint 14.3.0 or later in major 14. A recording that AgentFootprint 19 saved in parts (index format 2,
 sub-flow payloads with their invocations) is read by the lazy source: pass the
 reader's `readInvocation` reply through as the child reply, `payloads`
 included. The fixture `test/recording/fixtures/saved-turn-19.json.gz` is one
