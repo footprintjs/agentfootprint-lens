@@ -52,6 +52,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The compatibility matrix no longer reads a renderer from another repository's CI artifact. That artifact expired after seven days and blocked every pull request. The `/record` viewer checks now run against the published `footprint-explainable-ui@2.0.0`, which is checked by its pinned registry integrity. The saved Flow and HCI records they use are copied into this repository and pinned by SHA256. A new guard test fails if a check reads an Actions artifact from another run or repository again. The retired lane's binding to one pre-release CI run, and the dependency-security audit evidence that came with it, are no longer checked.
 
+### Fixed
+
+- Explain groups its recorded rows in STAND order: State, Trace, Assess, Name, Decide. Section headings follow the app's Lens theme.
+
 ## [0.88.0] - 2026-11-23
 
 ### Added

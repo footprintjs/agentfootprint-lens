@@ -28,7 +28,7 @@ import { T } from './theme/index.js';
 
 /** Marker attribute on the injected `<style>` — bump when the sheet changes. */
 const STYLE_MARKER = 'data-lens-styles';
-const STYLE_VERSION = 'v8';
+const STYLE_VERSION = 'v9';
 
 /**
  * The whole Lens stylesheet, as text. Exported so a server renderer can inline
@@ -697,7 +697,18 @@ export const LENS_STYLESHEET = `
 .lens-plain-tone--warn { color: ${T.toneWarn}; }
 .lens-plain-tone--bad { color: ${T.toneBad}; }
 .lens-plain-one-text { margin: 0; font-weight: 500; }
-.lens-plain-rows { display: flex; flex-direction: column; }
+.lens-plain-rows { display: flex; flex-direction: column; gap: 12px; }
+.lens-plain-stage-heading {
+  margin: 0;
+  padding: 6px 10px;
+  background: ${T.bgElevated};
+  border-inline-start: 2px solid ${T.border};
+  border-radius: 4px;
+  color: ${T.textPrimary};
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.4;
+}
 .lens-plain-row {
   display: grid;
   grid-template-columns: 118px minmax(0, 1fr);
@@ -705,7 +716,8 @@ export const LENS_STYLESHEET = `
   padding: 11px 0;
   border-top: 1px solid ${T.border};
 }
-.lens-plain-row:first-child { border-top: 0; }
+.lens-plain-row:first-child,
+.lens-plain-stage-heading + .lens-plain-row { border-top: 0; }
 @container (max-width: 520px) {
   .lens-plain-row { grid-template-columns: minmax(0, 1fr); }
 }

@@ -60,13 +60,16 @@ import {
 
 export { LABELS };
 
+const STAND_ORDER = ['State', 'Trace', 'Assess', 'Name', 'Decide'] as const;
+type StandHeading = (typeof STAND_ORDER)[number];
+
 /** Reader headings only; the account still owns every row and sentence. */
-const STAND_HEADINGS: ReadonlyMap<AccountRow['id'], string> = new Map([
+const STAND_HEADINGS: ReadonlyMap<AccountRow['id'], StandHeading> = new Map([
   ['asked', 'State'],
   ['understood', 'State'],
+  ['found', 'Trace'],
   ['checked', 'Assess'],
   ['not-checked', 'Assess'],
-  ['found', 'Trace'],
   ['how-sure', 'Name'],
   ['anything-wrong', 'Decide'],
 ]);
@@ -328,6 +331,7 @@ export const PlainWords: React.FC<PlainWordsProps> = ({
   const [showIds, setShowIds] = useState(false);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const oneLinerId = useId();
+  const stagesId = useId();
   useEffect(() => {
     if (focusOnMount) headingRef.current?.focus();
   }, [focusOnMount]);
@@ -345,6 +349,13 @@ export const PlainWords: React.FC<PlainWordsProps> = ({
 
   const { summary } = account;
   const lineProps = { account, shown, showIds, onOpenInLens };
+  const stages = new Map<StandHeading, AccountRow[]>(STAND_ORDER.map((heading) => [heading, []]));
+  const otherRows: AccountRow[] = [];
+  for (const row of account.rows) {
+    const heading = STAND_HEADINGS.get(row.id);
+    const rows = heading === undefined ? otherRows : stages.get(heading)!;
+    rows.push(row);
+  }
   const region = labelledBy !== undefined ? { role: 'tabpanel', 'aria-labelledby': labelledBy } : { role: 'region', 'aria-label': LABELS.pane };
   return (
     <div className="lens-plain" style={themeVars} data-testid="plain-words" {...region}>
@@ -391,18 +402,15 @@ export const PlainWords: React.FC<PlainWordsProps> = ({
         </div>
       </section>
       <div className="lens-plain-rows">
-        {account.rows.map((row, index) => {
-          const heading = STAND_HEADINGS.get(row.id);
-          const previous = account.rows[index - 1];
-          return (
-            <React.Fragment key={row.id}>
-              {heading !== undefined && heading !== (previous !== undefined ? STAND_HEADINGS.get(previous.id) : undefined) && (
-                <h2 className="lens-plain-heading" data-testid="plain-stand-heading">{heading}</h2>
-              )}
-              <RowView row={row} {...lineProps} />
-            </React.Fragment>
-          );
-        })}
+        {Array.from(stages, ([heading, rows]) => rows.length > 0 && (
+          <section key={heading} aria-labelledby={stagesId + heading}>
+            <h2 id={stagesId + heading} className="lens-plain-stage-heading" data-testid="plain-stand-heading">
+              {heading}
+            </h2>
+            {rows.map((row) => <RowView key={row.id} row={row} {...lineProps} />)}
+          </section>
+        ))}
+        {otherRows.map((row) => <RowView key={row.id} row={row} {...lineProps} />)}
       </div>
     </div>
   );
