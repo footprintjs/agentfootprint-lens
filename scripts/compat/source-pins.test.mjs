@@ -27,9 +27,9 @@ test('development selects published Explainable UI 2.2 while public peers retain
   assert.equal(input.peerDependencies['footprint-explainable-ui'], rendererPeerRange);
 });
 
-test('the public peer accepts AgentFootprint 15, 16, 17, 18 and 19 alongside engine 14 and Foottrace 2.3.2+', () => {
+test('the public peer accepts AgentFootprint 15, 16, 17, 18, 19 and 20 alongside engine 14 and Foottrace 2.3.2+', () => {
   const input = manifest();
-  assert.equal(input.peerDependencies.agentfootprint, '^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0');
+  assert.equal(input.peerDependencies.agentfootprint, '^15.0.0 || ^16.0.0 || ^17.0.0 || ^18.0.0 || ^19.0.0 || ^20.0.0');
   assert.equal(input.devDependencies.agentfootprint, '15.0.0');
   assert.equal(input.peerDependencies.footprintjs, '^14.0.0');
   assert.equal(input.peerDependencies.foottrace, '^2.3.2');

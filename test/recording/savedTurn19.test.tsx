@@ -29,7 +29,10 @@ import { createLensRecordingSource } from '../../src/react/recordingSource/contr
 import { useStepPayloads } from '../../src/react/recordingSource/useStepPayloads.js';
 
 type Json = Record<string, any>;
-const fixture = JSON.parse(gunzipSync(readFileSync(join(dirname(fileURLToPath(import.meta.url)), 'fixtures/saved-turn-19.json.gz'))).toString('utf8')) as {
+const fixturePath =
+  process.env.LENS_RECORDING_FIXTURE ??
+  join(dirname(fileURLToPath(import.meta.url)), 'fixtures/saved-turn-19.json.gz');
+const fixture = JSON.parse(gunzipSync(readFileSync(fixturePath)).toString('utf8')) as {
   agentfootprint: string;
   parts: { index: Json; snapshotRunId?: string; invocations: { key: string; path: string[]; subflowId: string }[]; root: Json; replies: Record<string, RecordedSubflowReply> };
   whole: Json;
@@ -42,7 +45,7 @@ function sources() {
     invocations: parts.invocations.map(item => ({ invocationPath: item.path, mountRuntimeStageId: item.key, subflowId: item.subflowId,
       ...(parts.snapshotRunId !== undefined && { runId: parts.snapshotRunId }) })) };
   const admitted = readRecordingSourceRoot(dto);
-  if (admitted.status !== 'ready') throw new Error(`The real 19 root was refused: ${admitted.reason}`);
+  if (admitted.status !== 'ready') throw new Error(`The generated root was refused: ${admitted.reason}`);
   const partsRead = vi.fn(async (request: RecordedInvocation) => parts.replies[request.mountRuntimeStageId]!);
   const partsSource = createLensRecordingSource({ root: admitted.value, loadSubflow: partsRead });
   const projected = projectRecordingSource(whole);

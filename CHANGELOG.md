@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Accept AgentFootprint 20 alongside 15 through 19. The AgentFootprint 20 check uses FootPrint 14.3.0 and exercises a fresh recorded turn.
+
 ## [0.91.0] - 2026-11-26
 
 ### Changed

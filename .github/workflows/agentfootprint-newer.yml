@@ -24,9 +24,14 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        agentfootprint: ['16.0.1', '18.0.0', '19.0.0']
+        include:
+          - { agentfootprint: '16.0.1', footprintjs: '14.0.0' }
+          - { agentfootprint: '18.0.0', footprintjs: '14.0.0' }
+          - { agentfootprint: '19.0.0', footprintjs: '14.0.0' }
+          - { agentfootprint: '20.0.0', footprintjs: '14.3.0' }
     env:
       AGENTFOOTPRINT_VERSION: ${{ matrix.agentfootprint }}
+      FOOTPRINTJS_VERSION: ${{ matrix.footprintjs }}
       npm_config_fetch_retries: '0'
     steps:
       - uses: actions/checkout@v4
@@ -40,7 +45,7 @@ jobs:
         run: |
           git log -1 --format='Source %H, tree %T'
           npm install --package-lock-only --ignore-scripts --strict-peer-deps --save-dev --save-exact \
-            --no-audit --no-fund "agentfootprint@$AGENTFOOTPRINT_VERSION"
+            --no-audit --no-fund "agentfootprint@$AGENTFOOTPRINT_VERSION" "footprintjs@$FOOTPRINTJS_VERSION"
           npm ci --strict-peer-deps
           node --input-type=module <<'JS'
           import assert from 'node:assert/strict';
@@ -58,6 +63,13 @@ jobs:
           npm test
           npm run fixtures:time:check
           npm exec --no -- publint
+      - name: Replay a recording saved by published AgentFootprint 20
+        if: matrix.agentfootprint == '20.0.0'
+        env:
+          LENS_RECORDING_FIXTURE: ${{ runner.temp }}/saved-turn-20.json.gz
+        run: |
+          npm run fixtures:recording
+          npm test -- test/recording/savedTurn19.test.tsx
       - name: Restore the committed package and lock
         if: always()
         run: git restore -- package.json package-lock.json
@@ -70,7 +82,7 @@ jobs:
           version="$(node -p 'require("./package.json").version')"
           npm install --prefix "$consumer" --strict-peer-deps --ignore-scripts --no-package-lock \
             "$pack/agentfootprint-lens-$version.tgz" "agentfootprint@$AGENTFOOTPRINT_VERSION" \
-            footprintjs@14.0.0 foottrace@2.3.2 footprint-explainable-ui@2.2.0 \
+            "footprintjs@$FOOTPRINTJS_VERSION" foottrace@2.3.2 footprint-explainable-ui@2.2.0 \
             react@18.3.1 react-dom@18.3.1
           cd "$consumer"
           npm ls agentfootprint-lens agentfootprint footprintjs foottrace --all
@@ -78,9 +90,21 @@ jobs:
           import assert from 'node:assert/strict';
           import { createRequire } from 'node:module';
           import { projectContext } from 'agentfootprint-lens/context';
+          import { projectRecordingSource } from 'agentfootprint-lens/recording';
+          import { readFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          import { gunzipSync } from 'node:zlib';
 
           const require = createRequire(import.meta.url);
           assert.equal(require('agentfootprint/package.json').version, process.env.AGENTFOOTPRINT_VERSION);
           assert.equal(typeof projectContext, 'function');
           assert.equal(typeof require('agentfootprint-lens/context').projectContext, 'function');
+          assert.equal(require('footprintjs/package.json').version, process.env.FOOTPRINTJS_VERSION);
+
+          if (process.env.AGENTFOOTPRINT_VERSION === '20.0.0') {
+            const path = join(process.env.RUNNER_TEMP, 'saved-turn-20.json.gz');
+            const fixture = JSON.parse(gunzipSync(readFileSync(path)).toString('utf8'));
+            assert.equal(fixture.agentfootprint, process.env.AGENTFOOTPRINT_VERSION);
+            assert.equal(projectRecordingSource(fixture.whole).status, 'ready');
+          }
           JS
