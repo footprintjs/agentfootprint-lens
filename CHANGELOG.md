@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Accept Explainable UI 3 alongside the existing renderer versions. The packed consumer matrix exercises 3.0.0 on React 18 and 19.
+
 ## [0.92.0] - 2026-11-27
 
 ### Changed
