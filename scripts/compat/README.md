@@ -32,7 +32,7 @@ full commit SHA. It may download only an artifact that its own workflow run
 uploaded. The test refuses an Actions artifacts or runs API call, `gh run
 download`, a release asset, a download from another run or repository,
 `actions: read`, and a checkout of another repository by branch or tag name.
-The 0.38.0, 2.0.0, 2.1.0 and 2.2.0 lanes bind the original registry archives by URL, size and
+The 0.38.0, 2.0.0, 2.1.0, 2.2.0 and 3.0.0 lanes bind the original registry archives by URL, size and
 digest. They compile the same full engine narrative fixture under strict NodeNext
 ESM, NodeNext CommonJS and Bundler. Only the expected narrative-argument
 diagnostic qualifies as a 0.38.0 rejection. All 2.x lanes must compile the fixture cleanly.

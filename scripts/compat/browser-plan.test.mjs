@@ -27,7 +27,7 @@ test('the published record renderer requires its exact registry archive and sepa
 });
 
 test('the other matrix renderers retain replay without borrowing the record host', () => {
-  for (const version of ['0.34.0', '0.38.0', lazyRenderer.version, '2.1.0', '2.2.0']) {
+  for (const version of ['0.34.0', '0.38.0', lazyRenderer.version, '2.1.0', '2.2.0', '3.0.0']) {
     const sha256 = narrativeRenderer(version)?.sha256;
     assert.equal(requireRecordBrowser({ version, sha256 }), false);
     assert.throws(() => requireRecordBrowser({ version, sha256, recordConsumer: '/inert/record-host' }),

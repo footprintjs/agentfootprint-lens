@@ -5,7 +5,7 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { narrativeRenderers } from './narrative-renderers.mjs';
 
-export const rendererPeerRange = '>=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0';
+export const rendererPeerRange = '>=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0 || ^3.0.0';
 
 /** Reviewed public source API. */
 export const lazyRenderer = Object.freeze({
