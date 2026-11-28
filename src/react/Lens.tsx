@@ -90,6 +90,7 @@ import { T, lensThemeVars, type LensTheme } from "./theme/index.js";
 import { ensureLensStyles } from "./lensStyles.js";
 import { WhereFrom } from "./WhereFrom.js";
 import { ServedTab } from "./components/ServedTab.js";
+import { RecordedChildServed } from './recordingSource/modelInput/RecordedChildServed.js';
 import { UnplacedCursor } from './components/UnplacedCursor.js';
 // BOOKMARKS + DECLARED TAGS (0.48.0): the reader's marks in a sidecar beside
 // the recording, and the tag legend/picker that rebuilds the scrub axis
@@ -1029,7 +1030,7 @@ const StageLens: React.FC<LensProps> = ({
       showSummary={showSummary}
       liveStreamLine={liveStreamLine}
       drillPath={drillPath}
-      {...(recordingSource !== undefined && { sourceNode: sourceFeature.node,
+      {...(recordingSource !== undefined && { sourceNode: sourceFeature.node, readModelInputAt: recordingSource.readModelInputAt,
         invocationPath: sourceFeature.invocationPath, sourceSnapshot: sourceFeature.snapshot?.recording.snapshot,
         sourceOverlay: recordingSource.getOverlay(sourceFeature.invocationPath),
         sourceSubflowId: sourceFeature.snapshot?.invocations.find(value => value.invocationPath.length === sourceFeature.invocationPath.length
@@ -1086,7 +1087,6 @@ const LensNotes: React.FC<{ notes: readonly string[] }> = ({ notes }) => {
     </div>
   );
 };
-
 /**
  * Prune nodes whose `startOffsetMs > cutoffMs`. Recursive, returns a
  * fresh tree — does NOT mutate the recorder's state. Leaf nodes that
@@ -1229,7 +1229,7 @@ const EngineerView: React.FC<{
   /** Drill state — lifted to Lens so the slider total (which depends
    *  on drillPath) can be computed in the parent scope. */
   drillPath: readonly string[];
-  sourceNode?: (nodeId: string) => void;
+  sourceNode?: (nodeId: string) => void; readModelInputAt?: LensRecordingSource['readModelInputAt'];
   invocationPath?: readonly string[];
   sourceSnapshot?: unknown;
   sourceOverlay?: import('footprint-explainable-ui/flowchart').RuntimeOverlay;
@@ -1295,7 +1295,7 @@ const EngineerView: React.FC<{
   showSummary,
   liveStreamLine,
   drillPath,
-  sourceNode,
+  sourceNode, readModelInputAt,
   invocationPath,
   sourceSnapshot,
   sourceOverlay,
@@ -2111,7 +2111,7 @@ const EngineerView: React.FC<{
                 onNote={bookmarks.setNote}
               />
             ) : railTab === "served" && invocationPath !== undefined && invocationPath.length > 0 ? (
-              <p role="status" style={{padding: 16, color: T.textSecondary}}>Model-input inspection is unavailable for this recorded child scope. Its local commit index is not a root model-input address.</p>
+              <RecordedChildServed read={readModelInputAt} invocationPath={invocationPath} stop={cursorPositions[focusStep]} />
             ) : railTab === "served" ? (
               <ServedTab
                 runner={servedRunner}

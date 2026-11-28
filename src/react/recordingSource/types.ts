@@ -3,6 +3,19 @@ import type { ObservedRecording, Recording } from '../../core/observeRecording.j
 import type { RecordedInvocation, RecordedInvocationPayloads } from '../../core/recordingSourceCodec/index.js';
 import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
 import type { CursorAddress } from '../../core/cursor/sharedCursor.js';
+import type { RecordedModelCallAddress } from '../../core/recordedModelInput/address.js';
+import type { ServedGraphInput } from '../../core/served/index.js';
+import type { ServedView, StoredReceipt } from 'agentfootprint';
+
+export type LensRecordedModelInput =
+  | { readonly status: 'ready'; readonly view: ServedView; readonly receipt?: StoredReceipt }
+  | { readonly status: 'unavailable'; readonly reason: string };
+
+/** The host binds this read to the same authorized saved recording as its child reader. */
+export type LensRecordedModelInputReader = (
+  address: RecordedModelCallAddress,
+  options: { readonly signal?: AbortSignal },
+) => Promise<LensRecordedModelInput>;
 
 /** Metadata for a native source request; retained child values stay in its snapshot. */
 export interface LensRecordingLoad {
@@ -48,6 +61,7 @@ export interface LensRecordingSource {
   /** Input index is local to the recorded scope (native TraceWalk coordinates).
    * The result is an exact address on Lens's existing step axis, never nearest. */
   resolveAddress(address: CursorAddress, options?: { readonly signal?: AbortSignal }): Promise<CursorAddress | undefined>;
+  readModelInputAt?(address: CursorAddress, options?: { readonly signal?: AbortSignal }): Promise<ServedGraphInput | undefined>;
   /** Native local commit positions for this exact admitted scope; cached until data changes. */
   getAxis(invocationPath: readonly string[]): readonly CursorPosition[];
   /** Runtime decoration projected from this same exact local log. */

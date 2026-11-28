@@ -48,9 +48,14 @@ bounds retained prepared children, independently of the manifest's 4,096-scope
 admission cap. Child scopes use their native local commit axis, including for
 `shared.forAxis`; root commit/milestone projections keep their existing behavior.
 No root commit index, nearest visit or display label substitutes for a child
-coordinate. Legacy root-only Served, event-timeline and provenance readers are
-withheld for child scopes rather than interpreting their local indices as root
-indices; a native scope-aware detail slot can inspect those children. Detail slots receive that actual `axis`, `invocationPath`, admitted
+coordinate. An authorized reader that supports AgentFootprint 20.6.0 or later
+can supply `readModelInput: (address, options) => readInvocationModelInput(saved,
+address, options)` on the same indexed reader. Lens calls it only for an exact
+selected model-call stage resolved in its original admitted child log. Keep
+the saved recording and access checks shared with the root and child reads.
+Without that optional read or when it refuses, child Served stays unavailable.
+The root-only event timeline and provenance readers remain withheld for child
+scopes; a native scope-aware detail slot can inspect those children. Detail slots receive that actual `axis`, `invocationPath`, admitted
 `snapshot`, and an explicit `onNavigateRecordingAddress(address, {signal})`
 port. TraceWalk local stop coordinates resolve through the same source and move
 that same shared cursor only after exact admission. TrustBoundaryView accepts
@@ -65,3 +70,28 @@ log is still replayed once in full. This feature does not virtualize arbitrary
 tables, move parsing off-thread, or make backend storage range-readable: a host
 that reads and parses the original stored full artifact for each projection
 still pays that backend cost. No data is fetched merely to draw metadata.
+
+### Indexed readers
+
+A host with an authorized indexed recording reader can open the same Lens
+source without downloading a full artifact first.
+
+```ts
+const opened = await openLensRecordingSource({ reader, signal });
+if (opened.status === 'ready') {
+  // Use opened.source with the same Lens props and cursor as above.
+}
+```
+
+`openLensRecordingSource` and `LensRecordingReader` are on
+`agentfootprint-lens/recording/react`. The reader is bound to one authorized
+publication. Its `readRoot` returns the projected root DTO and invocation
+manifest. Its `readSubflow` returns the selected native `{ result }` unit.
+Successful reads attest `coverage: 'whole'`. The existing codec and native
+source admit these values before rendering.
+
+Opening the root reads only the root. Selecting a child uses the same exact
+invocation and ancestor requests as other lazy recordings. Partial coverage
+leaves the requested view unavailable. Storage, integrity, byte limits and
+unread-range diagnostics belong to the reader. The host owns its storage
+handle, and the source creator still disposes the Lens source.

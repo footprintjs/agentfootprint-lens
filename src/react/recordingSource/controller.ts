@@ -7,7 +7,10 @@ import { readRecordingSourceRoot, type RecordedInvocation, type RecordedSubflowR
 import { createPayloadCache, MAX_CACHED_PAYLOADS, replyBelongsTo, splitReply } from './payloadCache.js';
 import type { RuntimeOverlay } from 'footprint-explainable-ui/flowchart';
 import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
-import type { LensRecordingLoad, LensRecordingSource, LensRecordingSourceSnapshot } from './types.js';
+import type { LensRecordedModelInputReader, LensRecordingLoad, LensRecordingSource, LensRecordingSourceSnapshot } from './types.js';
+import { recordedModelCallAddress } from '../../core/recordedModelInput/address.js';
+import { isReceiptShaped } from '../../core/served/receiptShape.js';
+import { verify } from '../../core/served/verify.js';
 
 export interface LensRecordingSourceOptions {
   readonly root: unknown;
@@ -20,6 +23,7 @@ export interface LensRecordingSourceOptions {
    * set of loaded children.
    */
   readonly loadSubflow: (request: RecordedInvocation, options: { readonly signal: AbortSignal }) => RecordedSubflowReply | Promise<RecordedSubflowReply>;
+  readonly readModelInput?: LensRecordedModelInputReader;
   readonly prepareSubflow?: RecordingSourceOptions['prepareSubflow'];
   readonly maxCachedSubflows?: number;
   /** Invocations whose payloads are kept once no view shows them. Default `MAX_CACHED_PAYLOADS` (64). */
@@ -149,6 +153,7 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
     if (changed) observed.recorder.refreshReplaySnapshot();
     notify();
   });
+  const readModelInput = options.readModelInput;
   const controller: LensRecordingSource = {
     observed,
     getSnapshot: () => snapshot,
@@ -219,6 +224,34 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
           ...(path.length > 0 && { drillPath: path }) });
       } catch { return undefined; }
     },
+    ...(readModelInput !== undefined && {
+      async readModelInputAt(address, interest) {
+        if (disposed || interest?.signal?.aborted) return undefined;
+        try {
+          const stop = await controller.resolveAddress(address, interest);
+          if (!stop?.drillPath?.length || disposed || interest?.signal?.aborted) return undefined;
+          const request = byPath.get(source.getKey(stop.drillPath));
+          if (!request) return undefined;
+          const child = currentSnapshot.subflowResults?.[request.mountRuntimeStageId];
+          const exact = recordedModelCallAddress(request, stop.runtimeStageId, base, root.recording.events ?? [], child);
+          if (!exact) return undefined;
+          const read = await readModelInput(exact, interest ?? {});
+          if (disposed || interest?.signal?.aborted || read.status !== 'ready') return undefined;
+          const receipt = read.receipt;
+          if (receipt !== undefined && (!isReceiptShaped(receipt) || receipt.basis.runId !== exact.engineRunId)) return undefined;
+          return {
+            row: {
+              epoch: read.view.epoch, callRuntimeStageId: exact.runtimeStageId, commitIdx: exact.commitIdx,
+              view: read.view, betweenCalls: false, ...(receipt !== undefined && { receipt }),
+            },
+            fold: { redacted: false, present: [] },
+            checks: verify(read.view, receipt, exact.engineRunId),
+          };
+        } catch {
+          return undefined;
+        }
+      },
+    }),
     getAxis(path) {
       if (disposed) return [];
       try {

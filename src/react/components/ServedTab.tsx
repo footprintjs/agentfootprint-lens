@@ -301,10 +301,10 @@ export function ContextServedTab({ snapshot, at, reading, onJumpTo }: {
   readonly snapshot: unknown;
   readonly at: { readonly runtimeStageId: string; readonly commitIdx: number };
   readonly reading: ServedGraphInput;
-  readonly onJumpTo: (runtimeStageId: string) => void;
+  readonly onJumpTo?: (runtimeStageId: string) => void;
 }): React.ReactElement {
   return <ServedTabBoundary resetKey={`${at.runtimeStageId}#${at.commitIdx}`}>
-    <ServedReading snapshot={snapshot} reading={reading} onJumpTo={onJumpTo} />
+    <ServedReading snapshot={snapshot} reading={reading} {...(onJumpTo !== undefined && { onJumpTo })} />
   </ServedTabBoundary>;
 }
 

@@ -7,6 +7,7 @@ import { flowChart, FlowChartExecutor } from 'footprintjs';
 import { projectTraceInvocation } from 'footprint-explainable-ui';
 import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
 import { createLensRecordingSource } from './controller.js';
+import { openLensRecordingSource, type LensRecordingReader, type LensRecordingReaderResult } from './open.js';
 import { useRecordingSource } from './useRecordingSource.js';
 import { useSharedCursor } from '../useSharedCursor.js';
 import { projectRecordingSource, readRecordingSubflow, type RecordedInvocation } from '../../core/recordingSourceCodec/index.js';
@@ -239,4 +240,94 @@ describe('creator-owned lazy recording source', () => {
     } finally {source.dispose();}
   });
 
+});
+
+
+describe('opening through the recording reader', () => {
+  it('reads only the root until a selected child is requested', async () => {
+    const { full, root } = input();
+    const readRoot = vi.fn(async () => ({ status: 'ready', coverage: 'whole', value: root }) as const);
+    const readSubflow = vi.fn(async (request: RecordedInvocation) =>
+      ({ status: 'ready', coverage: 'whole', value: child(full, request) }) as const,
+    );
+    const opened = await openLensRecordingSource({ reader: { readRoot, readSubflow } });
+    expect(opened.status).toBe('ready');
+    if (opened.status !== 'ready') throw Error('Root could not be opened');
+    const { source } = opened;
+    try {
+      expect(readRoot).toHaveBeenCalledTimes(1);
+      expect(readSubflow).not.toHaveBeenCalled();
+      expect(source.getSnapshot().recording.snapshot?.subflowResults).toEqual({});
+      const request = root.invocations.find(value => value.invocationPath.length === 1)!;
+      await expect(source.load({ ...request, runId: 'another-run' })).rejects.toThrow('unavailable');
+      expect(readSubflow).not.toHaveBeenCalled();
+      await source.load(request);
+      expect(readSubflow.mock.calls).toHaveLength(1);
+      expect(readSubflow.mock.calls[0]?.[0]).toEqual(request);
+      expect(Object.keys(source.getSnapshot().recording.snapshot?.subflowResults ?? {}))
+        .toEqual([request.mountRuntimeStageId]);
+    } finally { source.dispose(); }
+  });
+
+  it('refuses a prefix before creating a source and never reads children', async () => {
+    const { root } = input();
+    const readSubflow = vi.fn();
+    const reader: LensRecordingReader = {
+      readRoot: async () => ({ status: 'ready', coverage: 'prefix', value: root }),
+      readSubflow,
+    };
+    await expect(openLensRecordingSource({ reader })).resolves.toEqual({
+      status: 'unavailable', reason: 'incomplete',
+    });
+    expect(readSubflow).not.toHaveBeenCalled();
+  });
+
+  it('keeps a selected child unavailable if its reader only admitted a prefix', async () => {
+    const { full, root } = input();
+    const opened = await openLensRecordingSource({
+      reader: {
+        readRoot: async () => ({ status: 'ready', coverage: 'whole', value: root }),
+        readSubflow: async request => ({ status: 'ready', coverage: 'prefix', value: child(full, request) }),
+      },
+    });
+    if (opened.status !== 'ready') throw Error('Root could not be opened');
+    try {
+      const request = root.invocations.find(value => value.invocationPath.length === 1)!;
+      await expect(opened.source.load(request)).rejects.toThrow('Recorded subflow could not be loaded.');
+      expect(opened.source.getSnapshot().recording.snapshot?.subflowResults).toEqual({});
+      expect(opened.source.getSnapshot().loads[0]?.status).toBe('error');
+    } finally { opened.source.dispose(); }
+  });
+
+  it('passes the root signal and refuses completion after cancellation', async () => {
+    const { root } = input();
+    const signal = new AbortController();
+    let complete!: (result: LensRecordingReaderResult<unknown>) => void;
+    const readRoot = vi.fn(() => new Promise<LensRecordingReaderResult<unknown>>(resolve => {
+      complete = resolve;
+    }));
+    const readSubflow = vi.fn();
+    const reader = { readRoot, readSubflow };
+    const opened = openLensRecordingSource({ reader, signal: signal.signal });
+    expect(readRoot).toHaveBeenCalledWith({ signal: signal.signal });
+    signal.abort();
+    complete({ status: 'ready', coverage: 'whole', value: root });
+    await expect(opened).resolves.toEqual({ status: 'unavailable', reason: 'cancelled' });
+    await expect(openLensRecordingSource({ reader, signal: signal.signal })).resolves.toEqual({
+      status: 'unavailable', reason: 'cancelled',
+    });
+    expect(readRoot).toHaveBeenCalledTimes(1);
+    expect(readSubflow).not.toHaveBeenCalled();
+  });
+
+  it('keeps an unavailable root or transport failure on the unavailable path', async () => {
+    const readSubflow = vi.fn();
+    const failed: LensRecordingReader['readRoot'] = async () => { throw Error('host details'); };
+    for (const readRoot of [failed, async () => ({ status: 'unavailable' as const })]) {
+      await expect(openLensRecordingSource({ reader: { readRoot, readSubflow } })).resolves.toEqual({
+        status: 'unavailable', reason: 'unavailable',
+      });
+    }
+    expect(readSubflow).not.toHaveBeenCalled();
+  });
 });
