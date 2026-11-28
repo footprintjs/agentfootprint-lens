@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.94.0] - 2026-11-28
+
 ### Added
 
 - `openLensRecordingSource` opens the root through an authorized recording reader and loads exact child units on demand.
