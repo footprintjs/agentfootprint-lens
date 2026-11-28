@@ -1,13 +1,14 @@
 import type { RecordingSourceRead, RecordingSourceRoot } from './types.js';
-import { entries, field, invocation, MAX_INVOCATIONS, own, pathKey, record, refuse, SOURCE_SCHEMA, unavailable } from './fields.js';
+import { CHILD_TREE, entries, field, invocation, MAX_INVOCATIONS, own, pathKey, record, refuse, ROOT_TREE, SOURCE_SCHEMA, unavailable } from './fields.js';
 import { completeUnit, indexNativeRecording, nativeRoot, scopeMounts, strippedRoot } from './nativeIndex.js';
-export type { RecordedInvocation, RecordingSourceRead, RecordingSourceRoot } from './types.js';
+export type { RecordedInvocation, RecordedInvocationPayloads, RecordedPayloadSlot, RecordedSubflowReply, RecordingSourceRead, RecordingSourceRoot } from './types.js';
+export { readRecordingSubflowPayloads } from './reply.js';
 
 /** Detached root plus exact native invocation addresses; child payloads remain in storage. */
 export function projectRecordingSource(input: unknown): RecordingSourceRead<RecordingSourceRoot> {
   try {
     const indexed = indexNativeRecording(input);
-    return { status: 'ready', value: own({ schema: SOURCE_SCHEMA, recording: strippedRoot(indexed), invocations: indexed.invocations }) };
+    return { status: 'ready', value: own({ schema: SOURCE_SCHEMA, recording: strippedRoot(indexed), invocations: indexed.invocations }, ROOT_TREE) };
   } catch (error) { return unavailable(error); }
 }
 
@@ -24,7 +25,7 @@ export function readRecordingSourceRoot(input: unknown): RecordingSourceRead<Rec
     const rawInvocations = field(raw, 'invocations');
     if (!Array.isArray(rawInvocations)) return refuse('invalid-recording');
     if (rawInvocations.length > MAX_INVOCATIONS) return refuse('recording-limit');
-    const value = own<Record<string, unknown>>(raw), dto = record(value);
+    const value = own<Record<string, unknown>>(raw, ROOT_TREE), dto = record(value);
     const root = nativeRoot(field(dto, 'recording'));
     const addresses = (field(dto, 'invocations') as unknown[]).map(value => invocation(value, 'invalid-recording'));
     let remaining = 200_000;
@@ -56,7 +57,7 @@ export function readRecordingSubflow(input: unknown, request: unknown): Recordin
     const key = pathKey(address.invocationPath), expected = indexed.invocations.find(item => pathKey(item.invocationPath) === key);
     if (!expected) return refuse('invocation-not-recorded');
     if (expected.subflowId !== address.subflowId || expected.mountRuntimeStageId !== address.mountRuntimeStageId) return refuse('invalid-request');
-    const result = own(indexed.units.get(key));
+    const result = own(indexed.units.get(key), CHILD_TREE);
     completeUnit(result, address.subflowId, address.invocationPath, indexed.logAddress);
     return { status: 'ready', value: Object.freeze({ result }) };
   } catch (error) { return unavailable(error); }

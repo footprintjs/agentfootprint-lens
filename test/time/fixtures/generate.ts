@@ -48,6 +48,13 @@
  *                    after a 30-minute check-in pause: `shifted` and
  *                    `differs` with both `missing` and `extra`
  *
+ * Added for agentfootprint 18.0.0 (`--covered`, its own file):
+ *
+ *   covered          a closed past control window to a tool whose only form
+ *                    is a length in minutes, dispatched 30 minutes after
+ *                    `now`: the fill says `coversAtDispatch` and the call's
+ *                    drift is `covered`, with the form and the `sent` range
+ *
  * WHERE IT WRITES. Since agentfootprint 9.132.0 the generator writes
  * `time-rows-9.132.json` (every scenario above, under the installed library).
  * `time-rows.json` and `time-recording.json` are the agentfootprint 9.129.0
@@ -55,10 +62,16 @@
  * peer filed — a reading settled `only` by the reader, which 9.132.0 never
  * files (every reading is now a proposal, `open` until the person answers).
  * `--recording` rewrites `time-recording.json` from the control-window run.
+ * `--covered` writes ONLY `time-rows-18.json` (the covered scenario, under
+ * the installed library, which must be agentfootprint 18.0.0 or newer — the
+ * committed lock stays on the 15 floor, so install 18 for that run); every
+ * other file is left as filed.
  *
  *   npm run fixtures:time
+ *   npm run fixtures:time -- --covered   # with agentfootprint 18 installed
  */
 import { writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -509,19 +522,54 @@ async function shifted() {
   return frozenWithStanding(agent);
 }
 
-const out = {
-  generatedWith: 'agentfootprint@9.132.0',
-  controlWindow: await controlWindow(),
-  widened: await widened(),
-  drift: await drift(),
-  refused: await refused(),
-  clockOnResume: await clockOnResume(),
-  openReading: await openReading(),
-  ask: await ask(),
-  axis: await axis(),
-  confirmed: await confirmed(),
-  checks: await checks(),
-  shifted: await shifted(),
-};
-writeFileSync(join(here, 'time-rows-9.132.json'), `${JSON.stringify(out, null, 2)}\n`);
-console.log('wrote time-rows-9.132.json');
+/** A tool whose only period form is a LENGTH in minutes — the source reads it against its own clock. */
+function minutesLookbackTool() {
+  return defineTool({
+    name: 'search_logs',
+    description: 'Error lines over a look-back length in minutes.',
+    inputSchema: { type: 'object', properties: { window: { type: 'string' } } },
+    askOrAssume: { window: { assume: '60m' } },
+    period: { forms: [{ kind: 'lookback', argument: 'window', signed: false, units: 'm' }] } as never,
+    execute: () => 'no errors',
+  });
+}
+
+async function covered() {
+  wall = NOW_MS + 30 * 60_000;
+  const agent = build([call('c1', 'search_logs', {}), answer('none')], [minutesLookbackTool()], (b) =>
+    b.time({ zone: LA }),
+  );
+  await agent.run({
+    message: 'errors between 14:00 and 15:00 UTC',
+    time: { now: NOW, window: { from: '2026-10-09T14:00:00Z', to: '2026-10-09T15:00:00Z' } },
+  });
+  return frozen(agent);
+}
+
+if (process.argv.includes('--covered')) {
+  const { version } = createRequire(import.meta.url)('agentfootprint/package.json') as { version: string };
+  const out = { generatedWith: `agentfootprint@${version}`, covered: await covered() };
+  const drifts = out.covered.ledger.filter((r) => (r as { kind?: unknown }).kind === 'call');
+  if (!drifts.some((r) => (r as { drift?: { outcome?: unknown } }).drift?.outcome === 'covered')) {
+    throw new Error(`--covered: agentfootprint@${version} filed no covered drift (needs 18.0.0 or newer)`);
+  }
+  writeFileSync(join(here, 'time-rows-18.json'), `${JSON.stringify(out, null, 2)}\n`);
+  console.log('wrote time-rows-18.json');
+} else {
+  const out = {
+    generatedWith: 'agentfootprint@9.132.0',
+    controlWindow: await controlWindow(),
+    widened: await widened(),
+    drift: await drift(),
+    refused: await refused(),
+    clockOnResume: await clockOnResume(),
+    openReading: await openReading(),
+    ask: await ask(),
+    axis: await axis(),
+    confirmed: await confirmed(),
+    checks: await checks(),
+    shifted: await shifted(),
+  };
+  writeFileSync(join(here, 'time-rows-9.132.json'), `${JSON.stringify(out, null, 2)}\n`);
+  console.log('wrote time-rows-9.132.json');
+}

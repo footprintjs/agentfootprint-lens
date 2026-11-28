@@ -14,7 +14,7 @@ test('the twelve native lanes retain renderer and React coverage on both Nodes',
   // admission is tested independently and must still refuse a stale draft lock.
   const cohort = { pins: { agentfootprint: '90.1.2-fixture.3', footprintjs: '91.2.3', foottrace: '92.3.4' } };
   const ids = [];
-  for (const flow of ['0.34.0', '0.38.0', 'candidate']) for (const react of ['18', '19']) {
+  for (const flow of ['0.34.0', '0.38.0', '2.0.0']) for (const react of ['18', '19']) {
     for (const node of ['22', '24']) {
       const lane = laneContract({ kind: 'native', flow, react, node }, cohort);
       ids.push(lane.id);
@@ -41,7 +41,7 @@ test('four published lazy-source lanes extend the existing matrix and run the pa
   assert.equal(new Set(ids).size, 4);
   const workflow = readFileSync(new URL('../../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.deepEqual(JSON.parse(workflow.match(/flow:\s*(\[[^\]]+\])/)?.[1] ?? '[]'),
-    ['0.34.0', '0.38.0', 'candidate', '1.0.1', '2.0.0', '2.1.0', '2.2.0']);
+    ['0.34.0', '0.38.0', '1.0.1', '2.0.0', '2.1.0', '2.2.0', '3.0.0']);
   const runner = readFileSync(new URL('./run-lane.mjs', import.meta.url), 'utf8');
   assert.ok(runner.includes('check-lazy-recording.mjs'));
   assert.ok(runner.includes('check-lazy-recording-types'));
@@ -49,7 +49,7 @@ test('four published lazy-source lanes extend the existing matrix and run the pa
 
 test('lane peers use the supplied cohort instead of a built-in release identity', () => {
   const pins = { agentfootprint: '90.1.2-fixture.3', footprintjs: '91.2.3', foottrace: '92.3.4' };
-  const lane = laneContract({ kind: 'native', flow: 'candidate', react: '19', node: '24' }, { pins });
+  const lane = laneContract({ kind: 'native', flow: '2.0.0', react: '19', node: '24' }, { pins });
   for (const [name, version] of Object.entries(pins)) assert.equal(lane.peers[name], version);
 });
 
@@ -60,8 +60,10 @@ test('invalid and retired historical runtime combinations fail closed', () => {
     { kind: 'historical', flow: '0.38.0', react: '18', node: '22' },
     { kind: 'other', flow: '0.38.0', react: '18', node: '22' },
     { kind: 'native', flow: 'latest', react: '18', node: '22' },
-    { kind: 'native', flow: 'candidate', react: '17', node: '22' },
-    { kind: 'native', flow: 'candidate', react: '18', node: '20' },
+    { kind: 'native', flow: 'candidate', react: '18', node: '22' },
+    { kind: 'native', flow: '1.1.1', react: '18', node: '22' },
+    { kind: 'native', flow: '2.0.0', react: '17', node: '22' },
+    { kind: 'native', flow: '2.0.0', react: '18', node: '20' },
   ]) assert.throws(() => laneContract(input));
 });
 

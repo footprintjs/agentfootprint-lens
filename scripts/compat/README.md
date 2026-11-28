@@ -13,16 +13,26 @@ SHA256 and archive size are measured receipt data, never another fixed identity.
 The old one-time RC/offline comparison lives in Git history and the repository
 README; the duplicate descriptor, staging path and its tests are removed.
 
-`prepare-artifacts.mjs` binds one Lens archive, the stable registry cohort
-and the reviewed renderer original to the workflow run. `run-lane.mjs`
-requires that cohort in its strict lock, checks installed files against their
-original archives and supplies the expected versions to the recording probe.
-The seven renderer selections run with React 18/19 on Node 22/24.
+`prepare-artifacts.mjs` binds one Lens archive and the stable registry cohort
+to the workflow run. `run-lane.mjs` requires that cohort in its strict lock,
+checks installed files against their original archives and supplies the
+expected versions to the recording probe. The six renderer selections run with
+React 18/19 on Node 22/24, and every renderer is a published registry archive.
 The packed lock and browser plan share the closed declared renderer versions.
-Only the admitted source candidate requires the separate literal Flow/HCI record
-browser; its original archive digest remains mandatory. The published lazy lane
-retains both the registry pack receipt and actual byte SRI checks.
-The 0.38.0, 2.0.0, 2.1.0 and 2.2.0 lanes bind the original registry archives by URL, size and
+Only the published 2.0.0 record renderer (`record-renderer.mjs`) runs the
+separate record-only install and the literal Flow/HCI record browser. Its
+registry archive is checked by SRI, SHA1, SHA256 and size. Its saved records
+and expectations are vendored in `record-fixtures/` and pinned by SHA256.
+The published lazy lane retains both the registry pack receipt and actual byte
+SRI checks.
+
+`hermetic-inputs.test.mjs` enforces the hermetic rule. A check reads only this
+commit, the registry by pinned integrity, and other repositories' Git objects by
+full commit SHA. It may download only an artifact that its own workflow run
+uploaded. The test refuses an Actions artifacts or runs API call, `gh run
+download`, a release asset, a download from another run or repository,
+`actions: read`, and a checkout of another repository by branch or tag name.
+The 0.38.0, 2.0.0, 2.1.0, 2.2.0 and 3.0.0 lanes bind the original registry archives by URL, size and
 digest. They compile the same full engine narrative fixture under strict NodeNext
 ESM, NodeNext CommonJS and Bundler. Only the expected narrative-argument
 diagnostic qualifies as a 0.38.0 rejection. All 2.x lanes must compile the fixture cleanly.
@@ -114,15 +124,15 @@ an ordinary end and a settled end. The supported AgentFootprint 15 install
 also exercises refused, unknown and confirmed execution, including replay of
 older unstamped recordings.
 
-## Original renderer producer
+## Retired renderer producer
 
-The hosted renderer receipt carries the separately reviewed UI64 original.
-Its fixed source/run/tested parents and all four required jobs must match.
-The bounded data reader understands only that thirteen-member dependency-security
-ZIP, verifies its original package and source manifest plus packed member table,
-and retains its twenty-member TGZ without executing it. No upstream build or
-repack occurs. The source checkout supplies only the unchanged literal saved
-Flow/HCI fixtures. Candidate version1.1.1 is not registry provenance; the exact
-SHA256/SRI owns this unpublished image. Production audit is clean; the producer
-full development audit has nine unresolved HIGH findings. Its browser demo is
-not exact final-head or packed-browser proof; the real consumer gates remain.
+The matrix used to have a "candidate" lane. It ran an unpublished
+`footprint-explainable-ui` build labelled 1.1.1 (source `0af1a2d0`). That build
+was read from an Actions artifact in the UI repository, which kept it for seven
+days. When the artifact expired, every Lens pull request was blocked. The
+reviewed `/record` reader from that commit shipped unchanged in the published
+2.0.0 (`src/record` is identical at both commits), and the record lanes now run
+on 2.0.0. Two things are no longer proven: the binding to that one
+pre-release CI run and its four successful jobs, and the dependency-security
+audit evidence that came with its artifact. Git history keeps the retired
+reader.

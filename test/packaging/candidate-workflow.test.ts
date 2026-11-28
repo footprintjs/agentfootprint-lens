@@ -21,16 +21,16 @@ describe('published cohort compatibility workflow', () => {
   it('locks the development cohort and retains renderer/React/Node coverage', () => {
     expect(cohortMismatches(manifest, lock, [...COHORT, 'footprint-explainable-ui'])).toEqual([]);
     const flows = JSON.parse(workflow.match(/flow: (\[[^\n]+\])/u)![1]!) as string[];
-    expect(flows).toEqual(['0.34.0', '0.38.0', 'candidate', '1.0.1', '2.0.0', '2.1.0', '2.2.0']);
+    expect(flows).toEqual(['0.34.0', '0.38.0', '1.0.1', '2.0.0', '2.1.0', '2.2.0', '3.0.0']);
     expect(workflow).toContain('react: ["18", "19"]');
     expect(workflow).toContain('node: [22, 24]');
     expect(workflow).toContain('--kind native');
     expect(workflow).not.toMatch(/agentfootprint-(?:11|12|13):|extracted-peers:|--kind (?:floor|modern)/);
   });
 
-  it('reads only the renderer original from hosted candidate inputs', () => {
-    expect(workflow).toContain('source-inputs.mjs fetch-renderer');
-    expect(workflow).toContain('GH_TOKEN: ${{ github.token }}');
+  it('reads every renderer from the registry, never from another repository\'s CI', () => {
+    expect(workflow).not.toMatch(/fetch-renderer|renderer-inputs|flow-candidate|actions: read|github\.token|GH_TOKEN/);
+    expect(workflow).not.toContain('repository: footprintjs/explainable-ui');
     expect(workflow).not.toMatch(/source-inputs\.mjs fetch\s|--mode target|--source-inputs compat-artifacts/);
     expect(workflow).not.toMatch(/npm (?:publish|version)|workflow_dispatch|--legacy-peer-deps|--force/);
     const registry = read('scripts/compat/contract.mjs');

@@ -89,16 +89,19 @@ interface SpecLike {
 export function declaredTagsOf(structure: unknown): Map<string, readonly string[]> {
   const out = new Map<string, readonly string[]>();
   const visited = new Set<object>();
-  const walk = (node: SpecLike | undefined): void => {
-    if (!node || typeof node !== 'object' || visited.has(node)) return;
+  // An explicit stack in the recursive order (`next`, then `children`, then
+  // `subflowStructure`): a long `next` chain must not grow the call stack.
+  const pending: (SpecLike | undefined)[] = [structure as SpecLike | undefined];
+  while (pending.length) {
+    const node = pending.pop();
+    if (!node || typeof node !== 'object' || visited.has(node)) continue;
     visited.add(node);
     const tags = strings(node.tags);
     for (const t of tags) if (!out.has(t)) out.set(t, tags);
-    walk(node.next);
-    if (Array.isArray(node.children)) for (const c of node.children) walk(c);
-    walk(node.subflowStructure);
-  };
-  walk(structure as SpecLike | undefined);
+    pending.push(node.subflowStructure);
+    if (Array.isArray(node.children)) for (let i = node.children.length - 1; i >= 0; i--) pending.push(node.children[i]);
+    pending.push(node.next);
+  }
   return out;
 }
 

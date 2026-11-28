@@ -21,7 +21,14 @@
 
 import React from 'react';
 import { ensureLensStyles } from '../lensStyles.js';
-import type { BranchColumn } from '../hooks/useCompareBranches.js';
+import type { BranchColumn, BranchSectionState } from '../hooks/useCompareBranches.js';
+import { payloadNotice } from '../../core/subflowPayloads/index.js';
+
+/** A section's sentence when its slot payload is withheld; nothing when it was shown or none was recorded. */
+const Withheld: React.FC<{ state: BranchSectionState | undefined }> = ({ state }) =>
+  state === undefined || !('invocation' in state) ? null : (
+    <p className="lens-compare-branches__notice" role="status">{payloadNotice(state)}</p>
+  );
 
 export interface CompareBranchesPanelProps {
   readonly columns: readonly BranchColumn[];
@@ -82,6 +89,9 @@ export const CompareBranchesPanel: React.FC<CompareBranchesPanelProps> = ({
               {SECTIONS.map((section) => (
                 <section key={section} className="lens-compare-branches__section">
                   <h4>{section}</h4>
+                  {section === 'System' && <Withheld state={col.sections?.systemPrompt} />}
+                  {section === 'Messages' && <Withheld state={col.sections?.messages} />}
+                  {section === 'Tools' && <Withheld state={col.sections?.tools} />}
                   {section === 'System' && <pre>{col.systemPrompt}</pre>}
                   {section === 'Messages' && (
                     <ul>

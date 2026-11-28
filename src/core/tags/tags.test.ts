@@ -19,7 +19,7 @@ import { stateAt, timeTravel } from 'foottrace';
 import { load, loadTampered } from '../../../test/served/helpers.js';
 import { scrubAxisFor } from '../group/scrubAxisFor.js';
 import { lensStopsStrategy } from '../timeTravel/lensStops.js';
-import { tagAxisPositions, tagLegend, tagStopsFor } from './index.js';
+import { declaredTagsOf, tagAxisPositions, tagLegend, tagStopsFor } from './index.js';
 
 const structureOf = (f: ReturnType<typeof load>): unknown =>
   (f.runner as { getSpec: () => { buildTimeStructure: unknown } }).getSpec().buildTimeStructure;
@@ -94,6 +94,26 @@ describe('tagLegend', () => {
       'milestone:llm-turn': [0, 1],
       'milestone:slot': [0, 2],
     });
+  });
+});
+
+describe('declaredTagsOf — the walk over the structure', () => {
+  it('follows a next chain far longer than the call stack with a loop', () => {
+    let structure: Record<string, unknown> = { name: 'last', id: 'last', tags: ['audit'] };
+    for (let i = 0; i < 50_000; i++) structure = { name: `s${i}`, id: `s${i}`, next: structure };
+    expect([...declaredTagsOf(structure).keys()]).toEqual(['audit']);
+  });
+
+  it('keeps the recursive order: a tag belongs to the array it first sat in along next, children, then subflow', () => {
+    const structure = {
+      name: 'a', id: 'a',
+      next: { name: 'b', id: 'b', tags: ['shared', 'from-next'] },
+      children: [{ name: 'c', id: 'c', tags: ['shared', 'from-child'] }],
+      subflowStructure: { name: 'd', id: 'd', tags: ['shared', 'from-subflow'] },
+    };
+    const tags = declaredTagsOf(structure);
+    expect([...tags.keys()]).toEqual(['shared', 'from-next', 'from-child', 'from-subflow']);
+    expect(tags.get('shared')).toEqual(['shared', 'from-next']);
   });
 });
 

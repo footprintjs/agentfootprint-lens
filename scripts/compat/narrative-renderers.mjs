@@ -35,6 +35,14 @@ export const narrativeRenderers = Object.freeze({
     bytes: 2_827_524,
     acceptsNarrative: true,
   }),
+  '3.0.0': Object.freeze({
+    tarball: 'https://registry.npmjs.org/footprint-explainable-ui/-/footprint-explainable-ui-3.0.0.tgz',
+    integrity: 'sha512-fgcOtQRXdR4xYSehesMyLZimafQni6WiosLSOhlmZ1LVB6gFuZX3m9tLxahxDgeMuLLQboCz05Zu0X/Djurrjg==',
+    shasum: 'b0a2ba31f04afa475a720f6d90d2aa7686cd09bf',
+    sha256: '51b95a09539618c64778db2eae26796b9c1e2e0e2f05d20c81a7c5247e4052c1',
+    bytes: 2_912_344,
+    acceptsNarrative: true,
+  }),
 });
 
 export function narrativeRenderer(version) {

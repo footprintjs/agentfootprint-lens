@@ -126,4 +126,7 @@ export const LABELS = Object.freeze({
   // whose bounds moved outward, whose sent range the record does not keep.
   sentAsAsked: 'as asked',
   sentRounded: 'asked, rounded outward',
+  // agentfootprint 18.0.0 — a confirmed look-back in a length-only form that
+  // the library lengthens at dispatch (`call-window` · `coversAtDispatch`).
+  coversAtDispatch: 'lengthened at dispatch',
 });

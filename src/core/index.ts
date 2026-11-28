@@ -32,6 +32,7 @@ export {
   type HonestyStepRow,
   type HonestySentence,
 } from './honesty/projectHonestyTurn.js';
+export type { HonestyReasonEvidence, HonestyReasonRow } from './honesty/readReasonRows.js';
 export type { HonestyEventAddress } from './honesty/readTurnEvents.js';
 export type { HonestyToolActivity } from './honesty/readToolActivity.js';
 export { readSourcePosition, resolveSourcePrefix } from './cursor/sourcePrefix.js';
@@ -75,6 +76,15 @@ export {
 } from "./humanizer.js";
 export * from "./selectors/index.js";
 export { buildLLMText, type BuildLLMTextArgs } from "./copyForLLM.js";
+// Where a step's sub-flow boundary payloads are: in the base row, or stored
+// with their invocation (a saved recording's base part). Build a reader from
+// the row's marks and any loaded child payloads, for `buildLLMText` and views.
+export {
+  isWithheld, payloadNotice, readPayloadMarks, ROW_ONLY_PAYLOADS, stepPayloadReader,
+  type InvocationPayloadLoad, type NotLoadedWhy, type PayloadHolder, type PayloadMarks, type PayloadSide,
+  type PayloadWant, type RecordedInvocationPayloads, type RecordedPayloadSlot, type StepPayload,
+  type StepPayloadReader, type StepPayloadReaderInput,
+} from "./subflowPayloads/index.js";
 export type { DecodedContextInput, RecordedContextView } from './recordedContext.js';
 
 // Groups — a subflow execution, the unit the GROUPED ruler moves by.

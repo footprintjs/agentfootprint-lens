@@ -10,6 +10,17 @@ artifact store or fabricated child payload is needed.
    recorded fields/events/structure except `snapshot.subflowResults`.
 2. For an exact descriptor requested against the same scoped full recording,
    call `readRecordingSubflow(full, request)`. Return its complete native result.
+   A recording saved in parts may store an invocation's sub-flow payloads with
+   it; pass the reader's `payloads` through as the reply's `payloads` member
+   (`{ result, payloads }`). Lens shows a payload marked as living with its
+   invocation as "not loaded" until a reply carries it. With AgentFootprint 19's
+   `openSavedRecording`, the root DTO is `{ schema, recording: (await
+   saved.readRoot()).recording, invocations: saved.invocations.map(i => ({
+   invocationPath: i.path, mountRuntimeStageId: i.key, subflowId: i.subflowId,
+   runId: saved.snapshotRunId })) }` and the child reply is
+   `readInvocation(key)`'s `{ result, payloads }`. Lens also calls the
+   same child read to fetch only those payloads (it keeps the payloads and
+   drops the result), so expect child reads beyond the person's own drills.
    Keep normal authorization, ownership, expiry and body-size checks around
    both reads. Unavailable is a closed reason, never a partial success.
 3. In the browser, create one `createLensRecordingSource({root: httpDto,
@@ -46,7 +57,9 @@ that same shared cursor only after exact admission. TrustBoundaryView accepts
 the same optional source to load an exact cold source-prefix log on request.
 
 The codec caps JSON work, bytes, depth and manifest size; native source admission
-has its own limits. Missing or ambiguous legacy child units refuse the lazy lane
+has its own limits. In an execution tree a sequence of stages does not count as
+depth: a run is capped at 1,000 stages on one path (`recording-limit`), and
+depth 100 still applies inside each stage and to every other value. Missing or ambiguous legacy child units refuse the lazy lane
 and can use a separately authenticated full-recording fallback. The root's event
 log is still replayed once in full. This feature does not virtualize arbitrary
 tables, move parsing off-thread, or make backend storage range-readable: a host

@@ -1,0 +1,165 @@
+{
+  "root": {
+    "sourceId": "flow:root",
+    "source": {
+      "initialState": {},
+      "commitLog": [
+        {
+          "overwrite": {
+            "principal": 100,
+            "fee": 5
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "principal",
+              "verb": "set"
+            },
+            {
+              "path": "fee",
+              "verb": "set"
+            }
+          ],
+          "stage": "Seed",
+          "stageId": "seed",
+          "runtimeStageId": "seed#0",
+          "idx": 0
+        },
+        {
+          "overwrite": {
+            "net": 95
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "net",
+              "verb": "set"
+            }
+          ],
+          "stage": "Total",
+          "stageId": "total",
+          "runtimeStageId": "total#1",
+          "idx": 1
+        },
+        {
+          "overwrite": {
+            "approved": true
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "approved",
+              "verb": "set"
+            }
+          ],
+          "stage": "Review",
+          "stageId": "review",
+          "runtimeStageId": "review#2",
+          "idx": 2
+        },
+        {
+          "overwrite": {},
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [],
+          "stage": "Review",
+          "stageId": "review",
+          "runtimeStageId": "review#2",
+          "phase": "exit",
+          "idx": 3
+        },
+        {
+          "overwrite": {
+            "net": 80
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "net",
+              "verb": "set"
+            }
+          ],
+          "stage": "Revise",
+          "stageId": "revise",
+          "runtimeStageId": "revise#4",
+          "idx": 4
+        }
+      ]
+    },
+    "reads": {
+      "origin": "execution-tree",
+      "coverage": {
+        "steps": 4,
+        "stepsWithReads": 1
+      },
+      "byStep": {
+        "seed#0": [],
+        "total#1": [
+          "principal",
+          "fee"
+        ],
+        "review#2": [],
+        "revise#4": []
+      }
+    }
+  },
+  "child": {
+    "sourceId": "flow:review",
+    "source": {
+      "initialState": {},
+      "history": [
+        {
+          "overwrite": {
+            "net": 95
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "net",
+              "verb": "set"
+            }
+          ],
+          "stage": "Review",
+          "stageId": "review",
+          "runtimeStageId": "review#2",
+          "idx": 0
+        },
+        {
+          "overwrite": {
+            "approved": true
+          },
+          "updates": {},
+          "redactedPaths": [],
+          "trace": [
+            {
+              "path": "approved",
+              "verb": "set"
+            }
+          ],
+          "stage": "review/Check",
+          "stageId": "review/check",
+          "runtimeStageId": "review/check#3",
+          "idx": 1
+        }
+      ]
+    },
+    "reads": {
+      "origin": "execution-tree",
+      "coverage": {
+        "steps": 1,
+        "stepsWithReads": 1
+      },
+      "byStep": {
+        "review#2": [],
+        "review/check#3": [
+          "net"
+        ]
+      }
+    }
+  }
+}

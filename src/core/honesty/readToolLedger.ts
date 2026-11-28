@@ -54,14 +54,23 @@ function readSettlements(rows: readonly object[]): ReadonlyMap<string, Settlemen
   return settlements;
 }
 
-/** Read the turn's committed facts from this event's exact recorded log prefix. */
-export function readToolLedger(recording: unknown, address: HonestyEventAddress | undefined): ToolLedger | undefined {
+/** Resolve the selected event's exact recorded state for every Honesty reader. */
+export function readHonestyState(recording: unknown, address: HonestyEventAddress | undefined): Record<string, unknown> | undefined {
   const position = address?.sourcePosition;
   if (address === undefined || position === undefined || position.committedThroughIdx > maxCommitIndex) return;
   try {
     const prefix = resolveAdmittedSourcePrefix(own(object(recording), 'snapshot'), position);
     if (prefix.status !== 'available' || prefix.state.status !== 'available') return;
-    const state = prefix.state.folded.state;
+    return prefix.state.folded.state;
+  } catch {
+    return undefined;
+  }
+}
+
+/** Read committed tool facts at the prefix the caller has already selected. */
+export function readToolLedger(state: Record<string, unknown> | undefined, address: HonestyEventAddress | undefined): ToolLedger | undefined {
+  if (state === undefined || address === undefined) return;
+  try {
     const entered = new Set<string>();
     for (const row of factRows(state, 'enteredToolCalls')) {
       const key = readCallOccurrence(row);

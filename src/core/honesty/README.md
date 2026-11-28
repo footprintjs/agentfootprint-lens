@@ -21,3 +21,5 @@ The tool ledger admits detached plain recording values before folding. The share
 cursor keeps native structured-clone state. The response reader resolves a
 redaction marker using the selected run's snapshot and leaves it ambiguous when
 that run's recorder evidence is missing.
+
+The panel reasons retain the recorded assessment order. A row links to the reason's position in the assessment event. When the exact terminal prefix can be read, the producer's saved assessment fold supplies the corresponding witness, declared words and failure category. The reader avoids the final snapshot's shared state when replay selects an earlier turn. Missing witnesses leave the recorded reason text.

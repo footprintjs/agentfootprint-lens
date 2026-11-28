@@ -3,16 +3,27 @@ import type { RecordingSource, RecordingSourceOptions, SubflowLoadState } from '
 import { observeRecordingWithSnapshot, type RecordedSnapshot, type Recording } from '../../core/observeRecording.js';
 import { structureGraphFromRunner } from '../../core/collapser/structureGraphFromRunner.js';
 import { scrubAxisFor } from '../../core/group/scrubAxisFor.js';
-import { readRecordingSourceRoot, type RecordedInvocation } from '../../core/recordingSourceCodec/index.js';
+import { readRecordingSourceRoot, type RecordedInvocation, type RecordedSubflowReply } from '../../core/recordingSourceCodec/index.js';
+import { createPayloadCache, MAX_CACHED_PAYLOADS, replyBelongsTo, splitReply } from './payloadCache.js';
 import type { RuntimeOverlay } from 'footprint-explainable-ui/flowchart';
 import type { CursorPosition } from '../../core/group/cursorPositionsAtDrill.js';
 import type { LensRecordingLoad, LensRecordingSource, LensRecordingSourceSnapshot } from './types.js';
 
 export interface LensRecordingSourceOptions {
   readonly root: unknown;
-  readonly loadSubflow: (request: RecordedInvocation, options: { readonly signal: AbortSignal }) => { readonly result: unknown } | Promise<{ readonly result: unknown }>;
+  /**
+   * The host's child read. A reply may carry `payloads` (the invocation's
+   * boundary payloads, when the recording stores them with it); Lens admits
+   * and keeps them, and hands the rest of the reply to the renderer unchanged.
+   * Lens also calls it to read only those payloads (`loadPayloads`); that read
+   * keeps the payloads and drops the result, and never enters the renderer's
+   * set of loaded children.
+   */
+  readonly loadSubflow: (request: RecordedInvocation, options: { readonly signal: AbortSignal }) => RecordedSubflowReply | Promise<RecordedSubflowReply>;
   readonly prepareSubflow?: RecordingSourceOptions['prepareSubflow'];
   readonly maxCachedSubflows?: number;
+  /** Invocations whose payloads are kept once no view shows them. Default `MAX_CACHED_PAYLOADS` (64). */
+  readonly maxCachedPayloads?: number;
 }
 
 /** A native data source paired with one stable event replay. No cursor lives here. */
@@ -34,6 +45,42 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
     Object.freeze({ ...base, ...(loaded.subflowResults !== undefined && { subflowResults: loaded.subflowResults }) });
   const observed = observeRecordingWithSnapshot(root.recording, { debug: false }, () => currentSnapshot);
   const graph = observed.runner === undefined ? { nodes: [], edges: [] } : structureGraphFromRunner(observed.runner);
+  // Boundary payloads, by mount runtime id, in this package's own bounded
+  // store: read for views without spending the renderer's set of loaded
+  // children, and kept from every explicit child reply too.
+  const capacity = options.maxCachedPayloads ?? MAX_CACHED_PAYLOADS;
+  if (!Number.isSafeInteger(capacity) || capacity < 1) {
+    observed.recorder.detach();
+    throw new Error('maxCachedPayloads must be a whole number of at least 1.');
+  }
+  const payloads = createPayloadCache({
+    capacity,
+    read: (request, signal) => options.loadSubflow(request, { signal }),
+    changed: () => publish(),
+  });
+  // An explicit drill's payloads wait until the renderer admits that child,
+  // and are kept only from the requested invocation's own reply.
+  const drilled = new Map<string, ReturnType<typeof splitReply>['payloads']>();
+  const admitReply = (selected: RecordedInvocation, reply: unknown): unknown => {
+    const split = splitReply(reply);
+    if (replyBelongsTo(reply, selected)) drilled.set(selected.mountRuntimeStageId, split.payloads);
+    else drilled.delete(selected.mountRuntimeStageId);
+    return split.forward;
+  };
+  let batching = false;
+  /** Keep each drilled child's payloads once the renderer admitted it; drop them if it refused. */
+  const settleDrills = (states: ReadonlyMap<string, SubflowLoadState>) => {
+    if (!drilled.size) return;
+    const status = new Map([...states.values()].map(state => [state.request.mountRuntimeStageId, state.status]));
+    batching = true;
+    try {
+      for (const [id, held] of [...drilled]) {
+        const now = status.get(id);
+        if (now === 'ready') { drilled.delete(id); payloads.put(id, held); }
+        else if (now !== 'loading' && now !== 'preparing') drilled.delete(id);
+      }
+    } finally { batching = false; }
+  };
   const readNarrative = native.narrativeFromSnapshot;
   let source: RecordingSource;
   try {
@@ -53,7 +100,9 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
           && value.invocationPath.length === request.invocationPath.length
           && value.invocationPath.every((id, index) => id === request.invocationPath[index]));
         if (selected === undefined) throw new Error('The recorded invocation is unavailable.');
-        return options.loadSubflow(selected, interest);
+        const answer: unknown = options.loadSubflow(selected, interest);
+        return (isThenable(answer) ? Promise.resolve(answer).then(reply => admitReply(selected, reply))
+          : admitReply(selected, answer)) as ReturnType<NonNullable<RecordingSourceOptions['loadSubflow']>>;
       },
       ...(options.prepareSubflow !== undefined && { prepareSubflow: options.prepareSubflow }),
       ...(options.maxCachedSubflows !== undefined && { maxCachedSubflows: options.maxCachedSubflows }),
@@ -74,8 +123,17 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
     [...states.values()].map(value => Object.freeze({ request: value.request, status: value.status,
       ...(value.status === 'error' && { message: value.message }) })),
   );
-  let snapshot: LensRecordingSourceSnapshot = Object.freeze({ revision: source.getSnapshot().revision, recording,
-    invocations: root.invocations, loads: readLoads(source.getSnapshot().scopes) });
+  const compose = (): LensRecordingSourceSnapshot => {
+    const next = source.getSnapshot(), held = payloads.view();
+    return Object.freeze({ revision: next.revision, recording, invocations: root.invocations, loads: readLoads(next.scopes),
+      subflowPayloads: held.ready, payloadReads: held.reads });
+  };
+  let snapshot: LensRecordingSourceSnapshot = compose();
+  const notify = () => { for (const listener of [...listeners]) { try { listener(); } catch { /* A presenter cannot corrupt native publication. */ } } };
+  function publish() {
+    if (disposed || batching) return;
+    snapshot = compose(); notify();
+  }
   const off = source.subscribe(() => {
     if (disposed) return;
     const next = source.getSnapshot();
@@ -86,9 +144,10 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
       currentSnapshot = overlayChildren(loaderSnapshot);
       recording = Object.freeze({ ...root.recording, snapshot: currentSnapshot });
     }
-    snapshot = Object.freeze({ revision: next.revision, recording, invocations: root.invocations, loads: readLoads(next.scopes) });
+    settleDrills(next.scopes);
+    snapshot = compose();
     if (changed) observed.recorder.refreshReplaySnapshot();
-    for (const listener of [...listeners]) { try { listener(); } catch { /* A presenter cannot corrupt native publication. */ } }
+    notify();
   });
   const controller: LensRecordingSource = {
     observed,
@@ -118,6 +177,14 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
         if (ancestor === undefined) throw new Error('The recorded invocation is unavailable.');
         await source.load(ancestor, interest);
       }
+    },
+    loadPayloads(request, interest) {
+      if (disposed) return Promise.resolve();
+      let selected: RecordedInvocation | undefined;
+      try { selected = byPath.get(source.getKey(request.invocationPath)); } catch { selected = undefined; }
+      if (selected === undefined || selected.mountRuntimeStageId !== request.mountRuntimeStageId || selected.subflowId !== request.subflowId)
+        return Promise.reject(new Error('The recorded invocation is unavailable.'));
+      return payloads.want(selected, interest?.signal);
     },
     async resolveAddress(address, interest) {
       if (disposed) return undefined;
@@ -187,8 +254,16 @@ export function createLensRecordingSource(options: LensRecordingSourceOptions): 
     getGraph: path => source.getGraph(path),
     dispose() {
       if (disposed) return;
-      disposed = true; off(); source.dispose(); observed.recorder.detach(); listeners.clear(); axes.clear(); overlays.clear();
+      disposed = true; off(); source.dispose(); observed.recorder.detach(); listeners.clear(); axes.clear(); overlays.clear(); payloads.dispose(); drilled.clear();
     },
   };
   return controller;
 }
+
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (typeof value === 'object' || typeof value === 'function') && value !== null
+    && typeof (value as { readonly then?: unknown }).then === 'function';
+}
+
+export { splitReply };
+

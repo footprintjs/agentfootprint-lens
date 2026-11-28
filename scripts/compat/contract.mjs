@@ -5,28 +5,20 @@ import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { narrativeRenderers } from './narrative-renderers.mjs';
 
-export const rendererPeerRange = '>=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0';
+export const rendererPeerRange = '>=0.34.0 <1.0.0 || ^1.0.0 || ^2.0.0 || ^3.0.0';
 
-export const candidate = Object.freeze({
-  repository: 'footprintjs/explainable-ui',
-  commit: '0af1a2d0d21edb0a86fb447b4c032c1f3d896412',
-  tree: '6442e29e58366a509e574c0b9ea67cc646726301',
-  version: '1.1.1',
-  sha256: '6871c2c24d992133173e5328d64c2f4a38dd93cf994bcd828195ee5971cbfea5',
-});
-
-/** Reviewed public source API; separate from the immutable historical candidate. */
+/** Reviewed public source API. */
 export const lazyRenderer = Object.freeze({
   version: '1.0.1',
   tarball: 'https://registry.npmjs.org/footprint-explainable-ui/-/footprint-explainable-ui-1.0.1.tgz',
   integrity: 'sha512-LTCb0DzNQCbJqN2/YCFdWr0H47/elJDONPpWp3PglDNkpqmfeyVv80vKA0vQhlnlVUy3wUR+kCP0VvzCNsDeTQ==',
 });
 
-const rendererFlows = Object.freeze(['0.34.0', 'candidate', lazyRenderer.version, ...Object.keys(narrativeRenderers)]);
-const rendererVersions = rendererFlows.map(flow => flow === 'candidate' ? candidate.version : flow);
+// Every lane reads a published registry archive; no renderer is fetched from another repository's CI.
+const rendererFlows = Object.freeze(['0.34.0', lazyRenderer.version, ...Object.keys(narrativeRenderers)]);
 
 export function assertRendererVersion(version) {
-  assert.ok(rendererVersions.includes(version), `Unknown renderer version: ${version}`);
+  assert.ok(rendererFlows.includes(version), `Unknown renderer version: ${version}`);
 }
 
 export function assertLazyRendererIntegrity(packIntegrity, bytesIntegrity) {

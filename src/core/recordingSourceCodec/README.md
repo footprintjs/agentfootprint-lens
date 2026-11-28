@@ -29,6 +29,15 @@ when that child is read; a manifest is not a claim that every body was readable.
 Unsafe or oversized selected data returns a closed unavailable result, never a
 truncated replacement. Getters, coercion and `toJSON` are not invoked.
 
+`reply.ts · readRecordingSubflowPayloads` admits a child reply's optional
+`payloads` member (the base-part design's child reply): `{ entry?, exit? }`,
+at least one side, each `{ status: 'ready', value }` or `{ status:
+'unavailable', reason }` (a code: lower-case letters, digits and hyphens, at
+most 64, so it cannot forge lines in a copy). Values are copied and frozen under one budget with the
+ordinary depth limit of 100; any other shape refuses the whole member. The
+server codec's own `readRecordingSubflow` reads a whole recording, whose
+payloads stay in the base row, so it never adds `payloads`.
+
 Provided native `logAddress` paths must match the exact ancestor mounts. When
 the root provides a native log owner, a child's provided owner must agree.
 `logRunId` is not inferred from the engine snapshot's `runId`: a resumed leg can
@@ -48,6 +57,35 @@ spend at most 200,000 items. Copied root/manifest or one selected unit uses the
 existing JSON owner's 200,000-node, 64 MiB string/key and depth-100 budget. These
 are refusal limits, not silent truncation or a claim to accept 200,000 table rows.
 The viewer's separate 64 concurrent child cache does not cap manifest length.
+
+A sequence of stages is not depth. The execution tree nests one JSON level per
+executed stage through `next`, so depth 100 used to cap a run's length. At the
+tree's two places only, named by their full schema path in `fields.ts`
+(`recording.snapshot.executionTree` in a root DTO, `treeContext.stageContexts`
+in a child unit; `ROOT_TREE` and `CHILD_TREE`), the owner reads stage nodes with
+an explicit stack. Depth counts inside one stage and one level per `children`
+step; `next` adds none. Every stage, array and value still spends the one node
+budget. A path of more than `MAX_STAGE_CHAIN` (1,000) stages from the tree's root,
+along `next` and `children`, is refused as `recording-limit`. A key named `next`
+anywhere else, or a tree copied to another place, keeps depth 100. So an owned
+reply nests at most about 1,100 JSON levels, which JSON text, `structuredClone`
+and `postMessage` carry on Node 22 (they fail near 2,000);
+`stageChainSerialization.test.ts` pins that on the deepest admitted root and
+child replies.
+
+Known limits of these bounds:
+- The carrying margin was measured at an empty stack. On Node 22.16,
+  `structuredClone` of a `next` chain works up to about 1,882 levels there, but
+  a 1,100-level reply fails once about 3,640 frames are already on the call
+  stack (about 5,171 on Node 24.21). `JSON.stringify` carries 2,000 levels even
+  with 4,000 frames in use. Clone or post an admitted reply from a shallow
+  stack, such as an async handler.
+- Keys count against the 64 MiB string budget as UTF-8 bytes, as string values
+  do, at a tree place as everywhere else; this was already the rule before the
+  tree places, and is now tested.
+- A stage node shared by two places of one tree (only possible for an
+  in-memory value, never for JSON) is refused; the plain walk used to admit it
+  within depth 100.
 
 Tests use the recorded native turn (25 exact root units), actual nested native
 FlowChart execution, repeated mounts with stale aliases, resumed log identities,

@@ -18,7 +18,17 @@ const reasonSentences = new Map([
   ['check-unreachable', 'A recorded check could not finish.'],
   ['stopped-early', 'The recording says the turn stopped early.'],
   ['steps-unfinished', 'The recording shows unfinished steps.'],
+  ['result-cut', 'The library cut a tool result.'],
+  ['placed-unread', 'A tool result was stored by reference and left unread.'],
+  ['times-without-zone', 'The record includes times without a timezone.'],
+  ['call-not-completed', 'The assessment records a call that did not complete.'],
+  ['work-not-finished', 'A tool reported unfinished work.'],
+  ['answer-output-limit', 'The response reached the model’s output limit.'],
 ]);
+
+export function recordedReasonSentence(value: unknown): string | undefined {
+  return typeof value === 'string' ? reasonSentences.get(value) : undefined;
+}
 
 const checkNames = new Map([
   ['argument-rules', 'Argument rules'],
@@ -45,6 +55,7 @@ export type StandingRead =
     readonly title: string;
     readonly sentence: string;
     readonly checks: readonly RecordedCheck[];
+    readonly reasonCodes: readonly (string | undefined)[];
     readonly address: HonestyEventAddress;
   }
   | { readonly status: 'not-yet-recorded' | 'not-collected' | 'unreadable' };
@@ -101,8 +112,8 @@ export function readStanding(events: readonly RecordedTurnEvent[]): StandingRead
         status: 'recorded',
         standing,
         title: standings[standing].title,
-        sentence: (typeof first === 'string' ? reasonSentences.get(first) : undefined) ??
-          standings[standing].sentence,
+        sentence: recordedReasonSentence(first) ?? standings[standing].sentence,
+        reasonCodes: reasons.map(reason => typeof reason === 'string' ? reason : undefined),
         checks: readChecks(own(row, 'checked')),
         address: event.address,
       };
