@@ -1,5 +1,5 @@
 import { createLensRecordingSource, type LensRecordingSourceOptions } from './controller.js';
-import type { LensRecordingSource } from './types.js';
+import type { LensRecordedModelInputReader, LensRecordingSource } from './types.js';
 import type { RecordedInvocation } from '../../core/recordingSourceCodec/index.js';
 
 export type LensRecordingReaderResult<T> =
@@ -8,6 +8,7 @@ export type LensRecordingReaderResult<T> =
 
 /** Binds Lens to an authorized recording. The reader owns range I/O and integrity. */
 export interface LensRecordingReader {
+  readonly readModelInput?: LensRecordedModelInputReader;
   readRoot(options: { readonly signal?: AbortSignal }): Promise<LensRecordingReaderResult<unknown>>;
   readSubflow(
     request: RecordedInvocation,
@@ -15,7 +16,7 @@ export interface LensRecordingReader {
   ): Promise<LensRecordingReaderResult<{ readonly result: unknown }>>;
 }
 
-export interface OpenLensRecordingSourceOptions extends Omit<LensRecordingSourceOptions, 'root' | 'loadSubflow'> {
+export interface OpenLensRecordingSourceOptions extends Omit<LensRecordingSourceOptions, 'root' | 'loadSubflow' | 'readModelInput'> {
   readonly reader: LensRecordingReader;
   readonly signal?: AbortSignal;
 }
@@ -40,6 +41,7 @@ export async function openLensRecordingSource({
     const source = createLensRecordingSource({
       ...options,
       root: root.value,
+      ...(reader.readModelInput && { readModelInput: reader.readModelInput.bind(reader) }),
       async loadSubflow(request, interest) {
         const child = await reader.readSubflow(request, interest);
         if (interest.signal.aborted || child.status !== 'ready' || child.coverage !== 'whole') {

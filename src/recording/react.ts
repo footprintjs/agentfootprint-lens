@@ -9,4 +9,4 @@ export type {
   OpenLensRecordingSourceResult,
 } from '../react/recordingSource/open.js';
 export { useRecordingSource } from '../react/recordingSource/useRecordingSource.js';
-export type { LensRecordingSource, LensRecordingSourceSnapshot, LensRecordingLoad } from '../react/recordingSource/types.js';
+export type { LensRecordingSource, LensRecordingSourceSnapshot, LensRecordingLoad, LensRecordedModelInputReader } from '../react/recordingSource/types.js';
