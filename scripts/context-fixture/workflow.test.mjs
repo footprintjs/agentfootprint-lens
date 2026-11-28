@@ -10,7 +10,8 @@ test('the historical producer proof stays separate from the stable registry coho
   // registry. Nothing is fetched from another repository's CI. The AF14
   // CONTROL is separate.
   assert.doesNotMatch(registry, /fetch-renderer|repository: footprintjs\/explainable-ui/);
-  assert.equal((registry.match(/run: npm ci --strict-peer-deps/g) ?? []).length, 2);
+  // The pack producer and both Node suites install the same stable lock.
+  assert.equal((registry.match(/run: npm ci --strict-peer-deps/g) ?? []).length, 3);
   assert.equal((registry.match(/published-proof\.mjs --out/g) ?? []).length, 2);
   assert.doesNotMatch(registry, /bootstrap --mode target|--source-inputs compat-artifacts/);
   assert.match(registry, /^  published-commentary-control:/m);

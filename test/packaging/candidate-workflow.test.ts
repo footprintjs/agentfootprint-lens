@@ -14,7 +14,7 @@ describe('published cohort compatibility workflow', () => {
     const runners = workflow.match(/^[ \t]*runs-on:.*$/gm) ?? [];
     expect(runners.map((line) => line.trim())).toEqual([
       'runs-on: ubuntu-24.04', 'runs-on: ubuntu-24.04', 'runs-on: ubuntu-24.04',
-      'runs-on: ubuntu-24.04',
+      'runs-on: ubuntu-24.04', 'runs-on: ubuntu-24.04', 'runs-on: ubuntu-24.04',
     ]);
   });
 
@@ -47,15 +47,37 @@ describe('published cohort compatibility workflow', () => {
       expect(entry?.integrity).toMatch(/^sha512-/);
     }
     expect(JSON.stringify(lock)).not.toContain('file:');
-    const node22 = workflow.split('  test:')[1]!.split('  test-24:')[0]!;
+    const pack = workflow.split('  compatibility-pack:')[1]!.split('  test-22-suite:')[0]!;
+    const suite22 = workflow.split('  test-22-suite:')[1]!.split('  test:')[0]!;
     const node24 = workflow.split('  test-24:')[1]!.split('  published-commentary-control:')[0]!;
-    for (const job of [node22, node24]) {
-      expect(job).toMatch(/run: npm ci --strict-peer-deps[\s\S]+run: npm run test:contract:foottrace[\s\S]+run: npm run build[\s\S]+run: npm test\b/);
+    for (const job of [pack, node24]) {
+      expect(job).toMatch(/run: npm ci --strict-peer-deps[\s\S]+run: npm run test:contract:foottrace[\s\S]+run: npm run build/);
       expect(job).toContain('published-proof.mjs --out "$RUNNER_TEMP/published-evidence" --lock package-lock.json');
     }
-    expect(node22).toContain('npm pack --ignore-scripts --pack-destination compat-artifacts');
+    for (const job of [suite22, node24]) {
+      expect(job).toMatch(/run: npm ci --strict-peer-deps[\s\S]+run: npm run build[\s\S]+run: npm test\b[\s\S]+run: npm run fixtures:time:check/);
+    }
+    expect(pack).toContain('npm pack --ignore-scripts --pack-destination compat-artifacts');
+    expect(pack).not.toMatch(/run: npm test\b/);
+    expect(suite22).not.toContain('needs:');
     expect(node24).not.toContain('npm pack');
     expect(node24).toContain('assert.deepEqual(archive.files, publishedSourceFiles(process.cwd()))');
+  });
+
+  it('starts the archive consumers after packaging and preserves the Node 22 check gate', () => {
+    const gate = workflow.split('  test:')[1]!.split('  test-24:')[0]!;
+    const node24 = workflow.split('  test-24:')[1]!.split('  published-commentary-control:')[0]!;
+    const matrix = workflow.split('  peer-matrix:')[1]!;
+    expect(gate).toContain('needs: [compatibility-pack, test-22-suite]');
+    expect(gate).toContain('if: always()');
+    expect(gate).toContain('PACK_RESULT: ${{ needs.compatibility-pack.result }}');
+    expect(gate).toContain('SUITE_RESULT: ${{ needs.test-22-suite.result }}');
+    expect(gate).toContain('run: test "$PACK_RESULT" = success && test "$SUITE_RESULT" = success');
+    expect(gate).not.toContain('continue-on-error');
+    for (const job of [node24, matrix]) {
+      expect(job).toContain('needs: compatibility-pack');
+      expect(job).toContain('name: compatibility-archives');
+    }
   });
 
   it('bootstraps the published commentary CONTROL independently of unavailable target AF15', () => {
