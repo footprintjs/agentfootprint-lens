@@ -29,7 +29,9 @@ export type OpenLensRecordingSourceResult =
 export async function openLensRecordingSource({
   reader,
   signal,
-  ...options
+  prepareSubflow,
+  maxCachedSubflows,
+  maxCachedPayloads,
 }: OpenLensRecordingSourceOptions): Promise<OpenLensRecordingSourceResult> {
   try {
     if (signal?.aborted) return { status: 'unavailable', reason: 'cancelled' };
@@ -38,10 +40,13 @@ export async function openLensRecordingSource({
     if (root.status !== 'ready') return { status: 'unavailable', reason: 'unavailable' };
     if (root.coverage !== 'whole') return { status: 'unavailable', reason: 'incomplete' };
 
+    const readModelInput = reader.readModelInput;
     const source = createLensRecordingSource({
-      ...options,
       root: root.value,
-      ...(reader.readModelInput && { readModelInput: reader.readModelInput.bind(reader) }),
+      ...(prepareSubflow !== undefined && { prepareSubflow }),
+      ...(maxCachedSubflows !== undefined && { maxCachedSubflows }),
+      ...(maxCachedPayloads !== undefined && { maxCachedPayloads }),
+      ...(typeof readModelInput === 'function' && { readModelInput: readModelInput.bind(reader) }),
       async loadSubflow(request, interest) {
         const child = await reader.readSubflow(request, interest);
         if (interest.signal.aborted || child.status !== 'ready' || child.coverage !== 'whole') {
